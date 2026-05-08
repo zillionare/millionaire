@@ -23,7 +23,6 @@ from quantide.service.metrics import metrics
 from quantide.service.runner import BacktestRunner
 from quantide.service.strategy_runtime import strategy_runtime_manager
 from quantide.web.layouts.main import MainLayout
-
 from quantide.web.theme import AppTheme
 
 strategy_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -1175,13 +1174,17 @@ def _parse_params(form, prefix="param_"):
         if k.startswith(prefix):
             param_name = k[len(prefix):]
             # Try to infer type
-            if v.lower() == 'true': v = True
-            elif v.lower() == 'false': v = False
+            if v.lower() == 'true':
+                v = True
+            elif v.lower() == 'false':
+                v = False
             else:
                 try:
-                    if '.' in v: v = float(v)
-                    else: v = int(v)
-                except:
+                    if '.' in v:
+                        v = float(v)
+                    else:
+                        v = int(v)
+                except (TypeError, ValueError):
                     pass
             config[param_name] = v
     return config
@@ -1190,7 +1193,8 @@ def _parse_params(form, prefix="param_"):
 def backtest_modal(name: str):
     strategies = strategy_loader.load_from_cache()
     cls = strategies.get(name)
-    if not cls: return "Strategy not found"
+    if not cls:
+        return "Strategy not found"
 
     default_params = getattr(cls, "PARAMS", {})
 
@@ -1284,7 +1288,8 @@ async def run_backtest(req, name: str):
         strategies = strategy_loader.load_from_cache()
         cls = strategies.get(name)
 
-        if not cls: raise Exception("Strategy not found")
+        if not cls:
+            raise Exception("Strategy not found")
 
         portfolio_id = uuid.uuid4().hex
         strategy_runtime_manager.create_backtest_runtime(
@@ -1412,7 +1417,8 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
 def grid_search_modal(name: str):
     strategies = strategy_loader.load_from_cache()
     cls = strategies.get(name)
-    if not cls: return "Strategy not found"
+    if not cls:
+        return "Strategy not found"
 
     default_params = getattr(cls, "PARAMS", {})
 
@@ -1507,8 +1513,8 @@ async def run_grid_search(req, name: str):
 
         strategies = strategy_loader.load_from_cache()
         cls = strategies.get(name)
-        if not cls: raise Exception("Strategy not found")
-        default_params = getattr(cls, "PARAMS", {})
+        if not cls:
+            raise Exception("Strategy not found")
 
         for k, v in form.items():
             if k.startswith("param_"):
@@ -1520,17 +1526,21 @@ async def run_grid_search(req, name: str):
                     converted_values = []
                     for val in values:
                         try:
-                            if '.' in val: converted_values.append(float(val))
-                            else: converted_values.append(int(val))
-                        except:
+                            if '.' in val:
+                                converted_values.append(float(val))
+                            else:
+                                converted_values.append(int(val))
+                        except (TypeError, ValueError):
                             converted_values.append(val)
                     param_grid[param_name] = converted_values
                 else:
                     # Single value, treat as base config
                     try:
-                        if '.' in v: base_config[param_name] = float(v)
-                        else: base_config[param_name] = int(v)
-                    except:
+                        if '.' in v:
+                            base_config[param_name] = float(v)
+                        else:
+                            base_config[param_name] = int(v)
+                    except (TypeError, ValueError):
                         base_config[param_name] = v
 
         gs = GridSearch(
