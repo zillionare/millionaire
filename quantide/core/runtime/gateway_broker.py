@@ -1,8 +1,8 @@
 """qmt-gateway 交易端口适配器."""
 
 import datetime
+from typing import Any
 from uuid import uuid4
-from typing import Any, Dict
 
 from quantide.core.enums import BrokerKind, OrderSide
 from quantide.core.ports import (
@@ -19,6 +19,10 @@ from quantide.core.ports import (
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.data.sqlite import Asset, Position, Trade
 from quantide.service.base_broker import Broker, TradeResult
+
+
+class GatewayTradeStateConsistencyError(RuntimeError):
+    """Raised when gateway payloads break qtoid/external-id consistency."""
 
 
 class GatewayBrokerWrapper(Broker):
@@ -78,7 +82,7 @@ class GatewayBrokerWrapper(Broker):
         return self.asset.cash
 
     @property
-    def positions(self) -> Dict[str, Position]:
+    def positions(self) -> dict[str, Position]:
         """返回当前持仓."""
         views = self._adapter.query_positions()
         res = {}
@@ -325,6 +329,8 @@ class GatewayBrokerAdapter(BrokerPort):
             client: gateway 客户端。
         """
         self._client = client
+        self._qtoid_to_external_order_id: dict[str, str] = {}
+        self._external_order_id_to_qtoid: dict[str, str] = {}
 
     def record(
         self,
@@ -521,8 +527,15 @@ class GatewayBrokerAdapter(BrokerPort):
             }
             result = self._client.post_form("/api/trade/sell", payload) or {}
         if result.get("success"):
+            response_qtoid = self._read_text(result, "qtoid")
+            external_order_id = self._read_text(result, "order_id", "foid", "external_order_id")
+            if response_qtoid and response_qtoid != qtoid:
+                raise GatewayTradeStateConsistencyError(
+                    "gateway submit returned mismatched qtoid; treat as block candidate"
+                )
+            self._remember_order_mapping(qtoid=qtoid, external_order_id=external_order_id)
             return OrderAck(
-                order_id=str(result.get("qtoid") or qtoid),
+                order_id=qtoid,
                 status="submitted",
                 message="ok",
             )
@@ -623,9 +636,10 @@ class GatewayBrokerAdapter(BrokerPort):
         rows = self._client.get_json("/api/trade/orders", params=params) or []
         result: list[OrderView] = []
         for row in rows:
+            qtoid = self._resolve_qtoid(row, context="query_orders")
             result.append(
                 OrderView(
-                    order_id=str(row.get("qtoid") or ""),
+                    order_id=qtoid,
                     asset=str(row.get("symbol") or ""),
                     side=str(row.get("side") or ""),
                     shares=float(row.get("shares") or 0),
@@ -644,10 +658,15 @@ class GatewayBrokerAdapter(BrokerPort):
         result: list[TradeView] = []
         for idx, row in enumerate(rows):
             trade_id = str(row.get("tid") or f"gw-{idx}")
+            qtoid = self._resolve_qtoid(
+                row,
+                requested_qtoid=order_id,
+                context="query_trades",
+            )
             result.append(
                 TradeView(
                     trade_id=trade_id,
-                    order_id=str(row.get("qtoid") or order_id or ""),
+                    order_id=qtoid,
                     asset=str(row.get("symbol") or ""),
                     side=str(row.get("side") or ""),
                     shares=float(row.get("shares") or 0),
@@ -700,6 +719,69 @@ class GatewayBrokerAdapter(BrokerPort):
         if side == OrderSide.SELL:
             return raw in {"sell", "-1", "卖出"}
         return False
+
+    def _remember_order_mapping(self, qtoid: str, external_order_id: str | None) -> None:
+        """Record gateway external order-id mapping without replacing qtoid."""
+        if not external_order_id or external_order_id == qtoid:
+            return
+        existing_qtoid = self._external_order_id_to_qtoid.get(external_order_id)
+        if existing_qtoid and existing_qtoid != qtoid:
+            raise GatewayTradeStateConsistencyError(
+                "gateway external order id remapped to another qtoid; treat as block candidate"
+            )
+        existing_external = self._qtoid_to_external_order_id.get(qtoid)
+        if existing_external and existing_external != external_order_id:
+            raise GatewayTradeStateConsistencyError(
+                "gateway qtoid remapped to another external order id; treat as block candidate"
+            )
+        self._qtoid_to_external_order_id[qtoid] = external_order_id
+        self._external_order_id_to_qtoid[external_order_id] = qtoid
+
+    def _resolve_qtoid(
+        self,
+        payload: dict[str, Any],
+        requested_qtoid: str | None = None,
+        *,
+        context: str,
+    ) -> str:
+        """Resolve the canonical qtoid for gateway payloads."""
+        qtoid = self._read_text(payload, "qtoid")
+        external_order_id = self._read_text(payload, "order_id", "foid", "external_order_id")
+        mapped_qtoid = self._external_order_id_to_qtoid.get(external_order_id or "")
+
+        if qtoid and external_order_id:
+            self._remember_order_mapping(qtoid=qtoid, external_order_id=external_order_id)
+            return qtoid
+
+        if qtoid:
+            if requested_qtoid and requested_qtoid != qtoid:
+                raise GatewayTradeStateConsistencyError(
+                    f"{context} returned qtoid different from requested qtoid; treat as block candidate"
+                )
+            return qtoid
+
+        if mapped_qtoid:
+            return mapped_qtoid
+
+        if requested_qtoid:
+            if external_order_id:
+                self._remember_order_mapping(qtoid=requested_qtoid, external_order_id=external_order_id)
+            return requested_qtoid
+
+        raise GatewayTradeStateConsistencyError(
+            f"{context} missing qtoid and known external mapping; treat as block candidate"
+        )
+
+    def _read_text(self, payload: dict[str, Any], *keys: str) -> str | None:
+        """Read the first non-empty string value from a payload."""
+        for key in keys:
+            value = payload.get(key)
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+        return None
 
     def _parse_time_text(self, text: str) -> datetime.datetime:
         """解析时间字符串."""
