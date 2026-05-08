@@ -159,6 +159,29 @@
 7. 异常告警与阻断：暂无 QA 级 E2E。
 8. 任务恢复与重启恢复：暂无 QA 级 E2E。
 
+### 当前 QA release_gate 映射
+
+| 主链路 | 当前测试入口 | Marker / 命令 | 状态 | 最近证据说明 |
+| --- | --- | --- | --- | --- |
+| 初始化 | `tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_happy_path_uses_gateway_ping` | `release_gate` / `poetry run pytest -m "e2e and release_gate" tests/e2e` | partial | 覆盖初始化向导、gateway stub 连通性、配置持久化与完成跳转。 |
+| 数据下载与补齐 | `tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_download_success_reports_completed_progress` | `release_gate` / 同上 | partial | 覆盖初始化向导下载成功与完成进度，但还未覆盖完整发布态补齐验收。 |
+| 策略发现/加载 | 暂无 | 待补 `release_gate` 用例 | missing | 当前仓库没有 QA 级策略发现/加载 E2E。 |
+| 回测运行 | 暂无 | 待补 `release_gate` 用例 | missing | 当前仅有策略级/组件级回归，无 QA 级 backtest E2E。 |
+| `paper` 下单到成交 | 暂无 | 待补 `release_gate` 用例 | missing | 当前仅有 runtime/sim broker 级测试，无 stub 驱动 E2E。 |
+| `live` 下单到成交 | 暂无 | 待补 `release_gate` 用例 | missing | 当前仅有 gateway client / broker adapter 级测试，无 stub 驱动 E2E。 |
+| 异常告警与阻断 | 暂无 | 待补 `release_gate` 用例 | missing | 风险事件中心与阻断恢复链路尚无 QA 级自动化证据。 |
+| 任务恢复与重启恢复 | 暂无 | 待补 `release_gate` 用例 | missing | 当前 jobs 设置页只验证开关持久化，未形成发布态恢复验收。 |
+
+### 当前本地 release_gate 命令
+
+1. `poetry run pytest -m "e2e and release_gate" tests/e2e`
+2. `tox -e release-gate`
+
+说明：
+
+1. 上述命令当前只运行已经纳入 QA release_gate 的证据用例，用于追踪“已具备的发布态证据”，不能掩盖仍为 `missing` 的链路。
+2. `tests/e2e/web/test_system_settings_flow.py::test_gateway_settings_can_test_and_persist_configuration` 已标记 `release_gate`，作为 gateway stub 配置与持久化的辅助证据，但它不替代 8 条强制主链路中的 `paper/live` 交易 E2E。
+
 ## 5. 当前回归基线
 
 当前仍可作为研发回归基线的命令集如下：

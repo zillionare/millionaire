@@ -58,6 +58,7 @@ def _advance_to_gateway_step(client, market_home) -> None:
 
 
 @pytest.mark.e2e
+@pytest.mark.release_gate
 def test_init_wizard_happy_path_uses_gateway_ping(
 ):
     with init_wizard_e2e_session() as session, running_gateway_stub(prefix="/qmt") as gateway_stub:
@@ -153,6 +154,7 @@ def test_init_wizard_download_validation_stays_on_data_setup(
 
 
 @pytest.mark.e2e
+@pytest.mark.release_gate
 def test_init_wizard_download_success_reports_completed_progress():
     class SuccessfulStockSyncService:
         def __init__(self, *args, **kwargs):

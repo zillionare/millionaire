@@ -16,6 +16,7 @@ from tests.e2e.support.system_settings_session import (
 
 
 @pytest.mark.e2e
+@pytest.mark.release_gate
 def test_gateway_settings_can_test_and_persist_configuration():
     with system_settings_e2e_session() as session, running_gateway_stub(prefix="/qmt") as gateway_stub:
         page = session.client.get("/system/gateway/", follow_redirects=False)
