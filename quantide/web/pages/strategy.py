@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import json
-import re
 import uuid
 from pathlib import Path
 from typing import Any
@@ -630,6 +629,8 @@ def _build_backtest_rows(strategies: dict) -> list:
 def _runtime_status_chip(status: str):
     if status == "running":
         cls = "px-2 py-0.5 rounded text-xs bg-green-100 text-green-700"
+    elif status == "blocked":
+        cls = "px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
     elif status == "failed":
         cls = "px-2 py-0.5 rounded text-xs bg-red-100 text-red-700"
     else:
@@ -637,37 +638,171 @@ def _runtime_status_chip(status: str):
     return Span(status, cls=cls)
 
 
+def _risk_severity_chip(severity: str):
+    if severity == "critical":
+        cls = "px-2 py-0.5 rounded text-xs bg-red-100 text-red-700"
+    elif severity == "warning":
+        cls = "px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
+    else:
+        cls = "px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700"
+    return Span(severity, cls=cls)
+
+
+def _risk_event_center_content():
+    summary = strategy_runtime_manager.risk_summary()
+    events = strategy_runtime_manager.list_risk_events(limit=8)
+    rows = []
+    for event in events:
+        rows.append(
+            Tr(
+                Td(_risk_severity_chip(str(event.get("severity") or "info")), cls="px-4 py-3 align-top"),
+                Td(
+                    Div(
+                        Div(str(event.get("title") or "风险事件"), cls="text-sm font-medium text-gray-900"),
+                        Div(str(event.get("message") or ""), cls="text-sm text-gray-600 mt-1"),
+                    ),
+                    cls="px-4 py-3",
+                ),
+                Td(str(event.get("scope") or "-"), cls="px-4 py-3 text-xs text-gray-500 uppercase"),
+                Td(str(event.get("created_at") or "-"), cls="px-4 py-3 text-xs text-gray-500 whitespace-nowrap"),
+                cls="border-b border-gray-100",
+            )
+        )
+    if not rows:
+        rows = [
+            Tr(Td("暂无风险事件", colspan="4", cls="px-4 py-6 text-center text-gray-400"))
+        ]
+    return (
+        Div(
+            Div(
+                Div(
+                    H2("风险事件中心", cls="text-lg font-semibold text-gray-900"),
+                    Span("展示封控、告警与重启恢复事件", cls="text-xs text-gray-500"),
+                    cls="flex flex-col",
+                ),
+                Div(
+                    Span(f"账户封控 {summary['blocked_accounts']}", cls="px-2 py-1 rounded bg-red-50 text-red-700 text-xs"),
+                    Span(f"策略封控 {summary['blocked_strategies']}", cls="px-2 py-1 rounded bg-amber-50 text-amber-700 text-xs"),
+                    Span(f"活动告警 {summary['open_events']}", cls="px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs"),
+                    cls="flex items-center gap-2 flex-wrap",
+                ),
+                cls="p-6 border-b border-gray-200 flex items-center justify-between gap-4",
+            ),
+            Div(
+                Table(
+                    Thead(
+                        Tr(
+                            Th("级别", cls="px-4 py-2"),
+                            Th("事件", cls="px-4 py-2"),
+                            Th("范围", cls="px-4 py-2"),
+                            Th("时间", cls="px-4 py-2"),
+                            cls="text-left text-sm text-gray-600 border-b border-gray-200",
+                        )
+                    ),
+                    Tbody(*rows, cls="text-sm"),
+                    cls="w-full",
+                ),
+                cls="overflow-x-auto",
+            ),
+        ),
+    )
+
+
+def _risk_event_center_card():
+    return Div(
+        *_risk_event_center_content(),
+        id="risk-event-center",
+        hx_get="/strategy/risk-center",
+        hx_trigger="every 5s [document.visibilityState === 'visible' && document.hasFocus()]",
+        hx_swap="innerHTML",
+        cls="bg-white rounded-lg shadow",
+    )
+
+
 def _build_runtime_rows():
     rows = []
     for item in strategy_runtime_manager.list_runtime_rows():
-        actions = Td("-", cls="px-4 py-2 text-xs text-gray-400")
-        if item.get("strategy_id"):
-            if item.get("can_stop"):
-                actions = Td(
-                    Button(
-                        "停止",
-                        cls="btn btn-ghost btn-xs text-red-600",
-                        type="button",
-                        hx_post="/strategy/runtime/stop",
-                        hx_target="#runtime-monitor",
-                        hx_swap="innerHTML",
-                        hx_vals=json.dumps({"runtime_id": item["runtime_id"]}),
-                    ),
-                    cls="px-4 py-2",
+        action_items = []
+        if item.get("can_stop"):
+            action_items.append(
+                Button(
+                    "停止",
+                    cls="btn btn-ghost btn-xs text-red-600",
+                    type="button",
+                    hx_post="/strategy/runtime/stop",
+                    hx_target="#runtime-ops-panel",
+                    hx_swap="innerHTML",
+                    hx_vals=json.dumps({"runtime_id": item["runtime_id"]}),
                 )
-            elif item.get("can_start"):
-                actions = Td(
-                    Button(
-                        "启动",
-                        cls="btn btn-ghost btn-xs text-green-600",
-                        type="button",
-                        hx_post="/strategy/runtime/start",
-                        hx_target="#runtime-monitor",
-                        hx_swap="innerHTML",
-                        hx_vals=json.dumps({"runtime_id": item["runtime_id"]}),
-                    ),
-                    cls="px-4 py-2",
+            )
+        if item.get("can_start"):
+            action_items.append(
+                Button(
+                    "启动",
+                    cls="btn btn-ghost btn-xs text-green-600",
+                    type="button",
+                    hx_post="/strategy/runtime/start",
+                    hx_target="#runtime-ops-panel",
+                    hx_swap="innerHTML",
+                    hx_vals=json.dumps({"runtime_id": item["runtime_id"]}),
                 )
+            )
+        if item.get("can_block_account"):
+            action_items.append(
+                Button(
+                    "封锁账户",
+                    cls="btn btn-ghost btn-xs text-amber-700",
+                    type="button",
+                    hx_post="/strategy/runtime/block",
+                    hx_target="#runtime-ops-panel",
+                    hx_swap="innerHTML",
+                    hx_vals=json.dumps({"target_kind": "account", "target_id": item["runtime_id"]}),
+                )
+            )
+        if item.get("can_unblock_account"):
+            action_items.append(
+                Button(
+                    "解除账户封锁",
+                    cls="btn btn-ghost btn-xs text-blue-700",
+                    type="button",
+                    hx_post="/strategy/runtime/unblock",
+                    hx_target="#runtime-ops-panel",
+                    hx_swap="innerHTML",
+                    hx_confirm="确认解除账户风控封锁吗？",
+                    hx_vals=json.dumps({"target_kind": "account", "target_id": item["runtime_id"]}),
+                )
+            )
+        if item.get("can_block_strategy"):
+            action_items.append(
+                Button(
+                    "封锁策略",
+                    cls="btn btn-ghost btn-xs text-amber-700",
+                    type="button",
+                    hx_post="/strategy/runtime/block",
+                    hx_target="#runtime-ops-panel",
+                    hx_swap="innerHTML",
+                    hx_vals=json.dumps({"target_kind": "strategy", "target_id": item["runtime_id"]}),
+                )
+            )
+        if item.get("can_unblock_strategy"):
+            action_items.append(
+                Button(
+                    "解除策略封锁",
+                    cls="btn btn-ghost btn-xs text-blue-700",
+                    type="button",
+                    hx_post="/strategy/runtime/unblock",
+                    hx_target="#runtime-ops-panel",
+                    hx_swap="innerHTML",
+                    hx_confirm="确认解除策略风控封锁吗？",
+                    hx_vals=json.dumps({"target_kind": "strategy", "target_id": item["runtime_id"]}),
+                )
+            )
+        if item.get("blocked_scope") == "account" and item.get("strategy_id"):
+            action_items.append(Span("请在账户行解除封控", cls="text-xs text-amber-700"))
+        actions = Td(
+            Div(*action_items, cls="flex items-center gap-2 flex-wrap") if action_items else Span("-", cls="text-xs text-gray-400"),
+            cls="px-4 py-2",
+        )
         rows.append(
             Tr(
                 Td(item["mode"], cls="px-4 py-2"),
@@ -675,6 +810,7 @@ def _build_runtime_rows():
                 Td(item["strategy_name"] or "-", cls="px-4 py-2"),
                 Td(item["strategy_id"] or "-", cls="px-4 py-2 font-mono text-xs"),
                 Td(_runtime_status_chip(item["status"]), cls="px-4 py-2"),
+                Td(item.get("alert_text") or "-", cls="px-4 py-2 text-sm text-gray-600"),
                 Td(f"{item['total']:.2f}", cls="px-4 py-2"),
                 Td(str(item["positions"]), cls="px-4 py-2"),
                 Td(str(item["orders"]), cls="px-4 py-2"),
@@ -687,7 +823,7 @@ def _build_runtime_rows():
         return rows
     return [
         Tr(
-            Td("暂无运行时实例", colspan="10", cls="px-4 py-6 text-center text-gray-400"),
+            Td("暂无运行时实例", colspan="11", cls="px-4 py-6 text-center text-gray-400"),
         )
     ]
 
@@ -701,6 +837,7 @@ def _runtime_table_content():
                 Th("策略", cls="px-4 py-2"),
                 Th("策略ID", cls="px-4 py-2"),
                 Th("状态", cls="px-4 py-2"),
+                Th("告警 / 封控原因", cls="px-4 py-2"),
                 Th("总资产", cls="px-4 py-2"),
                 Th("持仓数", cls="px-4 py-2"),
                 Th("委托数", cls="px-4 py-2"),
@@ -733,6 +870,19 @@ def _runtime_table_card():
     )
 
 
+def _runtime_ops_panel_content():
+    return (_risk_event_center_card(), _runtime_table_card())
+
+
+def _runtime_ops_panel():
+    return Div(*_runtime_ops_panel_content(), id="runtime-ops-panel", cls="space-y-6")
+
+
+@rt("/risk-center")
+def risk_center(req):
+    return _risk_event_center_content()
+
+
 @rt("/runtime/table")
 def runtime_table(req):
     return _runtime_table_content()
@@ -747,7 +897,7 @@ async def runtime_stop(req):
             strategy_runtime_manager.stop_strategy_runtime(runtime_id)
         except Exception:
             pass
-    return _runtime_table_content()
+    return _runtime_ops_panel_content()
 
 
 @rt("/runtime/start", methods=["POST"])
@@ -759,7 +909,31 @@ async def runtime_start(req):
             strategy_runtime_manager.start_strategy_runtime(runtime_id)
         except Exception:
             pass
-    return _runtime_table_content()
+    return _runtime_ops_panel_content()
+
+
+@rt("/runtime/block", methods=["POST"])
+async def runtime_block(req):
+    form = await req.form()
+    target_kind = str(form.get("target_kind") or "")
+    target_id = str(form.get("target_id") or "")
+    if target_kind == "account" and target_id:
+        strategy_runtime_manager.block_account(target_id)
+    elif target_kind == "strategy" and target_id:
+        strategy_runtime_manager.block_strategy(target_id)
+    return _runtime_ops_panel_content()
+
+
+@rt("/runtime/unblock", methods=["POST"])
+async def runtime_unblock(req):
+    form = await req.form()
+    target_kind = str(form.get("target_kind") or "")
+    target_id = str(form.get("target_id") or "")
+    if target_kind == "account" and target_id:
+        strategy_runtime_manager.unblock_account(target_id)
+    elif target_kind == "strategy" and target_id:
+        strategy_runtime_manager.unblock_strategy(target_id)
+    return _runtime_ops_panel_content()
 
 @rt("/")
 def index(req, session):
@@ -918,7 +1092,7 @@ def index(req, session):
             cls="bg-white rounded-lg shadow",
             id="backtest-list",
         ),
-        _runtime_table_card(),
+        _runtime_ops_panel(),
         Div(id="modal-container"),
         cls="space-y-6",
     )

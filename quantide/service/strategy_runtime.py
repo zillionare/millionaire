@@ -10,7 +10,7 @@ from typing import Any
 from loguru import logger
 
 from quantide.config.paths import get_strategy_runtime_state_path
-from quantide.core.enums import BrokerKind, FrameType, OrderSide
+from quantide.core.enums import BrokerKind, FrameType
 from quantide.core.runtime import RuntimeContext
 from quantide.data.sqlite import db
 from quantide.service.discovery import strategy_loader
@@ -131,6 +131,9 @@ class StrategyRuntimeManager:
         self._backtest_runtimes: dict[str, BacktestRun] = {}
         self._backtest_history: dict[str, BacktestRun] = {}
         self._runtime_specs: dict[str, dict[str, Any]] = {}
+        self._blocked_accounts: dict[str, dict[str, Any]] = {}
+        self._blocked_strategies: dict[str, dict[str, Any]] = {}
+        self._risk_events: list[dict[str, Any]] = []
         self._runtime: RuntimeContext | None = None
         self._registry: BrokerRegistry | None = None
         self._adapters: Any = None
@@ -287,12 +290,160 @@ class StrategyRuntimeManager:
             current = self._strategy_runtimes.get(runtime_id)
             if current is not None and current.status in {"running", "stopping"}:
                 return current
+            block = self._blocked_strategies.get(runtime_id)
+            if block is not None:
+                self._record_risk_event(
+                    scope="strategy",
+                    target_id=runtime_id,
+                    title="策略启动被阻止",
+                    message=f"策略运行时 {runtime_id} 仍处于风控封锁：{block.get('reason') or '待确认解除'}",
+                    severity="critical",
+                    blocked=True,
+                )
+                raise RuntimeError(f"策略运行时已被封锁: {runtime_id}")
             spec = self._runtime_specs.get(runtime_id)
             if spec is None:
                 raise RuntimeError(f"策略运行时配置不存在: {runtime_id}")
+            account_key = self._account_key(str(spec.get("mode") or ""), str(spec.get("portfolio_id") or ""))
+            account_block = self._blocked_accounts.get(account_key)
+            if account_block is not None:
+                self._record_risk_event(
+                    scope="account",
+                    target_id=account_key,
+                    title="账户启动被阻止",
+                    message=(
+                        f"账户 {account_key} 仍处于风控封锁，无法恢复策略 {runtime_id}："
+                        f"{account_block.get('reason') or '待确认解除'}"
+                    ),
+                    severity="critical",
+                    blocked=True,
+                )
+                raise RuntimeError(f"账户已被封锁: {account_key}")
             spec["status"] = "running"
             self._save_specs()
         return self._start_from_spec(spec)
+
+    def block_account(self, account_runtime_id: str, reason: str = "手动账户封锁") -> None:
+        with self._lock:
+            runtime = self._account_runtimes.get(account_runtime_id)
+            account_key = runtime.runtime_id if runtime is not None else account_runtime_id
+            payload = {
+                "target_id": account_key,
+                "reason": reason,
+                "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            }
+            self._blocked_accounts[account_key] = payload
+            for item in self._strategy_runtimes.values():
+                if self._account_key_for_runtime(item) == account_key:
+                    self._apply_runtime_block(item, reason)
+                    spec = self._runtime_specs.get(item.runtime_id)
+                    if spec is not None:
+                        spec["status"] = "blocked"
+                        spec["block_scope"] = "account"
+                        spec["block_reason"] = reason
+            self._save_specs()
+            self._record_risk_event(
+                scope="account",
+                target_id=account_key,
+                title="账户已封锁",
+                message=f"账户 {account_key} 已被风控封锁：{reason}",
+                severity="critical",
+                blocked=True,
+            )
+
+    def unblock_account(self, account_runtime_id: str) -> None:
+        with self._lock:
+            block = self._blocked_accounts.pop(account_runtime_id, None)
+            if block is None:
+                return
+            reason = str(block.get("reason") or "手动解除")
+            for item in self._strategy_runtimes.values():
+                if self._account_key_for_runtime(item) == account_runtime_id and item.runtime_id not in self._blocked_strategies:
+                    if item.status == "blocked":
+                        item.status = "stopped"
+                        item.error = ""
+                        item.updated_at = datetime.datetime.now()
+            for spec in self._runtime_specs.values():
+                if self._account_key(str(spec.get("mode") or ""), str(spec.get("portfolio_id") or "")) != account_runtime_id:
+                    continue
+                if str(spec.get("block_scope") or "") == "account":
+                    spec["status"] = "stopped"
+                    spec.pop("block_scope", None)
+                    spec.pop("block_reason", None)
+            self._save_specs()
+            self._record_risk_event(
+                scope="account",
+                target_id=account_runtime_id,
+                title="账户已解除封锁",
+                message=f"账户 {account_runtime_id} 已确认解除封锁（原因为：{reason}）。",
+                severity="info",
+                blocked=False,
+            )
+
+    def block_strategy(self, runtime_id: str, reason: str = "手动策略封锁") -> None:
+        with self._lock:
+            payload = {
+                "target_id": runtime_id,
+                "reason": reason,
+                "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            }
+            self._blocked_strategies[runtime_id] = payload
+            runtime = self._strategy_runtimes.get(runtime_id)
+            if runtime is not None:
+                self._apply_runtime_block(runtime, reason)
+            spec = self._runtime_specs.get(runtime_id)
+            if spec is not None:
+                spec["status"] = "blocked"
+                spec["block_scope"] = "strategy"
+                spec["block_reason"] = reason
+            self._save_specs()
+            self._record_risk_event(
+                scope="strategy",
+                target_id=runtime_id,
+                title="策略已封锁",
+                message=f"策略运行时 {runtime_id} 已被风控封锁：{reason}",
+                severity="warning",
+                blocked=True,
+            )
+
+    def unblock_strategy(self, runtime_id: str) -> None:
+        with self._lock:
+            block = self._blocked_strategies.pop(runtime_id, None)
+            if block is None:
+                return
+            reason = str(block.get("reason") or "手动解除")
+            runtime = self._strategy_runtimes.get(runtime_id)
+            if runtime is not None and runtime.status == "blocked":
+                runtime.status = "stopped"
+                runtime.error = ""
+                runtime.updated_at = datetime.datetime.now()
+            spec = self._runtime_specs.get(runtime_id)
+            if spec is not None:
+                spec["status"] = "stopped"
+                spec.pop("block_scope", None)
+                spec.pop("block_reason", None)
+            self._save_specs()
+            self._record_risk_event(
+                scope="strategy",
+                target_id=runtime_id,
+                title="策略已解除封锁",
+                message=f"策略运行时 {runtime_id} 已确认解除封锁（原因为：{reason}）。",
+                severity="info",
+                blocked=False,
+            )
+
+    def list_risk_events(self, limit: int = 20) -> list[dict[str, Any]]:
+        with self._lock:
+            return [dict(item) for item in self._risk_events[:limit]]
+
+    def risk_summary(self) -> dict[str, int]:
+        with self._lock:
+            return {
+                "blocked_accounts": len(self._blocked_accounts),
+                "blocked_strategies": len(self._blocked_strategies),
+                "open_events": sum(1 for item in self._risk_events if item.get("blocked")),
+                "event_count": len(self._risk_events),
+            }
 
     def list_runtime_rows(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -347,13 +498,25 @@ class StrategyRuntimeManager:
             orders = ord_df.height
         except Exception:
             orders = 0
+        account_key = self._account_key_for_runtime(runtime)
+        account_block = self._blocked_accounts.get(account_key)
+        strategy_block = self._blocked_strategies.get(runtime.runtime_id) if runtime.strategy_id else None
+        blocked_scope = ""
+        block_reason = ""
+        if account_block is not None:
+            blocked_scope = "account"
+            block_reason = str(account_block.get("reason") or "")
+        elif strategy_block is not None:
+            blocked_scope = "strategy"
+            block_reason = str(strategy_block.get("reason") or "")
+        status = "blocked" if blocked_scope else runtime.status
         return {
             "runtime_id": runtime.runtime_id,
             "mode": runtime.mode,
             "portfolio_id": runtime.portfolio_id,
             "strategy_name": runtime.strategy_name,
             "strategy_id": runtime.strategy_id,
-            "status": runtime.status,
+            "status": status,
             "principal": runtime.principal,
             "cash": cash,
             "market_value": mv,
@@ -362,8 +525,15 @@ class StrategyRuntimeManager:
             "orders": orders,
             "updated_at": runtime.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
             "error": runtime.error,
-            "can_stop": runtime.status in {"running", "stopping"},
-            "can_start": runtime.status in {"stopped", "failed"},
+            "alert_text": block_reason or runtime.error,
+            "blocked_scope": blocked_scope,
+            "block_target": account_key if blocked_scope == "account" else runtime.runtime_id,
+            "can_stop": bool(runtime.strategy_id) and runtime.status in {"running", "stopping"} and not blocked_scope,
+            "can_start": bool(runtime.strategy_id) and runtime.status in {"stopped", "failed"} and not blocked_scope,
+            "can_block_account": not runtime.strategy_id and not blocked_scope,
+            "can_unblock_account": not runtime.strategy_id and blocked_scope == "account",
+            "can_block_strategy": bool(runtime.strategy_id) and not blocked_scope,
+            "can_unblock_strategy": bool(runtime.strategy_id) and blocked_scope == "strategy",
         }
 
     def _resolve_backtest_run(self, portfolio_id: str) -> BacktestRun:
@@ -408,6 +578,29 @@ class StrategyRuntimeManager:
     ) -> StrategyRuntime:
         strategy_id = strategy_id or f"{strategy_name}-{uuid.uuid4().hex[:8]}"
         runtime_id = runtime_id or f"{mode}:{portfolio_id}:{strategy_id}"
+        account_key = self._account_key(mode, portfolio_id)
+        account_block = self._blocked_accounts.get(account_key)
+        if account_block is not None:
+            self._record_risk_event(
+                scope="account",
+                target_id=account_key,
+                title="运行时启动被阻止",
+                message=f"账户 {account_key} 已被封锁，阻止启动运行时 {runtime_id}。",
+                severity="critical",
+                blocked=True,
+            )
+            raise RuntimeError(f"账户已被封锁: {account_key}")
+        strategy_block = self._blocked_strategies.get(runtime_id)
+        if strategy_block is not None:
+            self._record_risk_event(
+                scope="strategy",
+                target_id=runtime_id,
+                title="运行时启动被阻止",
+                message=f"策略运行时 {runtime_id} 已被封锁，无法启动。",
+                severity="critical",
+                blocked=True,
+            )
+            raise RuntimeError(f"策略运行时已被封锁: {runtime_id}")
         symbols = self._extract_symbols(config)
         stop_event = threading.Event()
         runtime = StrategyRuntime(
@@ -478,11 +671,20 @@ class StrategyRuntimeManager:
                 await strategy.on_bar(now, quotes, frame)
                 runtime.updated_at = datetime.datetime.now()
                 await asyncio.sleep(2)
-            runtime.status = "stopped"
+            if runtime.status in {"running", "stopping"}:
+                runtime.status = "stopped"
         except Exception as exc:
             runtime.status = "failed"
             runtime.error = str(exc)
             logger.exception("strategy runtime failed: {}", exc)
+            self._record_risk_event(
+                scope="strategy",
+                target_id=runtime.runtime_id,
+                title="策略运行失败",
+                message=f"策略运行时 {runtime.runtime_id} 失败：{runtime.error}",
+                severity="critical",
+                blocked=False,
+            )
         finally:
             runtime.updated_at = datetime.datetime.now()
             with self._lock:
@@ -534,7 +736,13 @@ class StrategyRuntimeManager:
 
     def _save_specs(self) -> None:
         file_path = self._state_file()
-        payload = {"strategy_runtimes": list(self._runtime_specs.values())}
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "strategy_runtimes": list(self._runtime_specs.values()),
+            "blocked_accounts": list(self._blocked_accounts.values()),
+            "blocked_strategies": list(self._blocked_strategies.values()),
+            "risk_events": self._risk_events[:100],
+        }
         file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _load_specs(self) -> None:
@@ -550,20 +758,116 @@ class StrategyRuntimeManager:
                 if runtime_id:
                     mapping[runtime_id] = item
             self._runtime_specs = mapping
+            self._blocked_accounts = {
+                str(item.get("target_id") or ""): item
+                for item in payload.get("blocked_accounts") or []
+                if str(item.get("target_id") or "")
+            }
+            self._blocked_strategies = {
+                str(item.get("target_id") or ""): item
+                for item in payload.get("blocked_strategies") or []
+                if str(item.get("target_id") or "")
+            }
+            self._risk_events = [
+                item for item in (payload.get("risk_events") or []) if isinstance(item, dict)
+            ]
         except Exception:
             self._runtime_specs = {}
+            self._blocked_accounts = {}
+            self._blocked_strategies = {}
+            self._risk_events = []
 
     def _restore_persisted_runtimes(self) -> None:
         specs = list(self._runtime_specs.values())
         for spec in specs:
             if str(spec.get("status") or "").lower() != "running":
                 continue
+            runtime_id = str(spec.get("runtime_id") or "")
+            account_key = self._account_key(str(spec.get("mode") or ""), str(spec.get("portfolio_id") or ""))
+            account_block = self._blocked_accounts.get(account_key)
+            strategy_block = self._blocked_strategies.get(runtime_id)
+            if account_block is not None or strategy_block is not None:
+                reason = ""
+                scope = "account"
+                if account_block is not None:
+                    reason = str(account_block.get("reason") or "")
+                elif strategy_block is not None:
+                    scope = "strategy"
+                    reason = str(strategy_block.get("reason") or "")
+                spec["status"] = "blocked"
+                spec["block_scope"] = scope
+                spec["block_reason"] = reason
+                self._save_specs()
+                self._record_risk_event(
+                    scope=scope,
+                    target_id=account_key if scope == "account" else runtime_id,
+                    title="重启恢复跳过封锁运行时",
+                    message=(
+                        f"重启恢复时跳过运行时 {runtime_id}，因为{scope}仍被封锁：{reason or '待确认解除'}"
+                    ),
+                    severity="warning",
+                    blocked=True,
+                )
+                continue
             try:
                 self._start_from_spec(spec)
+                self._record_risk_event(
+                    scope="system",
+                    target_id=runtime_id,
+                    title="重启恢复完成",
+                    message=f"重启恢复已重新启动运行时 {runtime_id}。",
+                    severity="info",
+                    blocked=False,
+                )
             except Exception as exc:
                 spec["status"] = "failed"
                 spec["error"] = str(exc)
                 self._save_specs()
+                self._record_risk_event(
+                    scope="system",
+                    target_id=runtime_id,
+                    title="重启恢复失败",
+                    message=f"运行时 {runtime_id} 在重启恢复时失败：{exc}",
+                    severity="critical",
+                    blocked=False,
+                )
+
+    def _account_key(self, mode: str, portfolio_id: str) -> str:
+        return f"{mode}:{portfolio_id}"
+
+    def _account_key_for_runtime(self, runtime: StrategyRuntime) -> str:
+        return self._account_key(runtime.mode, runtime.portfolio_id)
+
+    def _apply_runtime_block(self, runtime: StrategyRuntime, reason: str) -> None:
+        if runtime.stop_event is not None:
+            runtime.stop_event.set()
+        runtime.status = "blocked"
+        runtime.error = reason
+        runtime.updated_at = datetime.datetime.now()
+
+    def _record_risk_event(
+        self,
+        *,
+        scope: str,
+        target_id: str,
+        title: str,
+        message: str,
+        severity: str,
+        blocked: bool,
+    ) -> None:
+        event = {
+            "event_id": uuid.uuid4().hex[:8],
+            "scope": scope,
+            "target_id": target_id,
+            "title": title,
+            "message": message,
+            "severity": severity,
+            "blocked": blocked,
+            "created_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        }
+        self._risk_events.insert(0, event)
+        self._risk_events = self._risk_events[:100]
+        self._save_specs()
 
     def _start_from_spec(self, spec: dict[str, Any]) -> StrategyRuntime:
         if self._registry is None:
@@ -594,4 +898,3 @@ class StrategyRuntimeManager:
 
 
 strategy_runtime_manager = StrategyRuntimeManager()
-
