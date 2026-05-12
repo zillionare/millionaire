@@ -1,7 +1,7 @@
 import datetime
 import math
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import polars as pl
@@ -41,6 +41,7 @@ class BacktestBroker(AbstractBroker):
         portfolio_name: str = "backtest",
         match_level: Literal["day", "minute"] = "day",
         desc: str = "",
+        save_logs: bool = False,
     ):
         """回测 broker
 
@@ -52,6 +53,7 @@ class BacktestBroker(AbstractBroker):
             - data_feed, 行情数据源
             - match_level, 匹配模式，day为日线，minute为分钟线
             - desc, 账户/策略描述
+            - save_logs, 是否同步写入回测日志文件
         """
         super().__init__(
             portfolio_id=portfolio_id,
@@ -67,6 +69,7 @@ class BacktestBroker(AbstractBroker):
         self._bt_end: datetime.datetime = calendar.replace_time(bt_end, 16, 0)
         self._bt_stopped: bool = False
         self._desc: str = desc
+        self._save_backtest_logs = save_logs
 
         # 回测时钟，初始化为 bt_start 的前一个交易日 (Day 0)
         prev = calendar.day_shift(bt_start, -1)
@@ -80,6 +83,24 @@ class BacktestBroker(AbstractBroker):
 
         # Use patched logger to support time-travel logging
         self.logger = logger.bind(portfolio_id=portfolio_id)
+
+    def _log(
+        self,
+        level: str,
+        message: str,
+        dt: datetime.date | datetime.datetime | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """同时写入 loguru 与回测日志存储。"""
+        log_dt = dt or self._clock
+        self.logger.log(level.upper(), message)
+        self.write_backtest_log(
+            level=level,
+            source="broker",
+            message=message,
+            dt=log_dt,
+            extra=extra,
+        )
 
     @property
     def positions(self) -> dict[str, Position]:
@@ -359,7 +380,7 @@ class BacktestBroker(AbstractBroker):
             raise ClockRewind(dt, self._clock)
 
         if not calendar.is_trade_day(self.as_date(dt)):
-            self.logger.warning(f"{dt} is not a valid trade day, skip set_clock")
+            self._log("WARNING", f"{dt} is not a valid trade day, skip set_clock", dt=dt)
             return
 
         new_dt = self.as_date(dt)
@@ -399,7 +420,11 @@ class BacktestBroker(AbstractBroker):
         # 2. 获取撮合所需的行情数据
         bars = self._data_feed.get_price_for_match(asset, order_time)
         if bars is None or bars.is_empty():
-            self.logger.warning(f"failed to match {asset}, no data at {order_time}")
+            self._log(
+                "WARNING",
+                f"failed to match {asset}, no data at {order_time}",
+                dt=order_time,
+            )
             raise NoDataForMatch(asset, order_time)
 
         # 3. 根据报单价格（考虑涨停）和 shares 确定现金是否充足
@@ -475,19 +500,27 @@ class BacktestBroker(AbstractBroker):
 
         # 成交时间点已涨停，不允许成交
         if up_limit > 0 and match_price >= up_limit:
-            self.logger.warning(f"资产 {order.asset} 在 {row['date']} 处于涨停，无法成交")
+            self._log(
+                "WARNING",
+                f"资产 {order.asset} 在 {row['date']} 处于涨停，无法成交",
+                dt=order.tm,
+            )
             raise LimitPrice(order.asset, match_price)
 
         if bid_price > 0 and bid_price < match_price:
-            self.logger.warning(
-                f"资产 {order.asset} 委托价 {bid_price} 低于撮合价 {match_price}，无法成交"
+            self._log(
+                "WARNING",
+                f"资产 {order.asset} 委托价 {bid_price} 低于撮合价 {match_price}，无法成交",
+                dt=order.tm,
             )
             raise PriceNotMeet(order.asset, bid_price, match_price)
 
         required_cash = order.shares * bid_price * (1 + self._commission)
         if required_cash > self._cash:
-            self.logger.info(
-                f"委买失败：{order.asset}, 资金({self._cash:.2f})不足以按价格 {bid_price:.2f} 购买 {order.shares} 股。"
+            self._log(
+                "INFO",
+                f"委买失败：{order.asset}, 资金({self._cash:.2f})不足以按价格 {bid_price:.2f} 购买 {order.shares} 股。",
+                dt=order.tm,
             )
             raise InsufficientCash(self._portfolio_name, required_cash, self._cash)
 
@@ -713,7 +746,11 @@ class BacktestBroker(AbstractBroker):
         # 1. 获取撮合所需的行情数据
         bars = self._data_feed.get_price_for_match(asset, order_time)
         if bars is None:
-            logger.warning(f"failed to match {asset}, no data at {order_time}")
+            self._log(
+                "WARNING",
+                f"failed to match {asset}, no data at {order_time}",
+                dt=order_time,
+            )
             raise NoDataForMatch(asset, order_time)
 
         # 2. 确定基准价格
@@ -722,7 +759,11 @@ class BacktestBroker(AbstractBroker):
         ask_price = price or down_limit
 
         if ask_price == 0:
-            logger.warning(f"failed to match {asset}, no valid price at {order_time}")
+            self._log(
+                "WARNING",
+                f"failed to match {asset}, no valid price at {order_time}",
+                dt=order_time,
+            )
             raise NoDataForMatch(asset, order_time)
 
         # 3. 严格校验：份额必须是 100 的整数倍（除非清仓）且有可用持仓
@@ -790,12 +831,18 @@ class BacktestBroker(AbstractBroker):
         match_price = row["open"] if order.tm.time() <= market_open else row["close"]
 
         if down_limit > 0 and match_price <= down_limit:
-            logger.warning(f"资产 {order.asset} 在 {row['date']} 处于跌停，无法成交")
+            self._log(
+                "WARNING",
+                f"资产 {order.asset} 在 {row['date']} 处于跌停，无法成交",
+                dt=order.tm,
+            )
             raise LimitPrice(order.asset, match_price)
 
         if ask_price > 0 and ask_price > match_price:
-            logger.warning(
-                f"资产 {order.asset} 委托价 {ask_price} 高于撮合价 {match_price}，无法成交"
+            self._log(
+                "WARNING",
+                f"资产 {order.asset} 委托价 {ask_price} 高于撮合价 {match_price}，无法成交",
+                dt=order.tm,
             )
             raise PriceNotMeet(order.asset, ask_price, match_price)
 

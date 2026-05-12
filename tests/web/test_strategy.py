@@ -15,6 +15,11 @@ class FakeRequest:
         return self._form_data
 
 
+class FakePageRequest:
+    def __init__(self, query_params=None):
+        self.query_params = query_params or {}
+
+
 def test_strategy_index_page_omits_runtime_and_risk_panels(monkeypatch, db):
     monkeypatch.setattr(
         strategy_page.strategy_loader,
@@ -288,3 +293,153 @@ def test_build_backtest_rows_keeps_missing_metrics_blank(monkeypatch):
 
     assert "--" in html
     assert "0.0%" not in html
+
+
+def test_normalize_backtest_tab_falls_back_to_overview():
+    assert strategy_page._normalize_backtest_tab("logs") == "logs"
+    assert strategy_page._normalize_backtest_tab("unknown") == "overview"
+
+
+def test_backtest_result_defaults_to_overview_only(monkeypatch):
+    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_page, "_get_live_accounts", lambda req: [])
+    monkeypatch.setattr(strategy_page, "_build_date_axis", lambda portfolio_id: ["2024-01-02", "2024-01-03"])
+    monkeypatch.setattr(
+        strategy_page,
+        "_build_series_payload",
+        lambda portfolio_id, date_axis: {
+            "date_axis": date_axis,
+            "total": [1.0, 1.1],
+            "benchmark": [1.0, 1.0],
+            "daily_pnl": [0.0, 0.1],
+            "trade_count": [0, 1],
+        },
+    )
+    monkeypatch.setattr(strategy_page, "_build_trade_rows", lambda portfolio_id, limit=200: [])
+    monkeypatch.setattr(strategy_page, "_build_daily_positions", lambda portfolio_id: [])
+    monkeypatch.setattr(strategy_page, "_build_log_rows", lambda portfolio_id, limit=200: [])
+    monkeypatch.setattr(
+        strategy_page,
+        "_build_log_meta",
+        lambda portfolio_id: {"save_requested": False, "saved": False, "saved_path": "/tmp/demo.jsonl"},
+    )
+
+    html = to_xml(strategy_page.backtest_result(FakePageRequest(), {"auth": "admin"}, "demo-pf"))
+
+    assert 'id="overview"' in html
+    assert 'id="trades"' not in html
+    assert 'id="positions"' not in html
+    assert 'id="backtest-log-panel"' not in html
+    assert 'id="backtest-deploy-panel"' in html
+    assert 'id="backtest_status"' not in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/paper/modal"' in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/live/modal"' in html
+    assert "仿真本金" not in html
+    assert 'id="modal-container"' in html
+
+
+def test_backtest_result_logs_tab_renders_only_log_panel(monkeypatch):
+    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_page, "_get_live_accounts", lambda req: [])
+    monkeypatch.setattr(strategy_page, "_build_date_axis", lambda portfolio_id: [])
+    monkeypatch.setattr(
+        strategy_page,
+        "_build_series_payload",
+        lambda portfolio_id, date_axis: {
+            "date_axis": [],
+            "total": [],
+            "benchmark": [],
+            "daily_pnl": [],
+            "trade_count": [],
+        },
+    )
+    monkeypatch.setattr(strategy_page, "_build_trade_rows", lambda portfolio_id, limit=200: [])
+    monkeypatch.setattr(strategy_page, "_build_daily_positions", lambda portfolio_id: [])
+    monkeypatch.setattr(
+        strategy_page,
+        "_build_log_rows",
+        lambda portfolio_id, limit=200: [
+            {
+                "dt": "2024-01-02 09:30:00",
+                "level": "INFO",
+                "source": "runner",
+                "message": "开始回测",
+                "extra": "",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        strategy_page,
+        "_build_log_meta",
+        lambda portfolio_id: {"save_requested": True, "saved": True, "saved_path": "/tmp/demo.jsonl"},
+    )
+
+    html = to_xml(
+        strategy_page.backtest_result(
+            FakePageRequest({"tab": "logs"}),
+            {"auth": "admin"},
+            "demo-pf",
+        )
+    )
+
+    assert 'id="overview"' not in html
+    assert 'id="trades"' not in html
+    assert 'id="positions"' not in html
+    assert 'id="backtest-log-panel"' in html
+    assert 'id="backtest-deploy-panel"' not in html
+    assert 'id="backtest_status"' not in html
+    assert "开始回测" in html
+    assert 'hx-get="/strategy/backtest/demo-pf/logs/saved"' in html
+
+
+def test_load_saved_backtest_log_panel_surfaces_read_error(monkeypatch):
+    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+    monkeypatch.setattr(
+        strategy_page,
+        "load_saved_backtest_logs",
+        lambda portfolio_id, limit=200: (_ for _ in ()).throw(FileNotFoundError("未找到日志文件")),
+    )
+    monkeypatch.setattr(
+        strategy_page,
+        "_build_log_meta",
+        lambda portfolio_id: {"save_requested": True, "saved": False, "saved_path": "/tmp/demo.jsonl"},
+    )
+
+    html = to_xml(strategy_page.load_saved_backtest_log_panel("demo-pf"))
+
+    assert "未找到日志文件" in html
+
+
+def test_deploy_backtest_to_paper_modal_requests_principal_confirmation():
+    html = to_xml(strategy_page.deploy_backtest_to_paper_modal("demo-pf"))
+
+    assert "确认转入仿真" in html
+    assert 'id="deploy-paper-form"' in html
+    assert 'name="paper_principal"' in html
+    assert 'hx-post="/strategy/backtest/demo-pf/deploy/paper"' in html
+
+
+def test_deploy_backtest_to_live_modal_requires_gateway(monkeypatch):
+    monkeypatch.setattr(strategy_page, "_get_live_accounts", lambda req: [])
+
+    html = to_xml(strategy_page.deploy_backtest_to_live_modal(FakePageRequest(), "demo-pf"))
+
+    assert "无法转入实盘" in html
+    assert "未检测到可用的实盘网关" in html
+
+
+def test_deploy_backtest_to_live_modal_confirms_when_gateway_exists(monkeypatch):
+    monkeypatch.setattr(
+        strategy_page,
+        "_get_live_accounts",
+        lambda req: [{"id": "gateway:default", "name": "gateway:default"}],
+    )
+
+    html = to_xml(strategy_page.deploy_backtest_to_live_modal(FakePageRequest(), "demo-pf"))
+
+    assert "确认转入实盘" in html
+    assert "gateway:default" in html
+    assert 'id="deploy-live-form"' in html
+    assert 'hx-post="/strategy/backtest/demo-pf/deploy/live"' in html

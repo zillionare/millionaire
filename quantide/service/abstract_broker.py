@@ -5,13 +5,12 @@ import threading
 import time
 from typing import Any
 
-import pandas as pd
-import polars as pl
 from loguru import logger
 
 from quantide.core.enums import BrokerKind
 from quantide.core.errors import InsufficientPosition, NonMultipleOfLotSize
 from quantide.data.sqlite import Position, StrategyLog, db
+from quantide.service.backtest_logs import record_backtest_log
 from quantide.service.base_broker import Broker
 
 
@@ -38,6 +37,7 @@ class AbstractBroker(Broker):
         self._info: str = info
         self._start: datetime.date | None = start
         self._end: datetime.date | None = end
+        self._save_backtest_logs: bool = False
 
         # 超时等待队列，用来实现带超时的交易
         self._pending_txs: dict[Any, Any] = {}
@@ -81,14 +81,45 @@ class AbstractBroker(Broker):
         )
         db.insert_strategy_logs(log)
 
+    def write_backtest_log(
+        self,
+        level: str,
+        source: str,
+        message: str,
+        dt: datetime.date | datetime.datetime | None = None,
+        extra: dict[str, object] | None = None,
+    ) -> None:
+        """记录回测文本日志。
+
+        仅在 backtest 模式下生效，其它模式直接忽略。
+
+        Args:
+            level: 日志等级。
+            source: 日志来源。
+            message: 日志正文。
+            dt: 日志时间。
+            extra: 额外上下文。
+        """
+        if self._kind != BrokerKind.BACKTEST:
+            return
+        record_backtest_log(
+            portfolio_id=self._portfolio_id,
+            level=level,
+            source=source,
+            message=message,
+            dt=dt,
+            extra=extra,
+            save_to_file=self._save_backtest_logs,
+        )
+
     @property
     def portfolio_name(self) -> str:
-        """portfolio 对应的账户名称，是一个适合人类阅读的名字。一般应与 portfolio一一对应，不建议重复"""
+        """Portfolio 对应的账户名称，是一个适合人类阅读的名字。一般应与 portfolio一一对应，不建议重复"""
         return self._portfolio_name
 
     @property
     def kind(self) -> BrokerKind:
-        """broker 类型"""
+        """Broker 类型"""
         return self._kind
 
     @property
@@ -150,7 +181,7 @@ class AbstractBroker(Broker):
             t0 = time.perf_counter()
             result = await asyncio.wait_for(_future, timeout=timeout)
             return result, time.perf_counter() - t0
-        except asyncio.TimeoutError:
+        except TimeoutError:
             with self._lock:
                 self._pending_txs.pop(event_id, None)
             return None, 0

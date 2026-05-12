@@ -11,7 +11,6 @@ Model class 自动将 dataclass 转换为数据库字段(schema)声明，从而�
 具体的Entity 在继承 Entity 之后，可根据需要改写__post_init__方法，以完成数据库类型与 python 类型的转换。
 
 Example:
-
 ```python
 db = SQLiteDB("path/to/sqlite.db")
 
@@ -38,32 +37,21 @@ get_*_by_*表明通过某个字段查询
 import datetime
 import sqlite3
 import threading
-import types
-import uuid
-from dataclasses import asdict, dataclass, field, fields
-from enum import Enum, IntEnum
+from collections.abc import Iterable
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import (
     Any,
-    ClassVar,
-    Iterable,
-    List,
-    Literal,
-    Tuple,
     TypeVar,
-    Union,
-    get_args,
-    get_origin,
 )
 
 import polars as pl
 import sqlite_utils as su
-from loguru import logger
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
 from quantide.core.singleton import singleton
-from quantide.data.models.base import Entity, new_uuid_id
 from quantide.data.models.app_state import AppState
+from quantide.data.models.base import Entity, new_uuid_id
 from quantide.data.models.strategy_config import StrategyConfig, StrategyInfo
 
 T = TypeVar("T")
@@ -235,6 +223,28 @@ class StrategyLog(Entity):
                 self.dt = datetime.datetime.strptime(self.dt, "%Y-%m-%d")
 
 
+@dataclass
+class BacktestLogEntry(Entity):
+    """回测文本日志。"""
+
+    __table_name__ = "backtest_logs"
+    __pk__ = "event_id"
+    __indexes__ = (["portfolio_id", "dt"], False)
+    __foreign_keys__ = [("portfolio_id", "portfolios", "portfolio_id")]
+
+    event_id: str
+    portfolio_id: str
+    dt: datetime.datetime
+    level: str
+    source: str
+    message: str
+    extra: str = ""
+
+    def __post_init__(self):
+        if isinstance(self.dt, str):
+            self.dt = datetime.datetime.fromisoformat(self.dt)
+
+
 @singleton
 class SQLiteDB:
     def __init__(self):
@@ -298,7 +308,18 @@ class SQLiteDB:
         """
         self._drop_obsolete_market_tables(db)
 
-        for e in [Order, Trade, Asset, Position, Portfolio, StrategyLog, StrategyConfig, StrategyInfo, AppState]:
+        for e in [
+            Order,
+            Trade,
+            Asset,
+            Position,
+            Portfolio,
+            StrategyLog,
+            BacktestLogEntry,
+            StrategyConfig,
+            StrategyInfo,
+            AppState,
+        ]:
             table = e.__table_name__
             pk = e.__pk__
 
@@ -547,6 +568,23 @@ class SQLiteDB:
 
         self["strategy_logs"].insert_all([log.to_dict() for log in logs], ignore=True)  # type: ignore
 
+    def insert_backtest_logs(
+        self,
+        logs: list[BacktestLogEntry] | BacktestLogEntry,
+    ) -> None:
+        """保存回测文本日志。
+
+        Args:
+            logs: 回测日志或日志列表。
+        """
+        if isinstance(logs, BacktestLogEntry):
+            logs = [logs]
+
+        self["backtest_logs"].insert_all(
+            [log.to_dict() for log in logs],
+            ignore=True,
+        )  # type: ignore
+
     def get_strategy_logs(
         self, portfolio_id: str | None = None, start: datetime.date | None = None, end: datetime.date | None = None
     ) -> pl.DataFrame:
@@ -579,6 +617,48 @@ class SQLiteDB:
             rows = self["strategy_logs"].rows_where(where, params)
         else:
             rows = self["strategy_logs"].rows
+
+        df = pl.DataFrame(rows)
+        if len(df) == 0:
+            return pl.DataFrame()
+
+        return df.with_columns(pl.col("dt").cast(pl.Datetime))
+
+    def get_backtest_logs(
+        self,
+        portfolio_id: str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ) -> pl.DataFrame:
+        """获取回测文本日志。
+
+        Args:
+            portfolio_id: 组合 ID。
+            start: 开始日期。
+            end: 结束日期。
+
+        Returns:
+            回测日志 DataFrame。
+        """
+        where_clauses = []
+        params = []
+
+        if portfolio_id:
+            where_clauses.append("portfolio_id = ?")
+            params.append(portfolio_id)
+        if start:
+            where_clauses.append("dt >= ?")
+            params.append(start)
+        if end:
+            where_clauses.append("dt <= ?")
+            params.append(end)
+
+        where = " AND ".join(where_clauses) if where_clauses else None
+
+        if where:
+            rows = self["backtest_logs"].rows_where(where, params)
+        else:
+            rows = self["backtest_logs"].rows
 
         df = pl.DataFrame(rows)
         if len(df) == 0:

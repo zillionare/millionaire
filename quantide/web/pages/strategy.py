@@ -17,6 +17,12 @@ from quantide.core.enums import BrokerKind, FrameType, OrderSide
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
+from quantide.service.backtest_logs import (
+    list_backtest_logs,
+    load_saved_backtest_logs,
+    saved_backtest_log_exists,
+    saved_backtest_log_path,
+)
 from quantide.service.discovery import strategy_loader
 from quantide.service.grid_search import GridSearch
 from quantide.service.metrics import metrics
@@ -28,6 +34,12 @@ from quantide.web.theme import AppTheme
 strategy_app, rt = fast_app(hdrs=AppTheme.headers())
 
 BENCHMARK_ASSET = "000300.SH"
+BACKTEST_REPORT_TABS = {
+    "overview": "收益概述",
+    "trades": "交易详情",
+    "positions": "每日持仓",
+    "logs": "日志输出",
+}
 
 def _normalize_stats(stats):
     """规范化 quantstats 指标名称并返回字典。
@@ -465,21 +477,171 @@ def _build_log_rows(portfolio_id: str, limit: int = 200) -> list[dict]:
     Returns:
         list[dict]: 日志行
     """
-    logs_df = db.get_strategy_logs(portfolio_id)
-    if logs_df.is_empty():
-        return []
-    logs_df = logs_df.sort("dt", descending=True).head(limit)
-    rows = []
-    for row in logs_df.iter_rows(named=True):
-        rows.append(
+    return list_backtest_logs(portfolio_id, limit=limit)
+
+
+def _parse_checkbox(value: Any) -> bool:
+    """解析 checkbox/form 布尔值。"""
+    return str(value or "").strip().lower() in {"1", "true", "on", "yes"}
+
+
+def _normalize_backtest_tab(value: Any) -> str:
+    """规范化回测报告标签。"""
+    key = str(value or "overview").strip().lower()
+    if key not in BACKTEST_REPORT_TABS:
+        return "overview"
+    return key
+
+
+def _build_backtest_sidebar_menu(
+    portfolio_id: str,
+    active_tab: str,
+) -> list[dict[str, Any]]:
+    """构建回测报告侧边栏。"""
+    children = []
+    for tab, title in BACKTEST_REPORT_TABS.items():
+        children.append(
             {
-                "dt": str(row.get("dt", "")),
-                "key": row.get("key", ""),
-                "value": row.get("value"),
-                "extra": row.get("extra", ""),
+                "title": title,
+                "url": f"/strategy/backtest/{portfolio_id}?tab={tab}",
+                "active": tab == active_tab,
             }
         )
-    return rows
+
+    return [
+        {
+            "title": "策略列表",
+            "url": "/strategy",
+            "icon_path": "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+        },
+        {
+            "title": "回测报告",
+            "url": f"/strategy/backtest/{portfolio_id}",
+            "icon_path": "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+            "active": True,
+            "children": children,
+        },
+    ]
+
+
+def _build_log_meta(portfolio_id: str) -> dict[str, Any]:
+    """构建回测日志状态元数据。"""
+    saved_path = saved_backtest_log_path(portfolio_id)
+    run = strategy_runtime_manager.get_backtest_run(portfolio_id)
+    return {
+        "save_requested": bool(getattr(run, "save_logs", False)),
+        "saved": saved_backtest_log_exists(portfolio_id),
+        "saved_path": str(saved_path),
+    }
+
+
+def _format_log_lines(rows: list[dict[str, Any]]) -> list[str]:
+    """格式化回测日志展示文本。"""
+    lines: list[str] = []
+    for row in rows:
+        base = (
+            f"{row.get('dt', '')} | {row.get('level', 'INFO')} | "
+            f"{row.get('source', 'system')} | {row.get('message', '')}"
+        )
+        extra = str(row.get("extra") or "").strip()
+        lines.append(f"{base} | {extra}" if extra else base)
+    return lines
+
+
+def _build_log_panel(
+    portfolio_id: str,
+    status: str,
+    rows: list[dict[str, Any]] | None = None,
+    source_label: str = "实时日志",
+    error_text: str = "",
+) -> Any:
+    """构建回测日志面板。"""
+    log_rows = rows if rows is not None else _build_log_rows(portfolio_id, limit=200)
+    meta = _build_log_meta(portfolio_id)
+    log_lines = _format_log_lines(log_rows)
+    save_status_text = "本次回测未启用文件保存"
+    save_status_cls = "text-xs text-gray-500"
+    if meta["save_requested"] and meta["saved"]:
+        save_status_text = "已保存到文件，可重复加载"
+        save_status_cls = "text-xs text-green-600"
+    elif meta["save_requested"]:
+        save_status_text = "已启用文件保存，日志生成后会写入本地文件"
+        save_status_cls = "text-xs text-amber-600"
+
+    load_button = (
+        Button(
+            "加载已保存日志",
+            cls="btn btn-secondary btn-sm",
+            type="button",
+            hx_get=f"/strategy/backtest/{portfolio_id}/logs/saved",
+            hx_target="#backtest-log-panel",
+            hx_swap="outerHTML",
+        )
+        if meta["saved"]
+        else Button(
+            "暂无已保存日志",
+            cls="btn btn-secondary btn-sm opacity-60 cursor-not-allowed",
+            type="button",
+            disabled=True,
+        )
+    )
+
+    return Div(
+        Div(
+            Div(
+                H3("日志输出", cls="text-xl font-bold"),
+                P(
+                    "运行中自动刷新；保存日志后可从文件重复加载。",
+                    cls="text-sm text-gray-500 mt-1",
+                ),
+            ),
+            Div(
+                Span(
+                    f"当前来源：{source_label}",
+                    id="log_source_badge",
+                    cls="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600",
+                ),
+                load_button,
+                cls="flex flex-wrap items-center gap-2",
+            ),
+            cls="flex flex-col gap-3 md:flex-row md:items-start md:justify-between",
+        ),
+        Div(
+            P(
+                "回测进行中，日志会自动刷新。"
+                if status == "running"
+                else "回测已结束，可查看已采集日志。",
+                cls="text-xs text-gray-500",
+            ),
+            P(
+                save_status_text,
+                id="log_save_status",
+                cls=save_status_cls,
+            ),
+            P(
+                meta["saved_path"],
+                id="log_save_path",
+                cls="text-xs text-gray-400 break-all",
+            ),
+            cls="space-y-1 mt-4",
+        ),
+        (
+            Div(
+                error_text,
+                id="log_panel_error",
+                cls="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600",
+            )
+            if error_text
+            else Div(id="log_panel_error", cls="hidden")
+        ),
+        Pre(
+            "\n".join(log_lines) if log_lines else "暂无回测日志",
+            id="log_output",
+            cls="mt-4 max-h-[560px] overflow-auto rounded-lg bg-gray-950 p-4 text-xs text-gray-100 whitespace-pre-wrap",
+        ),
+        id="backtest-log-panel",
+        cls="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mt-6",
+    )
 
 
 def _format_date(value) -> str:
@@ -1016,6 +1178,19 @@ def backtest_modal(name: str):
                     ),
                     cls="flex items-center gap-3 mb-3"
                 ),
+                Div(
+                    Span("日志保存", cls="text-sm font-medium text-gray-500 w-24 shrink-0"),
+                    Label(
+                        Input(name="save_logs", type="checkbox", cls="checkbox checkbox-sm"),
+                        Span("保存回测日志到本地文件", cls="text-sm text-gray-700"),
+                        cls="flex items-center gap-2",
+                    ),
+                    cls="flex items-center gap-3 mb-1"
+                ),
+                P(
+                    "开启后会在回测运行时同步写入本地 backtest_logs 目录，报告页可反复加载。",
+                    cls="ml-[6.75rem] mb-3 text-xs text-gray-500",
+                ),
                 Div(H4("策略参数", cls="text-sm font-semibold text-gray-600 mt-4 mb-2"), *param_inputs),
                 Div(
                     Button("取消", type="button", cls="btn btn-ghost", onclick="document.getElementById('modal-container').innerHTML=''"),
@@ -1023,6 +1198,7 @@ def backtest_modal(name: str):
                         "开始运行",
                         type="button",
                         cls="btn btn-primary",
+                        onclick="this.disabled=true;this.setAttribute('aria-busy','true');this.textContent='启动中...';",
                         hx_post=f"/strategy/{name}/backtest/run",
                         hx_target="#modal-container",
                         hx_include="closest form"
@@ -1045,6 +1221,7 @@ async def run_backtest(req, name: str):
         end_date = arrow.get(form.get("end_date")).date()
         initial_cash = float(form.get("initial_cash", 1000000))
         interval = form.get("interval", "1d")
+        save_logs = _parse_checkbox(form.get("save_logs"))
         config = _parse_params(form)
 
         strategies = strategy_loader.load_from_cache()
@@ -1062,6 +1239,7 @@ async def run_backtest(req, name: str):
             start_date=str(start_date),
             end_date=str(end_date),
             initial_cash=initial_cash,
+            save_logs=save_logs,
         )
         runner = BacktestRunner()
         loop = asyncio.get_running_loop()
@@ -1077,6 +1255,7 @@ async def run_backtest(req, name: str):
                         frame_type=FrameType(interval),
                         initial_cash=initial_cash,
                         portfolio_id=portfolio_id,
+                        save_logs=save_logs,
                     )
                 )
                 strategy_runtime_manager.complete_backtest_runtime(portfolio_id)
@@ -1130,13 +1309,150 @@ def _get_live_accounts(req) -> list[dict[str, Any]]:
     return [{"id": "gateway:default", "name": "gateway:default"}]
 
 
+def _render_deploy_result(message: str, is_error: bool = False) -> Any:
+    """渲染策略投放结果提示。"""
+    base_cls = "mt-3 rounded-lg px-3 py-2 text-sm"
+    cls = (
+        f"{base_cls} border border-red-200 bg-red-50 text-red-600"
+        if is_error
+        else f"{base_cls} border border-green-200 bg-green-50 text-green-600"
+    )
+    return Div(message, id="deploy-result", cls=cls, hx_swap_oob="true")
+
+
+def _paper_deploy_modal(
+    portfolio_id: str,
+    principal: str = "1000000",
+    error_message: str = "",
+) -> Any:
+    """渲染转入仿真确认弹窗。"""
+    error_block = (
+        P(error_message, cls="text-sm text-red-600") if error_message else None
+    )
+    return Modal(
+        ModalTitle("确认转入仿真"),
+        ModalBody(
+            P("请输入仿真本金后确认转入仿真运行。", cls="text-sm text-gray-500"),
+            error_block,
+            Form(
+                Input(type="hidden", name="portfolio_id", value=portfolio_id),
+                Div(
+                    Label("仿真本金", cls="text-sm text-gray-500"),
+                    Input(
+                        name="paper_principal",
+                        type="number",
+                        min="1",
+                        step="0.01",
+                        value=principal,
+                        cls="input input-sm w-full",
+                        required=True,
+                    ),
+                    cls="space-y-2 mt-4",
+                ),
+                id="deploy-paper-form",
+            ),
+        ),
+        ModalFooter(
+            Button(
+                "取消",
+                type="button",
+                cls="btn btn-ghost",
+                onclick="document.getElementById('modal-container').innerHTML=''",
+            ),
+            Button(
+                "确认转入仿真",
+                type="button",
+                cls="btn btn-primary",
+                onclick="this.disabled=true;this.setAttribute('aria-busy','true');this.textContent='提交中...';",
+                hx_post=f"/strategy/backtest/{portfolio_id}/deploy/paper",
+                hx_target="#modal-container",
+                hx_include="#deploy-paper-form",
+            ),
+        ),
+        id="deploy-paper-modal",
+    )
+
+
+def _live_deploy_modal(
+    portfolio_id: str,
+    live_accounts: list[dict[str, Any]],
+) -> Any:
+    """渲染转入实盘确认弹窗。"""
+    if not live_accounts:
+        return Modal(
+            ModalTitle("无法转入实盘"),
+            ModalBody(
+                P("未检测到可用的实盘网关，请先配置并启动实盘网关。", cls="text-sm text-red-600"),
+            ),
+            ModalFooter(
+                Button(
+                    "关闭",
+                    type="button",
+                    cls="btn btn-ghost",
+                    onclick="document.getElementById('modal-container').innerHTML=''",
+                ),
+            ),
+            id="deploy-live-unavailable-modal",
+        )
+
+    account_id = str(live_accounts[0].get("id") or "gateway:default")
+    account_name = str(live_accounts[0].get("name") or account_id)
+    return Modal(
+        ModalTitle("确认转入实盘"),
+        ModalBody(
+            P("确认后会把当前回测参数转入实盘运行。", cls="text-sm text-gray-500"),
+            P(f"实盘网关：{account_name}", cls="mt-3 text-sm text-gray-700"),
+            Form(
+                Input(type="hidden", name="live_account_id", value=account_id),
+                id="deploy-live-form",
+            ),
+        ),
+        ModalFooter(
+            Button(
+                "取消",
+                type="button",
+                cls="btn btn-ghost",
+                onclick="document.getElementById('modal-container').innerHTML=''",
+            ),
+            Button(
+                "确认转入实盘",
+                type="button",
+                cls="btn btn-secondary",
+                onclick="this.disabled=true;this.setAttribute('aria-busy','true');this.textContent='提交中...';",
+                hx_post=f"/strategy/backtest/{portfolio_id}/deploy/live",
+                hx_target="#modal-container",
+                hx_include="#deploy-live-form",
+            ),
+        ),
+        id="deploy-live-modal",
+    )
+
+
+@rt("/backtest/{portfolio_id}/deploy/paper/modal")
+def deploy_backtest_to_paper_modal(portfolio_id: str):
+    """渲染转入仿真确认弹窗。"""
+    return _paper_deploy_modal(portfolio_id)
+
+
+@rt("/backtest/{portfolio_id}/deploy/live/modal")
+def deploy_backtest_to_live_modal(req, portfolio_id: str):
+    """渲染转入实盘确认弹窗。"""
+    return _live_deploy_modal(portfolio_id, _get_live_accounts(req))
+
+
 @rt("/backtest/{portfolio_id}/deploy/paper", methods=["POST"])
 async def deploy_backtest_to_paper(req, portfolio_id: str):
     form = await req.form()
-    principal = float(form.get("paper_principal", 1000000))
+    principal_raw = str(form.get("paper_principal", "1000000") or "1000000")
+    try:
+        principal = float(principal_raw)
+    except ValueError:
+        return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message="请输入有效的仿真本金")
+    if principal <= 0:
+        return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message="仿真本金必须大于 0")
     registry = _get_registry(req)
     if registry is None:
-        return Div("运行时未初始化", cls="text-red-600 text-sm")
+        return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message="运行时未初始化")
     try:
         runtime = strategy_runtime_manager.deploy_to_paper(
             portfolio_id=portfolio_id,
@@ -1144,12 +1460,15 @@ async def deploy_backtest_to_paper(req, portfolio_id: str):
             registry=registry,
             market_data=_get_market_data(req),
         )
-        return Div(
-            f"已转入仿真：{runtime.portfolio_id}，策略ID={runtime.strategy_id}",
-            cls="text-green-600 text-sm",
+        return (
+            Div(id="modal-container"),
+            _render_deploy_result(
+                f"已转入仿真：{runtime.portfolio_id}，策略ID={runtime.strategy_id}",
+                is_error=False,
+            ),
         )
     except Exception as e:
-        return Div(f"转入仿真失败: {e}", cls="text-red-600 text-sm")
+        return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message=f"转入仿真失败: {e}")
 
 
 @rt("/backtest/{portfolio_id}/deploy/live", methods=["POST"])
@@ -1158,7 +1477,10 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
     account_id = str(form.get("live_account_id") or "gateway:default")
     registry = _get_registry(req)
     if registry is None:
-        return Div("运行时未初始化", cls="text-red-600 text-sm")
+        return _live_deploy_modal(portfolio_id, [])
+    live_accounts = _get_live_accounts(req)
+    if not live_accounts:
+        return _live_deploy_modal(portfolio_id, [])
     try:
         runtime = strategy_runtime_manager.deploy_to_live(
             portfolio_id=portfolio_id,
@@ -1166,12 +1488,27 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
             registry=registry,
             market_data=_get_market_data(req),
         )
-        return Div(
-            f"已转入实盘：{runtime.portfolio_id}，策略ID={runtime.strategy_id}",
-            cls="text-green-600 text-sm",
+        return (
+            Div(id="modal-container"),
+            _render_deploy_result(
+                f"已转入实盘：{runtime.portfolio_id}，策略ID={runtime.strategy_id}",
+                is_error=False,
+            ),
         )
     except Exception as e:
-        return Div(f"转入实盘失败: {e}", cls="text-red-600 text-sm")
+        return Modal(
+            ModalTitle("转入实盘失败"),
+            ModalBody(P(str(e), cls="text-sm text-red-600")),
+            ModalFooter(
+                Button(
+                    "关闭",
+                    type="button",
+                    cls="btn btn-ghost",
+                    onclick="document.getElementById('modal-container').innerHTML=''",
+                ),
+            ),
+            id="deploy-live-error-modal",
+        )
 
 # --- Grid Search Modal & Runner ---
 
@@ -1366,30 +1703,12 @@ async def run_grid_search(req, name: str):
 def backtest_result(req, session, portfolio_id: str):
     layout = MainLayout(title="回测报告", user=session.get("auth"))
     layout.header_active = "策略"
-    layout.sidebar_menu = [
-        {
-            "title": "策略列表",
-            "url": "/strategy",
-            "icon_path": "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-        },
-        {
-            "title": "回测报告",
-            "url": f"/strategy/backtest/{portfolio_id}",
-            "icon_path": "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-            "active": True,
-            "children": [
-                {"title": "收益概述", "url": "#overview", "active": True},
-                {"title": "交易详情", "url": "#trades"},
-                {"title": "每日持仓", "url": "#positions"},
-                {"title": "日志输出", "url": "#logs"},
-            ],
-        },
-    ]
+    active_tab = _normalize_backtest_tab(getattr(req, "query_params", {}).get("tab"))
+    layout.sidebar_menu = _build_backtest_sidebar_menu(portfolio_id, active_tab)
 
     status, backtest_error = _resolve_backtest_status(portfolio_id)
     metrics_payload = _build_metrics_payload(portfolio_id)
     is_finished = status == "finished"
-    live_accounts = _get_live_accounts(req)
 
     date_axis = _build_date_axis(portfolio_id)
     series_payload = _build_series_payload(portfolio_id, date_axis)
@@ -1437,19 +1756,6 @@ def backtest_result(req, session, portfolio_id: str):
             )
         )
     metrics_text = Div(*metrics_entries, cls="flex flex-wrap gap-x-6 gap-y-2")
-
-    status_text_map = {
-        "running": "回测进行中，实时推送中",
-        "finished": "回测已完成",
-        "failed": "回测失败",
-        "missing": "回测记录不存在",
-    }
-    status_cls_map = {
-        "running": "text-sm text-gray-500",
-        "finished": "text-sm text-gray-500",
-        "failed": "text-sm text-red-600",
-        "missing": "text-sm text-amber-600",
-    }
 
     error_panel = (
         Div(
@@ -1697,9 +2003,34 @@ def backtest_result(req, session, portfolio_id: str):
             var lines = [];
             for (var i = 0; i < rows.length; i++) {{
                 var r = rows[i];
-                lines.push(r.dt + " | " + r.key + " | " + r.value + " " + (r.extra || ""));
+                var line = r.dt + " | " + (r.level || "INFO") + " | " + (r.source || "system") + " | " + (r.message || "");
+                if (r.extra) {{
+                    line += " | " + r.extra;
+                }}
+                lines.push(line);
             }}
-            logEl.textContent = lines.join("\\n");
+            logEl.textContent = lines.length ? lines.join("\\n") : "暂无回测日志";
+        }}
+
+        function renderLogMeta(meta) {{
+            if (!meta) return;
+            var saveStatus = document.getElementById('log_save_status');
+            if (saveStatus) {{
+                if (meta.save_requested && meta.saved) {{
+                    saveStatus.textContent = '已保存到文件，可重复加载';
+                    saveStatus.className = 'text-xs text-green-600';
+                }} else if (meta.save_requested) {{
+                    saveStatus.textContent = '已启用文件保存，日志生成后会写入本地文件';
+                    saveStatus.className = 'text-xs text-amber-600';
+                }} else {{
+                    saveStatus.textContent = '本次回测未启用文件保存';
+                    saveStatus.className = 'text-xs text-gray-500';
+                }}
+            }}
+            var savePath = document.getElementById('log_save_path');
+            if (savePath && meta.saved_path) {{
+                savePath.textContent = meta.saved_path;
+            }}
         }}
 
         var wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -1738,22 +2069,8 @@ def backtest_result(req, session, portfolio_id: str):
                 if (data.logs) {{
                     renderLogs(data.logs);
                 }}
-                var statusEl = document.getElementById('backtest_status');
-                if (statusEl && data.status) {{
-                    var statusText = {{
-                        running: '回测进行中，实时推送中',
-                        finished: '回测已完成',
-                        failed: '回测失败',
-                        missing: '回测记录不存在'
-                    }};
-                    var statusClass = {{
-                        running: 'text-sm text-gray-500',
-                        finished: 'text-sm text-gray-500',
-                        failed: 'text-sm text-red-600',
-                        missing: 'text-sm text-amber-600'
-                    }};
-                    statusEl.textContent = statusText[data.status] || '回测状态未知';
-                    statusEl.className = statusClass[data.status] || 'text-sm text-gray-500';
+                if (data.log_meta) {{
+                    renderLogMeta(data.log_meta);
                 }}
                 var errorEl = document.getElementById('backtest_error');
                 if (errorEl && data.error) {{
@@ -1769,71 +2086,36 @@ def backtest_result(req, session, portfolio_id: str):
         }};
     """)
 
-    status_badge = Div(
-        Div(
-            status_text_map.get(status, "回测状态未知"),
-            id="backtest_status",
-            cls=status_cls_map.get(status, "text-sm text-gray-500")
-        ),
-        cls="mb-4"
-    )
-
     deploy_panel = Div(
         H3("策略投放", cls="text-lg font-semibold mb-3"),
         Div(
-            Form(
-                Div(
-                    Label("仿真本金", cls="text-sm text-gray-500"),
-                    Input(
-                        name="paper_principal",
-                        type="number",
-                        value="1000000",
-                        cls="input input-sm",
-                    ),
-                    Button(
-                        "转入仿真",
-                        cls="btn btn-primary btn-sm",
-                        type="button",
-                        hx_post=f"/strategy/backtest/{portfolio_id}/deploy/paper",
-                        hx_target="#deploy-result",
-                        hx_include="closest form",
-                    ),
-                    cls="flex items-end gap-3",
-                )
+            Button(
+                "转入仿真",
+                cls="btn btn-primary btn-sm",
+                type="button",
+                hx_get=f"/strategy/backtest/{portfolio_id}/deploy/paper/modal",
+                hx_target="#modal-container",
             ),
-            Form(
-                Div(
-                    Label("实盘网关", cls="text-sm text-gray-500"),
-                    Input(
-                        value=(live_accounts[0]["id"] if live_accounts else "gateway:default"),
-                        readonly=True,
-                        cls="input input-sm min-w-60 bg-gray-100",
-                    ),
-                    Input(
-                        type="hidden",
-                        name="live_account_id",
-                        value=(live_accounts[0]["id"] if live_accounts else "gateway:default"),
-                    ),
-                    Button(
-                        "转入实盘",
-                        cls="btn btn-secondary btn-sm",
-                        type="button",
-                        hx_post=f"/strategy/backtest/{portfolio_id}/deploy/live",
-                        hx_target="#deploy-result",
-                        hx_include="closest form",
-                    ),
-                    cls="flex items-end gap-3",
-                )
+            Button(
+                "转入实盘",
+                cls="btn btn-secondary btn-sm",
+                type="button",
+                hx_get=f"/strategy/backtest/{portfolio_id}/deploy/live/modal",
+                hx_target="#modal-container",
             ),
-            cls="grid grid-cols-1 md:grid-cols-2 gap-4",
+            cls="flex flex-wrap items-center gap-3",
+        ),
+        P(
+            "转仿真会在确认弹窗中输入本金；转实盘会先检测实盘网关后再确认。",
+            cls="mt-3 text-sm text-gray-500",
         ),
         Div(id="deploy-result", cls="mt-3 text-sm"),
-        cls="bg-white p-4 rounded-lg border border-gray-100 mt-4",
+        id="backtest-deploy-panel",
+        cls="bg-white p-4 rounded-lg border border-gray-100 mt-6",
     )
 
     trade_rows = _build_trade_rows(portfolio_id, limit=200)
     positions_rows = _build_daily_positions(portfolio_id)
-    log_rows = _build_log_rows(portfolio_id, limit=200)
     trade_table = Table(
         Thead(Tr(Th("时间"), Th("标的"), Th("方向"), Th("价格"), Th("数量"), Th("成交额"), Th("费用"))),
         Tbody(
@@ -1882,10 +2164,72 @@ def backtest_result(req, session, portfolio_id: str):
         Tbody(*position_trs, id="positions_body"),
         cls=TableT.striped + " text-xs"
     )
-    log_lines = [
-        f"{row.get('dt', '')} | {row.get('key', '')} | {row.get('value', '')} {row.get('extra', '')}"
-        for row in log_rows
-    ]
+
+    overview_panel = Div(
+        Div(
+            H3("收益概述", cls="text-xl font-bold mb-3"),
+            metrics_text,
+            cls="mb-4",
+            id="overview",
+        ),
+        Div(
+            H3("收益曲线", cls="text-xl font-bold mb-4"),
+            Div(
+                Div(
+                    Label("开始日期", cls="block text-xs text-gray-500 mb-1"),
+                    Input(
+                        id="filter_start",
+                        type="date",
+                        value=filter_start_value,
+                        cls="input input-sm",
+                    ),
+                    cls="flex flex-col"
+                ),
+                Div(
+                    Label("结束日期", cls="block text-xs text-gray-500 mb-1"),
+                    Input(
+                        id="filter_end",
+                        type="date",
+                        value=filter_end_value,
+                        cls="input input-sm",
+                    ),
+                    cls="flex flex-col"
+                ),
+                cls="flex flex-wrap gap-4 mb-4"
+            ),
+            Div(id=chart_id, cls="w-full h-[560px] bg-white p-4 rounded-xl shadow-sm border border-gray-100"),
+            chart_script,
+            cls="mt-6"
+        ),
+        deploy_panel if is_finished else Div(),
+    )
+
+    trades_panel = Div(
+        H3("交易详情", cls="text-xl font-bold mb-4"),
+        trade_table,
+        cls="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mt-6",
+        id="trades"
+    )
+
+    positions_panel = Div(
+        H3("每日持仓", cls="text-xl font-bold mb-4"),
+        positions_table,
+        cls="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mt-6",
+        id="positions"
+    )
+
+    logs_panel = _build_log_panel(
+        portfolio_id=portfolio_id,
+        status=status,
+        rows=_build_log_rows(portfolio_id, limit=200),
+    )
+
+    active_panel = {
+        "overview": overview_panel,
+        "trades": trades_panel,
+        "positions": positions_panel,
+        "logs": logs_panel,
+    }[active_tab]
 
     layout.main_block = lambda: Div(
         Script(src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"),
@@ -1893,75 +2237,38 @@ def backtest_result(req, session, portfolio_id: str):
         Div(
             Div(
                 A("← 返回策略详情", href="javascript:history.back()", cls="text-gray-500 hover:text-gray-800 mb-4 inline-block"),
-                H1("回测报告", cls="text-3xl font-bold mb-2"),
-                status_badge,
                 error_panel,
-                deploy_panel if is_finished else Div(),
-
-                Div(
-                    H3("收益概述", cls="text-xl font-bold mb-3"),
-                    metrics_text,
-                    cls="mb-4",
-                    id="overview"
-                ),
-
-                Div(
-                    H3("收益曲线", cls="text-xl font-bold mb-4"),
-                    Div(
-                        Div(
-                            Label("开始日期", cls="block text-xs text-gray-500 mb-1"),
-                            Input(
-                                id="filter_start",
-                                type="date",
-                                value=filter_start_value,
-                                cls="input input-sm",
-                            ),
-                            cls="flex flex-col"
-                        ),
-                        Div(
-                            Label("结束日期", cls="block text-xs text-gray-500 mb-1"),
-                            Input(
-                                id="filter_end",
-                                type="date",
-                                value=filter_end_value,
-                                cls="input input-sm",
-                            ),
-                            cls="flex flex-col"
-                        ),
-                        cls="flex flex-wrap gap-4 mb-4"
-                    ),
-                    Div(id=chart_id, cls="w-full h-[560px] bg-white p-4 rounded-xl shadow-sm border border-gray-100"),
-                    chart_script,
-                    cls="mt-6"
-                ),
-
-                Div(
-                    H3("交易详情", cls="text-xl font-bold mb-4"),
-                    trade_table,
-                    cls="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mt-6",
-                    id="trades"
-                ),
-
-                Div(
-                    H3("每日持仓", cls="text-xl font-bold mb-4"),
-                    positions_table,
-                    cls="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mt-6",
-                    id="positions"
-                ),
-
-                Div(
-                    H3("日志输出", cls="text-xl font-bold mb-4"),
-                    Pre("\n".join(log_lines), id="log_output", cls="text-xs whitespace-pre-wrap"),
-                    cls="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mt-6",
-                    id="logs"
-                ),
+                active_panel,
 
                 cls="max-w-6xl mx-auto py-8"
             )
-        )
+        ),
+        Div(id="modal-container"),
     )
 
     return layout.render()
+
+
+@rt("/backtest/{portfolio_id}/logs/saved")
+def load_saved_backtest_log_panel(portfolio_id: str):
+    """加载已保存的回测日志面板。"""
+    status, _ = _resolve_backtest_status(portfolio_id)
+    try:
+        rows = load_saved_backtest_logs(portfolio_id, limit=200)
+        return _build_log_panel(
+            portfolio_id=portfolio_id,
+            status=status,
+            rows=rows,
+            source_label="已保存文件",
+        )
+    except Exception as exc:
+        return _build_log_panel(
+            portfolio_id=portfolio_id,
+            status=status,
+            rows=[],
+            source_label="已保存文件",
+            error_text=str(exc),
+        )
 
 
 async def backtest_ws(websocket: WebSocket):
@@ -1988,6 +2295,7 @@ async def backtest_ws(websocket: WebSocket):
                 "daily_summary": _build_daily_summary(portfolio_id),
                 "positions": _build_daily_positions(portfolio_id),
                 "logs": _build_log_rows(portfolio_id, limit=200),
+                "log_meta": _build_log_meta(portfolio_id),
             }
             await websocket.send_text(json.dumps(payload))
             if status != "running":

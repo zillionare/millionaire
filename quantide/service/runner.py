@@ -12,6 +12,7 @@ from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
 from quantide.service.backtest_broker import BacktestBroker
+from quantide.service.backtest_logs import record_backtest_log
 from quantide.service.metrics import metrics
 
 
@@ -56,6 +57,7 @@ class BacktestRunner:
         initial_cash: float,
         portfolio_id: str | None,
         db_path: str | None,
+        save_logs: bool,
     ) -> tuple[str, BacktestBroker, BaseStrategy]:
         """初始化回测环境，包括 Broker、Strategy 和数据库。
 
@@ -68,6 +70,7 @@ class BacktestRunner:
             initial_cash: 初始资金
             portfolio_id: 组合 ID，如果为 None 则自动生成
             db_path: 数据库路径，如果为 None 则使用默认路径
+            save_logs: 是否同步写入回测日志文件。
 
         Returns:
             tuple: (portfolio_id, broker, strategy)
@@ -79,10 +82,6 @@ class BacktestRunner:
         if db_path:
             db.init(db_path)
 
-        # Use patched logger
-        self.logger = logger.bind(runner="BacktestRunner")
-        self.logger.info(f"Starting backtest for {strategy_cls.__name__} ({portfolio_id})")
-
         # 1. Init Broker
         broker = BacktestBroker(
             bt_start=start_date,
@@ -92,6 +91,23 @@ class BacktestRunner:
             principal=initial_cash,
             match_level="day" if frame_type == FrameType.DAY else "minute",
             portfolio_name=strategy_cls.__name__,
+            save_logs=save_logs,
+        )
+
+        # Use patched logger
+        self.logger = logger.bind(runner="BacktestRunner", portfolio_id=portfolio_id)
+        self.logger.info(f"Starting backtest for {strategy_cls.__name__} ({portfolio_id})")
+        record_backtest_log(
+            portfolio_id=portfolio_id,
+            level="INFO",
+            source="runner",
+            message=(
+                f"开始回测：策略={strategy_cls.__name__}，区间={start_date}~{end_date}，"
+                f"周期={frame_type.value}，初始资金={initial_cash:.2f}"
+            ),
+            dt=calendar.replace_time(start_date, 9, 0),
+            extra={"interval": frame_type.value, "initial_cash": initial_cash},
+            save_to_file=save_logs,
         )
 
         # 2. Init Strategy
@@ -207,6 +223,7 @@ class BacktestRunner:
         initial_cash: float = 1_000_000,
         portfolio_id: str | None = None,
         db_path: str | None = None,
+        save_logs: bool = False,
     ) -> dict[str, Any]:
         """运行回测。
 
@@ -219,6 +236,7 @@ class BacktestRunner:
             initial_cash: 初始资金
             portfolio_id: 组合 ID，如果为 None 则自动生成
             db_path: 数据库路径，如果为 None 则使用默认路径
+            save_logs: 是否同时写入回测日志文件
 
         Returns:
             Dict[str, Any]: 回测结果，包含 metrics 和 portfolio_id
@@ -233,6 +251,7 @@ class BacktestRunner:
             initial_cash,
             portfolio_id,
             db_path,
+            save_logs,
         )
 
         await strategy.init()
@@ -282,11 +301,33 @@ class BacktestRunner:
                 strategy._current_time = close_tm
                 await strategy.on_day_close(close_tm)
 
+        except Exception as exc:
+            self.logger.exception("Backtest failed: {}", exc)
+            failure_tm = strategy._current_time or broker._clock
+            record_backtest_log(
+                portfolio_id=portfolio_id,
+                level="ERROR",
+                source="runner",
+                message=f"回测失败：{exc}",
+                dt=failure_tm,
+                save_to_file=save_logs,
+            )
+            raise
+
         finally:
             await strategy.on_stop()
         await broker.stop_backtest()
 
         self.logger.info(f"Backtest finished: {portfolio_id}")
+        finish_tm = strategy._current_time or broker._clock
+        record_backtest_log(
+            portfolio_id=portfolio_id,
+            level="INFO",
+            source="runner",
+            message=f"回测结束：portfolio_id={portfolio_id}",
+            dt=finish_tm,
+            save_to_file=save_logs,
+        )
 
         # 4. Metrics
         stats = metrics(portfolio_id)

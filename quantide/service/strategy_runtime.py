@@ -9,7 +9,7 @@ from typing import Any
 
 from loguru import logger
 
-from quantide.config.paths import get_strategy_runtime_state_path
+from quantide.config.paths import get_backtest_log_path, get_strategy_runtime_state_path
 from quantide.core.enums import BrokerKind, FrameType
 from quantide.core.runtime import RuntimeContext
 from quantide.data.sqlite import db
@@ -49,6 +49,8 @@ class BacktestRun:
     end_date: str
     initial_cash: float
     status: str
+    save_logs: bool = False
+    log_path: str = ""
     created_at: datetime.datetime = field(default_factory=datetime.datetime.now)
     updated_at: datetime.datetime = field(default_factory=datetime.datetime.now)
     error: str = ""
@@ -178,6 +180,7 @@ class StrategyRuntimeManager:
         start_date: str,
         end_date: str,
         initial_cash: float,
+        save_logs: bool = False,
     ) -> None:
         run = BacktestRun(
             runtime_id=f"backtest:{portfolio_id}",
@@ -189,6 +192,8 @@ class StrategyRuntimeManager:
             end_date=end_date,
             initial_cash=initial_cash,
             status="running",
+            save_logs=save_logs,
+            log_path=str(get_backtest_log_path(portfolio_id)),
         )
         with self._lock:
             self._backtest_runtimes[portfolio_id] = run
@@ -577,6 +582,8 @@ class StrategyRuntimeManager:
             end_date=str(portfolio.end),
             initial_cash=0,
             status="finished",
+            save_logs=get_backtest_log_path(portfolio_id).exists(),
+            log_path=str(get_backtest_log_path(portfolio_id)),
         )
 
     def _start_strategy_runtime(

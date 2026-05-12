@@ -1,15 +1,18 @@
 import datetime
 import json
-import logging
-from typing import Any, Dict
+from typing import Any
 from unittest import mock
 
 import pytest
 from loguru import logger
 
+from quantide.config.paths import (
+    clear_app_config_dir_override,
+    get_backtest_log_path,
+    set_app_config_dir_override,
+)
 from quantide.core.enums import FrameType
 from quantide.core.strategy import BaseStrategy
-from quantide.data.sqlite import db
 from quantide.service.runner import BacktestRunner
 
 
@@ -19,7 +22,7 @@ class MockAnnotatedStrategy(BaseStrategy):
         self.log(f"Day Open at {tm}", tm=tm)
 
     async def on_bar(
-        self, tm: datetime.datetime, quote: Dict[str, Any], frame_type: FrameType
+        self, tm: datetime.datetime, quote: dict[str, Any], frame_type: FrameType
     ):
         asset = "000001.SZ"
         # Since BacktestRunner now supports universe, we can expect asset in quote if we configured it
@@ -70,6 +73,8 @@ def mock_calendar():
             return start + datetime.timedelta(days=offset)
 
         mock_cal.day_shift.side_effect = side_effect_day_shift
+        mock_cal.ceiling.side_effect = lambda dt, frame_type=None: dt
+        mock_cal.floor.side_effect = lambda dt, frame_type=None: dt
         mock_cal.replace_time.side_effect = lambda dt, h, m=0, s=0, ms=0: datetime.datetime.combine(dt, datetime.time(h, m, s, ms))
         mock_cal.get_trade_dates.return_value = [
             datetime.date(2023, 1, 3),
@@ -87,37 +92,45 @@ def mock_calendar():
 @pytest.fixture
 def mock_data_feed():
     """Mock data feed"""
-    # Patch where BacktestBroker imports it
-    with mock.patch("quantide.service.backtest_broker.daily_bars") as mock_feed:
-        # Mock get_bars_in_range
-        mock_df = mock.Mock()
-        mock_df.is_empty.return_value = False
-        mock_df.iter_rows.return_value = [
-            {"asset": "000001.SZ", "close": 10.0, "volume": 1000, "date": datetime.date(2023, 1, 3)},
-        ]
-        mock_feed.get_bars_in_range.return_value = mock_df
+    mock_feed = mock.Mock()
 
-        # Mock get_price_for_match used by broker
-        mock_match_df = mock.Mock()
-        mock_match_df.is_empty.return_value = False
-        mock_match_df.row.return_value = {"up_limit": 11.0, "down_limit": 9.0, "close": 10.0, "open": 10.0, "date": datetime.date(2023, 1, 3)}
-        mock_feed.get_price_for_match.return_value = mock_match_df
+    # Mock get_bars_in_range
+    mock_df = mock.Mock()
+    mock_df.is_empty.return_value = False
+    mock_df.iter_rows.return_value = [
+        {"asset": "000001.SZ", "close": 10.0, "volume": 1000, "date": datetime.date(2023, 1, 3)},
+    ]
+    mock_feed.get_bars_in_range.return_value = mock_df
 
-        # Mock get_close_factor for _fill_history_gaps
-        import polars as pl
-        mock_feed.get_close_factor.return_value = pl.DataFrame({
+    # Mock get_price_for_match used by broker
+    mock_match_df = mock.Mock()
+    mock_match_df.is_empty.return_value = False
+    mock_match_df.row.return_value = {
+        "up_limit": 11.0,
+        "down_limit": 9.0,
+        "close": 10.0,
+        "open": 10.0,
+        "date": datetime.date(2023, 1, 3),
+    }
+    mock_feed.get_price_for_match.return_value = mock_match_df
+
+    # Mock get_close_factor for _fill_history_gaps
+    import polars as pl
+
+    mock_feed.get_close_factor.return_value = pl.DataFrame(
+        {
             "asset": ["000001.SZ"],
             "factor": [1.0],
             "close": [10.0],
-            "dt": [datetime.date(2023, 1, 3)]
-        })
+            "dt": [datetime.date(2023, 1, 3)],
+        }
+    )
 
-        yield mock_feed
+    yield mock_feed
 
 @pytest.mark.asyncio
 async def test_backtest_logging_and_annotations(caplog, db, mock_calendar, mock_data_feed):
     """验证回测日志时间旅行和交易快照记录"""
-
     # 1. Setup
     start_date = datetime.date(2023, 1, 1)
     end_date = datetime.date(2023, 1, 5)
@@ -209,7 +222,8 @@ async def test_backtest_logging_and_annotations(caplog, db, mock_calendar, mock_
             # 2. Run Backtest
             # Patch metrics to avoid ZeroDivisionError with short data
             # Patch runner's daily_bars usage
-            with mock.patch("quantide.service.runner.daily_bars", mock_data_feed), \
+            with mock.patch("quantide.core.runtime.clock_bridge.calendar", mock_calendar), \
+                 mock.patch("quantide.service.runner.daily_bars", mock_data_feed), \
                  mock.patch("quantide.service.runner.metrics") as mock_metrics:
 
                 mock_metrics.return_value = mock.Mock()
@@ -244,7 +258,7 @@ async def test_backtest_logging_and_annotations(caplog, db, mock_calendar, mock_
                     if log_time.year == 2023:
                         found_explicit_log = True
 
-            assert found_sim_log, f"Did not find strategy logs with simulation time."
+            assert found_sim_log, "Did not find strategy logs with simulation time."
             assert found_explicit_log, "Did not find explicit time logs from on_day_open"
 
             # 4. Verify Trade Annotations in DB
@@ -268,7 +282,7 @@ async def test_backtest_logging_and_annotations(caplog, db, mock_calendar, mock_
             assert len(logs) > 0, "No strategy logs recorded"
 
             # Check content
-            price_logs = [l for l in logs if l["key"] == "price"]
+            price_logs = [row for row in logs if row["key"] == "price"]
             assert len(price_logs) > 0
             assert price_logs[0]["value"] == 10.0
             assert "source" in price_logs[0]["extra"]
@@ -276,3 +290,49 @@ async def test_backtest_logging_and_annotations(caplog, db, mock_calendar, mock_
         finally:
             # Cleanup
             logger.remove()
+
+
+@pytest.mark.asyncio
+async def test_backtest_run_persists_text_logs_to_db_and_file(
+    db,
+    tmp_path,
+    mock_calendar,
+    mock_data_feed,
+):
+    start_date = datetime.date(2023, 1, 1)
+    end_date = datetime.date(2023, 1, 5)
+    set_app_config_dir_override(tmp_path / "config")
+
+    try:
+        with mock.patch("quantide.service.runner.calendar", mock_calendar), \
+             mock.patch("quantide.core.runtime.clock_bridge.calendar", mock_calendar), \
+             mock.patch("quantide.service.runner.daily_bars", mock_data_feed), \
+             mock.patch("quantide.service.runner.metrics") as mock_metrics:
+            mock_metrics.return_value = mock.Mock()
+            mock_metrics.return_value.to_dict.return_value = {}
+
+            runner = BacktestRunner()
+            result = await runner.run(
+                strategy_cls=MockAnnotatedStrategy,
+                config={"universe": ["000001.SZ"]},
+                start_date=start_date,
+                end_date=end_date,
+                frame_type=FrameType.DAY,
+                initial_cash=100000,
+                save_logs=True,
+            )
+
+        portfolio_id = result["portfolio_id"]
+        logs_df = db.get_backtest_logs(portfolio_id)
+
+        assert not logs_df.is_empty()
+        messages = logs_df["message"].to_list()
+        assert any("开始回测" in message for message in messages)
+        assert any("Checking bar at" in message for message in messages)
+
+        log_path = get_backtest_log_path(portfolio_id)
+        assert log_path.exists()
+        content = log_path.read_text(encoding="utf-8")
+        assert "Checking bar at" in content
+    finally:
+        clear_app_config_dir_override()

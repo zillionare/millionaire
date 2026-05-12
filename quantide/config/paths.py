@@ -4,7 +4,6 @@ import os
 import sys
 from pathlib import Path
 
-
 DEFAULT_DATA_HOME = "~/.quantide"
 _APP_CONFIG_DIR_OVERRIDE: Path | None = None
 
@@ -25,7 +24,6 @@ def set_app_config_dir_override(path: str | Path | None) -> Path | None:
     This is primarily used by tests that need an isolated sqlite database,
     pid file, and other runtime state under a temporary directory.
     """
-
     global _APP_CONFIG_DIR_OVERRIDE
     previous = _APP_CONFIG_DIR_OVERRIDE
     if path is None or not str(path).strip():
@@ -37,7 +35,6 @@ def set_app_config_dir_override(path: str | Path | None) -> Path | None:
 
 def clear_app_config_dir_override() -> None:
     """Clear the process-level app config directory override."""
-
     global _APP_CONFIG_DIR_OVERRIDE
     _APP_CONFIG_DIR_OVERRIDE = None
 
@@ -81,12 +78,27 @@ def get_strategy_runtime_state_path() -> Path:
     return ensure_app_config_dir() / "strategy_runtimes.json"
 
 
+def get_backtest_log_dir() -> Path:
+    """Return the directory used to store saved backtest log files."""
+    path = ensure_app_config_dir() / "backtest_logs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_backtest_log_path(portfolio_id: str) -> Path:
+    """Return the deterministic JSONL path for a backtest portfolio log."""
+    filename = f"{portfolio_id}.jsonl"
+    return get_backtest_log_dir() / filename
+
+
 __all__ = [
     "DEFAULT_DATA_HOME",
     "clear_app_config_dir_override",
     "ensure_app_config_dir",
     "get_app_config_dir",
     "get_app_db_path",
+    "get_backtest_log_dir",
+    "get_backtest_log_path",
     "get_pid_file_path",
     "get_strategy_runtime_state_path",
     "normalize_data_home",

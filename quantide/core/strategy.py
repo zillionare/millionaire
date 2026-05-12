@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import polars as pl
 from loguru import logger
@@ -11,12 +11,25 @@ from quantide.service.base_broker import Broker
 class BaseStrategy:
     """策略基类"""
 
-    def __init__(self, broker: Broker, config: Dict[str, Any]):
+    def __init__(self, broker: Broker, config: dict[str, Any]):
         self.broker = broker
         self.config = config
-        self.logger = logger.bind(strategy=self.__class__.__name__)
+        logger_kwargs = {"strategy": self.__class__.__name__}
+        portfolio_id = getattr(broker, "portfolio_id", "")
+        if portfolio_id:
+            logger_kwargs["portfolio_id"] = portfolio_id
+        self.logger = logger.bind(**logger_kwargs)
         self.interval: str = "1d"  # Default, set by Runner
         self._current_time: datetime.datetime | None = None
+
+    def _render_log_message(self, msg: str, *args: Any, **kwargs: Any) -> str:
+        """渲染日志文本，便于同步写入回测日志。"""
+        if not args and not kwargs:
+            return msg
+        try:
+            return msg.format(*args, **kwargs)
+        except Exception:
+            return msg
 
 
     async def init(self):
@@ -40,7 +53,7 @@ class BaseStrategy:
         pass
 
     async def on_bar(
-        self, tm: datetime.datetime, quote: Dict[str, Any], frame_type: FrameType
+        self, tm: datetime.datetime, quote: dict[str, Any], frame_type: FrameType
     ):
         """核心驱动方法，每个周期调用一次"""
         pass
@@ -93,6 +106,7 @@ class BaseStrategy:
         # 3. 构造 patcher
         # 注意：这里我们为每条日志临时创建一个 patcher，这在极高频日志下可能有性能损耗，
         # 但考虑到日志量通常可控，且为了正确显示时间，这是必要的。
+        rendered_message = self._render_log_message(msg, *args, **kwargs)
         if log_time:
             def _temp_patcher(record):
                 record["time"] = log_time
@@ -101,6 +115,15 @@ class BaseStrategy:
         else:
             # 如果都没有时间，则使用系统时间（直接打印）
             self.logger.log(level, msg, *args, **kwargs)
+
+        write_backtest_log = getattr(self.broker, "write_backtest_log", None)
+        if callable(write_backtest_log):
+            write_backtest_log(
+                level=level,
+                source="strategy",
+                message=rendered_message,
+                dt=log_time,
+            )
 
     def record(
         self,
