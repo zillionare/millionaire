@@ -143,3 +143,35 @@ def test_strategy_runtime_manager_restart_recovery_skips_blocked_specs(tmp_path:
     assert spec["status"] == "blocked"
     assert spec["block_scope"] == "strategy"
     assert any(event["title"] == "重启恢复跳过封锁运行时" for event in manager.list_risk_events())
+
+
+def test_strategy_runtime_manager_backtest_deployment_modes_only_reports_active_runtime():
+    manager = StrategyRuntimeManager()
+    manager._strategy_runtimes["paper:acct:demo-1"] = StrategyRuntime(
+        runtime_id="paper:acct:demo-1",
+        mode="paper",
+        strategy_name="DemoStrategy",
+        strategy_id="demo-1",
+        portfolio_id="paper-acct",
+        account_kind="sim",
+        status="running",
+        config={},
+        source_backtest_portfolio_id="bt-1",
+    )
+    manager._strategy_runtimes["live:gateway:demo-2"] = StrategyRuntime(
+        runtime_id="live:gateway:demo-2",
+        mode="live",
+        strategy_name="DemoStrategy",
+        strategy_id="demo-2",
+        portfolio_id="gateway",
+        account_kind="gateway",
+        status="stopped",
+        config={},
+        source_backtest_portfolio_id="bt-1",
+    )
+
+    result = manager.backtest_deployment_modes("bt-1")
+
+    assert "paper" in result
+    assert "live" not in result
+    assert result["paper"]["source_backtest_portfolio_id"] == "bt-1"

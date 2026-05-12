@@ -28,6 +28,7 @@ class StrategyRuntime:
     account_kind: str
     status: str
     config: dict[str, Any]
+    source_backtest_portfolio_id: str = ""
     symbols: list[str] = field(default_factory=list)
     principal: float = 0.0
     started_at: datetime.datetime = field(default_factory=datetime.datetime.now)
@@ -221,6 +222,9 @@ class StrategyRuntimeManager:
         market_data: Any,
     ) -> StrategyRuntime:
         run = self._resolve_backtest_run(portfolio_id)
+        existing = self.get_active_backtest_deployment(run.portfolio_id, "paper")
+        if existing is not None:
+            return existing
         account_id = f"paper-{run.strategy_name}-{uuid.uuid4().hex[:8]}"
         broker = PaperBroker.create(
             portfolio_id=account_id,
@@ -245,6 +249,7 @@ class StrategyRuntimeManager:
             config=run.config,
             broker=handle,
             portfolio_id=account_id,
+            source_backtest_portfolio_id=run.portfolio_id,
             account_kind=BrokerKind.SIMULATION.value,
             interval=run.interval,
             market_data=market_data,
@@ -259,6 +264,9 @@ class StrategyRuntimeManager:
         market_data: Any,
     ) -> StrategyRuntime:
         run = self._resolve_backtest_run(portfolio_id)
+        existing = self.get_active_backtest_deployment(run.portfolio_id, "live")
+        if existing is not None:
+            return existing
         broker = self._gateway_broker
         account_kind = "gateway"
         account_id = "gateway"
@@ -270,6 +278,7 @@ class StrategyRuntimeManager:
             config=run.config,
             broker=broker,
             portfolio_id=account_id,
+            source_backtest_portfolio_id=run.portfolio_id,
             account_kind=account_kind,
             interval=run.interval,
             market_data=market_data,
@@ -497,6 +506,46 @@ class StrategyRuntimeManager:
         rows.sort(key=lambda x: (x["mode"], x["portfolio_id"], x["strategy_id"]))
         return rows
 
+    def backtest_deployment_modes(self, portfolio_id: str) -> dict[str, dict[str, Any]]:
+        """返回某个回测当前活跃的投放模式。
+
+        Args:
+            portfolio_id: 回测组合 ID。
+
+        Returns:
+            以模式为键的运行时摘要，仅包含当前仍处于活跃状态的 paper/live 运行时。
+        """
+        active_statuses = {"running", "stopping", "blocked"}
+        result: dict[str, dict[str, Any]] = {}
+        for row in self.list_runtime_rows():
+            if str(row.get("source_backtest_portfolio_id") or "") != portfolio_id:
+                continue
+            mode = str(row.get("mode") or "")
+            if mode not in {"paper", "live"}:
+                continue
+            if str(row.get("status") or "") not in active_statuses:
+                continue
+            result[mode] = row
+        return result
+
+    def get_active_backtest_deployment(
+        self,
+        portfolio_id: str,
+        mode: str,
+    ) -> StrategyRuntime | None:
+        """获取某个回测在指定模式下的活跃运行时。"""
+        active_statuses = {"running", "stopping", "blocked"}
+        with self._lock:
+            for runtime in self._strategy_runtimes.values():
+                if runtime.mode != mode:
+                    continue
+                if runtime.source_backtest_portfolio_id != portfolio_id:
+                    continue
+                if runtime.status not in active_statuses:
+                    continue
+                return runtime
+        return None
+
     def _runtime_to_row(self, runtime: StrategyRuntime) -> dict[str, Any]:
         cash = 0.0
         mv = 0.0
@@ -537,6 +586,7 @@ class StrategyRuntimeManager:
             "runtime_id": runtime.runtime_id,
             "mode": runtime.mode,
             "portfolio_id": runtime.portfolio_id,
+            "source_backtest_portfolio_id": runtime.source_backtest_portfolio_id,
             "strategy_name": runtime.strategy_name,
             "strategy_id": runtime.strategy_id,
             "status": status,
@@ -593,6 +643,7 @@ class StrategyRuntimeManager:
         config: dict[str, Any],
         broker: Any,
         portfolio_id: str,
+        source_backtest_portfolio_id: str,
         account_kind: str,
         interval: str,
         market_data: Any,
@@ -634,6 +685,7 @@ class StrategyRuntimeManager:
             strategy_name=strategy_name,
             strategy_id=strategy_id,
             portfolio_id=portfolio_id,
+            source_backtest_portfolio_id=source_backtest_portfolio_id,
             account_kind=account_kind,
             status="running",
             config=config,
@@ -657,6 +709,7 @@ class StrategyRuntimeManager:
                     "strategy_name": strategy_name,
                     "strategy_id": strategy_id,
                     "portfolio_id": portfolio_id,
+                    "source_backtest_portfolio_id": source_backtest_portfolio_id,
                     "account_kind": account_kind,
                     "status": "running",
                     "config": config,
@@ -912,6 +965,7 @@ class StrategyRuntimeManager:
             config=dict(spec.get("config") or {}),
             broker=broker,
             portfolio_id=portfolio_id,
+            source_backtest_portfolio_id=str(spec.get("source_backtest_portfolio_id") or ""),
             account_kind=account_kind,
             interval=str(spec.get("interval") or "1m"),
             market_data=self._market_data,

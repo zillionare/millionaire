@@ -287,12 +287,84 @@ def test_build_backtest_rows_keeps_missing_metrics_blank(monkeypatch):
     monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
     monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
     monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "backtest_deployment_modes",
+        lambda portfolio_id: {},
+    )
 
     rows = strategy_page._build_backtest_rows({})
     html = to_xml(rows[0])
 
     assert "--" in html
     assert "0.0%" not in html
+    assert 'href="/strategy/backtest/demo-pf"' in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/paper/modal"' in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/live/modal"' in html
+    assert 'btn btn-secondary btn-sm' in html
+    assert 'btn btn-primary btn-sm' not in html
+
+
+def test_build_backtest_rows_disabled_deploy_buttons_explain_gateway_requirement(monkeypatch):
+    portfolios = pd.DataFrame(
+        [
+            {
+                "portfolio_id": "demo-pf",
+                "kind": "bt",
+                "name": "DualMAStrategy",
+                "start": "2024-01-01",
+                "end": "2024-01-31",
+                "info": "",
+            }
+        ]
+    )
+    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
+    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "backtest_deployment_modes",
+        lambda portfolio_id: {},
+    )
+
+    rows = strategy_page._build_backtest_rows({}, gateway_available=False)
+    html = to_xml(rows[0])
+
+    assert 'title="请先配置交易网关，才能转仿真"' in html
+    assert 'title="请先配置交易网关，才能转实盘"' in html
+    assert "pointer-events-none" in html
+    assert "disabled" in html
+
+
+def test_build_backtest_rows_renders_active_deployment_statuses(monkeypatch):
+    portfolios = pd.DataFrame(
+        [
+            {
+                "portfolio_id": "demo-pf",
+                "kind": "bt",
+                "name": "DualMAStrategy",
+                "start": "2024-01-01",
+                "end": "2024-01-31",
+                "info": "",
+            }
+        ]
+    )
+    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
+    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "backtest_deployment_modes",
+        lambda portfolio_id: {"paper": {"status": "running"}, "live": {"status": "running"}},
+    )
+
+    rows = strategy_page._build_backtest_rows({})
+    html = to_xml(rows[0])
+
+    assert "仿真中" in html
+    assert "实盘中" in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/paper/modal"' not in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/live/modal"' not in html
 
 
 def test_normalize_backtest_tab_falls_back_to_overview():
@@ -303,7 +375,6 @@ def test_normalize_backtest_tab_falls_back_to_overview():
 def test_backtest_result_defaults_to_overview_only(monkeypatch):
     monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
     monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_get_live_accounts", lambda req: [])
     monkeypatch.setattr(strategy_page, "_build_date_axis", lambda portfolio_id: ["2024-01-02", "2024-01-03"])
     monkeypatch.setattr(
         strategy_page,
@@ -331,18 +402,14 @@ def test_backtest_result_defaults_to_overview_only(monkeypatch):
     assert 'id="trades"' not in html
     assert 'id="positions"' not in html
     assert 'id="backtest-log-panel"' not in html
-    assert 'id="backtest-deploy-panel"' in html
+    assert 'id="backtest-deploy-panel"' not in html
     assert 'id="backtest_status"' not in html
-    assert 'hx-get="/strategy/backtest/demo-pf/deploy/paper/modal"' in html
-    assert 'hx-get="/strategy/backtest/demo-pf/deploy/live/modal"' in html
-    assert "仿真本金" not in html
     assert 'id="modal-container"' in html
 
 
 def test_backtest_result_logs_tab_renders_only_log_panel(monkeypatch):
     monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
     monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_get_live_accounts", lambda req: [])
     monkeypatch.setattr(strategy_page, "_build_date_axis", lambda portfolio_id: [])
     monkeypatch.setattr(
         strategy_page,

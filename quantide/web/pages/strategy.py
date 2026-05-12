@@ -767,6 +767,99 @@ def _strategy_version(strategy_cls) -> str:
     return getattr(strategy_cls, "VERSION", getattr(strategy_cls, "__version__", "v1.0.0"))
 
 
+def _build_backtest_name_cell(name: str, portfolio_id: str) -> Any:
+    """构建回测报告列表中的策略名单元格。"""
+    return Td(
+        A(
+            name,
+            href=f"/strategy/backtest/{portfolio_id}",
+            cls="text-blue-600 font-medium hover:underline",
+        ),
+        cls="text-gray-900",
+    )
+
+
+def _build_backtest_deploy_button(
+    label: str,
+    modal_path: str,
+    *,
+    gateway_available: bool,
+    unavailable_reason: str,
+) -> Any:
+    """构建回测报告列表中的投放按钮。"""
+    button_cls = "btn btn-secondary btn-sm"
+    if gateway_available:
+        return Button(
+            label,
+            cls=button_cls,
+            type="button",
+            hx_get=modal_path,
+            hx_target="#modal-container",
+        )
+    return Span(
+        Button(
+            label,
+            cls=f"{button_cls} opacity-50 cursor-not-allowed pointer-events-none",
+            type="button",
+            disabled=True,
+        ),
+        title=unavailable_reason,
+        cls="inline-flex",
+    )
+
+
+def _build_backtest_action_cell(
+    portfolio_id: str,
+    deployment_modes: dict[str, dict[str, Any]] | None = None,
+    *,
+    gateway_available: bool = True,
+    hx_swap_oob: bool = False,
+) -> Any:
+    """构建回测报告列表操作列。"""
+    deployment_modes = deployment_modes or strategy_runtime_manager.backtest_deployment_modes(portfolio_id)
+    controls: list[Any] = []
+
+    if "paper" in deployment_modes:
+        controls.append(
+            Span(
+                "仿真中",
+                cls="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600",
+            )
+        )
+    else:
+        controls.append(
+            _build_backtest_deploy_button(
+                "转仿真",
+                f"/strategy/backtest/{portfolio_id}/deploy/paper/modal",
+                gateway_available=gateway_available,
+                unavailable_reason="请先配置交易网关，才能转仿真",
+            )
+        )
+
+    if "live" in deployment_modes:
+        controls.append(
+            Span(
+                "实盘中",
+                cls="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-600",
+            )
+        )
+    else:
+        controls.append(
+            _build_backtest_deploy_button(
+                "转实盘",
+                f"/strategy/backtest/{portfolio_id}/deploy/live/modal",
+                gateway_available=gateway_available,
+                unavailable_reason="请先配置交易网关，才能转实盘",
+            )
+        )
+
+    attrs: dict[str, Any] = {"id": f"backtest-actions-{portfolio_id}"}
+    if hx_swap_oob:
+        attrs["hx_swap_oob"] = "true"
+
+    return Td(Div(*controls, cls="flex flex-wrap items-center gap-2"), **attrs)
+
+
 def _build_strategy_rows(strategies: dict) -> list:
     """构建策略列表行。
 
@@ -819,11 +912,16 @@ def _build_strategy_rows(strategies: dict) -> list:
     return rows
 
 
-def _build_backtest_rows(strategies: dict) -> list:
+def _build_backtest_rows(
+    strategies: dict,
+    *,
+    gateway_available: bool = True,
+) -> list:
     """构建回测报告列表行。
 
     Args:
         strategies: 策略字典
+        gateway_available: 是否已配置可用 gateway。
 
     Returns:
         list: 行数据
@@ -852,6 +950,7 @@ def _build_backtest_rows(strategies: dict) -> list:
             info_params = getattr(strategy_cls, "PARAMS", {})
         params_text = _params_to_text(info_params)
         range_text = _format_range(row.get("start"), row.get("end"))
+        deployment_modes = strategy_runtime_manager.backtest_deployment_modes(portfolio_id)
         metrics_payload = _build_metrics_payload(portfolio_id)
         annual_return = metrics_payload.get("annual_return")
         sharpe = metrics_payload.get("sharpe")
@@ -870,7 +969,7 @@ def _build_backtest_rows(strategies: dict) -> list:
 
         rows.append(
             Tr(
-                Td(name, cls="text-gray-900 font-medium"),
+                _build_backtest_name_cell(name, portfolio_id),
                 Td(version, cls="text-gray-600"),
                 Td(params_text, cls="text-gray-600"),
                 Td(range_text, cls="text-gray-600"),
@@ -878,8 +977,10 @@ def _build_backtest_rows(strategies: dict) -> list:
                 Td(_format_number(sharpe), cls="text-gray-900"),
                 Td(_format_percent(max_drawdown), cls=drawdown_cls),
                 Td(_format_number(sortino), cls="text-gray-900"),
-                Td(
-                    A("查看报告", href=f"/strategy/backtest/{portfolio_id}", cls="text-blue-600 hover:underline")
+                _build_backtest_action_cell(
+                    portfolio_id,
+                    deployment_modes,
+                    gateway_available=gateway_available,
                 ),
                 cls="border-b border-gray-200 hover:bg-gray-50",
             )
@@ -908,7 +1009,10 @@ def index(req, session):
     # 从缓存加载策略（不再每次扫描）
     strategies = strategy_loader.load_from_cache()
     strategy_rows = _build_strategy_rows(strategies)
-    backtest_rows = _build_backtest_rows(strategies)
+    backtest_rows = _build_backtest_rows(
+        strategies,
+        gateway_available=bool(_get_live_accounts(req)),
+    )
 
     strategy_table = Table(
         Thead(
@@ -976,7 +1080,8 @@ def index(req, session):
             Div(
                 Div(
                     H2("回测报告列表", cls="text-lg font-semibold text-gray-900"),
-                    cls="flex items-center",
+                    Div(id="deploy-result", cls="mt-2 text-sm"),
+                    cls="flex flex-col items-start",
                 ),
                 Div(
                     Div(
@@ -1453,6 +1558,16 @@ async def deploy_backtest_to_paper(req, portfolio_id: str):
     registry = _get_registry(req)
     if registry is None:
         return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message="运行时未初始化")
+    existing_runtime = strategy_runtime_manager.get_active_backtest_deployment(portfolio_id, "paper")
+    if existing_runtime is not None:
+        return (
+            Div(id="modal-container"),
+            _render_deploy_result(
+                f"该回测已在仿真中：{existing_runtime.portfolio_id}，策略ID={existing_runtime.strategy_id}",
+                is_error=False,
+            ),
+            _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
+        )
     try:
         runtime = strategy_runtime_manager.deploy_to_paper(
             portfolio_id=portfolio_id,
@@ -1466,6 +1581,7 @@ async def deploy_backtest_to_paper(req, portfolio_id: str):
                 f"已转入仿真：{runtime.portfolio_id}，策略ID={runtime.strategy_id}",
                 is_error=False,
             ),
+            _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
         )
     except Exception as e:
         return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message=f"转入仿真失败: {e}")
@@ -1481,6 +1597,16 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
     live_accounts = _get_live_accounts(req)
     if not live_accounts:
         return _live_deploy_modal(portfolio_id, [])
+    existing_runtime = strategy_runtime_manager.get_active_backtest_deployment(portfolio_id, "live")
+    if existing_runtime is not None:
+        return (
+            Div(id="modal-container"),
+            _render_deploy_result(
+                f"该回测已在实盘中：{existing_runtime.portfolio_id}，策略ID={existing_runtime.strategy_id}",
+                is_error=False,
+            ),
+            _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
+        )
     try:
         runtime = strategy_runtime_manager.deploy_to_live(
             portfolio_id=portfolio_id,
@@ -1494,6 +1620,7 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
                 f"已转入实盘：{runtime.portfolio_id}，策略ID={runtime.strategy_id}",
                 is_error=False,
             ),
+            _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
         )
     except Exception as e:
         return Modal(
@@ -1708,7 +1835,6 @@ def backtest_result(req, session, portfolio_id: str):
 
     status, backtest_error = _resolve_backtest_status(portfolio_id)
     metrics_payload = _build_metrics_payload(portfolio_id)
-    is_finished = status == "finished"
 
     date_axis = _build_date_axis(portfolio_id)
     series_payload = _build_series_payload(portfolio_id, date_axis)
@@ -2086,34 +2212,6 @@ def backtest_result(req, session, portfolio_id: str):
         }};
     """)
 
-    deploy_panel = Div(
-        H3("策略投放", cls="text-lg font-semibold mb-3"),
-        Div(
-            Button(
-                "转入仿真",
-                cls="btn btn-primary btn-sm",
-                type="button",
-                hx_get=f"/strategy/backtest/{portfolio_id}/deploy/paper/modal",
-                hx_target="#modal-container",
-            ),
-            Button(
-                "转入实盘",
-                cls="btn btn-secondary btn-sm",
-                type="button",
-                hx_get=f"/strategy/backtest/{portfolio_id}/deploy/live/modal",
-                hx_target="#modal-container",
-            ),
-            cls="flex flex-wrap items-center gap-3",
-        ),
-        P(
-            "转仿真会在确认弹窗中输入本金；转实盘会先检测实盘网关后再确认。",
-            cls="mt-3 text-sm text-gray-500",
-        ),
-        Div(id="deploy-result", cls="mt-3 text-sm"),
-        id="backtest-deploy-panel",
-        cls="bg-white p-4 rounded-lg border border-gray-100 mt-6",
-    )
-
     trade_rows = _build_trade_rows(portfolio_id, limit=200)
     positions_rows = _build_daily_positions(portfolio_id)
     trade_table = Table(
@@ -2201,7 +2299,6 @@ def backtest_result(req, session, portfolio_id: str):
             chart_script,
             cls="mt-6"
         ),
-        deploy_panel if is_finished else Div(),
     )
 
     trades_panel = Div(
