@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 from fasthtml.common import to_xml
 
@@ -125,3 +126,75 @@ async def test_copy_scan_examples_route_uses_saved_directory_and_reports_result(
     assert "示例已复制" in html
     assert str(tmp_path.resolve()) in html
     assert 'hx-post="/strategy/scan/run"' in html
+
+
+def test_build_metrics_payload_normalizes_percent_metrics_and_current_keys(monkeypatch):
+    stats = pd.DataFrame(
+        {
+            "Value": [
+                "1394.79%",
+                "233.39%",
+                "-5.26%",
+                "476.44%",
+                "0.74",
+                "29.66",
+                "44.34",
+                "29.15%",
+                "29.26",
+                "1086.49%",
+                "-0.05",
+                "0.12",
+                "555.86",
+                "1.23",
+            ]
+        },
+        index=[
+            "Total Return",
+            "CAGR",
+            "Max Drawdown",
+            "Volatility (ann.)",
+            "Sharpe Ratio",
+            "Sortino Ratio",
+            "Calmar Ratio",
+            "Win Rate (Daily)",
+            "Profit Factor",
+            "Alpha (ann.)",
+            "Beta",
+            "Skewness",
+            "Kurtosis",
+            "Information Ratio",
+        ],
+    )
+    monkeypatch.setattr(strategy_page, "metrics", lambda portfolio_id: stats)
+
+    payload = strategy_page._build_metrics_payload("demo")
+
+    assert payload["total_returns"] == pytest.approx(13.9479)
+    assert payload["annual_return"] == pytest.approx(2.3339)
+    assert payload["max_drawdown"] == pytest.approx(-0.0526)
+    assert payload["volatility"] == pytest.approx(4.7644)
+    assert payload["sharpe"] == pytest.approx(0.74)
+    assert payload["sortino"] == pytest.approx(29.66)
+    assert payload["calmar"] == pytest.approx(44.34)
+    assert payload["win_rate"] == pytest.approx(0.2915)
+    assert payload["profit_factor"] == pytest.approx(29.26)
+    assert payload["alpha"] == pytest.approx(10.8649)
+    assert payload["beta"] == pytest.approx(-0.05)
+    assert payload["skew"] == pytest.approx(0.12)
+    assert payload["kurtosis"] == pytest.approx(555.86)
+    assert payload["information_ratio"] == pytest.approx(1.23)
+    assert payload["avg_return"] is None
+    assert strategy_page._format_percent(payload["annual_return"]) == "233.4%"
+    assert strategy_page._format_percent(payload["max_drawdown"]) == "-5.3%"
+
+
+def test_build_metrics_payload_keeps_missing_metrics_empty(monkeypatch):
+    monkeypatch.setattr(strategy_page, "metrics", lambda portfolio_id: pd.DataFrame())
+
+    payload = strategy_page._build_metrics_payload("demo")
+
+    assert payload["annual_return"] is None
+    assert payload["sharpe"] is None
+    assert payload["win_rate"] is None
+    assert strategy_page._format_percent(payload["annual_return"]) == "--"
+    assert strategy_page._format_number(payload["sharpe"]) == "--"

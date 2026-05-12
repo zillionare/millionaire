@@ -2,9 +2,10 @@ import datetime
 import tempfile
 from pathlib import Path
 
-import polars as pl
 import pandas as pd
+import polars as pl
 import pytest
+
 from quantide.core.enums import BidType, OrderSide
 from quantide.data.sqlite import Asset, Order, Position, Trade, db
 from quantide.service.metrics import bills, metrics
@@ -105,10 +106,11 @@ def test_metrics_basic(setup_db):
     stats = metrics(portfolio_id)
 
     assert isinstance(stats, pd.DataFrame)
-    assert "Strategy" in stats.columns
+    assert list(stats.columns) == ["Value"]
     # 验证包含核心指标
-    assert "Sharpe" in stats.index
-    assert "Cumulative Return" in stats.index
+    assert "Sharpe Ratio" in stats.index
+    assert "Total Return" in stats.index
+    assert stats.loc["CAGR", "Value"].endswith("%")
 
 
 def test_metrics_with_benchmark(setup_db):
@@ -137,8 +139,9 @@ def test_metrics_with_benchmark(setup_db):
     stats = metrics(portfolio_id, baseline_returns=bench_data)
 
     assert isinstance(stats, pd.DataFrame)
-    assert "Strategy" in stats.columns
-    assert "Benchmark" in stats.columns
+    assert list(stats.columns) == ["Value"]
+    assert "Excess Return (ann.)" in stats.index
+    assert "Beta" in stats.index
 
 
 def test_metrics_insufficient_benchmark(setup_db):

@@ -1,6 +1,7 @@
 import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import polars as pl
 import pytest
 
 from quantide.core.enums import FrameType
@@ -23,6 +24,42 @@ class SimpleStrategy(BaseStrategy):
     async def on_bar(self, tm, quote, frame_type):
         pass
 
+
+class _DailyQuoteFeed:
+    def __init__(self):
+        self._bars = pl.DataFrame(
+            [
+                {
+                    "date": datetime.date(2024, 1, 4),
+                    "asset": "000001.SZ",
+                    "open": 10.0,
+                    "close": 10.0,
+                    "volume": 1000.0,
+                    "up_limit": 11.0,
+                    "down_limit": 9.0,
+                },
+                {
+                    "date": datetime.date(2024, 1, 5),
+                    "asset": "000001.SZ",
+                    "open": 12.0,
+                    "close": 12.0,
+                    "volume": 1000.0,
+                    "up_limit": 13.0,
+                    "down_limit": 11.0,
+                },
+            ]
+        )
+
+    def get_bars_in_range(self, start, end, assets):
+        start_date = start.date() if isinstance(start, datetime.datetime) else start
+        end_date = end.date() if isinstance(end, datetime.datetime) else end
+        return self._bars.filter(
+            (pl.col("date") >= start_date)
+            & (pl.col("date") <= end_date)
+            & pl.col("asset").is_in(assets)
+        )
+
+
 @pytest.fixture(autouse=True)
 def setup_db():
     db.init(":memory:")
@@ -37,9 +74,9 @@ async def test_run_daily():
     # Mock dependencies
     with patch("quantide.service.runner.calendar") as mock_calendar, \
          patch("quantide.service.runner.BacktestBroker") as MockBroker, \
-         patch("quantide.service.runner.daily_bars") as mock_daily_bars, \
-         patch("quantide.service.runner.db") as mock_db, \
-         patch("quantide.service.runner.metrics") as mock_metrics:
+         patch("quantide.service.runner.daily_bars"), \
+         patch("quantide.service.runner.db"), \
+         patch("quantide.service.runner.metrics"):
 
         # Setup calendar mock
         mock_calendar.ceiling.return_value = start_date
@@ -61,8 +98,11 @@ async def test_run_daily():
         strategy.on_start = AsyncMock()
         strategy.on_stop = AsyncMock()
 
+        mock_clock = MagicMock()
+        mock_clock.iter_frames.return_value = [start_date, end_date]
+
         # Run runner
-        runner = BacktestRunner()
+        runner = BacktestRunner(clock=mock_clock)
 
         # Mock strategy_cls
         MockStrategyCls = MagicMock(return_value=strategy)
@@ -79,22 +119,40 @@ async def test_run_daily():
         # Verify arguments
         # Day 1
         open_tm1 = datetime.datetime(2024, 1, 1, 9, 30)
-        bar_tm1 = datetime.datetime(2024, 1, 1, 15, 0)
+        bar_tm1 = datetime.datetime(2024, 1, 1, 9, 30)
         close_tm1 = datetime.datetime(2024, 1, 1, 15, 30)
 
         strategy.on_day_open.assert_any_call(open_tm1)
-        # Note: quote is empty dict because daily_bars.get_bars_in_range mocked implicitly (returns MagicMock which is not empty, wait)
-        # Actually daily_bars.get_bars_in_range returns a MagicMock by default.
-        # In runner: if not df.is_empty(): ...
-        # So we need to ensure df.is_empty() returns True to avoid iteration on mock, or properly mock it.
-        # If we let it return True (default for bool(mock)), it might enter iteration.
-        # Let's mock get_bars_in_range to return empty df-like object.
-        mock_df = MagicMock()
-        mock_df.is_empty.return_value = True
-        mock_daily_bars.get_bars_in_range.return_value = mock_df
-
         strategy.on_bar.assert_any_call(bar_tm1, {}, FrameType.DAY)
         strategy.on_day_close.assert_any_call(close_tm1)
+
+
+def test_get_bar_quote_for_daily_backtest_uses_previous_completed_bar(monkeypatch):
+    feed = _DailyQuoteFeed()
+    monkeypatch.setattr("quantide.service.runner.daily_bars", feed)
+    monkeypatch.setattr(
+        "quantide.service.runner.calendar",
+        MagicMock(day_shift=MagicMock(return_value=datetime.date(2024, 1, 4))),
+    )
+
+    runner = BacktestRunner()
+    broker = MagicMock()
+    broker.positions = {}
+
+    quote = runner._get_bar_quote(
+        broker,
+        current_date=datetime.date(2024, 1, 5),
+        bar_tm=datetime.datetime(2024, 1, 5, 9, 30),
+        config={"universe": ["000001.SZ"]},
+        frame_type=FrameType.DAY,
+    )
+
+    assert quote == {
+        "000001.SZ": {
+            "lastPrice": 10.0,
+            "volume": 1000.0,
+        }
+    }
 
 @pytest.mark.asyncio
 async def test_run_minute():
@@ -104,9 +162,9 @@ async def test_run_minute():
     # Mock dependencies
     with patch("quantide.service.runner.calendar") as mock_calendar, \
          patch("quantide.service.runner.BacktestBroker") as MockBroker, \
-         patch("quantide.service.runner.daily_bars") as mock_daily_bars, \
-         patch("quantide.service.runner.db") as mock_db, \
-         patch("quantide.service.runner.metrics") as mock_metrics:
+         patch("quantide.service.runner.daily_bars"), \
+         patch("quantide.service.runner.db"), \
+         patch("quantide.service.runner.metrics"):
 
         # Setup calendar mock
         mock_calendar.ceiling.return_value = start_date
@@ -138,7 +196,10 @@ async def test_run_minute():
         MockStrategyCls = MagicMock(return_value=strategy)
         MockStrategyCls.__name__ = "SimpleStrategy"
 
-        runner = BacktestRunner()
+        mock_clock = MagicMock()
+        mock_clock.iter_frames.return_value = [tm1, tm2]
+
+        runner = BacktestRunner(clock=mock_clock)
         await runner.run(MockStrategyCls, {}, start_date, end_date, frame_type=FrameType.MIN1)
 
         # Verify calls

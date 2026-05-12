@@ -51,26 +51,50 @@ def _normalize_stats(stats):
     return series.to_dict()
 
 
-def _to_number(value) -> float:
+def _to_number(value) -> float | None:
     """将指标值转换为 float。
 
     Args:
         value: 指标值
 
     Returns:
-        float: 数值化结果
+        float | None: 数值化结果。百分比字符串会被转换为小数。
     """
+    is_percent = False
     if value is None:
-        return 0.0
+        return None
     if isinstance(value, str):
-        cleaned = value.strip().rstrip("%")
-        if cleaned == "" or cleaned.lower() == "nan":
-            return 0.0
+        cleaned = value.strip()
+        if cleaned == "" or cleaned.lower() in {"nan", "n/a", "na"}:
+            return None
+        is_percent = cleaned.endswith("%")
+        if is_percent:
+            cleaned = cleaned[:-1].strip()
         value = cleaned
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
-        return 0.0
+        return None
+    return number / 100 if is_percent else number
+
+
+def _metric_value(stats_dict: dict[str, Any], *keys: str) -> float | None:
+    """解析首个存在的指标值。
+
+    Args:
+        stats_dict: 规范化后的指标字典。
+        *keys: 候选指标键名，按优先级顺序查找。
+
+    Returns:
+        解析后的数值；若所有键都不存在或无法解析，则返回 ``None``。
+    """
+    for key in keys:
+        if key not in stats_dict:
+            continue
+        value = _to_number(stats_dict[key])
+        if value is not None:
+            return value
+    return None
 
 
 def _build_date_axis(portfolio_id: str) -> list[str]:
@@ -211,32 +235,37 @@ def _build_metrics_payload(portfolio_id: str) -> dict:
     """
     stats = metrics(portfolio_id)
     stats_dict = _normalize_stats(stats)
-    annual_return = _to_number(stats_dict.get("annual_return", stats_dict.get("cagr", 0.0)))
-    sharpe = _to_number(stats_dict.get("sharpe", 0.0))
-    max_drawdown = _to_number(stats_dict.get("max_drawdown", 0.0))
-    total_returns = _to_number(
-        stats_dict.get("cumulative_return", stats_dict.get("total_return", stats_dict.get("total_returns", 0.0)))
+    annual_return = _metric_value(stats_dict, "annual_return", "cagr")
+    sharpe = _metric_value(stats_dict, "sharpe_ratio", "sharpe")
+    max_drawdown = _metric_value(stats_dict, "max_drawdown")
+    total_returns = _metric_value(
+        stats_dict,
+        "cumulative_return",
+        "total_return",
+        "total_returns",
     )
-    volatility = _to_number(stats_dict.get("volatility_ann", stats_dict.get("volatility", 0.0)))
-    sortino = _to_number(stats_dict.get("sortino", 0.0))
-    calmar = _to_number(stats_dict.get("calmar", 0.0))
-    win_rate = _to_number(stats_dict.get("win_rate", 0.0))
-    profit_factor = _to_number(stats_dict.get("profit_factor", 0.0))
-    alpha = _to_number(stats_dict.get("alpha", 0.0))
-    beta = _to_number(stats_dict.get("beta", 0.0))
-    payoff_ratio = _to_number(stats_dict.get("payoff_ratio", 0.0))
-    avg_return = _to_number(stats_dict.get("avg_return", 0.0))
-    avg_win = _to_number(stats_dict.get("avg_win", 0.0))
-    avg_loss = _to_number(stats_dict.get("avg_loss", 0.0))
-    best_day = _to_number(stats_dict.get("best_day", 0.0))
-    worst_day = _to_number(stats_dict.get("worst_day", 0.0))
-    tail_ratio = _to_number(stats_dict.get("tail_ratio", 0.0))
-    skew = _to_number(stats_dict.get("skew", 0.0))
-    kurtosis = _to_number(stats_dict.get("kurtosis", 0.0))
-    value_at_risk = _to_number(
-        stats_dict.get("daily_value_at_risk", stats_dict.get("value_at_risk", 0.0))
+    volatility = _metric_value(stats_dict, "volatility_ann", "volatility")
+    sortino = _metric_value(stats_dict, "sortino_ratio", "sortino")
+    calmar = _metric_value(stats_dict, "calmar_ratio", "calmar")
+    win_rate = _metric_value(stats_dict, "win_rate_daily", "win_rate")
+    profit_factor = _metric_value(stats_dict, "profit_factor")
+    alpha = _metric_value(stats_dict, "alpha_ann", "alpha")
+    beta = _metric_value(stats_dict, "beta")
+    payoff_ratio = _metric_value(stats_dict, "payoff_ratio")
+    avg_return = _metric_value(stats_dict, "avg_return")
+    avg_win = _metric_value(stats_dict, "avg_win")
+    avg_loss = _metric_value(stats_dict, "avg_loss")
+    best_day = _metric_value(stats_dict, "best_day")
+    worst_day = _metric_value(stats_dict, "worst_day")
+    tail_ratio = _metric_value(stats_dict, "tail_ratio")
+    skew = _metric_value(stats_dict, "skewness", "skew")
+    kurtosis = _metric_value(stats_dict, "kurtosis")
+    value_at_risk = _metric_value(
+        stats_dict,
+        "daily_value_at_risk",
+        "value_at_risk",
     )
-    information_ratio = _to_number(stats_dict.get("information_ratio", 0.0))
+    information_ratio = _metric_value(stats_dict, "information_ratio")
     return {
         "annual_return": annual_return,
         "total_returns": total_returns,
@@ -603,8 +632,16 @@ def _build_backtest_rows(strategies: dict) -> list:
         sharpe = metrics_payload.get("sharpe", 0.0)
         max_drawdown = metrics_payload.get("max_drawdown", 0.0)
         sortino = metrics_payload.get("sortino", 0.0)
-        annual_cls = "text-green-600" if annual_return >= 0 else "text-red-600"
-        drawdown_cls = "text-red-600" if max_drawdown < 0 else "text-gray-900"
+        annual_cls = (
+            "text-gray-900"
+            if annual_return is None
+            else ("text-green-600" if annual_return >= 0 else "text-red-600")
+        )
+        drawdown_cls = (
+            "text-gray-900"
+            if max_drawdown is None
+            else ("text-red-600" if max_drawdown < 0 else "text-gray-900")
+        )
 
         rows.append(
             Tr(
@@ -1322,11 +1359,11 @@ def backtest_result(req, session, portfolio_id: str):
 
     metrics_entries = []
     for key, label, fmt in metrics_items:
-        value = metrics_payload.get(key, 0.0)
-        value_text = f"{value:.2%}" if fmt == "percent" else f"{value:.2f}"
-        if value > 0:
+        value = metrics_payload.get(key)
+        value_text = _format_percent(value) if fmt == "percent" else _format_number(value)
+        if value is not None and value > 0:
             value_cls = "text-red-600"
-        elif value < 0:
+        elif value is not None and value < 0:
             value_cls = "text-green-600"
         else:
             value_cls = "text-gray-700"
@@ -1426,12 +1463,12 @@ def backtest_result(req, session, portfolio_id: str):
         window.addEventListener('resize', function() {{ chart.resize(); }});
 
         function fmtPercent(v) {{
-            if (v === null || v === undefined || isNaN(v)) return "0.00%";
+            if (v === null || v === undefined || isNaN(v)) return "--";
             return (v * 100).toFixed(2) + "%";
         }}
 
         function fmtNumber(v) {{
-            if (v === null || v === undefined || isNaN(v)) return "0.00";
+            if (v === null || v === undefined || isNaN(v)) return "--";
             return Number(v).toFixed(2);
         }}
 

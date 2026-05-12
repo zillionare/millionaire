@@ -14,7 +14,6 @@ from quantide.core.errors import (
     ClockBeforeStart,
     ClockRewind,
     DupPortfolio,
-    InsufficientAmount,
     InsufficientCash,
     InsufficientPosition,
     LimitPrice,
@@ -24,7 +23,6 @@ from quantide.core.errors import (
     TradeError,
 )
 from quantide.data.models.calendar import calendar
-from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Order, Portfolio, Position, Trade, db
 from quantide.service.abstract_broker import AbstractBroker
 from quantide.service.base_broker import TradeResult
@@ -973,16 +971,36 @@ class BacktestBroker(AbstractBroker):
         skip_suspended: bool = True,
         fill_value: bool = True,
     ) -> pl.DataFrame:
+        """获取回测历史行情。
+
+        日线回测默认在开盘时生成信号，因此当 ``end_dt`` 落在开盘时刻或更早时，
+        当前交易日尚未完成，历史窗口只能看到上一交易日的数据，避免前视偏差。
+
+        Args:
+            asset: 资产代码。
+            count: 历史 bar 数量。
+            end_dt: 截止时间，包含边界。
+            frame_type: 周期类型，目前仅支持 ``1d``。
+            skip_suspended: 预留参数，当前未使用。
+            fill_value: 预留参数，当前未使用。
+
+        Returns:
+            历史日线数据。
+        """
+        _ = skip_suspended
+        _ = fill_value
         if frame_type != "1d":
             # 目前只支持日线，后续可扩展
             raise NotImplementedError("BacktestBroker currently only supports 1d history")
 
         end_date = self.as_date(end_dt) if end_dt else self.as_date(self._clock)
+        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
+            end_date = calendar.day_shift(end_date, -1)
 
-        # 使用 daily_bars 获取历史数据
-        return daily_bars.get_bars(
+        # 使用数据源获取历史数据
+        return self._data_feed.get_bars(
             n=count,
             end=end_date,
             assets=[asset],
-            adjust="qfq"
+            adjust="qfq",
         )

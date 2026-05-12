@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from typing import Any, Dict, Type
+from typing import Any
 
 from loguru import logger
 
@@ -48,8 +48,8 @@ class BacktestRunner:
 
     def _init_backtest(
         self,
-        strategy_cls: Type[BaseStrategy],
-        config: Dict[str, Any],
+        strategy_cls: type[BaseStrategy],
+        config: dict[str, Any],
         start_date: datetime.date,
         end_date: datetime.date,
         frame_type: FrameType,
@@ -137,18 +137,41 @@ class BacktestRunner:
             return current_date
         return last_trade_day
 
+    def _resolve_day_signal_date(
+        self,
+        current_date: datetime.date,
+        bar_tm: datetime.datetime,
+    ) -> datetime.date:
+        """返回日线策略在当前时间点可见的最新完整交易日。
+
+        日线回测的交易信号在开盘时生成，因此此时只能使用上一交易日
+        已经完整收盘的数据，避免“看到当天收盘价后又按当天收盘价成交”的前视偏差。
+
+        Args:
+            current_date: 当前交易日。
+            bar_tm: 当前 bar 的触发时间。
+
+        Returns:
+            可用于生成信号的最近完整交易日。
+        """
+        if bar_tm.time() <= datetime.time(9, 30):
+            return calendar.day_shift(current_date, -1)
+        return current_date
+
     def _get_bar_quote(
         self,
         broker: BacktestBroker,
         current_date: datetime.date,
-        config: Dict[str, Any],
+        bar_tm: datetime.datetime,
+        config: dict[str, Any],
         frame_type: FrameType,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """获取当前 Bar 的行情快照。
 
         Args:
             broker: Broker 实例
             current_date: 当前日期
+            bar_tm: 当前 Bar 时间
             config: 策略配置
             frame_type: 当前 Bar 的周期类型
 
@@ -161,7 +184,8 @@ class BacktestRunner:
             assets = list(set(list(broker.positions.keys()) + universe))
 
             if assets:
-                df = daily_bars.get_bars_in_range(current_date, current_date, assets)
+                quote_date = self._resolve_day_signal_date(current_date, bar_tm)
+                df = daily_bars.get_bars_in_range(quote_date, quote_date, assets)
                 if not df.is_empty():
                     for row in df.iter_rows(named=True):
                         quote[row["asset"]] = {
@@ -175,15 +199,15 @@ class BacktestRunner:
 
     async def run(
         self,
-        strategy_cls: Type[BaseStrategy],
-        config: Dict[str, Any],
+        strategy_cls: type[BaseStrategy],
+        config: dict[str, Any],
         start_date: datetime.date,
         end_date: datetime.date,
         frame_type: FrameType = FrameType.DAY,
         initial_cash: float = 1_000_000,
         portfolio_id: str | None = None,
         db_path: str | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """运行回测。
 
         Args:
@@ -231,7 +255,7 @@ class BacktestRunner:
                     bar_tm = tm
                 else:
                     current_date = tm
-                    bar_tm = calendar.replace_time(tm, 15, 0)
+                    bar_tm = calendar.replace_time(tm, 9, 30)
 
                 last_trade_day = await self._handle_day_switch(
                     strategy, broker, current_date, last_trade_day
@@ -241,7 +265,13 @@ class BacktestRunner:
                 self._clock.set_now(bar_tm)
                 broker.set_clock(bar_tm)
                 strategy._current_time = bar_tm
-                quote = self._get_bar_quote(broker, current_date, config, frame_type)
+                quote = self._get_bar_quote(
+                    broker,
+                    current_date,
+                    bar_tm,
+                    config,
+                    frame_type,
+                )
                 await strategy.on_bar(bar_tm, quote, frame_type)
 
             # Close the last day

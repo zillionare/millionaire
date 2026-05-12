@@ -4,8 +4,8 @@ import polars as pl
 import pytest
 
 from quantide.core.enums import FrameType, OrderSide
+from quantide.core.strategy import BaseStrategy
 from quantide.data.sqlite import db
-from quantide.service import backtest_broker as backtest_broker_module
 from quantide.service import runner as runner_module
 from quantide.service.runner import BacktestRunner
 from quantide.strategies.example.dual_ma import DualMAStrategy
@@ -75,6 +75,21 @@ class StaticDailyFeed:
         )
 
 
+class QuoteThresholdStrategy(BaseStrategy):
+    async def init(self):
+        pass
+
+    async def on_bar(self, tm, quote, frame_type):
+        if frame_type != FrameType.DAY:
+            return
+
+        price = (quote.get("000001.SZ") or {}).get("lastPrice")
+        if price is None:
+            return
+        if price > 11 and "000001.SZ" not in self.broker.positions:
+            await self.broker.buy_amount("000001.SZ", 100000, price=0, order_time=tm)
+
+
 @pytest.mark.asyncio
 async def test_dual_ma_strategy_executes_buy_and_sell_in_backtest(calendar, monkeypatch):
     db.init(":memory:")
@@ -130,10 +145,19 @@ async def test_dual_ma_strategy_executes_buy_and_sell_in_backtest(calendar, monk
                 "volume": 10000.0,
                 "adjust": 1.0,
             },
+            {
+                "date": datetime.date(2024, 1, 9),
+                "asset": "000001.SZ",
+                "open": 7.0,
+                "close": 7.0,
+                "up_limit": 8.0,
+                "down_limit": 6.0,
+                "volume": 10000.0,
+                "adjust": 1.0,
+            },
         ]
     )
     monkeypatch.setattr(runner_module, "daily_bars", feed)
-    monkeypatch.setattr(backtest_broker_module, "daily_bars", feed)
 
     runner = BacktestRunner()
     result = await runner.run(
@@ -146,7 +170,7 @@ async def test_dual_ma_strategy_executes_buy_and_sell_in_backtest(calendar, monk
             "universe": ["000001.SZ"],
         },
         start_date=datetime.date(2024, 1, 5),
-        end_date=datetime.date(2024, 1, 8),
+        end_date=datetime.date(2024, 1, 9),
         frame_type=FrameType.DAY,
         initial_cash=200000,
         portfolio_id="dual-ma-example",
@@ -159,6 +183,79 @@ async def test_dual_ma_strategy_executes_buy_and_sell_in_backtest(calendar, monk
     assert trades.height == 2
     assert trades["asset"].to_list() == ["000001.SZ", "000001.SZ"]
     assert trades["side"].to_list() == [OrderSide.BUY.value, OrderSide.SELL.value]
+    assert trades["tm"].to_list() == [
+        datetime.datetime(2024, 1, 8, 9, 30),
+        datetime.datetime(2024, 1, 9, 9, 30),
+    ]
+    assert trades["price"].to_list() == [8.0, 7.0]
 
     orders = db.orders_all(portfolio_id="dual-ma-example")
     assert orders.height == 2
+
+
+@pytest.mark.asyncio
+async def test_daily_quote_uses_previous_close_for_open_signal(calendar, monkeypatch):
+    db.init(":memory:")
+    feed = StaticDailyFeed(
+        [
+            {
+                "date": datetime.date(2024, 1, 4),
+                "asset": "000001.SZ",
+                "open": 10.0,
+                "close": 10.0,
+                "up_limit": 11.0,
+                "down_limit": 9.0,
+                "volume": 10000.0,
+                "adjust": 1.0,
+            },
+            {
+                "date": datetime.date(2024, 1, 5),
+                "asset": "000001.SZ",
+                "open": 12.0,
+                "close": 12.0,
+                "up_limit": 13.0,
+                "down_limit": 11.0,
+                "volume": 10000.0,
+                "adjust": 1.0,
+            },
+            {
+                "date": datetime.date(2024, 1, 8),
+                "asset": "000001.SZ",
+                "open": 8.0,
+                "close": 8.0,
+                "up_limit": 9.0,
+                "down_limit": 7.0,
+                "volume": 10000.0,
+                "adjust": 1.0,
+            },
+            {
+                "date": datetime.date(2024, 1, 9),
+                "asset": "000001.SZ",
+                "open": 7.0,
+                "close": 7.0,
+                "up_limit": 8.0,
+                "down_limit": 6.0,
+                "volume": 10000.0,
+                "adjust": 1.0,
+            },
+        ]
+    )
+    monkeypatch.setattr(runner_module, "daily_bars", feed)
+
+    runner = BacktestRunner()
+    await runner.run(
+        QuoteThresholdStrategy,
+        {"universe": ["000001.SZ"]},
+        start_date=datetime.date(2024, 1, 5),
+        end_date=datetime.date(2024, 1, 9),
+        frame_type=FrameType.DAY,
+        initial_cash=200000,
+        portfolio_id="daily-quote-open-signal",
+    )
+
+    trades = db.trades_all(portfolio_id="daily-quote-open-signal")
+    assert trades is not None
+    assert trades.height == 2
+    assert trades["side"].to_list() == [OrderSide.BUY.value, OrderSide.SELL.value]
+    assert trades["tm"].to_list()[0] == datetime.datetime(2024, 1, 8, 9, 30)
+    assert trades["price"].to_list()[0] == 8.0
