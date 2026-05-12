@@ -3,8 +3,6 @@
 提供投资组合的风险和收益指标计算，包括夏普比率、最大回撤、年化收益等。
 """
 
-import datetime
-
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -155,7 +153,7 @@ def _calculate_metrics(
         # 找到最长连续回撤期间
         drawdown_periods = []
         start_idx = None
-        for i, (date, in_dd) in enumerate(is_drawdown.items()):
+        for i, (_date, in_dd) in enumerate(is_drawdown.items()):
             if in_dd and start_idx is None:
                 start_idx = i
             elif not in_dd and start_idx is not None:
@@ -180,14 +178,46 @@ def _calculate_metrics(
     win_rate = (returns > 0).sum() / len(returns)
     metrics_dict["Win Rate (Daily)"] = f"{win_rate:.2%}"
 
-    # 盈亏比
-    avg_win = returns[returns > 0].mean() if (returns > 0).any() else 0
-    avg_loss = abs(returns[returns < 0].mean()) if (returns < 0).any() else 0
-    if avg_loss > 0:
-        profit_factor = avg_win / avg_loss
-        metrics_dict["Profit Factor"] = f"{profit_factor:.2f}"
+    # 收益分布指标
+    positive_returns = returns[returns > 0]
+    negative_returns = returns[returns < 0]
+
+    avg_return = returns.mean()
+    metrics_dict["Average Return"] = f"{avg_return:.2%}"
+
+    avg_win = positive_returns.mean() if len(positive_returns) > 0 else None
+    avg_loss = negative_returns.mean() if len(negative_returns) > 0 else None
+    metrics_dict["Average Win"] = (
+        f"{avg_win:.2%}" if avg_win is not None else "N/A"
+    )
+    metrics_dict["Average Loss"] = (
+        f"{avg_loss:.2%}" if avg_loss is not None else "N/A"
+    )
+
+    metrics_dict["Best Day"] = f"{returns.max():.2%}"
+    metrics_dict["Worst Day"] = f"{returns.min():.2%}"
+
+    var_95 = returns.quantile(0.05)
+    metrics_dict["Daily Value at Risk"] = f"{var_95:.2%}"
+
+    tail_right = returns.quantile(0.95)
+    if var_95 < 0:
+        metrics_dict["Tail Ratio"] = f"{tail_right / abs(var_95):.2f}"
+    else:
+        metrics_dict["Tail Ratio"] = "N/A"
+
+    # 交易质量指标
+    gross_profit = positive_returns.sum()
+    gross_loss = abs(negative_returns.sum())
+    if gross_loss > 0:
+        metrics_dict["Profit Factor"] = f"{gross_profit / gross_loss:.2f}"
     else:
         metrics_dict["Profit Factor"] = "N/A"
+
+    if avg_win is not None and avg_loss is not None and avg_loss != 0:
+        metrics_dict["Payoff Ratio"] = f"{avg_win / abs(avg_loss):.2f}"
+    else:
+        metrics_dict["Payoff Ratio"] = "N/A"
 
     # 偏度和峰度
     metrics_dict["Skewness"] = f"{returns.skew():.2f}"

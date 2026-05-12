@@ -23,7 +23,6 @@ from quantide.core.errors import (
 from quantide.data.sqlite import Position, db
 from quantide.service.backtest_broker import BacktestBroker
 
-
 cfg = SimpleNamespace(TIMEZONE=DEFAULT_TIMEZONE)
 
 
@@ -58,6 +57,9 @@ class MockDataFeed:
         return self.close_factor_data.filter(
             (pl.col("dt") >= start) & (pl.col("dt") <= end)
         )
+
+    def get_close_adjust_factor(self, assets, start, end):
+        return self.get_close_factor(assets, start, end)
 
 @pytest.fixture
 def data_feed():
@@ -738,9 +740,47 @@ def test_fill_history_suspension(broker, data_feed):
     assert not pos_day3.is_empty()
     assert pos_day3["mv"][0] == 1000 * 11.0
 
+
+def test_fill_history_missing_base_factor_does_not_create_fake_cash(broker, data_feed):
+    """缺失基准复权因子时，不应在首个有效 bar 凭空造现金。"""
+    dt1 = make_dt(datetime.date(2024, 1, 2), 9, 30)
+    data_feed.match_data = pl.DataFrame(
+        {
+            "date": [dt1],
+            "open": [10.0],
+            "close": [10.0],
+            "up_limit": [11.0],
+            "down_limit": [9.0],
+            "factor": [1.0],
+        }
+    )
+    asyncio.run(broker.buy("000001.SZ", 1000, 0, dt1))
+
+    # Day 2 / Day 3 数据缺失，仅在 Day 4 首次恢复时出现高复权因子。
+    data_feed.close_factor_data = pl.DataFrame(
+        [
+            {
+                "dt": datetime.date(2024, 1, 5),
+                "asset": "000001.SZ",
+                "close": 11.0,
+                "factor": 5.0,
+            }
+        ]
+    )
+
+    dt4 = make_dt(datetime.date(2024, 1, 8), 9, 30)
+    broker.set_clock(dt4)
+
+    asset_rec = db.get_asset(portfolio_id="test_bt", dt=datetime.date(2024, 1, 5))
+    assert asset_rec is not None
+    assert abs(asset_rec.cash - 989995.0) < 0.01
+    assert abs(asset_rec.market_value - 11000.0) < 0.01
+    assert abs(asset_rec.total - 1000995.0) < 0.01
+
 def test_complex_scenario(broker, data_feed):
     """
     Simulate a complex scenario:
+
     1. Day 1: Buy A and B.
     2. Day 2: Prices change.
     3. Day 3: Sell A partial.
@@ -827,6 +867,4 @@ def test_complex_scenario(broker, data_feed):
     assert res.trades[0].side == OrderSide.BUY
     # Exact calculation might differ slightly due to fees/price est, but should be around 24700
     assert abs(res.trades[0].shares - 24700) <= 200
-
-
 

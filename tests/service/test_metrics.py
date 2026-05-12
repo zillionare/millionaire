@@ -110,6 +110,9 @@ def test_metrics_basic(setup_db):
     # 验证包含核心指标
     assert "Sharpe Ratio" in stats.index
     assert "Total Return" in stats.index
+    assert "Average Return" in stats.index
+    assert "Payoff Ratio" in stats.index
+    assert "Daily Value at Risk" in stats.index
     assert stats.loc["CAGR", "Value"].endswith("%")
 
 
@@ -184,3 +187,33 @@ def test_metrics_empty_data(setup_db):
         Asset("empty", datetime.date(2024, 1, 1), 100.0, 100.0, 0.0, 0.0, 100.0)
     )
     assert metrics("empty") is None
+
+
+def test_metrics_include_trade_quality_distribution_stats(setup_db):
+    portfolio_id = "test_distribution_metrics_p"
+    totals = [100.0, 110.0, 99.0, 108.9]
+
+    for index, total in enumerate(totals, start=1):
+        db.upsert_asset(
+            Asset(
+                portfolio_id,
+                datetime.date(2024, 1, index),
+                100.0,
+                100.0,
+                0.0,
+                0.0,
+                total,
+            )
+        )
+
+    stats = metrics(portfolio_id)
+
+    assert stats.loc["Average Return", "Value"] == "3.33%"
+    assert stats.loc["Average Win", "Value"] == "10.00%"
+    assert stats.loc["Average Loss", "Value"] == "-10.00%"
+    assert stats.loc["Best Day", "Value"] == "10.00%"
+    assert stats.loc["Worst Day", "Value"] == "-10.00%"
+    assert stats.loc["Profit Factor", "Value"] == "2.00"
+    assert stats.loc["Payoff Ratio", "Value"] == "1.00"
+    assert stats.loc["Tail Ratio", "Value"] == "1.25"
+    assert stats.loc["Daily Value at Risk", "Value"] == "-8.00%"

@@ -222,20 +222,38 @@ class BacktestBroker(AbstractBroker):
 
         # 1. 获取行情与复权因子（包含前一交易日，用于基准）
         old_date = calendar.day_shift(start, -1)
-        prices_df = self._data_feed.get_close_adjust_factor(assets, old_date, end)
-        base_factors = prices_df.filter(pl.col("date") == old_date).select([
-            pl.col("asset"),
-            pl.col("adjust").alias("base_adjust")
-        ])
+        prices_df = self._get_close_adjust_factors(assets, old_date, end)
+        prices_df = prices_df.sort(["asset", "date"])
+
+        base_factors = prices_df.filter(pl.col("date") == old_date).select(
+            [
+                pl.col("asset"),
+                pl.col("adjust").alias("base_adjust"),
+            ]
+        )
+        first_factors = prices_df.group_by("asset").agg(
+            pl.col("adjust").first().alias("first_adjust")
+        )
 
         # 3. 构造填充模板
-        pos_template = latest_pos.select([
-            pl.col("asset"),
-            pl.col("shares"),
-            pl.col("price"),
-            (pl.col("mv") / pl.col("shares")).alias("last_mkt_price")
-        ]).join(base_factors, on="asset", how="left").with_columns(
-            pl.col("base_adjust").fill_null(1.0)
+        pos_template = (
+            latest_pos.select(
+                [
+                    pl.col("asset"),
+                    pl.col("shares"),
+                    pl.col("price"),
+                    (pl.col("mv") / pl.col("shares")).alias("last_mkt_price"),
+                ]
+            )
+            .join(base_factors, on="asset", how="left")
+            .join(first_factors, on="asset", how="left")
+            .with_columns(
+                pl.coalesce(
+                    pl.col("base_adjust"),
+                    pl.col("first_adjust"),
+                    pl.lit(1.0),
+                ).alias("seed_adjust")
+            )
         )
 
         fill_df = pl.DataFrame({"date": fill_dates}).join(pos_template, how="cross")
@@ -250,16 +268,30 @@ class BacktestBroker(AbstractBroker):
             pl.col("adjust").fill_null(strategy="forward").over("asset"),
         ]).with_columns([
             pl.col("close").fill_null(pl.col("last_mkt_price")).over("asset"),
-            pl.col("adjust").fill_null(pl.col("base_adjust")).over("asset"),
+            pl.col("adjust").fill_null(pl.col("seed_adjust")).over("asset"),
         ])
 
-        # 5. 计算复权变动比例及产生的现金补偿
-        # 补偿公式：(new_adjust - prev_adjust) * shares * close
+        # 5. 计算复权变动比例及产生的现金补偿。
+        #
+        # adjust 是累计复权因子，资产价值的连续性由相邻因子的比值决定，
+        # 不能直接使用差值，否则会在除权日凭空放大现金。
+        #
+        # 当缺少前一交易日因子时，seed_adjust 会退化为首个观测到的因子，
+        # 这样首个有效 bar 不会错误地产生一次“从 1 跳到当前因子”的伪补偿。
         fill_df = fill_df.with_columns(
-            pl.col("adjust").shift(1).over("asset").fill_null(pl.col("base_adjust")).alias("prev_adjust")
+            pl.col("adjust")
+            .shift(1)
+            .over("asset")
+            .fill_null(pl.col("seed_adjust"))
+            .alias("prev_adjust")
         ).with_columns([
-            ((pl.col("adjust") - pl.col("prev_adjust")) * pl.col("shares") * pl.col("close")).alias("cash_adj"),
-            (pl.col("shares") * pl.col("close")).alias("mv") # 新增 mv 列
+            pl.when((pl.col("adjust") > 0) & (pl.col("prev_adjust") > 0))
+            .then(pl.col("adjust") / pl.col("prev_adjust"))
+            .otherwise(pl.lit(1.0))
+            .alias("adjust_ratio"),
+        ]).with_columns([
+            ((pl.col("adjust_ratio") - 1.0) * pl.col("shares") * pl.col("close")).alias("cash_adj"),
+            (pl.col("shares") * pl.col("close")).alias("mv"),
         ])
 
         # 6. 汇总每日统计量
@@ -402,10 +434,17 @@ class BacktestBroker(AbstractBroker):
 
             return TradeResult(order.qtoid, [trade])
         except TradeError as e:
-            # 在废单的情况下，没必要返回 Order id，但可以记录状态
+            # 在废单的情况下，保留已插入的订单记录并更新状态，
+            # 避免重复插入同一个 qtoid 触发唯一约束异常。
             order.status = OrderStatus.JUNK
             order.status_msg = str(e)
-            db.insert_order(order)
+            db.update_order(
+                order.qtoid,
+                status=order.status.value,
+                status_msg=order.status_msg,
+                filled=order.filled,
+                error=str(e),
+            )
             raise e
 
     def _match_bid_day(
@@ -720,10 +759,16 @@ class BacktestBroker(AbstractBroker):
 
             return TradeResult(order.qtoid, [trade])
         except TradeError as e:
-            # 在废单的情况下，没必要返回 Order id
+            # 在废单的情况下，保留已插入的订单记录并更新状态。
             order.status = OrderStatus.JUNK
             order.status_msg = str(e)
-            db.insert_order(order)
+            db.update_order(
+                order.qtoid,
+                status=order.status.value,
+                status_msg=order.status_msg,
+                filled=order.filled,
+                error=str(e),
+            )
             raise e
 
     def _match_ask_day(
@@ -1003,4 +1048,47 @@ class BacktestBroker(AbstractBroker):
             end=end_date,
             assets=[asset],
             adjust="qfq",
+        )
+
+    def _get_close_adjust_factors(
+        self,
+        assets: list[str],
+        start: datetime.date,
+        end: datetime.date,
+    ) -> pl.DataFrame:
+        """读取用于展仓的收盘价与复权因子，并兼容旧测试桩接口。"""
+        if hasattr(self._data_feed, "get_close_adjust_factor"):
+            frame = self._data_feed.get_close_adjust_factor(assets, start, end)
+        elif hasattr(self._data_feed, "get_close_factor"):
+            frame = self._data_feed.get_close_factor(assets, start, end)
+        else:
+            frame = None
+
+        if frame is None or frame.is_empty():
+            return pl.DataFrame(
+                schema={
+                    "date": pl.Date,
+                    "asset": pl.Utf8,
+                    "close": pl.Float64,
+                    "adjust": pl.Float64,
+                }
+            )
+
+        rename_map: dict[str, str] = {}
+        if "dt" in frame.columns and "date" not in frame.columns:
+            rename_map["dt"] = "date"
+        if "factor" in frame.columns and "adjust" not in frame.columns:
+            rename_map["factor"] = "adjust"
+        if rename_map:
+            frame = frame.rename(rename_map)
+
+        if "adjust" not in frame.columns:
+            frame = frame.with_columns(pl.lit(1.0).alias("adjust"))
+
+        return frame.select(["date", "asset", "close", "adjust"]).with_columns(
+            [
+                pl.col("date").cast(pl.Date),
+                pl.col("close").cast(pl.Float64),
+                pl.col("adjust").cast(pl.Float64),
+            ]
         )

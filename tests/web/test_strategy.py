@@ -139,13 +139,21 @@ def test_build_metrics_payload_normalizes_percent_metrics_and_current_keys(monke
                 "0.74",
                 "29.66",
                 "44.34",
+                "0.55",
+                "1.23",
                 "29.15%",
+                "8.53",
                 "29.26",
-                "1086.49%",
-                "-0.05",
+                "0.82%",
+                "2.42%",
+                "-0.09%",
+                "5.10%",
+                "-3.20%",
+                "1.25",
                 "0.12",
                 "555.86",
-                "1.23",
+                "-2.14%",
+                "0.88",
             ]
         },
         index=[
@@ -156,16 +164,25 @@ def test_build_metrics_payload_normalizes_percent_metrics_and_current_keys(monke
             "Sharpe Ratio",
             "Sortino Ratio",
             "Calmar Ratio",
-            "Win Rate (Daily)",
-            "Profit Factor",
             "Alpha (ann.)",
             "Beta",
+            "Win Rate (Daily)",
+            "Profit Factor",
+            "Payoff Ratio",
+            "Average Return",
+            "Average Win",
+            "Average Loss",
+            "Best Day",
+            "Worst Day",
+            "Tail Ratio",
             "Skewness",
             "Kurtosis",
+            "Daily Value at Risk",
             "Information Ratio",
         ],
     )
-    monkeypatch.setattr(strategy_page, "metrics", lambda portfolio_id: stats)
+    monkeypatch.setattr(strategy_page, "metrics", lambda *args, **kwargs: stats)
+    monkeypatch.setattr(strategy_page, "_build_benchmark_returns", lambda portfolio_id: None)
 
     payload = strategy_page._build_metrics_payload("demo")
 
@@ -176,20 +193,28 @@ def test_build_metrics_payload_normalizes_percent_metrics_and_current_keys(monke
     assert payload["sharpe"] == pytest.approx(0.74)
     assert payload["sortino"] == pytest.approx(29.66)
     assert payload["calmar"] == pytest.approx(44.34)
+    assert payload["alpha"] == pytest.approx(0.55)
+    assert payload["beta"] == pytest.approx(1.23)
     assert payload["win_rate"] == pytest.approx(0.2915)
-    assert payload["profit_factor"] == pytest.approx(29.26)
-    assert payload["alpha"] == pytest.approx(10.8649)
-    assert payload["beta"] == pytest.approx(-0.05)
+    assert payload["profit_factor"] == pytest.approx(8.53)
+    assert payload["payoff_ratio"] == pytest.approx(29.26)
+    assert payload["avg_return"] == pytest.approx(0.0082)
+    assert payload["avg_win"] == pytest.approx(0.0242)
+    assert payload["avg_loss"] == pytest.approx(-0.0009)
+    assert payload["best_day"] == pytest.approx(0.051)
+    assert payload["worst_day"] == pytest.approx(-0.032)
+    assert payload["tail_ratio"] == pytest.approx(1.25)
     assert payload["skew"] == pytest.approx(0.12)
     assert payload["kurtosis"] == pytest.approx(555.86)
-    assert payload["information_ratio"] == pytest.approx(1.23)
-    assert payload["avg_return"] is None
+    assert payload["value_at_risk"] == pytest.approx(-0.0214)
+    assert payload["information_ratio"] == pytest.approx(0.88)
     assert strategy_page._format_percent(payload["annual_return"]) == "233.4%"
     assert strategy_page._format_percent(payload["max_drawdown"]) == "-5.3%"
 
 
 def test_build_metrics_payload_keeps_missing_metrics_empty(monkeypatch):
-    monkeypatch.setattr(strategy_page, "metrics", lambda portfolio_id: pd.DataFrame())
+    monkeypatch.setattr(strategy_page, "metrics", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(strategy_page, "_build_benchmark_returns", lambda portfolio_id: None)
 
     payload = strategy_page._build_metrics_payload("demo")
 
@@ -198,3 +223,68 @@ def test_build_metrics_payload_keeps_missing_metrics_empty(monkeypatch):
     assert payload["win_rate"] is None
     assert strategy_page._format_percent(payload["annual_return"]) == "--"
     assert strategy_page._format_number(payload["sharpe"]) == "--"
+
+
+def test_build_metrics_payload_passes_benchmark_returns(monkeypatch):
+    captured = {}
+    baseline_returns = pd.DataFrame({"dt": ["2024-01-02"], "returns": [0.01]})
+
+    def _fake_metrics(portfolio_id, baseline_returns=None):
+        captured["portfolio_id"] = portfolio_id
+        captured["baseline_returns"] = baseline_returns
+        return pd.DataFrame({"Value": ["1.00"]}, index=["Sharpe Ratio"])
+
+    monkeypatch.setattr(strategy_page, "metrics", _fake_metrics)
+    monkeypatch.setattr(
+        strategy_page,
+        "_build_benchmark_returns",
+        lambda portfolio_id: baseline_returns,
+    )
+
+    strategy_page._build_metrics_payload("demo")
+
+    assert captured["portfolio_id"] == "demo"
+    assert captured["baseline_returns"] is baseline_returns
+
+
+def test_resolve_backtest_status_prefers_runtime_failure(monkeypatch):
+    monkeypatch.setattr(
+        strategy_page,
+        "strategy_runtime_manager",
+        SimpleNamespace(
+            get_backtest_run=lambda portfolio_id: SimpleNamespace(
+                status="failed",
+                error="boom",
+            )
+        ),
+    )
+    monkeypatch.setattr(strategy_page.db, "get_portfolio", lambda portfolio_id: None)
+
+    status, error = strategy_page._resolve_backtest_status("demo")
+
+    assert status == "failed"
+    assert error == "boom"
+
+
+def test_build_backtest_rows_keeps_missing_metrics_blank(monkeypatch):
+    portfolios = pd.DataFrame(
+        [
+            {
+                "portfolio_id": "demo-pf",
+                "kind": "bt",
+                "name": "DualMAStrategy",
+                "start": "2024-01-01",
+                "end": "2024-01-31",
+                "info": "",
+            }
+        ]
+    )
+    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
+    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+
+    rows = strategy_page._build_backtest_rows({})
+    html = to_xml(rows[0])
+
+    assert "--" in html
+    assert "0.0%" not in html

@@ -224,6 +224,47 @@ def _build_series_payload(portfolio_id: str, date_axis: list[str]) -> dict:
     }
 
 
+def _build_benchmark_returns(portfolio_id: str) -> pl.DataFrame | None:
+    """构建用于绩效指标计算的基准收益序列。
+
+    Args:
+        portfolio_id: 组合 ID。
+
+    Returns:
+        pl.DataFrame | None: 包含 ``dt`` 与 ``returns`` 列的基准收益率序列；
+        若无法构建，则返回 ``None``。
+    """
+    assets_df = db.query_assets(portfolio_id)
+    if assets_df.is_empty():
+        return None
+
+    assets_df = assets_df.sort("dt")
+    start_date = assets_df.row(0, named=True)["dt"]
+    end_date = assets_df.row(-1, named=True)["dt"]
+
+    try:
+        benchmark_df = daily_bars.get_bars_in_range(
+            start_date,
+            end_date,
+            assets=[BENCHMARK_ASSET],
+            eager_mode=True,
+        )
+    except Exception:
+        return None
+
+    if benchmark_df.is_empty():
+        return None
+
+    returns_df = (
+        benchmark_df.sort("date")
+        .select([pl.col("date").cast(pl.Date).alias("dt"), pl.col("close")])
+        .with_columns(pl.col("close").pct_change().alias("returns"))
+        .drop_nulls("returns")
+        .select(["dt", "returns"])
+    )
+    return returns_df if not returns_df.is_empty() else None
+
+
 def _build_metrics_payload(portfolio_id: str) -> dict:
     """构建指标数据。
 
@@ -233,7 +274,7 @@ def _build_metrics_payload(portfolio_id: str) -> dict:
     Returns:
         dict: 指标键值对
     """
-    stats = metrics(portfolio_id)
+    stats = metrics(portfolio_id, baseline_returns=_build_benchmark_returns(portfolio_id))
     stats_dict = _normalize_stats(stats)
     annual_return = _metric_value(stats_dict, "annual_return", "cagr")
     sharpe = _metric_value(stats_dict, "sharpe_ratio", "sharpe")
@@ -252,9 +293,9 @@ def _build_metrics_payload(portfolio_id: str) -> dict:
     alpha = _metric_value(stats_dict, "alpha_ann", "alpha")
     beta = _metric_value(stats_dict, "beta")
     payoff_ratio = _metric_value(stats_dict, "payoff_ratio")
-    avg_return = _metric_value(stats_dict, "avg_return")
-    avg_win = _metric_value(stats_dict, "avg_win")
-    avg_loss = _metric_value(stats_dict, "avg_loss")
+    avg_return = _metric_value(stats_dict, "avg_return", "average_return")
+    avg_win = _metric_value(stats_dict, "avg_win", "average_win")
+    avg_loss = _metric_value(stats_dict, "avg_loss", "average_loss")
     best_day = _metric_value(stats_dict, "best_day")
     worst_day = _metric_value(stats_dict, "worst_day")
     tail_ratio = _metric_value(stats_dict, "tail_ratio")
@@ -290,6 +331,28 @@ def _build_metrics_payload(portfolio_id: str) -> dict:
         "value_at_risk": value_at_risk,
         "information_ratio": information_ratio,
     }
+
+
+def _resolve_backtest_status(portfolio_id: str) -> tuple[str, str]:
+    """解析回测运行状态与错误信息。
+
+    Args:
+        portfolio_id: 回测组合 ID。
+
+    Returns:
+        tuple[str, str]: ``(status, error)``，状态可能为 ``running``、``finished``、
+        ``failed`` 或 ``missing``。
+    """
+    run = strategy_runtime_manager.get_backtest_run(portfolio_id)
+    if run is not None:
+        status = str(run.status or "").strip().lower()
+        if status in {"running", "finished", "failed"}:
+            return status, str(run.error or "")
+
+    portfolio = db.get_portfolio(portfolio_id)
+    if portfolio is None:
+        return "missing", "未找到回测记录。"
+    return ("running" if portfolio.status else "finished"), ""
 
 
 def _build_trade_rows(portfolio_id: str, limit: int = 200) -> list[dict]:
@@ -628,10 +691,10 @@ def _build_backtest_rows(strategies: dict) -> list:
         params_text = _params_to_text(info_params)
         range_text = _format_range(row.get("start"), row.get("end"))
         metrics_payload = _build_metrics_payload(portfolio_id)
-        annual_return = metrics_payload.get("annual_return", 0.0)
-        sharpe = metrics_payload.get("sharpe", 0.0)
-        max_drawdown = metrics_payload.get("max_drawdown", 0.0)
-        sortino = metrics_payload.get("sortino", 0.0)
+        annual_return = metrics_payload.get("annual_return")
+        sharpe = metrics_payload.get("sharpe")
+        max_drawdown = metrics_payload.get("max_drawdown")
+        sortino = metrics_payload.get("sortino")
         annual_cls = (
             "text-gray-900"
             if annual_return is None
@@ -1323,10 +1386,9 @@ def backtest_result(req, session, portfolio_id: str):
         },
     ]
 
-    portfolio = db.get_portfolio(portfolio_id)
-    status = "running" if portfolio is None or portfolio.status else "finished"
+    status, backtest_error = _resolve_backtest_status(portfolio_id)
     metrics_payload = _build_metrics_payload(portfolio_id)
-    is_running = status == "running"
+    is_finished = status == "finished"
     live_accounts = _get_live_accounts(req)
 
     date_axis = _build_date_axis(portfolio_id)
@@ -1375,6 +1437,29 @@ def backtest_result(req, session, portfolio_id: str):
             )
         )
     metrics_text = Div(*metrics_entries, cls="flex flex-wrap gap-x-6 gap-y-2")
+
+    status_text_map = {
+        "running": "回测进行中，实时推送中",
+        "finished": "回测已完成",
+        "failed": "回测失败",
+        "missing": "回测记录不存在",
+    }
+    status_cls_map = {
+        "running": "text-sm text-gray-500",
+        "finished": "text-sm text-gray-500",
+        "failed": "text-sm text-red-600",
+        "missing": "text-sm text-amber-600",
+    }
+
+    error_panel = (
+        Div(
+            H3("运行错误", cls="text-sm font-semibold text-red-700 mb-2"),
+            P(backtest_error, id="backtest_error", cls="text-sm text-red-600 whitespace-pre-wrap"),
+            cls="mb-4 rounded-lg border border-red-200 bg-red-50 p-4",
+        )
+        if backtest_error
+        else Div(id="backtest_error", cls="hidden")
+    )
 
     filter_start_value = date_axis[0] if date_axis else ""
     filter_end_value = date_axis[-1] if date_axis else ""
@@ -1655,7 +1740,27 @@ def backtest_result(req, session, portfolio_id: str):
                 }}
                 var statusEl = document.getElementById('backtest_status');
                 if (statusEl && data.status) {{
-                    statusEl.textContent = data.status === 'running' ? '回测进行中，实时推送中' : '回测已完成';
+                    var statusText = {{
+                        running: '回测进行中，实时推送中',
+                        finished: '回测已完成',
+                        failed: '回测失败',
+                        missing: '回测记录不存在'
+                    }};
+                    var statusClass = {{
+                        running: 'text-sm text-gray-500',
+                        finished: 'text-sm text-gray-500',
+                        failed: 'text-sm text-red-600',
+                        missing: 'text-sm text-amber-600'
+                    }};
+                    statusEl.textContent = statusText[data.status] || '回测状态未知';
+                    statusEl.className = statusClass[data.status] || 'text-sm text-gray-500';
+                }}
+                var errorEl = document.getElementById('backtest_error');
+                if (errorEl && data.error) {{
+                    errorEl.textContent = data.error;
+                    if (errorEl.parentElement) {{
+                        errorEl.parentElement.classList.remove('hidden');
+                    }}
                 }}
                 if (data.status && data.status !== 'running') {{
                     ws.close();
@@ -1666,11 +1771,9 @@ def backtest_result(req, session, portfolio_id: str):
 
     status_badge = Div(
         Div(
-            "回测进行中，实时推送中"
-            if is_running
-            else "回测已完成",
+            status_text_map.get(status, "回测状态未知"),
             id="backtest_status",
-            cls="text-sm text-gray-500"
+            cls=status_cls_map.get(status, "text-sm text-gray-500")
         ),
         cls="mb-4"
     )
@@ -1792,7 +1895,8 @@ def backtest_result(req, session, portfolio_id: str):
                 A("← 返回策略详情", href="javascript:history.back()", cls="text-gray-500 hover:text-gray-800 mb-4 inline-block"),
                 H1("回测报告", cls="text-3xl font-bold mb-2"),
                 status_badge,
-                deploy_panel,
+                error_panel,
+                deploy_panel if is_finished else Div(),
 
                 Div(
                     H3("收益概述", cls="text-xl font-bold mb-3"),
@@ -1873,11 +1977,11 @@ async def backtest_ws(websocket: WebSocket):
         return
     try:
         while True:
-            portfolio = db.get_portfolio(portfolio_id)
-            status = "running" if portfolio is None or portfolio.status else "finished"
+            status, backtest_error = _resolve_backtest_status(portfolio_id)
             date_axis = _build_date_axis(portfolio_id)
             payload = {
                 "status": status,
+                "error": backtest_error,
                 "metrics": _build_metrics_payload(portfolio_id),
                 "series": _build_series_payload(portfolio_id, date_axis),
                 "trades": _build_trade_rows(portfolio_id, limit=200),

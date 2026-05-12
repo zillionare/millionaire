@@ -1,10 +1,13 @@
+"""策略扫描与内置示例管理。"""
+
 import importlib
 import inspect
 import json
 import os
+import shutil
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Type
 
 from loguru import logger
 
@@ -13,22 +16,74 @@ from quantide.data.models.strategy_config import StrategyConfig, StrategyInfo
 from quantide.data.sqlite import db
 
 
-class StrategyLoader:
-    def __init__(self):
-        self._strategies: Dict[str, Type[BaseStrategy]] = {}
-        self._default_scan_dir = "quantide/strategies"
+@dataclass(frozen=True)
+class ScanSource:
+    """策略扫描源。"""
 
-    def get_scan_directory(self) -> str:
-        """获取配置的扫描目录"""
+    directory: Path
+    module_prefix: str | None = None
+
+
+@dataclass(frozen=True)
+class ExampleCopyResult:
+    """示例策略复制结果。"""
+
+    copied_files: list[str]
+    skipped_files: list[str]
+
+    @property
+    def copied_count(self) -> int:
+        """返回已复制文件数。"""
+        return len(self.copied_files)
+
+    @property
+    def skipped_count(self) -> int:
+        """返回跳过文件数。"""
+        return len(self.skipped_files)
+
+
+class StrategyLoader:
+    """管理策略扫描、缓存与内置示例复制。"""
+
+    def __init__(self) -> None:
+        self._strategies: dict[str, type[BaseStrategy]] = {}
+        self._builtin_example_dir = (
+            Path(__file__).resolve().parents[1] / "strategies" / "example"
+        ).resolve()
+        self._builtin_module_prefix = "quantide.strategies.example"
+
+    def get_builtin_scan_directory(self) -> str:
+        """返回内置示例策略目录。"""
+        return str(self._builtin_example_dir)
+
+    def get_user_scan_directory(self) -> str:
+        """返回用户配置的策略目录。"""
         try:
             rows = list(db["strategy_config"].rows_where("key = ?", ("scan_directory",)))
             if rows:
-                value = (rows[0].get("value") or "").strip()
-                if value:
-                    return value
+                return (rows[0].get("value") or "").strip()
         except Exception as e:
             logger.warning(f"Failed to get scan directory from db: {e}")
-        return self._default_scan_dir
+        return ""
+
+    def get_scan_directory(self) -> str:
+        """返回当前主扫描目录。
+
+        优先返回用户配置目录；未配置时回退到内置示例目录。
+        """
+        return self.get_user_scan_directory() or self.get_builtin_scan_directory()
+
+    def get_scan_directories(self) -> list[str]:
+        """返回实际参与扫描的目录列表。"""
+        directories = [self.get_builtin_scan_directory()]
+        user_dir = self.get_user_scan_directory()
+        if not user_dir:
+            return directories
+
+        resolved_user_dir = str(Path(user_dir).expanduser().resolve())
+        if resolved_user_dir not in directories:
+            directories.append(resolved_user_dir)
+        return directories
 
     def has_scan_directory_config(self) -> bool:
         """判断是否已显式配置扫描目录"""
@@ -59,23 +114,21 @@ class StrategyLoader:
         db["strategy_config"].upsert(config.to_dict(), pk="key")
         logger.info(f"Scan directory set to: {directory}")
 
-    def load_from_cache(self) -> Dict[str, Type[BaseStrategy]]:
+    def load_from_cache(self) -> dict[str, type[BaseStrategy]]:
         """从数据库缓存加载策略"""
         self._strategies = {}
 
         try:
             rows = list(db["strategy_info"].rows)
-            scan_dir = self.get_scan_directory()
-
-            # 添加到 sys.path
-            str_path = str(Path(scan_dir).resolve())
-            if str_path not in sys.path:
-                sys.path.insert(0, str_path)
 
             for row in rows:
                 try:
                     module_name = row["module_path"]
                     class_name = row["name"]
+                    scan_dir = str(row.get("scan_dir") or "").strip()
+
+                    if scan_dir and not module_name.startswith("quantide."):
+                        self._add_scan_dir_to_sys_path(scan_dir)
 
                     # 导入模块
                     if module_name in sys.modules:
@@ -101,39 +154,29 @@ class StrategyLoader:
 
         return self._strategies
 
-    def scan_and_cache(self, workspace_path: Optional[str] = None) -> Dict[str, Type[BaseStrategy]]:
+    def scan_and_cache(
+        self,
+        workspace_path: str | None = None,
+    ) -> dict[str, type[BaseStrategy]]:
         """扫描目录并缓存到数据库"""
-        from datetime import datetime
-
-        workspace = Path(workspace_path or self.get_scan_directory()).resolve()
-        if not workspace.exists():
-            logger.warning(f"Workspace path does not exist: {workspace}")
-            return {}
-
         # 清空现有缓存
         self._clear_cache()
 
-        # 添加到 sys.path
-        str_path = str(workspace)
-        if str_path not in sys.path:
-            sys.path.insert(0, str_path)
-            logger.info(f"Added {str_path} to sys.path")
-
-        # 遍历目录
-        scanned_strategies: List[StrategyInfo] = []
-        for root, _, files in os.walk(workspace):
-            for file in files:
-                if file.endswith(".py") and not file.startswith("__"):
-                    file_path = Path(root) / file
-                    try:
-                        module_name = self._get_module_name(workspace, file_path)
-                        strategies = self._load_module_and_get_info(module_name, str(workspace))
-                        scanned_strategies.extend(strategies)
-                    except Exception as e:
-                        logger.error(f"Failed to process file {file_path}: {e}")
+        scanned_strategies: dict[str, StrategyInfo] = {}
+        for source in self._get_scan_sources(workspace_path):
+            for name, strategy_info in self._scan_source(source).items():
+                existing = scanned_strategies.get(name)
+                if existing is not None:
+                    logger.warning(
+                        "Duplicate strategy name {} found in {} and {}. Using later source.",
+                        name,
+                        existing.scan_dir,
+                        strategy_info.scan_dir,
+                    )
+                scanned_strategies[name] = strategy_info
 
         # 保存到数据库
-        for strategy_info in scanned_strategies:
+        for strategy_info in scanned_strategies.values():
             try:
                 db["strategy_info"].insert(strategy_info.to_dict(), pk=StrategyInfo.__pk__)
             except Exception as e:
@@ -151,12 +194,87 @@ class StrategyLoader:
         except Exception as e:
             logger.error(f"Failed to clear cache: {e}")
 
-    def _get_module_name(self, root: Path, file_path: Path) -> str:
-        """根据文件路径计算模块名"""
-        rel_path = file_path.relative_to(root)
-        return str(rel_path).replace(os.sep, ".")[:-3]
+    def _add_scan_dir_to_sys_path(self, scan_dir: str) -> None:
+        """将扫描目录加入 sys.path。"""
+        str_path = str(Path(scan_dir).expanduser().resolve())
+        if str_path not in sys.path:
+            sys.path.insert(0, str_path)
+            logger.info(f"Added {str_path} to sys.path")
 
-    def _load_module_and_get_info(self, module_name: str, scan_dir: str) -> List[StrategyInfo]:
+    def _get_scan_sources(self, workspace_path: str | None = None) -> list[ScanSource]:
+        """构建扫描源列表。"""
+        if workspace_path:
+            workspace = Path(workspace_path).expanduser().resolve()
+            if workspace == self._builtin_example_dir:
+                return [
+                    ScanSource(
+                        directory=workspace,
+                        module_prefix=self._builtin_module_prefix,
+                    )
+                ]
+            return [ScanSource(directory=workspace)]
+
+        sources = [
+            ScanSource(
+                directory=self._builtin_example_dir,
+                module_prefix=self._builtin_module_prefix,
+            )
+        ]
+        user_dir = self.get_user_scan_directory()
+        if not user_dir:
+            return sources
+
+        workspace = Path(user_dir).expanduser().resolve()
+        if workspace != self._builtin_example_dir:
+            sources.append(ScanSource(directory=workspace))
+        return sources
+
+    def _scan_source(self, source: ScanSource) -> dict[str, StrategyInfo]:
+        """扫描单个目录源。"""
+        if not source.directory.exists():
+            logger.warning(f"Workspace path does not exist: {source.directory}")
+            return {}
+
+        if source.module_prefix is None:
+            self._add_scan_dir_to_sys_path(str(source.directory))
+
+        scanned: dict[str, StrategyInfo] = {}
+        for root, _, files in os.walk(source.directory):
+            for file in files:
+                if not file.endswith(".py") or file.startswith("__"):
+                    continue
+
+                file_path = Path(root) / file
+                try:
+                    module_name = self._get_module_name(
+                        source.directory,
+                        file_path,
+                        source.module_prefix,
+                    )
+                    strategies = self._load_module_and_get_info(
+                        module_name,
+                        str(source.directory),
+                    )
+                    for strategy_info in strategies:
+                        scanned[strategy_info.name] = strategy_info
+                except Exception as e:
+                    logger.error(f"Failed to process file {file_path}: {e}")
+        return scanned
+
+    def _get_module_name(
+        self,
+        root: Path,
+        file_path: Path,
+        module_prefix: str | None = None,
+    ) -> str:
+        """根据文件路径计算模块名。"""
+        rel_path = file_path.relative_to(root)
+        module_name = str(rel_path).replace(os.sep, ".")[:-3]
+        if not module_prefix:
+            return module_name
+        return f"{module_prefix}.{module_name}"
+
+    def _load_module_and_get_info(self, module_name: str, scan_dir: str) -> list[StrategyInfo]:
         """加载模块并获取策略信息"""
         from datetime import datetime
 
@@ -201,7 +319,7 @@ class StrategyLoader:
 
         return strategies
 
-    def load(self, workspace_path: Optional[str] = None) -> Dict[str, Type[BaseStrategy]]:
+    def load(self, workspace_path: str | None = None) -> dict[str, type[BaseStrategy]]:
         """加载策略（优先从缓存）"""
         # 先尝试从缓存加载
         cached = self.load_from_cache()
@@ -213,7 +331,7 @@ class StrategyLoader:
         logger.info("Cache empty, scanning directory...")
         return self.scan_and_cache(workspace_path)
 
-    def get_strategy_info(self, name: str) -> Optional[StrategyInfo]:
+    def get_strategy_info(self, name: str) -> StrategyInfo | None:
         """获取策略详细信息"""
         try:
             rows = list(db["strategy_info"].rows_where("name = ?", (name,)))
@@ -223,7 +341,7 @@ class StrategyLoader:
             logger.error(f"Failed to get strategy info: {e}")
         return None
 
-    def list_strategies(self) -> List[StrategyInfo]:
+    def list_strategies(self) -> list[StrategyInfo]:
         """列出所有已缓存的策略"""
         try:
             rows = list(db["strategy_info"].rows)
@@ -231,6 +349,52 @@ class StrategyLoader:
         except Exception as e:
             logger.error(f"Failed to list strategies: {e}")
         return []
+
+    def copy_examples_to_directory(self, directory: str | Path) -> ExampleCopyResult:
+        """复制内置示例策略到目标目录。
+
+        Args:
+            directory: 用户策略目录。
+
+        Returns:
+            复制结果。
+        """
+        destination = Path(directory).expanduser().resolve()
+        if not destination.exists():
+            raise FileNotFoundError(f"目录不存在: {destination}")
+        if not destination.is_dir():
+            raise NotADirectoryError(f"路径不是目录: {destination}")
+
+        copied_files: list[str] = []
+        skipped_files: list[str] = []
+        for source_file in self._iter_copyable_example_files():
+            rel_path = source_file.relative_to(self._builtin_example_dir)
+            target_file = destination / rel_path
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            if target_file.exists():
+                skipped_files.append(str(rel_path))
+                continue
+
+            shutil.copy2(source_file, target_file)
+            copied_files.append(str(rel_path))
+
+        return ExampleCopyResult(
+            copied_files=copied_files,
+            skipped_files=skipped_files,
+        )
+
+    def _iter_copyable_example_files(self) -> list[Path]:
+        """返回可复制的内置示例文件列表。"""
+        if not self._builtin_example_dir.exists():
+            raise FileNotFoundError(f"内置示例目录不存在: {self._builtin_example_dir}")
+
+        return [
+            file_path
+            for file_path in sorted(self._builtin_example_dir.rglob("*"))
+            if file_path.is_file()
+            and "__pycache__" not in file_path.parts
+            and file_path.suffix != ".pyc"
+        ]
 
 
 strategy_loader = StrategyLoader()
