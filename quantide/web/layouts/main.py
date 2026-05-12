@@ -4,13 +4,13 @@ from fasthtml.common import *
 from monsterui.all import *
 
 from quantide.core.enums import BrokerKind
-from quantide.service.registry import BrokerRegistry
 from quantide.service.init_wizard import init_wizard
+from quantide.service.registry import BrokerRegistry
+from quantide.service.strategy_runtime import strategy_runtime_manager
 
 from ..components.header import header_component
 from ..components.sidebar import sidebar_component
 from .base import BaseLayout
-
 
 HOME_MENU = [
     {
@@ -47,6 +47,14 @@ SYSTEM_MAINTENANCE_MENU = [
             {"title": "定时任务", "url": "/system/jobs", "icon_path": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"},
             {"title": "交易网关", "url": "/system/gateway", "icon_path": "M13 10V3L4 14h7v7l9-11h-7z"},
             {"title": "数据源", "url": "/system/datasource", "icon_path": "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"},
+        ],
+    },
+    {
+        "title": "运行保障",
+        "icon": "shield",
+        "children": [
+            {"title": "风险事件中心", "url": "/system/risk-events", "icon_path": "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"},
+            {"title": "运行时监控", "url": "/system/runtime-monitor", "icon_path": "M3 5h18M3 12h18M3 19h18"},
         ],
     },
 ]
@@ -194,32 +202,61 @@ class MainLayout(BaseLayout):
             return False
         return bool(status.get("simulation") and status.get("live_trading"))
 
+    def _build_alert_context(self) -> dict[str, object]:
+        """构建 header 告警中心上下文。"""
+        try:
+            risk_summary = strategy_runtime_manager.risk_summary()
+            recent_risk_events = strategy_runtime_manager.list_risk_events(limit=5)
+            runtime_summary = strategy_runtime_manager.runtime_summary()
+        except Exception:
+            risk_summary = {
+                "blocked_accounts": 0,
+                "blocked_strategies": 0,
+                "open_events": 0,
+                "event_count": 0,
+            }
+            recent_risk_events = []
+            runtime_summary = {"total": 0, "running": 0, "blocked": 0, "failed": 0, "idle": 0}
+        return {
+            "unread_count": int(risk_summary.get("open_events", 0)),
+            "risk_summary": risk_summary,
+            "recent_risk_events": recent_risk_events,
+            "runtime_summary": runtime_summary,
+        }
+
+    def _resolve_accounts(self) -> tuple[list[dict], dict | None]:
+        """解析 header 账户摘要。"""
+        accounts = list(self.header_accounts)
+        active_account = self.active_account
+        if accounts:
+            return accounts, active_account
+
+        reg = BrokerRegistry()
+        default_account = reg.get_default()
+        for kind in [BrokerKind.QMT, BrokerKind.SIMULATION]:
+            for info in reg.list_by_kind(kind):
+                account = {
+                    "id": info.get("id"),
+                    "name": info.get("name") or info.get("id"),
+                    "kind": kind.value,
+                    "label": "实盘" if kind == BrokerKind.QMT else "仿真",
+                    "status": info.get("status", False),
+                    "is_live": kind == BrokerKind.QMT,
+                    "switch_url": f"/home?kind={kind.value}&id={info.get('id')}",
+                }
+                accounts.append(account)
+                if default_account and default_account[0] == kind.value and default_account[1] == info.get("id"):
+                    active_account = account
+        return accounts, active_account
+
     def main_block(self):
         """主内容块，子类需要重写此方法。"""
         return Div(H1(self.title), P("这是页面的主要内容区域。"), cls="p-4")
 
     def render(self):
         """渲染主页面。"""
-        accounts = list(self.header_accounts)
-        active_account = self.active_account
-        if not accounts:
-            reg = BrokerRegistry()
-            default_account = reg.get_default()
-            for kind in [BrokerKind.QMT, BrokerKind.SIMULATION]:
-                for info in reg.list_by_kind(kind):
-                    account = {
-                        "id": info.get("id"),
-                        "name": info.get("name") or info.get("id"),
-                        "kind": kind.value,
-                        "label": "实盘" if kind == BrokerKind.QMT else "仿真",
-                        "status": info.get("status", False),
-                        "is_live": kind == BrokerKind.QMT,
-                        "switch_url": f"/home?kind={kind.value}&id={info.get('id')}",
-                    }
-                    accounts.append(account)
-                    if default_account and default_account[0] == kind.value and default_account[1] == info.get("id"):
-                        active_account = account
-
+        accounts, active_account = self._resolve_accounts()
+        alert_context = self._build_alert_context()
         from quantide.web.theme import AppTheme
 
         return (
@@ -234,6 +271,10 @@ class MainLayout(BaseLayout):
                     accounts=accounts,
                     active_account=active_account,
                     active_title=self._resolve_header_active(),
+                    unread_count=int(alert_context["unread_count"]),
+                    risk_summary=alert_context["risk_summary"],
+                    recent_risk_events=alert_context["recent_risk_events"],
+                    runtime_summary=alert_context["runtime_summary"],
                 ),
                 Div(
                     sidebar_component(self._get_sidebar_menu()),

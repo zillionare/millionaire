@@ -37,12 +37,6 @@ from quantide.web.pages.accounts import accounts_app, accounts_list
 from quantide.web.pages.analysis import analysis_handler
 from quantide.web.pages.data_calendar import data_calendar_app
 from quantide.web.pages.data_db import data_db_app
-from quantide.web.pages.system.calendar import system_calendar_app
-from quantide.web.pages.system.stocks import system_stocks_app
-from quantide.web.pages.system.market import system_market_app
-from quantide.web.pages.system.jobs import system_jobs_app
-from quantide.web.pages.system.gateway import system_gateway_app
-from quantide.web.pages.system.datasource import system_datasource_app
 from quantide.web.pages.data_market import data_market_app
 from quantide.web.pages.data_stocks import data_stocks_app
 from quantide.web.pages.history_orders import history_orders_list
@@ -52,6 +46,14 @@ from quantide.web.pages.home import home_app
 from quantide.web.pages.init_wizard import init_wizard, init_wizard_app
 from quantide.web.pages.live import live_app
 from quantide.web.pages.strategy import strategy_app
+from quantide.web.pages.system.calendar import system_calendar_app
+from quantide.web.pages.system.datasource import system_datasource_app
+from quantide.web.pages.system.gateway import system_gateway_app
+from quantide.web.pages.system.jobs import system_jobs_app
+from quantide.web.pages.system.market import system_market_app
+from quantide.web.pages.system.risk_events import system_risk_events_app
+from quantide.web.pages.system.runtime_monitor import system_runtime_monitor_app
+from quantide.web.pages.system.stocks import system_stocks_app
 from quantide.web.pages.trade import trade_app
 from quantide.web.pages.trade_main import set_active_account, trade_main_page
 from quantide.web.theme import AppTheme
@@ -59,12 +61,11 @@ from quantide.web.theme import AppTheme
 
 def _check_single_instance() -> None:
     """检查是否已有实例在运行，防止多实例启动。"""
-
     pid_file = get_pid_file_path()
 
     if pid_file.exists():
         try:
-            with open(pid_file, "r") as file_obj:
+            with open(pid_file) as file_obj:
                 pid = int(file_obj.read().strip())
 
             if sys.platform == "win32":
@@ -100,7 +101,6 @@ def _check_single_instance() -> None:
 
 def _initialize_app_database() -> Path:
     """Initialize the fixed sqlite database in the config directory."""
-
     db_path = get_app_db_path()
 
     try:
@@ -136,7 +136,6 @@ def create_app(
         app_config_dir: 应用运行时配置目录，用于 sqlite、pid 等持久化文件。
         enforce_single_instance: 是否执行单实例检查。
     """
-
     set_app_config_dir_override(app_config_dir)
     db_path = _initialize_app_database()
 
@@ -310,6 +309,18 @@ def create_app(
                 methods=["GET"],
             ),
             Mount("/system/datasource", system_datasource_app),
+            Route(
+                "/system/risk-events",
+                lambda req: RedirectResponse("/system/risk-events/", status_code=303),
+                methods=["GET"],
+            ),
+            Mount("/system/risk-events", system_risk_events_app),
+            Route(
+                "/system/runtime-monitor",
+                lambda req: RedirectResponse("/system/runtime-monitor/", status_code=303),
+                methods=["GET"],
+            ),
+            Mount("/system/runtime-monitor", system_runtime_monitor_app),
             Mount("/", home_app),
         ],
     )

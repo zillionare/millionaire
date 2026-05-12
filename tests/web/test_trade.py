@@ -1,25 +1,23 @@
 """测试交易模块页面"""
-from email.message import Message
-import urllib.error
 import tempfile
+import urllib.error
+from email.message import Message
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
-from starlette.responses import RedirectResponse
-from starlette.testclient import TestClient
-from starlette.routing import Route
-from starlette.staticfiles import StaticFiles
-from starlette.middleware import Middleware
 from fasthtml.common import Mount, fast_app
 from monsterui.all import Theme
+from starlette.middleware import Middleware
+from starlette.responses import RedirectResponse
+from starlette.routing import Route
+from starlette.staticfiles import StaticFiles
+from starlette.testclient import TestClient
 
+import quantide.web.middleware_feature as middleware_feature
 from quantide.core.enums import BrokerKind
 from quantide.data.sqlite import db as _db
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import SimulationBroker
-from quantide.web.middleware_feature import FeatureCheckMiddleware
-import quantide.web.middleware_feature as middleware_feature
 
 
 @pytest.fixture(scope="module")
@@ -45,15 +43,15 @@ def test_app():
         except Exception as e:
             print(f"Failed to create demo broker: {e}")
 
+        from quantide.core.errors import BaseTradeError
+        from quantide.web.apis.broker import app as broker_api_app
         from quantide.web.auth.manager import AuthManager
         from quantide.web.middleware import BrokerRegistryMiddleware, exception_handler
-        from quantide.core.errors import BaseTradeError
         from quantide.web.middleware_feature import FeatureCheckMiddleware
         from quantide.web.pages.home import home_app
-        from quantide.web.pages.trade import trade_app
         from quantide.web.pages.live import live_app
         from quantide.web.pages.strategy import strategy_app
-        from quantide.web.apis.broker import app as broker_api_app
+        from quantide.web.pages.trade import trade_app
 
         auth = AuthManager(db_path=test_db_path, config={"login_path": "/auth/login"})
 
@@ -556,6 +554,18 @@ class TestGatewayFirstNavigation:
 
         assert layout._trade_entries_enabled() is False
         assert layout._resolve_header_active() == "策略"
+
+    def test_system_menu_contains_runtime_guard_group(self):
+        from quantide.web.layouts.main import MainLayout
+
+        layout = MainLayout(title="系统维护", user="admin")
+        layout.set_sidebar_active("/system/risk-events")
+
+        menu = layout._get_sidebar_menu()
+        runtime_group = next(item for item in menu if item.get("title") == "运行保障")
+        child_titles = {child.get("title") for child in runtime_group.get("children", [])}
+
+        assert {"风险事件中心", "运行时监控"}.issubset(child_titles)
 
 
 class TestBrokerRegistry:

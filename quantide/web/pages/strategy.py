@@ -625,315 +625,6 @@ def _build_backtest_rows(strategies: dict) -> list:
     return rows
 
 
-def _runtime_status_chip(status: str):
-    if status == "running":
-        cls = "px-2 py-0.5 rounded text-xs bg-green-100 text-green-700"
-    elif status == "blocked":
-        cls = "px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
-    elif status == "failed":
-        cls = "px-2 py-0.5 rounded text-xs bg-red-100 text-red-700"
-    else:
-        cls = "px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700"
-    return Span(status, cls=cls)
-
-
-def _risk_severity_chip(severity: str):
-    if severity == "critical":
-        cls = "px-2 py-0.5 rounded text-xs bg-red-100 text-red-700"
-    elif severity == "warning":
-        cls = "px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700"
-    else:
-        cls = "px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700"
-    return Span(severity, cls=cls)
-
-
-def _risk_event_center_content():
-    summary = strategy_runtime_manager.risk_summary()
-    events = strategy_runtime_manager.list_risk_events(limit=8)
-    rows = []
-    for event in events:
-        rows.append(
-            Tr(
-                Td(_risk_severity_chip(str(event.get("severity") or "info")), cls="px-4 py-3 align-top"),
-                Td(
-                    Div(
-                        Div(str(event.get("title") or "风险事件"), cls="text-sm font-medium text-gray-900"),
-                        Div(str(event.get("message") or ""), cls="text-sm text-gray-600 mt-1"),
-                    ),
-                    cls="px-4 py-3",
-                ),
-                Td(str(event.get("scope") or "-"), cls="px-4 py-3 text-xs text-gray-500 uppercase"),
-                Td(str(event.get("created_at") or "-"), cls="px-4 py-3 text-xs text-gray-500 whitespace-nowrap"),
-                cls="border-b border-gray-100",
-            )
-        )
-    if not rows:
-        rows = [
-            Tr(Td("暂无风险事件", colspan="4", cls="px-4 py-6 text-center text-gray-400"))
-        ]
-    return (
-        Div(
-            Div(
-                Div(
-                    H2("风险事件中心", cls="text-lg font-semibold text-gray-900"),
-                    Span("展示封控、告警与重启恢复事件", cls="text-xs text-gray-500"),
-                    cls="flex flex-col",
-                ),
-                Div(
-                    Span(f"账户封控 {summary['blocked_accounts']}", cls="px-2 py-1 rounded bg-red-50 text-red-700 text-xs"),
-                    Span(f"策略封控 {summary['blocked_strategies']}", cls="px-2 py-1 rounded bg-amber-50 text-amber-700 text-xs"),
-                    Span(f"活动告警 {summary['open_events']}", cls="px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs"),
-                    cls="flex items-center gap-2 flex-wrap",
-                ),
-                cls="p-6 border-b border-gray-200 flex items-center justify-between gap-4",
-            ),
-            Div(
-                Table(
-                    Thead(
-                        Tr(
-                            Th("级别", cls="px-4 py-2"),
-                            Th("事件", cls="px-4 py-2"),
-                            Th("范围", cls="px-4 py-2"),
-                            Th("时间", cls="px-4 py-2"),
-                            cls="text-left text-sm text-gray-600 border-b border-gray-200",
-                        )
-                    ),
-                    Tbody(*rows, cls="text-sm"),
-                    cls="w-full",
-                ),
-                cls="overflow-x-auto",
-            ),
-        ),
-    )
-
-
-def _risk_event_center_card():
-    return Div(
-        *_risk_event_center_content(),
-        id="risk-event-center",
-        hx_get="/strategy/risk-center",
-        hx_trigger="every 5s [document.visibilityState === 'visible' && document.hasFocus()]",
-        hx_swap="innerHTML",
-        cls="bg-white rounded-lg shadow",
-    )
-
-
-def _build_runtime_rows():
-    rows = []
-    for item in strategy_runtime_manager.list_runtime_rows():
-        action_items = []
-        if item.get("can_stop"):
-            action_items.append(
-                Button(
-                    "停止",
-                    cls="btn btn-ghost btn-xs text-red-600",
-                    type="button",
-                    hx_post="/strategy/runtime/stop",
-                    hx_target="#runtime-ops-panel",
-                    hx_swap="innerHTML",
-                    hx_vals=json.dumps({"runtime_id": item["runtime_id"]}),
-                )
-            )
-        if item.get("can_start"):
-            action_items.append(
-                Button(
-                    "启动",
-                    cls="btn btn-ghost btn-xs text-green-600",
-                    type="button",
-                    hx_post="/strategy/runtime/start",
-                    hx_target="#runtime-ops-panel",
-                    hx_swap="innerHTML",
-                    hx_vals=json.dumps({"runtime_id": item["runtime_id"]}),
-                )
-            )
-        if item.get("can_block_account"):
-            action_items.append(
-                Button(
-                    "封锁账户",
-                    cls="btn btn-ghost btn-xs text-amber-700",
-                    type="button",
-                    hx_post="/strategy/runtime/block",
-                    hx_target="#runtime-ops-panel",
-                    hx_swap="innerHTML",
-                    hx_vals=json.dumps({"target_kind": "account", "target_id": item["runtime_id"]}),
-                )
-            )
-        if item.get("can_unblock_account"):
-            action_items.append(
-                Button(
-                    "解除账户封锁",
-                    cls="btn btn-ghost btn-xs text-blue-700",
-                    type="button",
-                    hx_post="/strategy/runtime/unblock",
-                    hx_target="#runtime-ops-panel",
-                    hx_swap="innerHTML",
-                    hx_confirm="确认解除账户风控封锁吗？",
-                    hx_vals=json.dumps({"target_kind": "account", "target_id": item["runtime_id"]}),
-                )
-            )
-        if item.get("can_block_strategy"):
-            action_items.append(
-                Button(
-                    "封锁策略",
-                    cls="btn btn-ghost btn-xs text-amber-700",
-                    type="button",
-                    hx_post="/strategy/runtime/block",
-                    hx_target="#runtime-ops-panel",
-                    hx_swap="innerHTML",
-                    hx_vals=json.dumps({"target_kind": "strategy", "target_id": item["runtime_id"]}),
-                )
-            )
-        if item.get("can_unblock_strategy"):
-            action_items.append(
-                Button(
-                    "解除策略封锁",
-                    cls="btn btn-ghost btn-xs text-blue-700",
-                    type="button",
-                    hx_post="/strategy/runtime/unblock",
-                    hx_target="#runtime-ops-panel",
-                    hx_swap="innerHTML",
-                    hx_confirm="确认解除策略风控封锁吗？",
-                    hx_vals=json.dumps({"target_kind": "strategy", "target_id": item["runtime_id"]}),
-                )
-            )
-        if item.get("blocked_scope") == "account" and item.get("strategy_id"):
-            action_items.append(Span("请在账户行解除封控", cls="text-xs text-amber-700"))
-        actions = Td(
-            Div(*action_items, cls="flex items-center gap-2 flex-wrap") if action_items else Span("-", cls="text-xs text-gray-400"),
-            cls="px-4 py-2",
-        )
-        rows.append(
-            Tr(
-                Td(item["mode"], cls="px-4 py-2"),
-                Td(item["portfolio_id"], cls="px-4 py-2 font-mono text-xs"),
-                Td(item["strategy_name"] or "-", cls="px-4 py-2"),
-                Td(item["strategy_id"] or "-", cls="px-4 py-2 font-mono text-xs"),
-                Td(_runtime_status_chip(item["status"]), cls="px-4 py-2"),
-                Td(item.get("alert_text") or "-", cls="px-4 py-2 text-sm text-gray-600"),
-                Td(f"{item['total']:.2f}", cls="px-4 py-2"),
-                Td(str(item["positions"]), cls="px-4 py-2"),
-                Td(str(item["orders"]), cls="px-4 py-2"),
-                Td(item["updated_at"], cls="px-4 py-2 text-xs text-gray-500"),
-                actions,
-                cls="border-b border-gray-100",
-            )
-        )
-    if rows:
-        return rows
-    return [
-        Tr(
-            Td("暂无运行时实例", colspan="11", cls="px-4 py-6 text-center text-gray-400"),
-        )
-    ]
-
-
-def _runtime_table_content():
-    table = Table(
-        Thead(
-            Tr(
-                Th("模式", cls="px-4 py-2"),
-                Th("账户", cls="px-4 py-2"),
-                Th("策略", cls="px-4 py-2"),
-                Th("策略ID", cls="px-4 py-2"),
-                Th("状态", cls="px-4 py-2"),
-                Th("告警 / 封控原因", cls="px-4 py-2"),
-                Th("总资产", cls="px-4 py-2"),
-                Th("持仓数", cls="px-4 py-2"),
-                Th("委托数", cls="px-4 py-2"),
-                Th("更新时间", cls="px-4 py-2"),
-                Th("操作", cls="px-4 py-2"),
-                cls="text-left text-sm text-gray-600 border-b border-gray-200",
-            )
-        ),
-        Tbody(*_build_runtime_rows(), cls="text-sm"),
-        cls="w-full",
-    )
-    return (
-        Div(
-            H2("运行时监控", cls="text-lg font-semibold text-gray-900"),
-            Span("live/paper 常驻，backtest 按需创建", cls="text-xs text-gray-500"),
-            cls="p-6 border-b border-gray-200 flex items-center justify-between",
-        ),
-        Div(table, cls="overflow-x-auto"),
-    )
-
-
-def _runtime_table_card():
-    return Div(
-        *_runtime_table_content(),
-        id="runtime-monitor",
-        hx_get="/strategy/runtime/table",
-        hx_trigger="every 5s [document.visibilityState === 'visible' && document.hasFocus()]",
-        hx_swap="innerHTML",
-        cls="bg-white rounded-lg shadow",
-    )
-
-
-def _runtime_ops_panel_content():
-    return (_risk_event_center_card(), _runtime_table_card())
-
-
-def _runtime_ops_panel():
-    return Div(*_runtime_ops_panel_content(), id="runtime-ops-panel", cls="space-y-6")
-
-
-@rt("/risk-center")
-def risk_center(req):
-    return _risk_event_center_content()
-
-
-@rt("/runtime/table")
-def runtime_table(req):
-    return _runtime_table_content()
-
-
-@rt("/runtime/stop", methods=["POST"])
-async def runtime_stop(req):
-    form = await req.form()
-    runtime_id = str(form.get("runtime_id") or "")
-    if runtime_id:
-        try:
-            strategy_runtime_manager.stop_strategy_runtime(runtime_id)
-        except Exception:
-            pass
-    return _runtime_ops_panel_content()
-
-
-@rt("/runtime/start", methods=["POST"])
-async def runtime_start(req):
-    form = await req.form()
-    runtime_id = str(form.get("runtime_id") or "")
-    if runtime_id:
-        try:
-            strategy_runtime_manager.start_strategy_runtime(runtime_id)
-        except Exception:
-            pass
-    return _runtime_ops_panel_content()
-
-
-@rt("/runtime/block", methods=["POST"])
-async def runtime_block(req):
-    form = await req.form()
-    target_kind = str(form.get("target_kind") or "")
-    target_id = str(form.get("target_id") or "")
-    if target_kind == "account" and target_id:
-        strategy_runtime_manager.block_account(target_id)
-    elif target_kind == "strategy" and target_id:
-        strategy_runtime_manager.block_strategy(target_id)
-    return _runtime_ops_panel_content()
-
-
-@rt("/runtime/unblock", methods=["POST"])
-async def runtime_unblock(req):
-    form = await req.form()
-    target_kind = str(form.get("target_kind") or "")
-    target_id = str(form.get("target_id") or "")
-    if target_kind == "account" and target_id:
-        strategy_runtime_manager.unblock_account(target_id)
-    elif target_kind == "strategy" and target_id:
-        strategy_runtime_manager.unblock_strategy(target_id)
-    return _runtime_ops_panel_content()
-
 @rt("/")
 def index(req, session):
     layout = MainLayout(title="策略列表", user=session.get("auth"))
@@ -1006,42 +697,14 @@ def index(req, session):
         ),
         Div(
             Div(
-                H2("策略列表", cls="text-lg font-semibold text-gray-900"),
                 Div(
-                    Button(
-                        Span(
-                            Svg(
-                                Path(
-                                    d="M12 4v16m8-8H4",
-                                    **{
-                                        "stroke-linecap": "round",
-                                        "stroke-linejoin": "round",
-                                        "stroke-width": "2",
-                                    },
-                                ),
-                                cls="w-5 h-5",
-                                fill="none",
-                                stroke="currentColor",
-                                viewBox="0 0 24 24",
-                            ),
-                            cls="flex items-center",
-                        ),
-                        Span("扫描策略列表"),
-                        cls="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2 border-0 shadow-none",
-                        type="button",
-                        hx_post="/strategy/scan/run",
-                        hx_target="#modal-container",
+                    H2("策略列表", cls="text-lg font-semibold text-gray-900"),
+                    P(
+                        "内置示例已默认参与扫描；如需复制到自己的策略目录，请点击“复制示例策略”。",
+                        cls="mt-1 text-sm text-gray-500",
                     ),
-                    Button(
-                        UkIcon("cog", size=20),
-                        cls="p-2 bg-transparent border-0 shadow-none text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg inline-flex items-center justify-center",
-                        type="button",
-                        title="配置扫描目录",
-                        hx_get="/strategy/scan/config-modal",
-                        hx_target="#modal-container",
-                    ),
-                    cls="flex items-center gap-2",
                 ),
+                _strategy_scan_toolbar(),
                 cls="p-6 border-b border-gray-200 flex justify-between items-center",
             ),
             Div(strategy_table, cls="overflow-x-auto"),
@@ -1091,7 +754,6 @@ def index(req, session):
             cls="bg-white rounded-lg shadow",
             id="backtest-list",
         ),
-        _runtime_ops_panel(),
         Div(id="modal-container"),
         cls="space-y-6",
     )
@@ -2198,29 +1860,105 @@ async def backtest_ws(websocket: WebSocket):
 strategy_app.add_websocket_route("/backtest/{portfolio_id}/ws", backtest_ws)
 
 
+def _scan_scope_list(scan_dirs: list[str]):
+    """渲染策略扫描目录列表。"""
+    return Ul(
+        *[
+            Li(path, cls="break-all")
+            for path in scan_dirs
+        ],
+        cls="list-disc pl-5 space-y-1 text-xs text-gray-500",
+    )
+
+
+def _strategy_scan_toolbar():
+    """渲染策略扫描与示例复制工具栏。"""
+    return Div(
+        Button(
+            Span(
+                Svg(
+                    Path(
+                        d="M12 4v16m8-8H4",
+                        **{
+                            "stroke-linecap": "round",
+                            "stroke-linejoin": "round",
+                            "stroke-width": "2",
+                        },
+                    ),
+                    cls="w-5 h-5",
+                    fill="none",
+                    stroke="currentColor",
+                    viewBox="0 0 24 24",
+                ),
+                cls="flex items-center",
+            ),
+            Span("扫描策略列表"),
+            cls="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2 border-0 shadow-none",
+            type="button",
+            hx_post="/strategy/scan/run",
+            hx_target="#modal-container",
+        ),
+        Button(
+            Span("复制示例策略"),
+            cls="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 inline-flex items-center gap-2 border-0 shadow-none",
+            type="button",
+            title="复制内置示例到用户策略目录",
+            hx_post="/strategy/scan/copy-examples",
+            hx_target="#modal-container",
+        ),
+        Button(
+            UkIcon("cog", size=20),
+            cls="p-2 bg-transparent border-0 shadow-none text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg inline-flex items-center justify-center",
+            type="button",
+            title="配置扫描目录",
+            hx_get="/strategy/scan/config-modal",
+            hx_target="#modal-container",
+        ),
+        cls="flex items-center gap-2",
+    )
+
+
+def _normalize_scan_directory(directory: str) -> tuple[str, Path]:
+    """校验并标准化用户策略目录。"""
+    text = directory.strip()
+    if not text:
+        raise ValueError("目录不能为空")
+
+    path = Path(text).expanduser()
+    if not path.is_absolute():
+        raise ValueError("必须使用绝对路径，例如: /Users/name/strategies")
+
+    path = path.resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"目录不存在: {path}")
+    if not path.is_dir():
+        raise NotADirectoryError(f"路径不是目录: {path}")
+    return str(path), path
+
+
 # 配置对话框路由
 @rt("/scan/config-modal")
 def config_modal_route(req):
-    scan_dir = strategy_loader.get_scan_directory()
+    scan_dir = strategy_loader.get_user_scan_directory()
     return _config_modal_html(scan_dir, is_error=False)
 
 
 # 扫描确认对话框
 @rt("/scan/confirm")
 def scan_confirm_modal(req):
-    if not strategy_loader.has_scan_directory_config():
-        return _config_modal_html("", is_error=True)
-
-    scan_dir = strategy_loader.get_scan_directory()
-    if not scan_dir:
-        return _config_modal_html("", is_error=True)
+    scan_dirs = strategy_loader.get_scan_directories()
 
     return Div(
         Div(
             Div(
                 H3("确认扫描", cls="text-lg font-semibold text-gray-900 mb-4"),
                 P("确定要扫描策略目录吗？", cls="text-gray-700"),
-                P(f"当前扫描目录: {scan_dir}", cls="text-sm text-gray-500 mt-2 mb-4"),
+                P("系统会默认扫描内置示例目录，并合并您配置的用户目录。", cls="text-sm text-gray-500 mt-2"),
+                Div(
+                    P("当前扫描范围：", cls="text-sm text-gray-500 mt-2 mb-2"),
+                    _scan_scope_list(scan_dirs),
+                    cls="mb-4"
+                ),
                 Div(
                     Button(
                         "取消",
@@ -2249,19 +1987,20 @@ def scan_confirm_modal(req):
 @rt("/scan/run", methods=["POST"])
 def run_scan(req):
     try:
-        if not strategy_loader.has_scan_directory_config():
-            return _config_modal_html("", is_error=True)
-
         strategies = strategy_loader.scan_and_cache()
         strategy_count = len(strategies)
-        scan_dir = strategy_loader.get_scan_directory()
+        scan_dirs = strategy_loader.get_scan_directories()
         if strategy_count == 0:
             return Div(
                 Div(
                     Div(
                         H3("扫描完成", cls="text-lg font-semibold text-gray-900 mb-4"),
                         P("未发现任何策略", cls="text-amber-600 font-medium"),
-                        P(f"扫描目录: {scan_dir}", cls="text-sm text-gray-500 mt-2 mb-4"),
+                        Div(
+                            P("本次扫描范围：", cls="text-sm text-gray-500 mt-2 mb-2"),
+                            _scan_scope_list(scan_dirs),
+                            cls="mb-4"
+                        ),
                         Div(
                             Button(
                                 "关闭",
@@ -2283,6 +2022,12 @@ def run_scan(req):
                 Div(
                     H3("扫描完成", cls="text-lg font-semibold text-gray-900 mb-4"),
                     P(f"成功发现 {strategy_count} 个策略", cls="text-green-600 font-medium"),
+                    P("内置示例目录已默认参与扫描", cls="text-sm text-gray-500 mt-2"),
+                    Div(
+                        P("本次扫描范围：", cls="text-sm text-gray-500 mt-2 mb-2"),
+                        _scan_scope_list(scan_dirs),
+                        cls="mb-4"
+                    ),
                     P("策略列表将自动刷新", cls="text-sm text-gray-500 mt-2 mb-4"),
                     Div(
                         Button(
@@ -2328,19 +2073,31 @@ def _config_modal_html(
     scan_dir: str, is_error: bool = False, error_message: str = ""
 ):
     """配置对话框HTML"""
-    title = "请先配置扫描目录" if is_error else "配置扫描目录"
+    title = "配置用户策略目录"
+    builtin_dir = strategy_loader.get_builtin_scan_directory()
     if error_message:
         message = P(error_message, cls="text-red-600 mb-4")
     elif is_error:
-        message = P("您尚未配置策略扫描目录，请先设置。", cls="text-red-600 mb-4")
+        message = P("请输入有效的用户策略目录。", cls="text-red-600 mb-4")
     else:
-        message = ""
+        message = P(
+            "这里仅用于设置用户策略目录；复制示例请回到策略列表页点击“复制示例策略”。",
+            cls="text-sm text-gray-500 mb-4",
+        )
 
     return Div(
         Div(
             Div(
                 H3(title, cls="text-lg font-semibold text-gray-900 mb-4"),
                 message,
+                Div(
+                    P("内置示例目录会始终参与扫描：", cls="text-sm text-gray-600"),
+                    P(
+                        builtin_dir,
+                        cls="mt-1 break-all rounded-lg bg-gray-50 px-3 py-2 font-mono text-xs text-gray-500",
+                    ),
+                    cls="mb-4"
+                ),
                 Div(
                     Input(
                         id="scan-dir-input",
@@ -2378,48 +2135,19 @@ def _config_modal_html(
 # API 路由：配置扫描目录
 @rt("/scan/config", methods=["POST"])
 async def save_scan_config(req):
+    directory = ""
     try:
         form = await req.form()
         directory = form.get("scan-dir-input", "").strip()
-
-        if not directory:
-            return _config_modal_html(
-                directory, is_error=True, error_message="目录不能为空"
-            )
-
-        # 允许输入 ~，并统一展开成绝对路径
-        path = Path(directory).expanduser()
-        directory = str(path)
-
-        # 检查是否为绝对路径
-        if not path.is_absolute():
-            return _config_modal_html(
-                directory,
-                is_error=True,
-                error_message="必须使用绝对路径，例如: /Users/name/strategies",
-            )
-
-        # 检查目录是否存在
-        if not path.exists():
-            return _config_modal_html(
-                directory,
-                is_error=True,
-                error_message=f"目录不存在: {directory}",
-            )
-
-        if not path.is_dir():
-            return _config_modal_html(
-                directory,
-                is_error=True,
-                error_message=f"路径不是目录: {directory}",
-            )
+        directory, _ = _normalize_scan_directory(directory)
 
         strategy_loader.set_scan_directory(directory)
 
         return Modal(
             ModalTitle("配置已保存"),
             ModalBody(
-                P(f"扫描目录已设置为: {directory}", cls="text-green-600"),
+                P(f"用户策略目录已设置为: {directory}", cls="text-green-600"),
+                P("扫描时会同时包含内置示例目录。", cls="text-sm text-gray-500 mt-2"),
                 P("页面即将刷新...", cls="text-sm text-gray-500 mt-2"),
             ),
             ModalFooter(
@@ -2432,10 +2160,122 @@ async def save_scan_config(req):
             ),
             id="config-success-modal"
         )
+    except (ValueError, FileNotFoundError, NotADirectoryError) as e:
+        return _config_modal_html(
+            directory,
+            is_error=True,
+            error_message=str(e),
+        )
     except Exception as e:
         logger.error(f"Failed to set scan directory: {e}")
         return _config_modal_html(
-            directory if "directory" in locals() else "",
+            directory,
             is_error=True,
             error_message=f"保存失败: {str(e)}",
+        )
+
+
+def _copy_requires_config_modal():
+    """提示用户先配置策略目录。"""
+    return Modal(
+        ModalTitle("请先设置用户策略目录"),
+        ModalBody(
+            P("复制示例策略前，需要先配置用户策略目录。", cls="text-amber-600"),
+            P("点击下方“去设置”后，保存目录，再回来点击“复制示例策略”。", cls="text-sm text-gray-500 mt-2"),
+        ),
+        ModalFooter(
+            Button(
+                "取消",
+                type="button",
+                cls="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200",
+                onclick="document.getElementById('modal-container').innerHTML=''",
+            ),
+            Button(
+                "去设置",
+                type="button",
+                cls="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+                hx_get="/strategy/scan/config-modal",
+                hx_target="#modal-container",
+            ),
+        ),
+        id="copy-requires-config-modal",
+    )
+
+
+@rt("/scan/copy-examples", methods=["POST"])
+async def copy_scan_examples(req):
+    """复制内置示例策略到用户目录。"""
+    try:
+        directory = strategy_loader.get_user_scan_directory().strip()
+        if not directory:
+            return _copy_requires_config_modal()
+
+        directory, _ = _normalize_scan_directory(directory)
+        result = strategy_loader.copy_examples_to_directory(directory)
+        title = "示例已复制" if result.copied_count else "示例已存在"
+        summary = (
+            f"已复制 {result.copied_count} 个文件到: {directory}"
+            if result.copied_count
+            else f"目标目录已包含全部示例文件: {directory}"
+        )
+
+        return Modal(
+            ModalTitle(title),
+            ModalBody(
+                P(summary, cls="text-green-600"),
+                P(
+                    f"已跳过 {result.skipped_count} 个同名文件，不会覆盖您的本地修改。",
+                    cls="text-sm text-gray-500 mt-2",
+                ),
+                P(f"目标策略目录: {directory}", cls="text-sm text-gray-500 mt-2 break-all"),
+            ),
+            ModalFooter(
+                Button(
+                    "关闭",
+                    type="button",
+                    cls="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200",
+                    onclick="location.reload()",
+                ),
+                Button(
+                    "立即扫描",
+                    type="button",
+                    cls="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+                    hx_post="/strategy/scan/run",
+                    hx_target="#modal-container",
+                ),
+            ),
+            id="copy-example-modal",
+        )
+    except (ValueError, FileNotFoundError, NotADirectoryError) as e:
+        return Modal(
+            ModalTitle("复制失败"),
+            ModalBody(
+                P(str(e), cls="text-red-600"),
+                P("请先检查当前用户策略目录配置。", cls="text-sm text-gray-500 mt-2"),
+            ),
+            ModalFooter(
+                Button(
+                    "去设置",
+                    type="button",
+                    cls="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+                    hx_get="/strategy/scan/config-modal",
+                    hx_target="#modal-container",
+                ),
+            ),
+            id="copy-example-error-modal",
+        )
+    except Exception as e:
+        logger.error(f"Failed to copy example strategies: {e}")
+        return Modal(
+            ModalTitle("复制失败"),
+            ModalBody(P(f"复制失败: {str(e)}", cls="text-red-600")),
+            ModalFooter(
+                Button(
+                    "关闭",
+                    type="button",
+                    cls="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200",
+                    onclick="document.getElementById('modal-container').innerHTML=''",
+                ),
+            ),
+            id="copy-example-error-modal",
         )

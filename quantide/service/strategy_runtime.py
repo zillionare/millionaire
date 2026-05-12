@@ -445,6 +445,24 @@ class StrategyRuntimeManager:
                 "event_count": len(self._risk_events),
             }
 
+    def runtime_summary(self) -> dict[str, int]:
+        """汇总当前运行时状态。"""
+        summary = {
+            "total": 0,
+            "running": 0,
+            "blocked": 0,
+            "failed": 0,
+            "idle": 0,
+        }
+        for row in self.list_runtime_rows():
+            summary["total"] += 1
+            status = str(row.get("status") or "idle")
+            if status in summary:
+                summary[status] += 1
+            else:
+                summary["idle"] += 1
+        return summary
+
     def list_runtime_rows(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         with self._lock:

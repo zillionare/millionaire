@@ -1,113 +1,127 @@
+from types import SimpleNamespace
+
+import pytest
 from fasthtml.common import to_xml
 
 from quantide.web.pages import strategy as strategy_page
 
 
-def test_runtime_monitor_polls_only_when_page_is_active(monkeypatch):
+class FakeRequest:
+    def __init__(self, form_data):
+        self._form_data = form_data
+
+    async def form(self):
+        return self._form_data
+
+
+def test_strategy_index_page_omits_runtime_and_risk_panels(monkeypatch, db):
     monkeypatch.setattr(
-        strategy_page.strategy_runtime_manager,
-        "list_runtime_rows",
-        lambda: [
-            {
-                "mode": "live",
-                "runtime_id": "runtime-1",
-                "portfolio_id": "paper-1",
-                "strategy_name": "demo",
-                "strategy_id": "runtime-1",
-                "status": "idle",
-                "total": 100000.0,
-                "positions": 0,
-                "orders": 0,
-                "updated_at": "2026-04-01 12:00:00",
-                "can_start": True,
-                "can_stop": False,
-            }
-        ],
+        strategy_page.strategy_loader,
+        "load_from_cache",
+        lambda: {},
     )
 
-    html = to_xml(strategy_page._runtime_table_card())
+    html = to_xml(strategy_page.index(None, {"auth": "admin"}))
 
-    assert 'hx-get="/strategy/runtime/table"' in html
-    assert "load, every 5s" not in html
-    assert "document.visibilityState === 'visible'" in html
-    assert "document.hasFocus()" in html
-    assert 'hx-swap="innerHTML"' in html
-    assert 'hx-post="/strategy/runtime/start"' in html
-    assert 'hx-target="#runtime-ops-panel"' in html
-
-
-def test_runtime_table_route_returns_refresh_content_without_rebinding_poll(monkeypatch):
-    monkeypatch.setattr(
-        strategy_page.strategy_runtime_manager,
-        "list_runtime_rows",
-        lambda: [],
-    )
-
-    html = to_xml(strategy_page.runtime_table(None))
-
+    assert 'id="risk-event-center"' not in html
     assert 'id="runtime-monitor"' not in html
-    assert 'hx-get="/strategy/runtime/table"' not in html
-    assert "运行时监控" in html
-    assert "暂无运行时实例" in html
 
 
-def test_risk_event_center_renders_alerts_and_confirmation_actions(monkeypatch):
+def test_scan_config_modal_describes_builtin_examples_and_setting_only(monkeypatch):
     monkeypatch.setattr(
-        strategy_page.strategy_runtime_manager,
-        "risk_summary",
-        lambda: {
-            "blocked_accounts": 1,
-            "blocked_strategies": 1,
-            "open_events": 2,
-            "event_count": 2,
-        },
+        strategy_page.strategy_loader,
+        "get_user_scan_directory",
+        lambda: "",
     )
     monkeypatch.setattr(
-        strategy_page.strategy_runtime_manager,
-        "list_risk_events",
-        lambda limit=8: [
-            {
-                "severity": "critical",
-                "title": "账户已封锁",
-                "message": "账户 live:gateway 已被封锁",
-                "scope": "account",
-                "created_at": "2026-05-08T12:00:00",
-            }
-        ],
+        strategy_page.strategy_loader,
+        "get_builtin_scan_directory",
+        lambda: "/opt/quantide/strategies/example",
+    )
+
+    html = to_xml(strategy_page.config_modal_route(None))
+
+    assert "内置示例目录会始终参与扫描" in html
+    assert "/opt/quantide/strategies/example" in html
+    assert "复制示例请回到策略列表页点击“复制示例策略”" in html
+    assert 'hx-post="/strategy/scan/copy-examples"' not in html
+
+
+def test_strategy_scan_toolbar_exposes_visible_copy_button():
+    html = to_xml(strategy_page._strategy_scan_toolbar())
+
+    assert "复制示例策略" in html
+    assert 'hx-post="/strategy/scan/copy-examples"' in html
+
+
+def test_strategy_index_page_explains_copy_entry(monkeypatch, db):
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "load_from_cache",
+        lambda: {},
+    )
+
+    html = to_xml(strategy_page.index(None, {"auth": "admin"}))
+
+    assert "复制示例策略" in html
+    assert "内置示例已默认参与扫描" in html
+    assert 'id="risk-event-center"' not in html
+    assert 'id="runtime-monitor"' not in html
+
+
+def test_run_scan_route_scans_builtin_examples_without_user_directory(monkeypatch):
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "scan_and_cache",
+        lambda: {"DualMAStrategy": object()},
     )
     monkeypatch.setattr(
-        strategy_page.strategy_runtime_manager,
-        "list_runtime_rows",
-        lambda: [
-            {
-                "mode": "live",
-                "runtime_id": "live:gateway:demo-1",
-                "portfolio_id": "gateway",
-                "strategy_name": "demo",
-                "strategy_id": "demo-1",
-                "status": "blocked",
-                "alert_text": "人工确认后可解除",
-                "total": 100000.0,
-                "positions": 0,
-                "orders": 0,
-                "updated_at": "2026-05-08 12:00:00",
-                "blocked_scope": "strategy",
-                "can_stop": False,
-                "can_start": False,
-                "can_block_account": False,
-                "can_unblock_account": False,
-                "can_block_strategy": False,
-                "can_unblock_strategy": True,
-            }
-        ],
+        strategy_page.strategy_loader,
+        "get_scan_directories",
+        lambda: ["/opt/quantide/strategies/example"],
     )
 
-    html = to_xml(strategy_page._runtime_ops_panel())
+    html = to_xml(strategy_page.run_scan(None))
 
-    assert 'id="risk-event-center"' in html
-    assert 'hx-get="/strategy/risk-center"' in html
-    assert "风险事件中心" in html
-    assert "账户封控 1" in html
-    assert "策略封控 1" in html
-    assert 'hx-post="/strategy/runtime/unblock"' in html
-    assert 'hx-confirm="确认解除策略风控封锁吗？"' in html
+    assert "成功发现 1 个策略" in html
+    assert "内置示例目录已默认参与扫描" in html
+    assert "/opt/quantide/strategies/example" in html
+
+
+@pytest.mark.asyncio
+async def test_copy_scan_examples_route_requires_directory_config(monkeypatch):
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "get_user_scan_directory",
+        lambda: "",
+    )
+
+    response = await strategy_page.copy_scan_examples(FakeRequest({}))
+    html = to_xml(response)
+
+    assert "请先设置用户策略目录" in html
+    assert 'hx-get="/strategy/scan/config-modal"' in html
+
+
+@pytest.mark.asyncio
+async def test_copy_scan_examples_route_uses_saved_directory_and_reports_result(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "get_user_scan_directory",
+        lambda: str(tmp_path),
+    )
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "copy_examples_to_directory",
+        lambda directory: SimpleNamespace(copied_count=1, skipped_count=0),
+    )
+
+    response = await strategy_page.copy_scan_examples(FakeRequest({}))
+    html = to_xml(response)
+
+    assert "示例已复制" in html
+    assert str(tmp_path.resolve()) in html
+    assert 'hx-post="/strategy/scan/run"' in html
