@@ -8,7 +8,7 @@
 2. `/strategy` 页面只能保留与策略发现、策略管理、回测相关的内容。
 3. 风险事件中心与运行时监控从 `/strategy` 移出，迁入 `系统维护` 模块下的独立页面。
 
-本 spec 受 `.dev/specs/00-architecture.md`、`.dev/specs/02-layout-nav-style.md`、`.dev/specs/05-release-readiness.md` 约束；若与较旧草案冲突，以这些高优先级文档和本 spec 为准。
+本 spec 受 `.dev/specs/00-architecture.md`、`.dev/specs/03-layout-nav-style.md`、`.dev/specs/06-release-readiness.md` 约束；若与较旧草案冲突，以这些高优先级文档和本 spec 为准。
 
 ## 2. 背景与问题
 
@@ -22,7 +22,7 @@
 1. 信息架构混乱。`/strategy` 在导航层面属于“策略管理”，而不是系统运行维护中心。
 2. 页面职责不清。用户进入策略页，本应关注策略发现、配置、回测与结果，而不是账户封控、运行时阻断、系统级告警。
 3. 全局入口缺失。header 中的 alarm 图标目前只有视觉占位，没有承载真实业务入口。
-4. 与发布约束不符。`.dev/specs/05-release-readiness.md` 已要求“系统必须提供独立的风险事件中心，而不是仅依赖消息中心”。
+4. 与发布约束不符。`.dev/specs/06-release-readiness.md` 已要求“系统必须提供独立的风险事件中心，而不是仅依赖消息中心”。
 
 ## 3. 设计决策
 
@@ -271,4 +271,3 @@ Move risk event center and runtime monitor out of `/strategy`, make `/strategy` 
 #### Validation
 
 - Add/update targeted web tests for `/strategy`, system pages, header alarm, and sidebar structure
-

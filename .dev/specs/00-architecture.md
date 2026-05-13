@@ -52,12 +52,12 @@ UI 界面使用 FastHTML 和 monster UI构建。行情数据使用 parquet 格�
 
 ## 重要架构考虑
 
-1. 配置保存在数据库quantide.db 中。使用操作系统默认的配置文件目录来存储该文件。在系统第一次运行时，通过运行 init-wizard 来完成最重要的配置。详见01-init-wizard.md。
+1. 配置保存在数据库quantide.db 中。使用操作系统默认的配置文件目录来存储该文件。在系统第一次运行时，通过运行 init-wizard 来完成最重要的配置。详见02-init-wizard.md。
 2. quantIDE提供策略框架。该框架既是一系列约定，也提供了抽象基类。派生于该框架的策略，能被quantIDE发现，加载和运行。
 3. 策略由运行时驱动，无论是在回测、仿真还是实盘运行时，都不需要进行修改。
 4. 策略发出的每一个订单，都将通过 qtoid 来进行跟踪。接收和处理订单的系统都要透传，或者自己建立 qtoid 与外部 id 之间的关联。
 5. quantIDE将可以运行在 macos/linux/windows 上。它必须不依赖于 xtquant。
-6. 界面 layout, style 等约定在02-layout-nav-style.md 文档中说明。
+6. 界面 layout, style 等约定在03-layout-nav-style.md 文档中说明。
 7. 系统从外部数据源（比如 tushare）接收数据时，必须转换成为标准数据格式（见本文对应章节）再存储。
 8. 系统支持多个数据源，系统（比如后台更新任务）只使用系统自己的标准数据 API 来获取数据。在初始化时，这些 API 将绑定到对应的适配器上。
 

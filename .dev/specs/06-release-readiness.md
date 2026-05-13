@@ -7,8 +7,9 @@
 约束关系如下：
 
 1. `.dev/specs/00-architecture.md` 仍是最高优先级的架构决议文档。
-2. 本文档在“发布门槛、交易安全、恢复语义、QA 放行标准”上提供当前权威约束。
-3. `.dev/specs/three_mode_acceptance_checklist.md` 负责记录当前证据、缺口与放行判定，不替代本文件。
+2. `.dev/specs/01-e2e-accuracy-contract.md` 定义发布态 E2E 的数据、stub、指标和准确性验收约束。
+3. 本文档在“发布门槛、交易安全、恢复语义、QA 放行标准”上提供当前权威约束。
+4. `.dev/specs/three_mode_acceptance_checklist.md` 负责记录当前证据、缺口与放行判定，不替代本文件。
 
 本文档明确不讨论两类问题：
 

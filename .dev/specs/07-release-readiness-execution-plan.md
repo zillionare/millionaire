@@ -2,15 +2,16 @@
 
 ## 1. 计划定位
 
-本文把 `.dev/specs/05-release-readiness.md` 与
+本文把 `.dev/specs/06-release-readiness.md` 与
 `.dev/specs/three_mode_acceptance_checklist.md` 拆解为可执行阶段。
 
 本计划不改变发布门槛：
 
 1. `.dev/specs/00-architecture.md` 仍是最高优先级架构约束。
-2. `.dev/specs/05-release-readiness.md` 定义不可降级的发布态要求。
-3. `.dev/specs/three_mode_acceptance_checklist.md` 记录当前证据、缺口与放行判定。
-4. 本文只负责执行排序、仓库切片、验收条件与验证命令。
+2. `.dev/specs/01-e2e-accuracy-contract.md` 定义 E2E 数据、stub、指标和准确性验收要求。
+3. `.dev/specs/06-release-readiness.md` 定义不可降级的发布态要求。
+4. `.dev/specs/three_mode_acceptance_checklist.md` 记录当前证据、缺口与放行判定。
+5. 本文只负责执行排序、仓库切片、验收条件与验证命令。
 
 当前总判定保持不变：在交易级本地 stub、风险事件中心/阻断恢复闭环、QA 级 8 条 E2E 证据补齐前，当前版本不可宣称发布就绪。
 
@@ -34,7 +35,7 @@ P7 QA 放行矩阵与发布 gate
 强依赖说明：
 
 - P1 必须早于 P4/P5/P6：所有订单、成交、告警、恢复、UI 跳转都必须回落到 `qtoid`。
-- P2 必须早于 paper/live QA E2E：当前 `tests/e2e/support/gateway_stub.py` 只有 `/ping`，无法承载交易级验收。
+- P2 必须早于 paper/live QA E2E：当前 `tests/e2e/support/gateway_stub.py` 已有基础交易和行情能力，但还缺发布态场景文件、真实样本数据绑定、乱序/断连脚本和指标 baseline。
 - P6 必须在 P7 前完成：异常阻断、持续告警、二次确认、重启恢复是发布阻塞项。
 - P7 只能汇总自动化证据，不能用人工确认替代缺失链路。
 
@@ -46,6 +47,7 @@ P7 QA 放行矩阵与发布 gate
 
 ### 仓库切片
 
+- `.dev/specs/01-e2e-accuracy-contract.md`
 - `.dev/specs/three_mode_acceptance_checklist.md`
 - `tests/e2e/`
 - `tests/strategies/example/test_dual_ma.py`
@@ -135,7 +137,7 @@ poetry run mypy quantide tests
 
 ### 目标
 
-把 `tests/e2e/support/gateway_stub.py` 从 `/ping` stub 扩展为可脚本化的近真实交易环境，为 paper/live 发布态 E2E 提供共同基础。
+把 `tests/e2e/support/gateway_stub.py` 扩展为由 `tests/assets/` 场景文件驱动的近真实交易环境，为 paper/live 发布态 E2E 提供共同基础。
 
 ### 仓库切片
 
@@ -149,7 +151,7 @@ poetry run mypy quantide tests
 
 ### 执行项
 
-1. 增加最小连接/鉴权能力，保留当前系统设置和初始化向导使用的 `/ping` 兼容路径。
+1. 保留当前系统设置和初始化向导使用的 `/ping` 兼容路径，并补齐发布态场景装载能力。
 2. 增加账户、资产、持仓、订单、成交查询接口。
 3. 增加买入、卖出、撤单接口，响应必须包含主体传入的 `qtoid` 与外部映射字段。
 4. 增加行情 WebSocket 或可被现有 gateway market adapter 消费的等价推送能力。
@@ -342,7 +344,7 @@ poetry run ruff check quantide/core/runtime/gateway_client.py quantide/core/runt
 - 每条事件可追踪 `qtoid`、外部订单号映射、触发原因、阻断范围、关闭信息和诊断上下文。
 - 被阻断后新的自动交易被拒绝，人工交易仍允许但持续显示显著风险告警。
 - 二次确认取消不会解除阻断；确认关闭会立即解除阻断并恢复原自动交易状态。
-- 重启恢复语义符合 `.dev/specs/05-release-readiness.md` 第 3.4 节。
+- 重启恢复语义符合 `.dev/specs/06-release-readiness.md` 第 3.4 节。
 - SQLite 或 Parquet 损坏后不自动修复后继续写入。
 
 ### 验证命令

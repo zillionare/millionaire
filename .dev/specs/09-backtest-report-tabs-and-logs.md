@@ -10,7 +10,7 @@
 本 spec 受以下文档约束：
 
 1. `.dev/specs/00-architecture.md`
-2. `.dev/specs/02-layout-nav-style.md`
+2. `.dev/specs/03-layout-nav-style.md`
 3. `.omx/plans/prd-backtest-report-tabs-and-logs.md`
 
 若与旧实现或历史讨论冲突，以本 spec 为准。

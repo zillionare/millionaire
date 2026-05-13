@@ -7,7 +7,8 @@
 约束来源：
 
 1. `.dev/specs/00-architecture.md`
-2. `.dev/specs/05-release-readiness.md`
+2. `.dev/specs/01-e2e-accuracy-contract.md`
+3. `.dev/specs/06-release-readiness.md`
 
 本清单只回答四个问题：
 
@@ -24,8 +25,8 @@
 2. `paper`：已有 runtime 装配、撮合规则和生命周期级自动化证据，但还缺基于本地独立 stub 的端到端验收，以及异常阻断语义的自动化证据。
 3. `live`：已有 gateway client / broker adapter / port wrapper 级自动化证据，但还没有接近真实交易状态机的本地 stub 端到端验收。
 4. 跨模式发布阻塞项仍然存在：
-   - 当前 `tests/e2e/support/gateway_stub.py` 只有 `/ping`，不具备交易级 stub 能力。
-   - 现有 E2E 主要集中在初始化向导和系统设置，不覆盖策略、回测、交易阻断与恢复链路。
+   - 当前 `tests/e2e/support/gateway_stub.py` 已具备基础交易和行情 stub 能力，但还不是从 `tests/assets/` 场景文件驱动的发布态 stub。
+   - 现有 E2E 主要集中在初始化向导、系统设置和 stub 自测，不覆盖策略、回测、交易阻断与恢复链路。
    - 仓库内尚未形成独立的风险事件中心与阻断持久化的验收证据。
 
 结论是：当前代码已经具备发布态架构的若干核心部件，但**尚未达到“可发布、可长期运行”的放行标准**。
@@ -89,7 +90,7 @@
 
 1. 还没有一条“策略经 `RuntimeBootstrap(mode=paper)` 运行并完成下单到成交”的 QA 级 E2E。
 2. 还没有一条覆盖阻断、持续告警、关闭后二次确认、恢复自动运行的用户场景验收。
-3. 当前 stub 只有 `/ping`，不能为 `paper` 提供真实的行情、断连和异常注入能力。
+3. 当前 stub 已能提供基础行情和交易路径，但还不能按发布态 scenario 文件为 `paper` 提供真实数据驱动的行情、断连和异常注入能力。
 4. 仓库内还没有“风险事件中心”和“阻断状态持久化恢复”的现成证据。
 
 #### 当前判定
@@ -123,7 +124,7 @@
 #### 当前缺口
 
 1. 还没有一条基于近真实本地 stub 的 `live` 端到端自动验收。
-2. 当前 `tests/e2e/support/gateway_stub.py` 只支持 `/ping`，不能承载资产、持仓、订单、成交或 WebSocket 行情路径。
+2. 当前 `tests/e2e/support/gateway_stub.py` 已支持资产、持仓、订单、成交和 WebSocket 行情路径，但还缺少发布态要求的数据 manifest、场景脚本、乱序回报、断连补推和指标 baseline。
 3. 还没有证明主体在 `live` 模式下：
    - 能发现远程账户
    - 能拉取远程资产、持仓、订单、成交
@@ -216,6 +217,6 @@
 
 当前最主要的阻塞项不是单个 bug，而是以下三类发布缺口：
 
-1. 交易级本地独立 stub 尚未实现。
+1. 交易级本地独立 stub 已有基础实现，但尚未达到 `.dev/specs/01-e2e-accuracy-contract.md` 要求的数据驱动、场景驱动和指标校验标准。
 2. 风险事件中心与阻断持久化/恢复语义尚未形成验收闭环。
 3. QA 级 E2E 套件还没有覆盖规定的 8 条发布前主链路。

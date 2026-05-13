@@ -7,7 +7,7 @@
 本 spec 受以下文档约束：
 
 1. `.dev/specs/00-architecture.md`
-2. `.dev/specs/02-layout-nav-style.md`
+2. `.dev/specs/03-layout-nav-style.md`
 
 若与旧实现或历史讨论冲突，以本 spec 为准。
 
@@ -21,7 +21,7 @@
 2. 策略页内部已经存在局部刷新和 OOB 更新用法。
 3. 中间件层已经识别 `HX-Request`，说明系统并不排斥“普通请求返回完整页、HTMX 请求返回 fragment”的模式。
 
-与此同时，`.dev/specs/02-layout-nav-style.md` 已明确指出：
+与此同时，`.dev/specs/03-layout-nav-style.md` 已明确指出：
 
 1. UI 采用 Header + Sidebar + Main 三栏布局。
 2. 系统目标是具备现代化单页应用（SPA）的交互体验。

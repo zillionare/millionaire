@@ -4,7 +4,7 @@
 
 ### 交易日历模块开发 ✅ 完成
 
-- [x] 阅读 `03-system_management.md` 文档，理解需求
+- [x] 阅读 `04-system_management.md` 文档，理解需求
 - [x] 创建 `quantide/web/pages/system/` 目录结构
 - [x] 实现后端 API (`calendar_page` 和 `calendar_sync`)
 - [x] 更新 `app_factory.py` 挂载路由
@@ -26,7 +26,7 @@
 
 ### 下一步
 
-根据 `03-system_management.md`，接下来需要实现：
+根据 `04-system_management.md`，接下来需要实现：
 - [ ] 股票列表查询模块 (`/system/stocks`)
 - [ ] 行情数据查询模块 (`/system/market`)
 - [ ] 系统设置模块（定时任务、交易网关、数据源）
