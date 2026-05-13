@@ -35,7 +35,10 @@ def bills(portfolio_id: str):
 
 
 def metrics(
-    portfolio_id: str, baseline_returns: pl.DataFrame | None = None
+    portfolio_id: str,
+    baseline_returns: pl.DataFrame | None = None,
+    start: pd.Timestamp | None = None,
+    end: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """计算组合评估指标
 
@@ -45,12 +48,14 @@ def metrics(
     Args:
         portfolio_id: 组合id
         baseline_returns: 基准收益率，默认None
+        start: 指标统计起始日期，默认使用组合全部资产记录
+        end: 指标统计结束日期，默认使用组合全部资产记录
 
     Returns:
         包含各项绩效指标的 DataFrame
     """
     # 1. 获取所有资产记录
-    assets = db.assets_all(portfolio_id=portfolio_id)
+    assets = db.query_assets(portfolio_id=portfolio_id, start=start, end=end)
     if assets is None or assets.height < 2:
         return None
 

@@ -15,6 +15,15 @@
 
 当前总判定保持不变：在交易级本地 stub、风险事件中心/阻断恢复闭环、QA 级 8 条 E2E 证据补齐前，当前版本不可宣称发布就绪。
 
+## 1.1 当前进展快照
+
+截至 `2026-05-13` 当前工作区状态：
+
+1. P0 已建立 `e2e + release_gate` 证据基线，`conda run -n quantide poetry run pytest -m "e2e and release_gate" tests/e2e -q` 当前结果为 `11 passed, 13 deselected`。
+2. P2 的本地 gateway stub 已具备场景脚本、资产/持仓回写、qtoid/external-order-id 映射和 replay/reconnect 基础能力。
+3. P3/P4/P5 的准确性主链路已落地到 `tests/e2e/backtest/test_dual_ma_accuracy.py`、`tests/e2e/paper/test_dual_ma_accuracy.py`、`tests/e2e/live/test_gateway_accuracy.py`。
+4. 当前剩余发布阻塞主要集中在 P6 风险事件中心、阻断持久化/恢复，以及 P7 中仍缺失的策略发现/加载与任务恢复 QA 证据。
+
 ## 2. 依赖总览
 
 ```text

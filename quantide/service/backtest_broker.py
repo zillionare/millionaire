@@ -202,8 +202,12 @@ class BacktestBroker(AbstractBroker):
         if not fill_dates:
             return
 
-        # 2. 获取最新持仓
-        latest_pos = db.get_positions(dt=None, portfolio_id=self._portfolio_id)
+        # 2. 获取与最新资产记录同日的持仓快照。
+        #
+        # 清仓后的最新资产日可能已经没有任何持仓记录；如果这里退回到 positions
+        # 表中的“最新日期”，会把更早一天的历史仓位重新带回来，导致后续填仓时在
+        # 空仓日期重新出现 market_value。
+        latest_pos = db.get_positions(dt=latest_asset.dt, portfolio_id=self._portfolio_id)
 
         if latest_pos.is_empty():
             self._fill_assets_only(fill_dates, latest_asset)

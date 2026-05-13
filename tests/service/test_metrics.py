@@ -1,4 +1,5 @@
 import datetime
+import json
 import tempfile
 from pathlib import Path
 
@@ -9,6 +10,18 @@ import pytest
 from quantide.core.enums import BidType, OrderSide
 from quantide.data.sqlite import Asset, Order, Position, Trade, db
 from quantide.service.metrics import bills, metrics
+
+
+BASELINE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "assets"
+    / "baselines"
+    / "dual_ma_2024.backtest.json"
+)
+
+
+def _load_dual_ma_baseline() -> dict:
+    return json.loads(BASELINE_PATH.read_text())
 
 
 @pytest.fixture(scope="function")
@@ -217,3 +230,57 @@ def test_metrics_include_trade_quality_distribution_stats(setup_db):
     assert stats.loc["Payoff Ratio", "Value"] == "1.00"
     assert stats.loc["Tail Ratio", "Value"] == "1.25"
     assert stats.loc["Daily Value at Risk", "Value"] == "-8.00%"
+
+
+def test_metrics_match_dual_ma_demo_baseline(setup_db):
+    baseline = _load_dual_ma_baseline()
+    portfolio_id = "dual_ma_demo_metrics_p"
+
+    for row in baseline["equity_curve"]:
+        db.upsert_asset(
+            Asset(
+                portfolio_id,
+                datetime.date.fromisoformat(row["dt"]),
+                baseline["strategy"]["initial_cash"],
+                row["cash"],
+                0.0,
+                row["market_value"],
+                row["total"],
+            )
+        )
+
+    stats = metrics(portfolio_id)
+
+    assert stats.loc["Start Date", "Value"] == baseline["metrics"]["raw"]["start_date"]
+    assert stats.loc["End Date", "Value"] == baseline["metrics"]["raw"]["end_date"]
+    assert stats.loc["Total Trading Days", "Value"] == baseline["metrics"]["raw"]["trading_days"]
+    assert stats.loc["Total Return", "Value"] == baseline["metrics"]["formatted"]["Total Return"]
+    assert stats.loc["CAGR", "Value"] == baseline["metrics"]["formatted"]["CAGR"]
+    assert stats.loc["Volatility (ann.)", "Value"] == baseline["metrics"]["formatted"]["Volatility (ann.)"]
+    assert stats.loc["Sharpe Ratio", "Value"] == baseline["metrics"]["formatted"]["Sharpe Ratio"]
+    assert stats.loc["Max Drawdown", "Value"] == baseline["metrics"]["formatted"]["Max Drawdown"]
+    assert stats.loc["Win Rate (Daily)", "Value"] == "24.74%"
+
+
+def test_metrics_flat_equity_curve_reports_zero_volatility(setup_db):
+    portfolio_id = "flat_equity_metrics_p"
+
+    for index in range(3):
+        db.upsert_asset(
+            Asset(
+                portfolio_id,
+                datetime.date(2024, 1, index + 1),
+                100.0,
+                100.0,
+                0.0,
+                0.0,
+                100.0,
+            )
+        )
+
+    stats = metrics(portfolio_id)
+
+    assert stats.loc["Volatility (ann.)", "Value"] == "0.00%"
+    assert stats.loc["Sharpe Ratio", "Value"] == "N/A"
+    assert stats.loc["Max Drawdown", "Value"] == "0.00%"
+    assert stats.loc["Win Rate (Daily)", "Value"] == "0.00%"

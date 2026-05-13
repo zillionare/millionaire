@@ -330,7 +330,7 @@ class BacktestRunner:
         )
 
         # 4. Metrics
-        stats = metrics(portfolio_id)
+        stats = metrics(portfolio_id, start=start_date, end=end_date)
 
         return {
             "portfolio_id": portfolio_id,

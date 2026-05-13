@@ -11,7 +11,12 @@ from quantide.core.enums import OrderSide
 from quantide.core.ports import OrderRequest
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.gateway_client import GatewayClient
-from tests.e2e.support.gateway_stub import GatewayScenario, running_gateway_stub
+from tests.e2e.support.gateway_stub import (
+    GatewayCancelScript,
+    GatewayScenario,
+    GatewaySubmitScript,
+    running_gateway_stub,
+)
 
 
 def test_gateway_stub_keeps_prefixed_ping_compatibility() -> None:
@@ -87,3 +92,121 @@ async def test_gateway_stub_streams_scripted_ws_quotes() -> None:
             payload = json.loads(await ws.recv())
 
     assert payload == quote
+
+
+@pytest.mark.asyncio  # type: ignore[untyped-decorator]
+async def test_gateway_stub_preserves_qtoid_when_query_snapshots_only_expose_external_order_id() -> None:
+    scenario = GatewayScenario(
+        submit_scripts=[
+            GatewaySubmitScript(
+                side="buy",
+                symbol="000001.SZ",
+                response={"success": True, "order_id": "ext-qt-1"},
+                order={
+                    "symbol": "000001.SZ",
+                    "side": "buy",
+                    "shares": 200,
+                    "price": 10.2,
+                    "status": "submitted",
+                    "filled": 0,
+                    "time": "2026-05-13 09:31:00",
+                },
+                trades=[
+                    {
+                        "tid": "gw-t1",
+                        "symbol": "000001.SZ",
+                        "side": "buy",
+                        "shares": 200,
+                        "price": 10.2,
+                        "amount": 2040,
+                        "time": "2026-05-13 09:31:05",
+                    }
+                ],
+                expose_order_qtoid=False,
+                expose_trade_qtoid=False,
+            )
+        ]
+    )
+
+    with running_gateway_stub(prefix="/qmt", scenario=scenario) as stub:
+        client = GatewayClient(stub.base_url, username="u", password="p", timeout=2)
+        adapter = GatewayBrokerAdapter(client)
+
+        ack = await adapter.submit(
+            OrderRequest(
+                asset="000001.SZ",
+                side=OrderSide.BUY,
+                value=200,
+                price=10.2,
+                extra={"qtoid": "qt-1"},
+            )
+        )
+        orders = adapter.query_orders()
+        trades = adapter.query_trades(order_id=ack.order_id)
+
+    assert ack.order_id == "qt-1"
+    assert orders[0].order_id == "qt-1"
+    assert trades[0].order_id == "qt-1"
+
+
+@pytest.mark.asyncio  # type: ignore[untyped-decorator]
+async def test_gateway_stub_accepts_dict_scenario_with_scripted_partial_fill_and_cancel() -> None:
+    scenario = {
+        "submit_scripts": [
+            {
+                "side": "buy",
+                "symbol": "000001.SZ",
+                "response": {"success": True, "qtoid": "qt-partial", "order_id": "ext-qt-partial"},
+                "order": {
+                    "symbol": "000001.SZ",
+                    "side": "buy",
+                    "shares": 500,
+                    "price": 10.0,
+                    "status": "partial",
+                    "filled": 100,
+                    "time": "2026-05-13 09:32:00",
+                },
+                "trades": [
+                    {
+                        "tid": "gw-partial-1",
+                        "symbol": "000001.SZ",
+                        "side": "buy",
+                        "shares": 100,
+                        "price": 10.0,
+                        "amount": 1000,
+                        "time": "2026-05-13 09:32:03",
+                    }
+                ],
+            }
+        ],
+        "cancel_scripts": [
+            {
+                "qtoid": "qt-partial",
+                "response": {"success": True, "qtoid": "qt-partial"},
+                "order_status": "cancelled",
+            }
+        ],
+    }
+
+    with running_gateway_stub(prefix="/qmt", scenario=scenario) as stub:
+        client = GatewayClient(stub.base_url, username="u", password="p", timeout=2)
+        adapter = GatewayBrokerAdapter(client)
+
+        ack = await adapter.submit(
+            OrderRequest(
+                asset="000001.SZ",
+                side=OrderSide.BUY,
+                value=500,
+                price=10.0,
+                extra={"qtoid": "qt-partial"},
+            )
+        )
+        orders = adapter.query_orders()
+        cancel = await adapter.cancel(ack.order_id)
+        cancelled_orders = adapter.query_orders(status="cancelled")
+
+    assert ack.order_id == "qt-partial"
+    assert orders[0].filled == 100
+    assert orders[0].status == "partial"
+    assert cancel.success is True
+    assert cancelled_orders[0].order_id == "qt-partial"

@@ -8,7 +8,7 @@ from quantide.core.enums import BrokerKind
 from quantide.core.ports import MarketDataPort
 from quantide.core.runtime.adapter_registry import AdapterRegistry
 from quantide.core.runtime.broker_bridge import LegacyBrokerPortAdapter
-from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
+from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter, GatewayBrokerWrapper
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.core.runtime.gateway_market import GatewayMarketDataAdapter
 from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter
@@ -103,7 +103,7 @@ class RuntimeBootstrap:
         self._registry_ref = registry
         self._load_accounts_from_db(registry, market_data=market_data)
         self._register_broker_adapters(registry, adapters)
-        self._register_gateway_broker_adapter(adapters)
+        self._register_gateway_broker_adapter(adapters, market_data)
         return RuntimeContext(
             mode=self._mode,
             registry=registry,
@@ -184,7 +184,11 @@ class RuntimeBootstrap:
             except Exception:
                 continue
 
-    def _register_gateway_broker_adapter(self, adapters: AdapterRegistry) -> None:
+    def _register_gateway_broker_adapter(
+        self,
+        adapters: AdapterRegistry,
+        market_data: MarketDataPort,
+    ) -> None:
         """注册 gateway 交易适配器."""
         runtime = get_settings()
         broker_name = runtime.runtime_broker_adapter
@@ -195,7 +199,8 @@ class RuntimeBootstrap:
         if not use_gateway:
             return
         client = GatewayClient.from_config()
-        adapter = GatewayBrokerAdapter(client)
+        adapter = GatewayBrokerAdapter(client, market_data=market_data)
+        legacy = GatewayBrokerWrapper(adapter)
         registry = getattr(self, "_registry_ref", None)
         if registry:
             register_port_backed_broker(
@@ -208,4 +213,5 @@ class RuntimeBootstrap:
                 portfolio_name="实盘网关",
                 status=True,
                 is_connected=True,
+                legacy=legacy,
             )

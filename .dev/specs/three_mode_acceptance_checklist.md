@@ -21,12 +21,12 @@
 
 截至当前工作区状态：
 
-1. `backtest`：已有较强的策略级与 broker 级自动化证据，但还缺发布态要求的端到端回测验收证据。
-2. `paper`：已有 runtime 装配、撮合规则和生命周期级自动化证据，但还缺基于本地独立 stub 的端到端验收，以及异常阻断语义的自动化证据。
-3. `live`：已有 gateway client / broker adapter / port wrapper 级自动化证据，但还没有接近真实交易状态机的本地 stub 端到端验收。
+1. `backtest`：已具备固定数据、交易事实、资产曲线和指标对齐的发布态 E2E 证据。
+2. `paper`：已具备本地 stub 行情驱动、同一策略源码复用和成交/资产/指标对齐的发布态 E2E 证据，但仍缺异常阻断与恢复语义的 QA 证据。
+3. `live`：已具备 gateway stub 驱动的策略主路径与交易状态机 E2E 证据，但仍缺账户发现、风险阻断和重启恢复的 QA 证据。
 4. 跨模式发布阻塞项仍然存在：
-   - 当前 `tests/e2e/support/gateway_stub.py` 已具备基础交易和行情 stub 能力，但还不是从 `tests/assets/` 场景文件驱动的发布态 stub。
-   - 现有 E2E 主要集中在初始化向导、系统设置和 stub 自测，不覆盖策略、回测、交易阻断与恢复链路。
+   - 当前 `tests/e2e/support/gateway_stub.py` 已具备场景脚本、资产/持仓回写和 qtoid 映射校验能力，但风险事件与阻断持久化链路还未纳入 release gate。
+   - 现有 release gate 已覆盖初始化、数据下载、backtest、paper 和 live 准确性链路，但仍缺策略发现/加载、异常阻断与任务恢复链路。
    - 仓库内尚未形成独立的风险事件中心与阻断持久化的验收证据。
 
 结论是：当前代码已经具备发布态架构的若干核心部件，但**尚未达到“可发布、可长期运行”的放行标准**。
@@ -51,18 +51,21 @@
    - 使用静态日线数据驱动 `BacktestRunner`
    - 验证同一策略代码产生买卖成交
    - 验证订单与成交写入 SQLite
-2. `service/backtest_broker.py` 和相关测试已覆盖主体本地回测撮合主链路。
+2. `tests/e2e/backtest/test_dual_ma_accuracy.py`
+   - 使用固定 2024 fixture 与独立 baseline 比对 14 笔交易
+   - 校验每日资产曲线和 metrics 输出
+   - 已标记 `e2e + release_gate`
+3. `service/backtest_broker.py` 和相关测试已覆盖主体本地回测撮合主链路。
 
 #### 当前缺口
 
-1. 还没有一条面向发布态的 QA 级回测 E2E，证明“固定数据下结果完全可重复”。
-2. 还没有把动态前复权、用户手续费配置、涨跌停和停牌规则放到同一条用户场景验收中。
-3. 还没有把“回测失败显著提示”作为端到端放行项锁定。
+1. 还没有把“回测失败显著提示”作为用户级放行项锁定。
+2. 还没有把策略发现/加载与回测运行接到同一条 QA 主链路里。
 
 #### 当前判定
 
 1. `backtest` 在组件与策略级上较成熟。
-2. 但在本轮发布门槛下，`backtest` 仍不能单凭现有测试被判定为“发布前验收完成”。
+2. 交易准确性维度已经达到当前契约要求，但整体发布判定仍受跨模式阻塞项约束。
 
 ### 3.2 paper
 
@@ -85,18 +88,20 @@
    - 覆盖买卖、撤单、金额/比例/目标仓位下单、涨跌停、无成交量、T+1、最小手续费等行为
 3. `tests/service/test_sim_broker_paper_lifecycle.py`
    - 覆盖持久化恢复、并发账户共享行情、日终撤单、生命周期 metrics
+4. `tests/e2e/paper/test_dual_ma_accuracy.py`
+   - 回放固定日线开盘/收盘，复用同一份 `DualMAStrategy`
+   - 校验 14 笔成交、资产曲线和 metrics 与 baseline 一致
+   - 已标记 `e2e + release_gate`
 
 #### 当前缺口
 
-1. 还没有一条“策略经 `RuntimeBootstrap(mode=paper)` 运行并完成下单到成交”的 QA 级 E2E。
-2. 还没有一条覆盖阻断、持续告警、关闭后二次确认、恢复自动运行的用户场景验收。
-3. 当前 stub 已能提供基础行情和交易路径，但还不能按发布态 scenario 文件为 `paper` 提供真实数据驱动的行情、断连和异常注入能力。
-4. 仓库内还没有“风险事件中心”和“阻断状态持久化恢复”的现成证据。
+1. 还没有一条覆盖阻断、持续告警、关闭后二次确认、恢复自动运行的用户场景验收。
+2. 仓库内还没有“风险事件中心”和“阻断状态持久化恢复”的现成证据。
 
 #### 当前判定
 
 1. `paper` 的 runtime 和仿真撮合主链路已有较强自动化基础。
-2. 但它仍停留在组件级与生命周期级通过，尚未达到发布态放行标准。
+2. 交易准确性链路已具备发布态证据，但阻断/恢复语义仍未达到放行标准。
 
 ### 3.3 live
 
@@ -120,21 +125,23 @@
 4. `tests/config/test_runtime.py`
    - 验证 runtime 配置优先从数据库装配，包括 gateway 配置和模式判定
 5. 代码层面已经把 `qtoid` 贯穿到 SQLite 订单/成交主链路中。
+6. `tests/e2e/live/test_gateway_accuracy.py`
+   - 覆盖策略主路径 full fill、partial cancel、reject、out-of-order/replay 与 mapping-break block
+   - 校验资产/持仓/订单/成交查询围绕 `qtoid` 闭合
+   - 已标记 `e2e + release_gate`
 
 #### 当前缺口
 
-1. 还没有一条基于近真实本地 stub 的 `live` 端到端自动验收。
-2. 当前 `tests/e2e/support/gateway_stub.py` 已支持资产、持仓、订单、成交和 WebSocket 行情路径，但还缺少发布态要求的数据 manifest、场景脚本、乱序回报、断连补推和指标 baseline。
-3. 还没有证明主体在 `live` 模式下：
+1. 还没有证明主体在 `live` 模式下：
    - 能发现远程账户
    - 能拉取远程资产、持仓、订单、成交
-   - 能在 WS 行情与乱序回报下维持一致状态
    - 能在异常时触发阻断、重启后恢复阻断、关闭后二次确认并恢复运行
+2. 风险事件中心与阻断恢复链路尚无 release gate 证据。
 
 #### 当前判定
 
 1. `live` 模式的架构方向与适配器边界是正确的。
-2. 但当前仍只有组件级通过，距离发布态放行差距最大。
+2. 交易准确性链路已补齐，但整体放行仍被风险阻断/恢复语义卡住。
 
 ## 4. 发布前强制 E2E 清单
 
@@ -154,9 +161,9 @@
 1. 初始化：已有 HTTP 级 E2E，属于部分完成。
 2. 数据下载与补齐：已有向导下载相关 HTTP 路径验证，但还不是完整发布态验收。
 3. 策略发现/加载：暂无 QA 级 E2E。
-4. 回测运行：暂无 QA 级 E2E。
-5. `paper` 下单到成交：暂无 QA 级 E2E。
-6. `live` 下单到成交：暂无 QA 级 E2E。
+4. 回测运行：已有 QA 级 E2E。
+5. `paper` 下单到成交：已有 QA 级 E2E。
+6. `live` 下单到成交：已有 QA 级 E2E。
 7. 异常告警与阻断：暂无 QA 级 E2E。
 8. 任务恢复与重启恢复：暂无 QA 级 E2E。
 
@@ -164,24 +171,25 @@
 
 | 主链路 | 当前测试入口 | Marker / 命令 | 状态 | 最近证据说明 |
 | --- | --- | --- | --- | --- |
-| 初始化 | `tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_happy_path_uses_gateway_ping` | `release_gate` / `poetry run pytest -m "e2e and release_gate" tests/e2e` | partial | 覆盖初始化向导、gateway stub 连通性、配置持久化与完成跳转。 |
-| 数据下载与补齐 | `tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_download_success_reports_completed_progress` | `release_gate` / 同上 | partial | 覆盖初始化向导下载成功与完成进度，但还未覆盖完整发布态补齐验收。 |
+| 初始化 | `tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_happy_path_uses_gateway_ping` | `release_gate` / `conda run -n quantide poetry run pytest -m "e2e and release_gate" tests/e2e` | passing | 覆盖初始化向导、gateway stub 连通性、配置持久化与完成跳转。 |
+| 数据下载与补齐 | `tests/e2e/web/test_init_wizard_tushare.py::test_init_wizard_download_uses_fixture_backed_tushare_data` | `release_gate` / 同上 | passing | 覆盖 fixture-backed 下载、落盘结果与仓库资产切片逐项比对。 |
 | 策略发现/加载 | 暂无 | 待补 `release_gate` 用例 | missing | 当前仓库没有 QA 级策略发现/加载 E2E。 |
-| 回测运行 | 暂无 | 待补 `release_gate` 用例 | missing | 当前仅有策略级/组件级回归，无 QA 级 backtest E2E。 |
-| `paper` 下单到成交 | 暂无 | 待补 `release_gate` 用例 | missing | 当前仅有 runtime/sim broker 级测试，无 stub 驱动 E2E。 |
-| `live` 下单到成交 | 暂无 | 待补 `release_gate` 用例 | missing | 当前仅有 gateway client / broker adapter 级测试，无 stub 驱动 E2E。 |
+| 回测运行 | `tests/e2e/backtest/test_dual_ma_accuracy.py::test_dual_ma_backtest_matches_accuracy_contract` | `release_gate` / 同上 | passing | 覆盖 14 笔成交、资产曲线和 metrics baseline。 |
+| `paper` 下单到成交 | `tests/e2e/paper/test_dual_ma_accuracy.py::test_dual_ma_paper_matches_accuracy_contract` | `release_gate` / 同上 | passing | 覆盖 stub 行情驱动、主体撮合、资产曲线和 metrics baseline。 |
+| `live` 下单到成交 | `tests/e2e/live/test_gateway_accuracy.py` | `release_gate` / 同上 | passing | 覆盖 strategy-path full fill、partial cancel、reject、replay/reconnect 与 qtoid block。 |
 | 异常告警与阻断 | 暂无 | 待补 `release_gate` 用例 | missing | 风险事件中心与阻断恢复链路尚无 QA 级自动化证据。 |
 | 任务恢复与重启恢复 | 暂无 | 待补 `release_gate` 用例 | missing | 当前 jobs 设置页只验证开关持久化，未形成发布态恢复验收。 |
 
 ### 当前本地 release_gate 命令
 
-1. `poetry run pytest -m "e2e and release_gate" tests/e2e`
+1. `conda run -n quantide poetry run pytest -m "e2e and release_gate" tests/e2e -q`
 2. `tox -e release-gate`
 
 说明：
 
-1. 上述命令当前只运行已经纳入 QA release_gate 的证据用例，用于追踪“已具备的发布态证据”，不能掩盖仍为 `missing` 的链路。
-2. `tests/e2e/web/test_system_settings_flow.py::test_gateway_settings_can_test_and_persist_configuration` 已标记 `release_gate`，作为 gateway stub 配置与持久化的辅助证据，但它不替代 8 条强制主链路中的 `paper/live` 交易 E2E。
+1. 当前主命令已可稳定收集并执行 release gate 套件；最近一次运行结果为 `11 passed, 13 deselected`。
+2. 上述命令当前只运行已经纳入 QA release_gate 的证据用例，用于追踪“已具备的发布态证据”，不能掩盖仍为 `missing` 的链路。
+3. `tests/e2e/web/test_system_settings_flow.py::test_gateway_settings_can_test_and_persist_configuration` 已标记 `release_gate`，作为 gateway stub 配置与持久化的辅助证据，但它不替代 8 条强制主链路中的异常阻断与恢复验收。
 
 ## 5. 当前回归基线
 
@@ -210,13 +218,12 @@
 
 基于当前工作区状态，应作如下判定：
 
-1. `backtest`：组件级通过，待补 QA 级发布态 E2E。
-2. `paper`：组件级通过，待补本地 stub 驱动的端到端与阻断恢复验收。
-3. `live`：组件级通过，待补近真实本地 stub 驱动的完整端到端验收。
+1. `backtest`：交易准确性 E2E 已 passing，但仍待补策略发现/加载与失败提示链路。
+2. `paper`：交易准确性 E2E 已 passing，但仍待补阻断、持续告警和恢复语义。
+3. `live`：交易状态机 E2E 已 passing，但仍待补远程账户发现、阻断和重启恢复语义。
 4. 整体版本：**当前不可宣称达到发布前验收完成状态**。
 
 当前最主要的阻塞项不是单个 bug，而是以下三类发布缺口：
 
-1. 交易级本地独立 stub 已有基础实现，但尚未达到 `.dev/specs/01-e2e-accuracy-contract.md` 要求的数据驱动、场景驱动和指标校验标准。
-2. 风险事件中心与阻断持久化/恢复语义尚未形成验收闭环。
-3. QA 级 E2E 套件还没有覆盖规定的 8 条发布前主链路。
+1. 风险事件中心与阻断持久化/恢复语义尚未形成验收闭环。
+2. QA 级 E2E 套件仍未覆盖策略发现/加载、异常告警与阻断、任务恢复与重启恢复三条强制主链路。

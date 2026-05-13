@@ -4,6 +4,8 @@ import datetime
 from typing import Any
 from uuid import uuid4
 
+import polars as pl
+
 from quantide.core.enums import BrokerKind, OrderSide
 from quantide.core.ports import (
     AssetView,
@@ -17,6 +19,8 @@ from quantide.core.ports import (
     TradeView,
 )
 from quantide.core.runtime.gateway_client import GatewayClient
+from quantide.data.models.calendar import calendar
+from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Position, Trade
 from quantide.service.base_broker import Broker, TradeResult
 
@@ -28,11 +32,87 @@ class GatewayTradeStateConsistencyError(RuntimeError):
 class GatewayBrokerWrapper(Broker):
     """将 GatewayBrokerAdapter 包装为旧版的 Broker 接口，以便 UI 使用。"""
 
-    def __init__(self, adapter: "GatewayBrokerAdapter", portfolio_id: str = "gateway"):
+    def __init__(
+        self,
+        adapter: "GatewayBrokerAdapter",
+        portfolio_id: str = "gateway",
+        history_provider: Any | None = None,
+    ):
         self._adapter = adapter
         self._portfolio_id = portfolio_id
         self._portfolio_name = "实盘网关"
         self._kind = BrokerKind.QMT
+        self._history_provider = history_provider
+        self._clock: datetime.datetime | None = None
+
+    def set_clock(self, dt: datetime.datetime | None) -> None:
+        """设置当前策略时钟，便于 live 回放测试复用同一路径。"""
+        self._clock = dt
+
+    def get_history(
+        self,
+        asset: str,
+        count: int,
+        end_dt: datetime.datetime | None = None,
+        frame_type: str = "1d",
+    ) -> pl.DataFrame:
+        """获取 live 策略所需的历史日线数据。"""
+        if frame_type != "1d":
+            raise NotImplementedError("GatewayBrokerWrapper currently only supports 1d history")
+
+        provider = self._history_provider
+        if provider is None and getattr(daily_bars, "_store", None) is not None:
+            provider = daily_bars
+        if provider is None:
+            return self._empty_history_frame()
+
+        end_date = self._resolve_history_end_date(end_dt)
+        if hasattr(provider, "get_history"):
+            return provider.get_history(asset, count, end_date, frame_type)
+        if hasattr(provider, "get_bars"):
+            return provider.get_bars(
+                n=count,
+                end=end_date,
+                assets=[asset],
+                adjust="qfq",
+                eager_mode=True,
+            )
+        return self._empty_history_frame()
+
+    def _resolve_history_end_date(
+        self,
+        end_dt: datetime.datetime | None,
+    ) -> datetime.date:
+        end_date = end_dt.date() if isinstance(end_dt, datetime.datetime) else self._today()
+        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
+            try:
+                return calendar.day_shift(end_date, -1)
+            except Exception:
+                return end_date - datetime.timedelta(days=1)
+        return end_date
+
+    def _empty_history_frame(self) -> pl.DataFrame:
+        return pl.DataFrame(
+            schema={
+                "date": pl.Date,
+                "asset": pl.Utf8,
+                "open": pl.Float64,
+                "high": pl.Float64,
+                "low": pl.Float64,
+                "close": pl.Float64,
+                "volume": pl.Float64,
+                "amount": pl.Float64,
+                "adjust": pl.Float64,
+                "is_st": pl.Boolean,
+                "up_limit": pl.Float64,
+                "down_limit": pl.Float64,
+            }
+        )
+
+    def _today(self) -> datetime.date:
+        if self._clock is not None:
+            return self._clock.date()
+        return datetime.date.today()
 
     @property
     def portfolio_id(self) -> str:
@@ -60,7 +140,7 @@ class GatewayBrokerWrapper(Broker):
         if not view:
             return Asset(
                 portfolio_id=self._portfolio_id,
-                dt=datetime.date.today(),
+                dt=self._today(),
                 principal=0,
                 cash=0,
                 frozen_cash=0,
@@ -69,7 +149,7 @@ class GatewayBrokerWrapper(Broker):
             )
         return Asset(
             portfolio_id=self._portfolio_id,
-            dt=view.dt or datetime.date.today(),
+            dt=view.dt or self._today(),
             principal=view.principal,
             cash=view.cash,
             frozen_cash=view.frozen_cash,
@@ -89,7 +169,7 @@ class GatewayBrokerWrapper(Broker):
         for v in views:
             res[v.asset] = Position(
                 portfolio_id=self._portfolio_id,
-                dt=datetime.date.today(),
+                dt=self._today(),
                 asset=v.asset,
                 shares=v.shares,
                 avail=v.avail,
@@ -322,13 +402,14 @@ class GatewayBrokerWrapper(Broker):
 class GatewayBrokerAdapter(BrokerPort):
     """基于 qmt-gateway REST 的交易适配器."""
 
-    def __init__(self, client: GatewayClient):
+    def __init__(self, client: GatewayClient, market_data: Any | None = None):
         """初始化适配器.
 
         Args:
             client: gateway 客户端。
         """
         self._client = client
+        self._market_data = market_data
         self._qtoid_to_external_order_id: dict[str, str] = {}
         self._external_order_id_to_qtoid: dict[str, str] = {}
 
@@ -503,7 +584,9 @@ class GatewayBrokerAdapter(BrokerPort):
 
     async def submit(self, request: OrderRequest) -> OrderAck:
         """提交订单."""
-        shares = self._resolve_shares(request)
+        price = self._resolve_price(request)
+        sizing_price = self._resolve_sizing_price(request, price)
+        shares = self._resolve_shares(request, sizing_price)
         qtoid = str(request.extra.get("qtoid") or uuid4())
         strategy_id = str(request.extra.get("strategy_id") or "")
         if shares <= 0:
@@ -511,7 +594,7 @@ class GatewayBrokerAdapter(BrokerPort):
         if request.side == OrderSide.BUY:
             payload = {
                 "symbol": request.asset,
-                "price": request.price,
+                "price": price,
                 "shares": int(shares),
                 "strategy_id": strategy_id,
                 "qtoid": qtoid,
@@ -520,7 +603,7 @@ class GatewayBrokerAdapter(BrokerPort):
         else:
             payload = {
                 "symbol": request.asset,
-                "price": request.price,
+                "price": price,
                 "shares": int(shares),
                 "strategy_id": strategy_id,
                 "qtoid": qtoid,
@@ -677,20 +760,55 @@ class GatewayBrokerAdapter(BrokerPort):
             )
         return result
 
-    def _resolve_shares(self, request: OrderRequest) -> int:
+    def _resolve_price(self, request: OrderRequest) -> float:
+        """解析正式下单价格，优先使用显式价格，其次回退到行情快照。"""
+        if request.price > 0:
+            return float(request.price)
+        if self._market_data is None:
+            return 0.0
+        try:
+            snapshots = self._market_data.snapshot([request.asset])
+        except Exception:
+            return 0.0
+        snapshot = snapshots.get(request.asset)
+        if snapshot is None:
+            return 0.0
+        for value in (snapshot.price, snapshot.open, snapshot.high, snapshot.low):
+            if value and value > 0:
+                return float(value)
+        return 0.0
+
+    def _resolve_sizing_price(self, request: OrderRequest, execution_price: float) -> float:
+        """解析金额类下单的数量估算价格，优先使用涨跌停保护价。"""
+        if self._market_data is None:
+            return execution_price
+        get_price_limits = getattr(self._market_data, "get_price_limits", None)
+        if not callable(get_price_limits):
+            return execution_price
+        try:
+            down_limit, up_limit = get_price_limits(request.asset)
+        except Exception:
+            return execution_price
+        if request.side == OrderSide.BUY and up_limit and up_limit > 0:
+            return float(up_limit)
+        if request.side == OrderSide.SELL and down_limit and down_limit > 0:
+            return float(down_limit)
+        return execution_price
+
+    def _resolve_shares(self, request: OrderRequest, price: float) -> int:
         """将统一下单请求转换为股数."""
         if request.style == "shares":
             return int(request.value // 100 * 100)
-        if request.price <= 0:
+        if price <= 0:
             return 0
         if request.style == "amount":
-            return int((request.value / request.price) // 100 * 100)
+            return int((request.value / price) // 100 * 100)
         if request.style == "percent":
             asset = self.query_assets()
             if asset is None:
                 return 0
             amount = asset.total * request.value
-            return int((amount / request.price) // 100 * 100)
+            return int((amount / price) // 100 * 100)
         if request.style == "target_pct":
             asset = self.query_assets()
             if asset is None:
@@ -699,16 +817,16 @@ class GatewayBrokerAdapter(BrokerPort):
             current_value = 0.0
             for position in self.query_positions():
                 if position.asset == request.asset:
-                    current_value = position.shares * request.price
+                    current_value = position.shares * price
                     break
             delta = target_value - current_value
             if request.side == OrderSide.BUY:
                 if delta <= 0:
                     return 0
-                return int((delta / request.price) // 100 * 100)
+                return int((delta / price) // 100 * 100)
             if delta >= 0:
                 return 0
-            return int(((-delta) / request.price) // 100 * 100)
+            return int(((-delta) / price) // 100 * 100)
         return 0
 
     def _side_matches(self, text: str, side: OrderSide) -> bool:

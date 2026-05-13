@@ -11,6 +11,7 @@ from collections import defaultdict
 from typing import Any, List
 
 from loguru import logger
+import polars as pl
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus, Topics
 from quantide.core.errors import (
@@ -21,6 +22,8 @@ from quantide.core.errors import (
 )
 from quantide.core.message import msg_hub
 from quantide.core.ports import MarketDataPort
+from quantide.data.models.calendar import calendar
+from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Order, Portfolio, Position, Trade, db
 from quantide.service.abstract_broker import AbstractBroker
 from quantide.service.base_broker import TradeResult
@@ -71,6 +74,7 @@ class PaperBroker(AbstractBroker):
         self._last_mv_update_time = 0.0
         self._market_data = market_data
         self._limits: dict[str, dict[str, float]] = {}
+        self._clock: datetime.datetime | None = None
 
         # 初始化或加载状态
         self._init_or_sync_state()
@@ -188,6 +192,79 @@ class PaperBroker(AbstractBroker):
             return 0.0, 0.0
         return live_quote.get_price_limits(asset)
 
+    def get_history(
+        self,
+        asset: str,
+        count: int,
+        end_dt: datetime.datetime | None = None,
+        frame_type: str = "1d",
+    ) -> pl.DataFrame:
+        """获取 paper 模式策略所需的历史日线数据。"""
+        if frame_type != "1d":
+            raise NotImplementedError("PaperBroker currently only supports 1d history")
+
+        end_date = self._resolve_history_end_date(end_dt)
+
+        if self._market_data is not None and hasattr(self._market_data, "get_history"):
+            return self._market_data.get_history(asset, count, end_date, frame_type)
+
+        if self._market_data is not None and hasattr(self._market_data, "get_bars"):
+            return self._market_data.get_bars(
+                n=count,
+                end=end_date,
+                assets=[asset],
+                adjust="qfq",
+                eager_mode=True,
+            )
+
+        if getattr(daily_bars, "_store", None) is not None:
+            return daily_bars.get_bars(
+                n=count,
+                end=end_date,
+                assets=[asset],
+                adjust="qfq",
+                eager_mode=True,
+            )
+
+        return self._empty_history_frame()
+
+    def _resolve_history_end_date(
+        self,
+        end_dt: datetime.datetime | None,
+    ) -> datetime.date:
+        end_date = self.as_date(end_dt) if end_dt else self._get_today()
+        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
+            try:
+                return calendar.day_shift(end_date, -1)
+            except Exception:
+                return end_date - datetime.timedelta(days=1)
+        return end_date
+
+    def _empty_history_frame(self) -> pl.DataFrame:
+        return pl.DataFrame(
+            schema={
+                "date": pl.Date,
+                "asset": pl.Utf8,
+                "open": pl.Float64,
+                "high": pl.Float64,
+                "low": pl.Float64,
+                "close": pl.Float64,
+                "volume": pl.Float64,
+                "amount": pl.Float64,
+                "adjust": pl.Float64,
+                "is_st": pl.Boolean,
+                "up_limit": pl.Float64,
+                "down_limit": pl.Float64,
+            }
+        )
+
+    def set_clock(self, dt: datetime.datetime | None) -> None:
+        """设置当前仿真时钟。"""
+        self._clock = dt
+
+    def _now(self) -> datetime.datetime:
+        return self._clock or datetime.datetime.now()
+
     def _validate_data_consistency(self):
         """校验数据一致性。
 
@@ -224,6 +301,8 @@ class PaperBroker(AbstractBroker):
         asyncio、Redis 客户端等依赖时间的组件出现死锁或行为异常。
         因此，这里封装一个专用的方法，以便在测试中通过 patch 简单安全地 mock 日期，而不影响系统其他部分。
         """
+        if self._clock is not None:
+            return self._clock.date()
         return datetime.date.today()
 
     def _init_or_sync_state(self):
@@ -505,7 +584,7 @@ class PaperBroker(AbstractBroker):
             shares=matched_shares,
             price=match_price,
             amount=match_price * matched_shares,
-            tm=datetime.datetime.now(),
+            tm=order.tm or self._now(),
             side=order.side,
             cid="",
             fee=0 # 暂不计算手续费
@@ -620,7 +699,7 @@ class PaperBroker(AbstractBroker):
             shares=shares,
             side=OrderSide.BUY,
             bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
-            tm=order_time or datetime.datetime.now(),
+            tm=order_time or self._now(),
         )
         db.insert_order(order)
 
@@ -676,7 +755,7 @@ class PaperBroker(AbstractBroker):
             shares=shares,
             side=OrderSide.SELL,
             bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
-            tm=order_time or datetime.datetime.now(),
+            tm=order_time or self._now(),
         )
         db.insert_order(order)
 
