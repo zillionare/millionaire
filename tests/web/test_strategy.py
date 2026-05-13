@@ -75,6 +75,28 @@ def test_strategy_index_page_explains_copy_entry(monkeypatch, db):
     assert 'id="runtime-monitor"' not in html
 
 
+def test_strategy_index_page_renders_hash_toggle_for_backtest_list(monkeypatch, db):
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "load_from_cache",
+        lambda: {},
+    )
+
+    html = to_xml(strategy_page.index(None, {"auth": "admin"}))
+
+    assert 'id="strategy-list-section"' in html
+    assert 'id="backtest-list"' in html
+    assert "function toggleStrategySections()" in html
+    assert "window.location.hash === '#backtest-list'" in html
+    assert "classList.toggle('hidden', showBacktestOnly)" in html
+    assert "function setSidebarItemState(element, isActive)" in html
+    assert "function findSidebarLink(expectedPath, expectedHash, expectedLabel)" in html
+    assert "function handleSidebarToggleClick(event)" in html
+    assert "event.preventDefault()" in html
+    assert "findSidebarLink('/strategy', '#backtest-list', '回测报告')" in html
+    assert "setSidebarItemState(backtestMenuLink, showBacktestOnly)" in html
+
+
 def test_run_scan_route_scans_builtin_examples_without_user_directory(monkeypatch):
     monkeypatch.setattr(
         strategy_page.strategy_loader,
