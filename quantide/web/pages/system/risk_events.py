@@ -39,7 +39,7 @@ def index(req, session):
         build_risk_event_center_card(refresh_path="/system/risk-events/panel"),
         cls="space-y-6 max-w-[1400px] mx-auto w-full",
     )
-    return layout.render()
+    return layout.render(req)
 
 
 @rt("/panel")

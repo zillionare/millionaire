@@ -1,4 +1,5 @@
 import copy
+import inspect
 
 from fasthtml.common import *
 from monsterui.all import *
@@ -124,6 +125,11 @@ def _menu_titles(menu_items: list[dict[str, object]]) -> set[str]:
     }
 
 
+def _is_htmx_request(req: object | None) -> bool:
+    headers = getattr(req, "headers", {}) or {}
+    return str(headers.get("HX-Request", "")).lower() == "true"
+
+
 class MainLayout(BaseLayout):
     """主页面布局，包含 header 和 sidebar。"""
 
@@ -156,11 +162,6 @@ class MainLayout(BaseLayout):
             return "实盘"
 
         return "策略"
-
-        legacy_aliases = {
-            "数据管理": "系统维护",
-        }
-        return legacy_aliases.get(explicit, "")
 
     def _infer_header_active(self) -> str:
         url = str(self._sidebar_active_url or "").strip()
@@ -253,8 +254,43 @@ class MainLayout(BaseLayout):
         """主内容块，子类需要重写此方法。"""
         return Div(H1(self.title), P("这是页面的主要内容区域。"), cls="p-4")
 
-    def render(self):
+    def _fragment_navigation_enabled(self) -> bool:
+        return self._resolve_header_active() == "系统维护"
+
+    def _resolve_main_content(self):
+        override = self.__dict__.get("main_block")
+        if override is None:
+            return self.main_block()
+        if inspect.isfunction(override) or inspect.ismethod(override):
+            return override()
+        return override
+
+    def _build_main_container(self):
+        return Main(
+            self._resolve_main_content(),
+            id="layout-main-content",
+            cls="flex-1 p-6 w-full",
+        )
+
+    def _build_sidebar(self, *, fragment_navigation_enabled: bool, hx_swap_oob: bool = False):
+        return sidebar_component(
+            self._get_sidebar_menu(),
+            enable_fragment_navigation=fragment_navigation_enabled,
+            hx_swap_oob=hx_swap_oob,
+        )
+
+    def render(self, req=None):
         """渲染主页面。"""
+        fragment_navigation_enabled = self._fragment_navigation_enabled()
+        if _is_htmx_request(req) and fragment_navigation_enabled:
+            return (
+                self._build_main_container(),
+                self._build_sidebar(
+                    fragment_navigation_enabled=fragment_navigation_enabled,
+                    hx_swap_oob=True,
+                ),
+            )
+
         accounts, active_account = self._resolve_accounts()
         alert_context = self._build_alert_context()
         from quantide.web.theme import AppTheme
@@ -277,8 +313,10 @@ class MainLayout(BaseLayout):
                     runtime_summary=alert_context["runtime_summary"],
                 ),
                 Div(
-                    sidebar_component(self._get_sidebar_menu()),
-                    Main(self.main_block(), cls="flex-1 p-6 w-full"),
+                    self._build_sidebar(
+                        fragment_navigation_enabled=fragment_navigation_enabled,
+                    ),
+                    self._build_main_container(),
                     cls="flex max-w-[1280px] mx-auto w-full flex-1",
                 ),
                 cls="flex flex-col min-h-screen",

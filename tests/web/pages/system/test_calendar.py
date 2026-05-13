@@ -36,6 +36,17 @@ class TestCalendarPage:
         assert "<nav" in resp.text.lower()
         assert "<aside" in resp.text.lower()
 
+    def test_calendar_sidebar_enables_fragment_navigation(self, client):
+        """系统维护 sidebar 默认启用 fragment 导航属性。"""
+        resp = client.get("/system/calendar/", follow_redirects=True)
+
+        assert 'id="layout-sidebar"' in resp.text
+        assert 'id="layout-main-content"' in resp.text
+        assert 'hx-boost="true"' in resp.text
+        assert 'hx-target="#layout-main-content"' in resp.text
+        assert 'hx-swap="outerHTML show:none"' in resp.text
+        assert 'hx-push-url="true"' in resp.text
+
     def test_calendar_has_content(self, client):
         """页面包含日历内容"""
         resp = client.get("/system/calendar/", follow_redirects=True)

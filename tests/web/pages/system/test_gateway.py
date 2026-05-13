@@ -41,6 +41,22 @@ class TestGatewayPage:
         assert "交易网关" in resp.text
         assert "连接状态" in resp.text or "连接配置" in resp.text
 
+    def test_gateway_htmx_request_returns_layout_fragment(self, client):
+        """HTMX 请求只返回 main fragment 和 sidebar OOB。"""
+        resp = client.get(
+            "/system/gateway/",
+            headers={"HX-Request": "true"},
+            follow_redirects=True,
+        )
+
+        assert resp.status_code == 200
+        assert "交易网关" in resp.text
+        assert 'id="layout-main-content"' in resp.text
+        assert 'id="layout-sidebar"' in resp.text
+        assert 'hx-swap-oob="true"' in resp.text
+        assert "<title>" not in resp.text.lower()
+        assert "<html" not in resp.text.lower()
+
     def test_gateway_has_test_button(self, client):
         """页面包含连接测试按钮"""
         resp = client.get("/system/gateway/", follow_redirects=True)

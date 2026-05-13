@@ -541,7 +541,7 @@ def _build_detail_panel(job_id: str) -> Div:
 # ========== 路由 ==========
 
 @rt("/")
-async def index():
+async def index(req):
     """任务列表页面"""
     _init_scheduler_jobs()
 
@@ -574,7 +574,7 @@ async def index():
     )
 
     layout.main_block = page_content
-    return layout.render()
+    return layout.render(req)
 
 
 @rt("/toggle/{job_id}")

@@ -315,6 +315,7 @@ def _build_config_form(config: dict[str, Any]) -> Div:
 
 
 def _render_page(
+    req,
     config: dict[str, Any],
     *,
     test_result: dict[str, Any] | None = None,
@@ -367,16 +368,16 @@ def _render_page(
     )
 
     layout.main_block = page_content
-    return layout.render()
+    return layout.render(req)
 
 
 # ========== 路由 ==========
 
 @rt("/")
-async def index():
+async def index(req):
     """交易网关页面"""
     config = _load_gateway_config()
-    return _render_page(config)
+    return _render_page(req, config)
 
 
 @rt("/test", methods=["GET", "POST"])
@@ -388,12 +389,12 @@ async def test_connection(req):
             config = _coerce_gateway_form(form)
         except ValueError as exc:
             fallback = _load_gateway_config()
-            return _render_page(fallback, error_message=f"参数错误：{exc}")
+            return _render_page(req, fallback, error_message=f"参数错误：{exc}")
     else:
         config = _load_gateway_config()
 
     if not config["enabled"] or not config["base_url"]:
-        return _render_page(config, error_message="网关未启用或地址未配置，无法执行连通性测试")
+        return _render_page(req, config, error_message="网关未启用或地址未配置，无法执行连通性测试")
 
     test_result = _test_gateway_connection(
         config["base_url"],
@@ -401,6 +402,7 @@ async def test_connection(req):
     )
     message = "连通性测试通过" if test_result["success"] else "连通性测试失败"
     return _render_page(
+        req,
         config,
         test_result=test_result,
         success_message=message if test_result["success"] else None,
@@ -423,7 +425,7 @@ async def save_config(req):
             timeout=config["timeout"],
         )
         saved = _load_gateway_config()
-        return _render_page(saved, success_message="网关配置已保存")
+        return _render_page(req, saved, success_message="网关配置已保存")
     except Exception as exc:
         logger.warning(f"保存网关配置失败: {exc}")
         fallback = _load_gateway_config()
@@ -431,4 +433,4 @@ async def save_config(req):
             fallback.update(_coerce_gateway_form(form))
         except Exception:
             pass
-        return _render_page(fallback, error_message=f"保存失败：{exc}")
+        return _render_page(req, fallback, error_message=f"保存失败：{exc}")

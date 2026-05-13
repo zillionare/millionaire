@@ -4,11 +4,18 @@ from fasthtml.common import *
 from monsterui.all import *
 
 
-def sidebar_component(menu_items: list[dict] | None = None):
+def sidebar_component(
+    menu_items: list[dict] | None = None,
+    *,
+    enable_fragment_navigation: bool = False,
+    hx_swap_oob: bool = False,
+):
     """渲染侧边栏一级菜单。
 
     Args:
-        menu_items: 菜单列表
+        menu_items: 菜单列表。
+        enable_fragment_navigation: 是否启用共享布局 fragment 导航。
+        hx_swap_oob: 是否作为 OOB 片段返回。
     """
     items = []
 
@@ -108,7 +115,23 @@ def sidebar_component(menu_items: list[dict] | None = None):
                 )
             )
 
+    nav_attrs: dict[str, str] = {}
+    if enable_fragment_navigation:
+        nav_attrs = {
+            "hx_boost": "true",
+            "hx_target": "#layout-main-content",
+            "hx_swap": "outerHTML show:none",
+            "hx_push_url": "true",
+        }
+
+    aside_attrs: dict[str, str] = {
+        "id": "layout-sidebar",
+        "cls": "w-64 bg-white min-h-screen border-r border-gray-200",
+    }
+    if hx_swap_oob:
+        aside_attrs["hx_swap_oob"] = "true"
+
     return Aside(
-        Nav(Div(*items, cls="p-4 space-y-1")),
-        cls="w-64 bg-white min-h-screen border-r border-gray-200"
+        Nav(Div(*items, cls="p-4 space-y-1"), **nav_attrs),
+        **aside_attrs,
     )

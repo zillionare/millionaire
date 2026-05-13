@@ -279,7 +279,7 @@ async def index(req, code: str = "", start_date: str = "", end_date: str = "",
     )
 
     layout.main_block = page_content
-    return layout.render()
+    return layout.render(req)
 
 
 @rt("/sync", methods="post")

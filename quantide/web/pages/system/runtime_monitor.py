@@ -44,7 +44,7 @@ def index(req, session):
         ),
         cls="space-y-6 max-w-[1400px] mx-auto w-full",
     )
-    return layout.render()
+    return layout.render(req)
 
 
 @rt("/table")

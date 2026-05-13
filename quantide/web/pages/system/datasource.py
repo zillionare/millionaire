@@ -285,6 +285,7 @@ def _build_sync_history_card(history: list[dict]) -> Div:
 # ========== 路由 ==========
 
 def _render_page(
+    req,
     config: dict[str, Any],
     *,
     success_message: str | None = None,
@@ -334,14 +335,14 @@ def _render_page(
     )
 
     layout.main_block = page_content
-    return layout.render()
+    return layout.render(req)
 
 
 @rt("/")
-async def index():
+async def index(req):
     """数据源页面"""
     config = _load_datasource_config()
-    return _render_page(config)
+    return _render_page(req, config)
 
 
 @rt("/save", methods=["POST"])
@@ -373,14 +374,14 @@ async def save_config(req):
             data_source=data_source,
         )
         saved = _load_datasource_config()
-        return _render_page(saved, success_message="数据源配置已保存")
+        return _render_page(req, saved, success_message="数据源配置已保存")
     except Exception as exc:
         logger.warning(f"保存数据源配置失败: {exc}")
-        return _render_page(current, error_message=f"保存失败：{exc}")
+        return _render_page(req, current, error_message=f"保存失败：{exc}")
 
 
 @rt("/sync")
-async def sync_data():
+async def sync_data(req):
     """触发数据同步"""
     from quantide.data.models.daily_bars import daily_bars
     from quantide.data.models.stocks import stock_list
@@ -419,4 +420,4 @@ async def sync_data():
     results.append("同步完成！")
 
     config = _load_datasource_config()
-    return _render_page(config, success_message="；".join(results))
+    return _render_page(req, config, success_message="；".join(results))

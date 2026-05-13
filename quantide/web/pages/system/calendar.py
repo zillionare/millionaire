@@ -206,7 +206,7 @@ async def index(req, year: int = None, month: int = None):
     )
 
     layout.main_block = page_content
-    return layout.render()
+    return layout.render(req)
 
 
 @rt("/sync", methods="post")
