@@ -911,6 +911,26 @@ class SQLiteDB:
         """删除组合信息"""
         self["portfolios"].delete(portfolio_id)
 
+    def delete_portfolio_cascade(self, portfolio_id: str) -> None:
+        """级联删除组合及其所有关联数据。
+
+        按外键依赖顺序删除：backtest_logs -> strategy_logs -> trades -> orders
+        -> positions -> assets -> portfolio。
+
+        Args:
+            portfolio_id: 组合 ID。
+        """
+        self["backtest_logs"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["strategy_logs"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["trades"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["orders"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["positions"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["assets"].delete_where("portfolio_id = ?", (portfolio_id,))
+        try:
+            self["portfolios"].delete(portfolio_id)
+        except Exception:
+            pass
+
     def portfolios_all(self) -> pl.DataFrame:
         """获取所有组合信息"""
         return pl.DataFrame(self["portfolios"].rows)

@@ -6,13 +6,21 @@ import uuid
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import List, Optional, Union
 
-import polars as pl
 import pytest
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
-from quantide.data.sqlite import Asset, Entity, Order, Portfolio, Position, Trade, db
+from quantide.data.sqlite import (
+    Asset,
+    BacktestLogEntry,
+    Entity,
+    Order,
+    Portfolio,
+    Position,
+    StrategyLog,
+    Trade,
+    db,
+)
 
 
 @pytest.fixture(scope="function")
@@ -101,7 +109,6 @@ def test_portfolio_crud(setup):
 
 def test_orders_crud(setup):
     """Test order CRUD"""
-
     # 01 Test saving order
     tm = datetime.datetime.now()
     assert db.query_order_by_date(tm) is None
@@ -177,7 +184,6 @@ def test_orders_crud(setup):
 
 def test_get_order_by_foid(setup):
     """Test getting order by external foid"""
-
     # Save the order
     tm = datetime.datetime.now()
     order = Order(
@@ -320,7 +326,6 @@ def test_trades_crud(setup):
 
 def test_foreign_key_constraint(setup):
     """Test foreign key constraint enforcement"""
-
     # Create an order first
     order = Order(
         portfolio_id="test_portfolio",
@@ -390,7 +395,6 @@ def test_foreign_key_constraint(setup):
 
 def test_positions_crud(setup):
     """Test get_positions method to cover that code path"""
-
     # 01 Insert single position record directly
     pos01 = Position(
         portfolio_id="test_portfolio",
@@ -472,7 +476,6 @@ def test_positions_crud(setup):
 
 def test_proxy_methods(setup):
     """Test __getitem__ and __getattr__ proxy methods"""
-
     # Test __getitem__ proxy
     orders_table = db["orders"]
     assert orders_table is not None
@@ -487,7 +490,6 @@ def test_proxy_methods(setup):
 
 def test_foreign_key_constraint_in_init_tables(setup):
     """Test that foreign keys are properly created in _init_tables"""
-
     # Check that foreign key constraint exists on trades table
     trades_table = db["trades"]
     foreign_keys = list(trades_table.foreign_keys)
@@ -696,19 +698,19 @@ def test_entity_to_db_schema_coverage():
         price: float
         active: bool
         status: MyEnum
-        tags: List[str]
-        optional_val: Optional[int]
-        union_val: Union[int, str]
+        tags: list[str]
+        optional_val: int | None
+        union_val: int | str
 
     schema = TestEntity.to_db_schema()
-    assert schema["id"] == int
-    assert schema["name"] == str
-    assert schema["price"] == float
-    assert schema["active"] == bool
-    assert schema["status"] == int
-    assert schema["tags"] == str  # Non-standard types fall back to str
-    assert schema["optional_val"] == int
-    assert schema["union_val"] == int  # Takes first non-None type
+    assert schema["id"] is int
+    assert schema["name"] is str
+    assert schema["price"] is float
+    assert schema["active"] is bool
+    assert schema["status"] is int
+    assert schema["tags"] is str  # Non-standard types fall back to str
+    assert schema["optional_val"] is int
+    assert schema["union_val"] is int  # Takes first non-None type
 
 
 def test_upsert_list_vs_single(setup):
@@ -1042,8 +1044,6 @@ def test_get_positions_variations(setup):
 
 
 def test_entity_to_db_schema_uuid_and_unions():
-    import uuid
-    from typing import Union
 
     @dataclass
     class AdvancedEntity(Entity):
@@ -1052,13 +1052,13 @@ def test_entity_to_db_schema_uuid_and_unions():
         __indexes__ = None
 
         uid: uuid.UUID
-        val: Union[float, None]
-        status: Union[int, str]
+        val: float | None
+        status: int | str
 
     schema = AdvancedEntity.to_db_schema()
-    assert schema["uid"] == str
-    assert schema["val"] == float
-    assert schema["status"] == int  # Takes first non-None type
+    assert schema["uid"] is str
+    assert schema["val"] is float
+    assert schema["status"] is int  # Takes first non-None type
 
 
 def test_get_orders_portfolio_filter(setup):
@@ -1186,3 +1186,61 @@ def test_get_positions_latest_portfolio_filter(setup):
     res_all = db.get_positions(dt=None)
     assert len(res_all) == 1
     assert res_all["asset"][0] == "A"
+
+
+def test_delete_portfolio_cascade_removes_all_related_data(setup):
+    """级联删除应清理所有关联数据且不违反外键约束。"""
+    db = setup
+    portfolio_id = "bt-del-test"
+    portfolio = Portfolio(
+        portfolio_id=portfolio_id,
+        kind=BrokerKind.BACKTEST,
+        start=datetime.date(2024, 1, 1),
+        name="DelTestStrategy",
+    )
+    db.insert_portfolio(portfolio)
+
+    db.upsert_asset([
+        Asset(portfolio_id=portfolio_id, dt=datetime.date(2024, 1, 1), principal=100000, cash=90000, frozen_cash=0, market_value=10000, total=100000),
+    ])
+
+    db.upsert_positions([
+        Position(portfolio_id=portfolio_id, dt=datetime.date(2024, 1, 1), asset="000001.SZ", shares=100, avail=100, price=10, profit=0, mv=1000),
+    ])
+
+    order = Order(portfolio_id=portfolio_id, asset="000001.SZ", side=OrderSide.BUY, shares=100, bid_type=BidType.FIXED, price=10)
+    db.insert_order(order)
+    trade = Trade(portfolio_id=portfolio_id, tid="t1", qtoid=order.qtoid, foid="f1", asset="000001.SZ", shares=100, price=10, amount=1000, tm=datetime.datetime(2024, 1, 1, 9, 30), side=OrderSide.BUY, cid="c1")
+    db.insert_trades([trade])
+
+    strategy_log = StrategyLog(portfolio_id=portfolio_id, dt=datetime.datetime(2024, 1, 1, 9, 30), key="test", value=1.0)
+    db["strategy_logs"].insert(strategy_log.to_dict())
+
+    backtest_log = BacktestLogEntry(event_id="ev1", portfolio_id=portfolio_id, dt=datetime.datetime(2024, 1, 1, 9, 30), level="INFO", source="runner", message="test")
+    db.insert_backtest_logs(backtest_log)
+
+    # 构造第二个 portfolio 做对照
+    other_id = "bt-other"
+    db.insert_portfolio(Portfolio(portfolio_id=other_id, kind=BrokerKind.BACKTEST, start=datetime.date(2024, 1, 1), name="OtherStrategy"))
+    db.upsert_asset([Asset(portfolio_id=other_id, dt=datetime.date(2024, 1, 1), principal=100000, cash=100000, frozen_cash=0, market_value=0, total=100000)])
+
+    db.delete_portfolio_cascade(portfolio_id)
+
+    assert db.get_portfolio(portfolio_id) is None
+    assert db.assets_all(portfolio_id).is_empty()
+    assert db.positions_all(portfolio_id).is_empty()
+    assert db.trades_all(portfolio_id).is_empty()
+    assert db.orders_all(portfolio_id).is_empty()
+    assert db.get_strategy_logs(portfolio_id).is_empty()
+    assert db.get_backtest_logs(portfolio_id).is_empty()
+
+    # 其他 portfolio 不受影响
+    assert db.get_portfolio(other_id) is not None
+    assert not db.assets_all(other_id).is_empty()
+
+
+def test_delete_portfolio_cascade_does_not_raise_on_empty_portfolio(setup):
+    """对不存在的 portfolio_id 调用 delete_portfolio_cascade 应保持幂等。"""
+    db = setup
+    db.delete_portfolio_cascade("non-existent-id")
+    assert db.get_portfolio("non-existent-id") is None

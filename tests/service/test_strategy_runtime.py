@@ -1,6 +1,9 @@
 import pytest
 
-from quantide.service.strategy_runtime import StrategyBrokerProxy
+from quantide.service.strategy_runtime import (
+    StrategyBrokerProxy,
+    strategy_runtime_manager,
+)
 
 
 class DummyBroker:
@@ -30,6 +33,23 @@ class DummyBroker:
             }
         )
         return {"ok": True}
+
+
+def test_remove_backtest_run_clears_history_and_runtimes():
+    portfolio_id = "bt-remove-test"
+    strategy_runtime_manager.create_backtest_runtime(
+        portfolio_id=portfolio_id,
+        strategy_name="DemoStrategy",
+        config={},
+        interval="1d",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        initial_cash=100000,
+    )
+
+    assert strategy_runtime_manager.get_backtest_run(portfolio_id) is not None
+    strategy_runtime_manager.remove_backtest_run(portfolio_id)
+    assert strategy_runtime_manager.get_backtest_run(portfolio_id) is None
 
 
 @pytest.mark.asyncio

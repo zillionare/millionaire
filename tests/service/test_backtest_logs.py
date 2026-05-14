@@ -63,6 +63,29 @@ def test_record_backtest_log_writes_db_and_saved_file(db) -> None:
     assert loaded_rows[0]["source"] == "runner"
 
 
+def test_delete_saved_backtest_log_removes_file(db) -> None:
+    portfolio_id = f"bt-log-{uuid4().hex}"
+    _insert_portfolio(db, portfolio_id)
+
+    backtest_logs_service.record_backtest_log(
+        portfolio_id=portfolio_id,
+        level="INFO",
+        source="runner",
+        message="test",
+        dt=datetime.datetime(2024, 1, 2, 9, 0),
+        save_to_file=True,
+    )
+
+    assert backtest_logs_service.saved_backtest_log_exists(portfolio_id) is True
+    backtest_logs_service.delete_saved_backtest_log(portfolio_id)
+    assert backtest_logs_service.saved_backtest_log_exists(portfolio_id) is False
+
+
+def test_delete_saved_backtest_log_idempotent() -> None:
+    backtest_logs_service.delete_saved_backtest_log("non-existent-id")
+    assert backtest_logs_service.saved_backtest_log_exists("non-existent-id") is False
+
+
 def test_record_backtest_log_warns_once_when_file_write_fails(db, monkeypatch) -> None:
     portfolio_id = f"bt-log-{uuid4().hex}"
     _insert_portfolio(db, portfolio_id)

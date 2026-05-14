@@ -214,6 +214,16 @@ class StrategyRuntimeManager:
         with self._lock:
             return self._backtest_history.get(portfolio_id)
 
+    def remove_backtest_run(self, portfolio_id: str) -> None:
+        """从内存中移除指定回测的运行记录。
+
+        Args:
+            portfolio_id: 组合 ID。
+        """
+        with self._lock:
+            self._backtest_history.pop(portfolio_id, None)
+            self._backtest_runtimes.pop(portfolio_id, None)
+
     def deploy_to_paper(
         self,
         portfolio_id: str,

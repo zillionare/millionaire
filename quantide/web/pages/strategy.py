@@ -18,6 +18,7 @@ from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
 from quantide.service.backtest_logs import (
+    delete_saved_backtest_log,
     list_backtest_logs,
     load_saved_backtest_logs,
     saved_backtest_log_exists,
@@ -31,7 +32,7 @@ from quantide.service.strategy_runtime import strategy_runtime_manager
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme
 
-strategy_app, rt = fast_app(hdrs=AppTheme.headers())
+strategy_app, rt = fast_app()
 
 BENCHMARK_ASSET = "000300.SH"
 BACKTEST_REPORT_TABS = {
@@ -40,6 +41,103 @@ BACKTEST_REPORT_TABS = {
     "positions": "每日持仓",
     "logs": "日志输出",
 }
+STRATEGY_MODAL_CLOSE_JS = "closeStrategyModal()"
+
+
+def _strategy_modal_script() -> Any:
+    """提供策略页面共用的弹窗打开与关闭脚本。"""
+    return Script(
+        r"""
+        (function () {
+            function modalContainer() {
+                return document.getElementById('modal-container');
+            }
+
+            function modalElement(root) {
+                if (!root) {
+                    return null;
+                }
+                return root.querySelector('[data-uk-modal], .uk-modal');
+            }
+
+            function modalApi(element) {
+                if (!element || !window.UIkit || typeof window.UIkit.modal !== 'function') {
+                    return null;
+                }
+                return window.UIkit.modal(element);
+            }
+
+            function hideCurrentModal() {
+                var container = modalContainer();
+                var element = modalElement(container);
+                var api = modalApi(element);
+                if (api) {
+                    api.hide();
+                }
+            }
+
+            function clearModalContainer() {
+                var container = modalContainer();
+                if (!container) {
+                    return;
+                }
+                hideCurrentModal();
+                container.innerHTML = '';
+            }
+
+            function showInsertedModal(root) {
+                var api = modalApi(modalElement(root));
+                if (api) {
+                    api.show();
+                }
+            }
+
+            window.closeStrategyModal = clearModalContainer;
+
+            document.body.addEventListener('htmx:beforeSwap', function (event) {
+                if (event.target && event.target.id === 'modal-container') {
+                    hideCurrentModal();
+                }
+            });
+
+            document.body.addEventListener('htmx:afterSwap', function (event) {
+                if (event.target && event.target.id === 'modal-container') {
+                    showInsertedModal(event.target);
+                }
+            });
+        })();
+        """
+    )
+
+
+def _strategy_dialog_modal(
+    title: str,
+    body: Any,
+    footer: Any,
+    *,
+    modal_id: str,
+    width_cls: str = "max-w-lg",
+) -> Any:
+    """渲染策略页面统一风格的对话框。"""
+    return Div(
+        Div(cls="fixed inset-0 bg-black/50 transition-opacity"),
+        Div(
+            Div(
+                Div(
+                    Div(
+                        H3(title, cls="text-lg font-medium leading-6 text-gray-900"),
+                        cls="px-6 py-5 border-b border-gray-200",
+                    ),
+                    Div(body, cls="px-6 py-5"),
+                    Div(footer, cls="px-6 py-4 border-t border-gray-100"),
+                    cls=f"inline-block w-full {width_cls} overflow-hidden rounded-lg bg-white text-left align-middle shadow-xl",
+                ),
+                cls="flex min-h-full items-center justify-center p-4 text-center",
+            ),
+            cls="fixed inset-0 z-10 overflow-y-auto",
+        ),
+        id=modal_id,
+    )
 
 def _normalize_stats(stats):
     """规范化 quantstats 指标名称并返回字典。
@@ -853,6 +951,17 @@ def _build_backtest_action_cell(
             )
         )
 
+    controls.append(
+        Button(
+            UkIcon("trash-2", size=14),
+            title="删除回测",
+            hx_get=f"/strategy/backtest/{portfolio_id}/delete/modal",
+            hx_target="#modal-container",
+            cls="w-8 h-8 flex items-center justify-center bg-transparent border-0 shadow-none p-0 text-red-500 hover:text-red-700",
+            type="button",
+        )
+    )
+
     attrs: dict[str, Any] = {"id": f"backtest-actions-{portfolio_id}"}
     if hx_swap_oob:
         attrs["hx_swap_oob"] = "true"
@@ -1050,7 +1159,7 @@ def index(req, session):
     )
 
     section_toggle_script = Script(
-        """
+        r"""
         (function () {
             function setSidebarItemState(element, isActive) {
                 if (!element) {
@@ -1215,6 +1324,7 @@ def index(req, session):
             id="backtest-list",
         ),
         section_toggle_script,
+        _strategy_modal_script(),
         Div(id="modal-container"),
         cls="space-y-6",
     )
@@ -1392,7 +1502,7 @@ def backtest_modal(name: str):
                 ),
                 Div(H4("策略参数", cls="text-sm font-semibold text-gray-600 mt-4 mb-2"), *param_inputs),
                 Div(
-                    Button("取消", type="button", cls="btn btn-ghost", onclick="document.getElementById('modal-container').innerHTML=''"),
+                    Button("取消", type="button", cls="btn btn-ghost", onclick=STRATEGY_MODAL_CLOSE_JS),
                     Button(
                         "开始运行",
                         type="button",
@@ -1532,9 +1642,9 @@ def _paper_deploy_modal(
     error_block = (
         P(error_message, cls="text-sm text-red-600") if error_message else None
     )
-    return Modal(
-        ModalTitle("确认转入仿真"),
-        ModalBody(
+    return _strategy_dialog_modal(
+        "确认转入仿真",
+        Div(
             P("请输入仿真本金后确认转入仿真运行。", cls="text-sm text-gray-500"),
             error_block,
             Form(
@@ -1554,13 +1664,14 @@ def _paper_deploy_modal(
                 ),
                 id="deploy-paper-form",
             ),
+            cls="space-y-4",
         ),
-        ModalFooter(
+        Div(
             Button(
                 "取消",
                 type="button",
                 cls="btn btn-ghost",
-                onclick="document.getElementById('modal-container').innerHTML=''",
+                onclick=STRATEGY_MODAL_CLOSE_JS,
             ),
             Button(
                 "确认转入仿真",
@@ -1571,8 +1682,9 @@ def _paper_deploy_modal(
                 hx_target="#modal-container",
                 hx_include="#deploy-paper-form",
             ),
+            cls="flex justify-end gap-2",
         ),
-        id="deploy-paper-modal",
+        modal_id="deploy-paper-modal",
     )
 
 
@@ -1582,40 +1694,43 @@ def _live_deploy_modal(
 ) -> Any:
     """渲染转入实盘确认弹窗。"""
     if not live_accounts:
-        return Modal(
-            ModalTitle("无法转入实盘"),
-            ModalBody(
+        return _strategy_dialog_modal(
+            "无法转入实盘",
+            Div(
                 P("未检测到可用的实盘网关，请先配置并启动实盘网关。", cls="text-sm text-red-600"),
             ),
-            ModalFooter(
+            Div(
                 Button(
                     "关闭",
                     type="button",
                     cls="btn btn-ghost",
-                    onclick="document.getElementById('modal-container').innerHTML=''",
+                    onclick=STRATEGY_MODAL_CLOSE_JS,
                 ),
+                cls="flex justify-end gap-2",
             ),
-            id="deploy-live-unavailable-modal",
+            modal_id="deploy-live-unavailable-modal",
+            width_cls="max-w-md",
         )
 
     account_id = str(live_accounts[0].get("id") or "gateway:default")
     account_name = str(live_accounts[0].get("name") or account_id)
-    return Modal(
-        ModalTitle("确认转入实盘"),
-        ModalBody(
+    return _strategy_dialog_modal(
+        "确认转入实盘",
+        Div(
             P("确认后会把当前回测参数转入实盘运行。", cls="text-sm text-gray-500"),
             P(f"实盘网关：{account_name}", cls="mt-3 text-sm text-gray-700"),
             Form(
                 Input(type="hidden", name="live_account_id", value=account_id),
                 id="deploy-live-form",
             ),
+            cls="space-y-4",
         ),
-        ModalFooter(
+        Div(
             Button(
                 "取消",
                 type="button",
                 cls="btn btn-ghost",
-                onclick="document.getElementById('modal-container').innerHTML=''",
+                onclick=STRATEGY_MODAL_CLOSE_JS,
             ),
             Button(
                 "确认转入实盘",
@@ -1626,8 +1741,109 @@ def _live_deploy_modal(
                 hx_target="#modal-container",
                 hx_include="#deploy-live-form",
             ),
+            cls="flex justify-end gap-2",
         ),
-        id="deploy-live-modal",
+        modal_id="deploy-live-modal",
+    )
+
+
+def _delete_backtest_modal(portfolio_id: str) -> Any:
+    """渲染删除回测确认弹窗。"""
+    portfolio = db.get_portfolio(portfolio_id)
+    name = portfolio.name if portfolio else "--"
+    id_short = portfolio_id[:8]
+    status, _ = _resolve_backtest_status(portfolio_id)
+    is_running = status == "running"
+    deployment_modes = strategy_runtime_manager.backtest_deployment_modes(portfolio_id)
+    is_deployed = bool(deployment_modes)
+
+    warning_block: Any = None
+    if is_running:
+        warning_block = P(
+            "回测正在运行，无法删除。请先等待回测结束。",
+            cls="text-sm text-amber-600",
+        )
+    elif is_deployed:
+        warning_block = P(
+            "此回测已投放，删除报告不影响投放运行。",
+            cls="text-sm text-blue-600",
+        )
+
+    return _strategy_dialog_modal(
+        "确认删除回测",
+        Div(
+            P(
+                "确定要删除回测报告吗？此操作不可恢复。",
+                cls="text-sm text-gray-700",
+            ),
+            P(
+                f"策略：{name}",
+                cls="text-sm text-gray-500 mt-2",
+            ),
+            P(
+                f"ID：{id_short}",
+                cls="text-sm text-gray-500",
+            ),
+            warning_block,
+            cls="space-y-3",
+        ),
+        Div(
+            Button(
+                "取消",
+                type="button",
+                cls="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50",
+                onclick=STRATEGY_MODAL_CLOSE_JS,
+            ),
+            Button(
+                "确认删除",
+                type="button",
+                cls="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700",
+                disabled=is_running,
+                onclick="this.disabled=true;this.setAttribute('aria-busy','true');this.textContent='删除中...';",
+                hx_post=f"/strategy/backtest/{portfolio_id}/delete",
+                hx_target="#modal-container",
+            ),
+            cls="flex justify-end gap-2",
+        ),
+        modal_id="delete-backtest-modal",
+        width_cls="max-w-md",
+    )
+
+
+@rt("/backtest/{portfolio_id}/delete/modal")
+def delete_backtest_modal(portfolio_id: str):
+    """删除回测确认弹窗路由。"""
+    return _delete_backtest_modal(portfolio_id)
+
+
+@rt("/backtest/{portfolio_id}/delete", methods=["POST"])
+def delete_backtest_execute(portfolio_id: str):
+    """执行删除回测。"""
+    status, _ = _resolve_backtest_status(portfolio_id)
+    if status == "running":
+        return _strategy_dialog_modal(
+            "无法删除",
+            Div(
+                P("回测正在运行，无法删除。", cls="text-sm text-red-600"),
+            ),
+            Div(
+                Button(
+                    "关闭",
+                    type="button",
+                    cls="btn btn-ghost",
+                    onclick=STRATEGY_MODAL_CLOSE_JS,
+                ),
+                cls="flex justify-end gap-2",
+            ),
+            modal_id="delete-backtest-error-modal",
+            width_cls="max-w-md",
+        )
+    db.delete_portfolio_cascade(portfolio_id)
+    delete_saved_backtest_log(portfolio_id)
+    strategy_runtime_manager.remove_backtest_run(portfolio_id)
+    return Response(
+        "",
+        headers={"HX-Redirect": "/strategy"},
     )
 
 
@@ -1721,18 +1937,20 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
             _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
         )
     except Exception as e:
-        return Modal(
-            ModalTitle("转入实盘失败"),
-            ModalBody(P(str(e), cls="text-sm text-red-600")),
-            ModalFooter(
+        return _strategy_dialog_modal(
+            "转入实盘失败",
+            Div(P(str(e), cls="text-sm text-red-600")),
+            Div(
                 Button(
                     "关闭",
                     type="button",
                     cls="btn btn-ghost",
-                    onclick="document.getElementById('modal-container').innerHTML=''",
+                    onclick=STRATEGY_MODAL_CLOSE_JS,
                 ),
+                cls="flex justify-end gap-2",
             ),
-            id="deploy-live-error-modal",
+            modal_id="deploy-live-error-modal",
+            width_cls="max-w-md",
         )
 
 # --- Grid Search Modal & Runner ---
@@ -1804,7 +2022,7 @@ def grid_search_modal(name: str):
                     *param_inputs
                 ),
                 Div(
-                    Button("取消", type="button", cls="btn btn-ghost", onclick="document.getElementById('modal-container').innerHTML=''"),
+                    Button("取消", type="button", cls="btn btn-ghost", onclick=STRATEGY_MODAL_CLOSE_JS),
                     Button(
                         "开始运行",
                         type="button",
@@ -1908,7 +2126,7 @@ async def run_grid_search(req, name: str):
             ModalTitle("网格搜索结果 (Top 10)"),
             ModalBody(result_table),
             ModalFooter(
-                Button("关闭", cls=ButtonT.primary, onclick="document.getElementById('modal-container').innerHTML=''")
+                Button("关闭", cls=ButtonT.primary, onclick=STRATEGY_MODAL_CLOSE_JS)
             ),
             open=True
         )
@@ -2438,6 +2656,7 @@ def backtest_result(req, session, portfolio_id: str):
                 cls="max-w-6xl mx-auto py-8"
             )
         ),
+        _strategy_modal_script(),
         Div(id="modal-container"),
     )
 
@@ -2601,14 +2820,14 @@ def scan_confirm_modal(req):
                 Div(
                     P("当前扫描范围：", cls="text-sm text-gray-500 mt-2 mb-2"),
                     _scan_scope_list(scan_dirs),
-                    cls="mb-4"
+                    cls="mb-4",
                 ),
                 Div(
                     Button(
                         "取消",
                         type="button",
                         cls="px-4 py-2 text-gray-600 hover:text-gray-800",
-                        onclick="document.getElementById('modal-container').innerHTML=''"
+                        onclick=STRATEGY_MODAL_CLOSE_JS,
                     ),
                     Button(
                         "确定扫描",
@@ -2617,13 +2836,13 @@ def scan_confirm_modal(req):
                         hx_post="/strategy/scan/run",
                         hx_target="#modal-container",
                     ),
-                    cls="flex justify-end"
+                    cls="flex justify-end",
                 ),
-                cls="bg-white rounded-lg shadow-xl p-6 w-96"
+                cls="bg-white rounded-lg shadow-xl p-6 w-96",
             ),
-            cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
         ),
-        id="scan-confirm-modal"
+        id="scan-confirm-modal",
     )
 
 
@@ -2643,22 +2862,22 @@ def run_scan(req):
                         Div(
                             P("本次扫描范围：", cls="text-sm text-gray-500 mt-2 mb-2"),
                             _scan_scope_list(scan_dirs),
-                            cls="mb-4"
+                            cls="mb-4",
                         ),
                         Div(
                             Button(
                                 "关闭",
                                 type="button",
                                 cls="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-                                onclick="document.getElementById('modal-container').innerHTML=''"
+                                onclick=STRATEGY_MODAL_CLOSE_JS,
                             ),
-                            cls="flex justify-end"
+                            cls="flex justify-end",
                         ),
-                        cls="bg-white rounded-lg shadow-xl p-6 w-96"
+                        cls="bg-white rounded-lg shadow-xl p-6 w-96",
                     ),
-                    cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                    cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
                 ),
-                id="scan-result-modal"
+                id="scan-result-modal",
             )
 
         return Div(
@@ -2670,7 +2889,7 @@ def run_scan(req):
                     Div(
                         P("本次扫描范围：", cls="text-sm text-gray-500 mt-2 mb-2"),
                         _scan_scope_list(scan_dirs),
-                        cls="mb-4"
+                        cls="mb-4",
                     ),
                     P("策略列表将自动刷新", cls="text-sm text-gray-500 mt-2 mb-4"),
                     Div(
@@ -2678,13 +2897,13 @@ def run_scan(req):
                             "关闭",
                             type="button",
                             cls="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-                            onclick="document.getElementById('modal-container').innerHTML=''"
+                            onclick=STRATEGY_MODAL_CLOSE_JS,
                         ),
-                        cls="flex justify-end"
+                        cls="flex justify-end",
                     ),
-                    cls="bg-white rounded-lg shadow-xl p-6 w-96"
+                    cls="bg-white rounded-lg shadow-xl p-6 w-96",
                 ),
-                cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
             ),
             Script("setTimeout(() => location.reload(), 1200);"),
             id="scan-result-modal",
@@ -2701,22 +2920,22 @@ def run_scan(req):
                             "关闭",
                             type="button",
                             cls="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700",
-                            onclick="document.getElementById('modal-container').innerHTML=''"
+                            onclick=STRATEGY_MODAL_CLOSE_JS,
                         ),
-                        cls="flex justify-end"
+                        cls="flex justify-end",
                     ),
-                    cls="bg-white rounded-lg shadow-xl p-6 w-96"
+                    cls="bg-white rounded-lg shadow-xl p-6 w-96",
                 ),
-                cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
             ),
-            id="scan-error-modal"
+            id="scan-error-modal",
         )
 
 
 def _config_modal_html(
     scan_dir: str, is_error: bool = False, error_message: str = ""
 ):
-    """配置对话框HTML"""
+    """配置对话框 HTML。"""
     title = "配置用户策略目录"
     builtin_dir = strategy_loader.get_builtin_scan_directory()
     if error_message:
@@ -2740,23 +2959,23 @@ def _config_modal_html(
                         builtin_dir,
                         cls="mt-1 break-all rounded-lg bg-gray-50 px-3 py-2 font-mono text-xs text-gray-500",
                     ),
-                    cls="mb-4"
+                    cls="mb-4",
                 ),
                 Div(
                     Input(
                         id="scan-dir-input",
                         value=scan_dir,
                         placeholder="请输入绝对路径，例如: /Users/name/strategies",
-                        cls="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        cls="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent",
                     ),
-                    cls="mb-4"
+                    cls="mb-4",
                 ),
                 Div(
                     Button(
                         "取消",
                         type="button",
                         cls="px-4 py-2 text-gray-600 hover:text-gray-800",
-                        onclick="document.getElementById('modal-container').innerHTML=''"
+                        onclick=STRATEGY_MODAL_CLOSE_JS,
                     ),
                     Button(
                         "保存",
@@ -2766,13 +2985,13 @@ def _config_modal_html(
                         hx_include="#scan-dir-input",
                         hx_target="#modal-container",
                     ),
-                    cls="flex justify-end"
+                    cls="flex justify-end",
                 ),
-                cls="bg-white rounded-lg shadow-xl p-6 w-96"
+                cls="bg-white rounded-lg shadow-xl p-6 w-96",
             ),
-            cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            cls="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
         ),
-        id="config-modal"
+        id="config-modal",
     )
 
 
@@ -2832,7 +3051,7 @@ def _copy_requires_config_modal():
                 "取消",
                 type="button",
                 cls="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200",
-                onclick="document.getElementById('modal-container').innerHTML=''",
+                onclick=STRATEGY_MODAL_CLOSE_JS,
             ),
             Button(
                 "去设置",
@@ -2918,7 +3137,7 @@ async def copy_scan_examples(req):
                     "关闭",
                     type="button",
                     cls="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200",
-                    onclick="document.getElementById('modal-container').innerHTML=''",
+                    onclick=STRATEGY_MODAL_CLOSE_JS,
                 ),
             ),
             id="copy-example-error-modal",

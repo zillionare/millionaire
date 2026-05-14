@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 from fasthtml.common import to_xml
 
+from quantide.data.sqlite import Portfolio
 from quantide.web.pages import strategy as strategy_page
 
 
@@ -95,6 +96,20 @@ def test_strategy_index_page_renders_hash_toggle_for_backtest_list(monkeypatch, 
     assert "event.preventDefault()" in html
     assert "findSidebarLink('/strategy', '#backtest-list', '回测报告')" in html
     assert "setSidebarItemState(backtestMenuLink, showBacktestOnly)" in html
+
+
+def test_strategy_index_page_includes_modal_helper_script(monkeypatch, db):
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "load_from_cache",
+        lambda: {},
+    )
+
+    html = to_xml(strategy_page.index(None, {"auth": "admin"}))
+
+    assert "window.closeStrategyModal = clearModalContainer" in html
+    assert "htmx:afterSwap" in html
+    assert "UIkit.modal" in html
 
 
 def test_run_scan_route_scans_builtin_examples_without_user_directory(monkeypatch):
@@ -532,3 +547,114 @@ def test_deploy_backtest_to_live_modal_confirms_when_gateway_exists(monkeypatch)
     assert "gateway:default" in html
     assert 'id="deploy-live-form"' in html
     assert 'hx-post="/strategy/backtest/demo-pf/deploy/live"' in html
+
+
+def test_delete_backtest_modal_renders_confirmation(monkeypatch):
+    monkeypatch.setattr(
+        strategy_page.db,
+        "get_portfolio",
+        lambda portfolio_id: Portfolio(
+            portfolio_id=portfolio_id,
+            kind=strategy_page.BrokerKind.BACKTEST,
+            start="2024-01-01",
+            name="DemoStrategy",
+        ),
+    )
+    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "backtest_deployment_modes",
+        lambda portfolio_id: {},
+    )
+
+    html = to_xml(strategy_page.delete_backtest_modal("demo-pf"))
+
+    assert "DemoStrategy" in html
+    assert "demo-pf"[:8] in html
+    assert "确认删除回测" in html
+    assert 'hx-post="/strategy/backtest/demo-pf/delete"' in html
+    assert "取消" in html
+    assert 'onclick="closeStrategyModal()"' in html
+    assert "max-w-md" in html
+    assert "uk-modal-container" not in html
+
+
+def test_delete_backtest_modal_disables_button_for_running_backtest(monkeypatch):
+    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("running", ""))
+    monkeypatch.setattr(
+        strategy_page.db,
+        "get_portfolio",
+        lambda portfolio_id: Portfolio(
+            portfolio_id=portfolio_id,
+            kind=strategy_page.BrokerKind.BACKTEST,
+            start="2024-01-01",
+            name="DemoStrategy",
+        ),
+    )
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "backtest_deployment_modes",
+        lambda portfolio_id: {},
+    )
+
+    html = to_xml(strategy_page.delete_backtest_modal("demo-pf"))
+
+    assert "回测正在运行，无法删除" in html
+    assert "disabled" in html
+
+
+def test_delete_backtest_modal_warns_for_deployed_backtest(monkeypatch):
+    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+    monkeypatch.setattr(
+        strategy_page.db,
+        "get_portfolio",
+        lambda portfolio_id: Portfolio(
+            portfolio_id=portfolio_id,
+            kind=strategy_page.BrokerKind.BACKTEST,
+            start="2024-01-01",
+            name="DemoStrategy",
+        ),
+    )
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "backtest_deployment_modes",
+        lambda portfolio_id: {"paper": {"status": "running"}},
+    )
+
+    html = to_xml(strategy_page.delete_backtest_modal("demo-pf"))
+
+    assert "此回测已投放，删除报告不影响投放运行" in html
+    assert 'hx-post="/strategy/backtest/demo-pf/delete"' in html
+    assert 'disabled="' not in html
+
+
+def test_delete_backtest_route_redirects_on_success(monkeypatch):
+    monkeypatch.setattr(strategy_page.db, "delete_portfolio_cascade", lambda pid: None)
+    monkeypatch.setattr(strategy_page, "delete_saved_backtest_log", lambda pid: None)
+    monkeypatch.setattr(strategy_page.strategy_runtime_manager, "remove_backtest_run", lambda pid: None)
+    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+
+    response = strategy_page.delete_backtest_execute("demo-pf")
+
+    assert response.headers["hx-redirect"] == "/strategy"
+
+
+def test_delete_backtest_route_rejects_running_backtest(monkeypatch):
+    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("running", ""))
+
+    html = to_xml(strategy_page.delete_backtest_execute("demo-pf"))
+
+    assert "回测正在运行，无法删除" in html
+
+
+def test_build_backtest_action_cell_includes_delete_button(monkeypatch):
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "backtest_deployment_modes",
+        lambda portfolio_id: {},
+    )
+
+    html = to_xml(strategy_page._build_backtest_action_cell("demo-pf"))
+
+    assert 'hx-get="/strategy/backtest/demo-pf/delete/modal"' in html
+    assert "trash-2" in html

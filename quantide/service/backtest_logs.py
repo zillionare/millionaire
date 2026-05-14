@@ -100,6 +100,17 @@ def saved_backtest_log_exists(portfolio_id: str) -> bool:
     return saved_backtest_log_path(portfolio_id).exists()
 
 
+def delete_saved_backtest_log(portfolio_id: str) -> None:
+    """删除已保存的回测日志文件。
+
+    Args:
+        portfolio_id: 组合 ID。
+    """
+    path = saved_backtest_log_path(portfolio_id)
+    if path.exists():
+        path.unlink()
+
+
 def record_backtest_log(
     portfolio_id: str,
     level: str,
