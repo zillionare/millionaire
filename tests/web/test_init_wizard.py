@@ -347,6 +347,67 @@ async def test_handle_step_gateway_config_uses_persisted_prefix_alias_when_omitt
 
 
 @pytest.mark.asyncio
+async def test_step4_gateway_shows_dev_stub_runtime_notice(monkeypatch):
+    monkeypatch.setattr(init_wizard_page, "dev_stubs_enabled", lambda: True)
+    monkeypatch.setattr(
+        init_wizard_page,
+        "ensure_dev_stubs_started",
+        lambda: SimpleNamespace(
+            gateway_base_url="http://127.0.0.1:19001/qmt",
+            gateway_server="127.0.0.1",
+            gateway_port=19001,
+            gateway_prefix="/qmt",
+        ),
+    )
+
+    html = str(init_wizard_page.Step4_Gateway({}))
+
+    assert "开发 Stub 模式已自动配置交易网关" in html
+    assert "不会要求你手动填写地址、端口或路径前缀" in html
+    assert "http://127.0.0.1:19001/qmt" in html
+    assert "/qmt" in html
+
+
+@pytest.mark.asyncio
+async def test_handle_step_gateway_config_uses_dev_stub_runtime_when_enabled(monkeypatch):
+    fake_wizard = FakeInitWizard()
+    monkeypatch.setattr(init_wizard_page, "init_wizard", fake_wizard)
+    monkeypatch.setattr(init_wizard_page, "dev_stubs_enabled", lambda: True)
+    monkeypatch.setattr(
+        init_wizard_page,
+        "ensure_dev_stubs_started",
+        lambda: SimpleNamespace(
+            gateway_server="127.0.0.1",
+            gateway_port=19001,
+            gateway_prefix="/qmt",
+            gateway_api_key="stub-api-key",
+        ),
+    )
+
+    await init_wizard_page.handle_step(
+        FakeRequest(
+            {
+                "_current_step": "4",
+                "nav": "next",
+            }
+        ),
+        5,
+    )
+
+    assert fake_wizard.gateway_test_calls == []
+    assert fake_wizard.gateway_calls == [
+        {
+            "enabled": True,
+            "server": "127.0.0.1",
+            "port": 19001,
+            "prefix": "/qmt",
+            "api_key": "stub-api-key",
+        }
+    ]
+    assert fake_wizard.updated_step == 5
+
+
+@pytest.mark.asyncio
 async def test_handle_step_gateway_config_requires_api_key_when_enabled(monkeypatch):
     fake_wizard = FakeInitWizard()
     monkeypatch.setattr(init_wizard_page, "init_wizard", fake_wizard)
@@ -429,6 +490,100 @@ async def test_handle_step_data_setup_requires_tushare_token(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_step5_data_setup_shows_dev_stub_sample_import_notice(monkeypatch):
+    monkeypatch.setattr(init_wizard_page, "dev_stubs_enabled", lambda: True)
+
+    html = str(init_wizard_page.Step5_DataSetup({"app_home": "/tmp/dev-stub-home"}))
+
+    assert "当前进程已启用开发 Stub 模式" in html
+    assert "不会访问真实 Tushare" in html
+    assert "Tushare 访问密钥" not in html
+    assert "首次下载时长" not in html
+    assert "/tmp/dev-stub-home" in html
+
+
+def test_wizard_buttons_step_five_uses_direct_next_in_dev_stub(monkeypatch):
+    monkeypatch.setattr(init_wizard_page, "dev_stubs_enabled", lambda: True)
+
+    html = str(init_wizard_page.WizardButtons(5))
+
+    assert "/init-wizard/step/6" in html
+    assert "/init-wizard/download" not in html
+
+
+@pytest.mark.asyncio
+async def test_handle_step_data_setup_uses_dev_stub_token_and_imports_samples(monkeypatch):
+    fake_wizard = FakeInitWizard()
+    fake_wizard.state.epoch = datetime.date(2024, 1, 1)
+    fake_wizard.state.history_years = 1
+    monkeypatch.setattr(init_wizard_page, "init_wizard", fake_wizard)
+    monkeypatch.setattr(init_wizard_page, "dev_stubs_enabled", lambda: True)
+
+    imported = []
+    monkeypatch.setattr(
+        init_wizard_page,
+        "_prepare_dev_stub_sample_data",
+        lambda state: imported.append(state.app_home),
+    )
+
+    response = await init_wizard_page.handle_step(
+        FakeRequest(
+            {
+                "_current_step": "5",
+                "nav": "next",
+            }
+        ),
+        6,
+    )
+
+    html = str(response)
+
+    assert fake_wizard.data_calls == [
+        {
+            "epoch": datetime.date(2024, 1, 1),
+            "data_source": "tushare",
+            "tushare_token": init_wizard_page.DEV_STUB_TUSHARE_TOKEN,
+            "history_years": 1,
+        }
+    ]
+    assert imported == ["/existing/home"]
+    assert fake_wizard.updated_step == 6
+    assert "配置已保存，您可以立即进入系统开始使用。" in html
+
+
+@pytest.mark.asyncio
+async def test_handle_download_skips_progress_dialog_in_dev_stub(monkeypatch):
+    fake_wizard = FakeInitWizard()
+    fake_wizard.state.epoch = datetime.date(2024, 1, 1)
+    fake_wizard.state.history_years = 1
+    monkeypatch.setattr(init_wizard_page, "init_wizard", fake_wizard)
+    monkeypatch.setattr(init_wizard_page, "dev_stubs_enabled", lambda: True)
+
+    imported = []
+    monkeypatch.setattr(
+        init_wizard_page,
+        "_prepare_dev_stub_sample_data",
+        lambda state: imported.append(state.app_home),
+    )
+
+    response = await init_wizard_page.handle_download(FakeRequest({}))
+    html = str(response)
+
+    assert imported == ["/existing/home"]
+    assert fake_wizard.data_calls == [
+        {
+            "epoch": datetime.date(2024, 1, 1),
+            "data_source": "tushare",
+            "tushare_token": init_wizard_page.DEV_STUB_TUSHARE_TOKEN,
+            "history_years": 1,
+        }
+    ]
+    assert fake_wizard.updated_step == 6
+    assert "sync-progress-bar" not in html
+    assert "/init-wizard/sync-progress" not in html
+
+
+@pytest.mark.asyncio
 async def test_run_data_sync_failure_persists_error_to_step_five_header(monkeypatch):
     fake_wizard = FakeInitWizard()
     fake_wizard.state.app_home = "/tmp/market-data"
@@ -438,6 +593,11 @@ async def test_run_data_sync_failure_persists_error_to_step_five_header(monkeypa
     fake_wizard.state.history_start_date = datetime.date(2023, 1, 1)
     monkeypatch.setattr(init_wizard_page, "init_wizard", fake_wizard)
     monkeypatch.setattr(init_wizard_page.calendar, "update", lambda: None)
+    monkeypatch.setattr(
+        init_wizard_page.calendar,
+        "last_trade_date",
+        lambda: datetime.date(2024, 12, 31),
+    )
     monkeypatch.setattr(init_wizard_page, "daily_bars", SimpleNamespace(store=object()))
     monkeypatch.setattr("quantide.data.init_data", lambda home, init_db=True: None)
     monkeypatch.setattr(init_wizard_page.msg_hub, "subscribe", lambda *args, **kwargs: None)
@@ -468,6 +628,53 @@ async def test_run_data_sync_failure_persists_error_to_step_five_header(monkeypa
 
     assert init_wizard_page._sync_status["error"] == "network broken"
     assert "下载失败：network broken" in html
+
+
+@pytest.mark.asyncio
+async def test_run_data_sync_clamps_future_start_to_calendar_end(monkeypatch):
+    fake_wizard = FakeInitWizard()
+    fake_wizard.state.app_home = "/tmp/market-data"
+    fake_wizard.state.data_source = "tushare"
+    fake_wizard.state.tushare_token = "ts-token"
+    fake_wizard.state.epoch = datetime.date(2005, 1, 1)
+    fake_wizard.state.history_start_date = datetime.date(2025, 5, 15)
+    monkeypatch.setattr(init_wizard_page, "init_wizard", fake_wizard)
+    monkeypatch.setattr(init_wizard_page.calendar, "update", lambda: None)
+    monkeypatch.setattr(
+        init_wizard_page.calendar,
+        "last_trade_date",
+        lambda: datetime.date(2024, 12, 31),
+    )
+    monkeypatch.setattr(init_wizard_page, "daily_bars", SimpleNamespace(store=object()))
+    monkeypatch.setattr("quantide.data.init_data", lambda home, init_db=True: None)
+    monkeypatch.setattr(init_wizard_page.msg_hub, "subscribe", lambda *args, **kwargs: None)
+    monkeypatch.setattr(init_wizard_page.msg_hub, "unsubscribe", lambda *args, **kwargs: None)
+
+    observed: dict[str, datetime.date] = {}
+
+    class RecordingStockSyncService:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def sync_stock_list(self):
+            return 12
+
+        def sync_daily_bars(self, start, end):
+            observed["start"] = start
+            observed["end"] = end
+            return 1
+
+    monkeypatch.setattr(init_wizard_page, "StockSyncService", RecordingStockSyncService)
+
+    await init_wizard_page._run_data_sync(fake_wizard.state.history_start_date)
+
+    assert observed == {
+        "start": datetime.date(2024, 12, 31),
+        "end": datetime.date(2024, 12, 31),
+    }
+    assert fake_wizard.complete_calls == 1
+    assert init_wizard_page._sync_status["completed"] is True
+    assert init_wizard_page._sync_status["error"] is None
 
 
 @pytest.mark.asyncio
@@ -535,8 +742,11 @@ async def test_force_reconfigure_keeps_query_and_prefills_saved_values(monkeypat
 async def test_handle_complete_redirects_to_root(monkeypatch):
     fake_wizard = FakeInitWizard()
     monkeypatch.setattr(init_wizard_page, "init_wizard", fake_wizard)
+    monkeypatch.setattr(init_wizard_page, "_bootstrap_runtime_for_initialized_app", lambda app: None)
 
-    response = await init_wizard_page.handle_complete()
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(root_app=None, runtime=None)))
+
+    response = await init_wizard_page.handle_complete(request)
     html = str(response)
 
     assert fake_wizard.complete_calls == 1

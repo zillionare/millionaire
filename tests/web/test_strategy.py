@@ -27,7 +27,31 @@ def test_strategy_live_redirects_to_trade_live_with_create_app_client():
         response = session.client.get("/strategy/live", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/trade/live"
+    assert response.headers["location"] == "/trade/live/"
+
+
+def test_papertrade_redirects_to_trade_simulation_with_create_app_client():
+    with system_settings_e2e_session() as session:
+        response = session.client.get("/papertrade", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/trade/simulation/"
+
+
+def test_trade_simulation_redirects_to_trailing_slash_with_create_app_client(monkeypatch):
+    monkeypatch.setattr(
+        "quantide.web.middleware_feature.get_feature_status",
+        lambda: {
+            "backtest": {"name": "回测功能", "available": True},
+            "simulation": {"name": "仿真交易", "available": True},
+            "live_trading": {"name": "实盘交易", "available": True},
+        },
+    )
+    with system_settings_e2e_session() as session:
+        response = session.client.get("/trade/simulation", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/trade/simulation/"
 
 
 def test_strategy_index_page_omits_runtime_and_risk_panels(monkeypatch, db):

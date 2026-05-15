@@ -101,8 +101,8 @@ SIDEBAR_MENUS = {
 HEADER_MENU = [
     {"title": "策略", "url": "/strategy"},
     {"title": "系统维护", "url": "/system"},
-    {"title": "实盘", "url": "/live"},
-    {"title": "仿真", "url": "/papertrade"},
+    {"title": "实盘", "url": "/trade/live/"},
+    {"title": "仿真", "url": "/trade/simulation/"},
 ]
 
 

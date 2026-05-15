@@ -27,7 +27,11 @@ def test_dev_stub_switch_starts_gateway_and_tushare(monkeypatch) -> None:
         with system_settings_e2e_session() as session:
             response = session.client.get("/strategy/live", follow_redirects=False)
             assert response.status_code == 303
-            assert response.headers["location"] == "/trade/live"
+            assert response.headers["location"] == "/trade/live/"
+
+            response = session.client.get("/papertrade", follow_redirects=False)
+            assert response.status_code == 303
+            assert response.headers["location"] == "/trade/simulation/"
 
             response = session.client.get("/trade/live/", follow_redirects=False)
             assert response.status_code != 403

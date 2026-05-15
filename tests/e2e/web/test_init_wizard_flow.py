@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from quantide.config.dev_stubs import DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, reset_dev_stub_runtime_for_tests
 from quantide.service.init_wizard import init_wizard
 from tests.e2e.support.gateway_stub import running_gateway_stub
 from tests.e2e.support.init_wizard_session import init_wizard_e2e_session
@@ -154,6 +156,77 @@ def test_init_wizard_download_validation_stays_on_data_setup(
 
 
 @pytest.mark.e2e
+def test_init_wizard_dev_stub_step_five_imports_samples_without_download_dialog(monkeypatch):
+    monkeypatch.setenv(DEV_STUBS_ENV_VAR, "1")
+    reset_dev_stub_runtime_for_tests()
+
+    try:
+        with init_wizard_e2e_session() as session:
+            response = session.client.get("/init-wizard/", follow_redirects=False)
+            assert response.status_code == 200
+            assert "导入开发 Stub 内置样本数据。" in response.text
+
+            response = _next_step(session.client, 2, 1)
+            assert response.status_code == 200
+
+            response = _next_step(
+                session.client,
+                3,
+                2,
+                app_home=str(session.market_home),
+                app_port="9130",
+                app_prefix="/quantide",
+                localhost_only="true",
+            )
+            assert response.status_code == 200
+
+            response = _next_step(
+                session.client,
+                4,
+                3,
+                admin_password="StrongPass!123",
+                admin_password_confirm="StrongPass!123",
+            )
+            assert response.status_code == 200
+            assert "本步骤只展示运行时网关信息" in response.text
+
+            response = _next_step(session.client, 5, 4)
+            assert response.status_code == 200
+            assert "当前进程已启用开发 Stub 模式" in response.text
+            assert "Tushare 访问密钥" not in response.text
+            assert "/init-wizard/download" not in response.text
+            assert "/init-wizard/step/6" in response.text
+
+            response = _next_step(session.client, 6, 5)
+            assert response.status_code == 200
+            assert "配置已保存，您可以立即进入系统开始使用。" in response.text
+            assert "sync-progress-bar" not in response.text
+
+            state = init_wizard.get_state(force_refresh=True)
+            assert state.tushare_token == DEV_STUB_TUSHARE_TOKEN
+            assert state.history_years == 1
+
+            complete_response = session.client.post("/init-wizard/complete")
+            assert complete_response.status_code == 200
+            assert "window.location.href = '/'" in complete_response.text
+
+            login_response = session.client.post(
+                "/auth/login",
+                data={"username": "admin", "password": "StrongPass!123"},
+                follow_redirects=False,
+            )
+            assert login_response.status_code == 303
+
+            live_response = session.client.get("/trade/live/", follow_redirects=False)
+            assert live_response.status_code == 200
+            assert "Gateway 已连接" in live_response.text
+            assert "Gateway 未连接" not in live_response.text
+            assert "实盘网关" in live_response.text
+    finally:
+        reset_dev_stub_runtime_for_tests()
+
+
+@pytest.mark.e2e
 @pytest.mark.release_gate
 def test_init_wizard_download_success_reports_completed_progress():
     class SuccessfulStockSyncService:
@@ -174,6 +247,9 @@ def test_init_wizard_download_success_reports_completed_progress():
         "quantide.web.pages.init_wizard.daily_bars", SimpleNamespace(store=object())
     ), patch(
         "quantide.web.pages.init_wizard.calendar.update", lambda: None
+    ), patch(
+        "quantide.web.pages.init_wizard.calendar.last_trade_date",
+        lambda: datetime.date(2024, 12, 31),
     ), patch(
         "quantide.web.pages.init_wizard.msg_hub.subscribe", lambda *args, **kwargs: None
     ), patch(

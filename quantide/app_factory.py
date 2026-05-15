@@ -152,6 +152,32 @@ def _attach_runtime_to_app_states(runtime) -> None:
         mounted_app.state.runtime = runtime
 
 
+def _attach_root_app_to_app_states(root_app) -> None:
+    """Expose the root app to mounted sub-apps for post-init runtime refresh."""
+    for mounted_app in (
+        broker_api_app,
+        home_app,
+        trade_app,
+        live_app,
+        strategy_app,
+        accounts_app,
+        data_calendar_app,
+        data_db_app,
+        data_market_app,
+        data_stocks_app,
+        init_wizard_app,
+        system_calendar_app,
+        system_datasource_app,
+        system_gateway_app,
+        system_jobs_app,
+        system_market_app,
+        system_risk_events_app,
+        system_runtime_monitor_app,
+        system_stocks_app,
+    ):
+        mounted_app.state.root_app = root_app
+
+
 def create_app(
     app_config_dir: str | Path | None = None,
     enforce_single_instance: bool = True,
@@ -241,22 +267,32 @@ def create_app(
             ),
             Route(
                 "/live",
-                lambda req: RedirectResponse("/trade/live", status_code=303),
+                lambda req: RedirectResponse("/trade/live/", status_code=303),
                 methods=["GET"],
             ),
             Route(
                 "/live/",
-                lambda req: RedirectResponse("/trade/live", status_code=303),
+                lambda req: RedirectResponse("/trade/live/", status_code=303),
                 methods=["GET"],
             ),
             Route(
                 "/papertrade",
-                lambda req: RedirectResponse("/trade/simulation", status_code=303),
+                lambda req: RedirectResponse("/trade/simulation/", status_code=303),
                 methods=["GET"],
             ),
             Route(
                 "/papertrade/",
-                lambda req: RedirectResponse("/trade/simulation", status_code=303),
+                lambda req: RedirectResponse("/trade/simulation/", status_code=303),
+                methods=["GET"],
+            ),
+            Route(
+                "/trade/simulation",
+                lambda req: RedirectResponse("/trade/simulation/", status_code=303),
+                methods=["GET"],
+            ),
+            Route(
+                "/trade/live",
+                lambda req: RedirectResponse("/trade/live/", status_code=303),
                 methods=["GET"],
             ),
             Mount("/home", home_app),
@@ -273,12 +309,12 @@ def create_app(
             Route("/strategy", lambda req: RedirectResponse("/strategy/")),
             Route(
                 "/strategy/live",
-                lambda req: RedirectResponse("/trade/live", status_code=303),
+                lambda req: RedirectResponse("/trade/live/", status_code=303),
                 methods=["GET"],
             ),
             Route(
                 "/strategy/live/",
-                lambda req: RedirectResponse("/trade/live", status_code=303),
+                lambda req: RedirectResponse("/trade/live/", status_code=303),
                 methods=["GET"],
             ),
             Mount("/strategy", strategy_app),
@@ -366,6 +402,7 @@ def create_app(
     app.state.runtime = runtime
     app.state.strategy_runtime_manager = strategy_runtime_manager
     app.state.app_config_dir = get_app_config_dir()
+    _attach_root_app_to_app_states(app)
     _attach_runtime_to_app_states(runtime)
 
     @rt("/trade/set-active", methods=["POST"])

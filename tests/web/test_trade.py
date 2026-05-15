@@ -505,6 +505,15 @@ class TestGatewayFirstNavigation:
 
         assert all(not item.get("requires_gateway") for item in menu)
 
+    def test_build_header_menu_uses_canonical_trade_urls(self):
+        from quantide.web.layouts.main import build_header_menu
+
+        menu = build_header_menu(True)
+        urls = {item["title"]: item["url"] for item in menu}
+
+        assert urls["实盘"] == "/trade/live/"
+        assert urls["仿真"] == "/trade/simulation/"
+
     def test_home_defaults_to_live_nav_when_gateway_ready(self, monkeypatch):
         from quantide.web.layouts.main import MainLayout
 

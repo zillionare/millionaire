@@ -13,6 +13,11 @@ from loguru import logger
 from monsterui.all import *
 from starlette.responses import StreamingResponse
 
+from quantide.config.dev_stubs import (
+    DEV_STUB_TUSHARE_TOKEN,
+    dev_stubs_enabled,
+    ensure_dev_stubs_started,
+)
 from quantide.config.paths import DEFAULT_DATA_HOME
 from quantide.core.init_wizard_steps import WIZARD_TOTAL_STEPS, build_wizard_steps
 from quantide.core.message import msg_hub
@@ -411,7 +416,20 @@ WIZARD_STEP_META = {
 
 
 def _get_step_meta(step: int) -> dict[str, str]:
-    return WIZARD_STEP_META.get(step, WIZARD_STEP_META[1])
+    meta = dict(WIZARD_STEP_META.get(step, WIZARD_STEP_META[1]))
+    if not dev_stubs_enabled():
+        return meta
+    if step == 4:
+        return {
+            "title": "开发 Stub 交易网关",
+            "description": "当前进程已自动启动并启用本地 gateway stub，本步骤只展示运行时网关信息，不需要手工配置。",
+        }
+    if step == 5:
+        return {
+            "title": "导入开发 Stub 样本数据",
+            "description": "当前进程会直接把内置样本数据导入本地数据目录，不访问真实 Tushare，也不会触发首次下载对话框。将准备以下数据：证券日历、全A证券列表、历史日线样本（含复权因子与涨跌停价格）、ST 数据。",
+        }
+    return meta
 
 
 # ========== 步骤指示器组件 ==========
@@ -536,13 +554,18 @@ def StepIndicator(current_step: int, steps: list[dict]):
 
 def Step1_Welcome():
     """步骤1：欢迎页"""
+    gateway_text = "配置交易/实时行情网关"
+    data_text = "配置数据源并下载历史数据。"
+    if dev_stubs_enabled():
+        gateway_text = "确认开发 Stub 自动注入的交易/实时行情网关"
+        data_text = "导入开发 Stub 内置样本数据。"
     return Div(
         P("本向导将引导您完成以下工作：", style=FONT_STYLES["description"], cls="mb-4 mt-6"),
         Ol(
             Li("配置运行时环境，比如数据存放目录。", style=FONT_STYLES["description"]),
             Li("配置管理员密码", style=FONT_STYLES["description"]),
-            Li("配置交易/实时行情网关", style=FONT_STYLES["description"]),
-            Li("配置数据源并下载历史数据。", style=FONT_STYLES["description"]),
+            Li(gateway_text, style=FONT_STYLES["description"]),
+            Li(data_text, style=FONT_STYLES["description"]),
             cls="list-decimal pl-6 space-y-2",
         ),
         cls="w-full",
@@ -718,6 +741,51 @@ def Step2_Runtime(state: dict | None = None):
 
 def Step4_Gateway(state: dict | None = None):
     """步骤4：网关配置"""
+    if dev_stubs_enabled():
+        runtime = ensure_dev_stubs_started()
+        gateway_url = getattr(runtime, "gateway_base_url", "") if runtime is not None else ""
+        gateway_server = getattr(runtime, "gateway_server", "") if runtime is not None else ""
+        gateway_port = getattr(runtime, "gateway_port", "") if runtime is not None else ""
+        gateway_prefix = getattr(runtime, "gateway_prefix", "/") if runtime is not None else "/"
+        return Div(
+            Div(
+                H3("开发 Stub 模式已自动配置交易网关", cls="text-lg font-semibold text-gray-900 mb-3"),
+                P(
+                    "当前进程已自动启动并启用本地 gateway stub。初始化向导在该模式下不会要求你手动填写地址、端口或路径前缀。",
+                    style=FONT_STYLES["description"],
+                    cls="mb-4",
+                ),
+                Div(
+                    Div(
+                        Span("运行地址", cls="font-medium text-gray-700 mr-2"),
+                        Span(gateway_url or "未初始化", cls="text-gray-900"),
+                        cls="mb-2",
+                    ),
+                    Div(
+                        Span("服务器", cls="font-medium text-gray-700 mr-2"),
+                        Span(str(gateway_server or "未初始化"), cls="text-gray-900"),
+                        cls="mb-2",
+                    ),
+                    Div(
+                        Span("端口", cls="font-medium text-gray-700 mr-2"),
+                        Span(str(gateway_port or "未初始化"), cls="text-gray-900"),
+                        cls="mb-2",
+                    ),
+                    Div(
+                        Span("路径前缀", cls="font-medium text-gray-700 mr-2"),
+                        Span(str(gateway_prefix or "/"), cls="text-gray-900"),
+                    ),
+                    cls="rounded-lg border border-blue-200 bg-blue-50 px-4 py-4",
+                ),
+                P(
+                    "点击下一步后，向导会把这组 stub gateway 配置写入初始化状态，用于当前开发态演示与验收。",
+                    style=FONT_STYLES["description"],
+                    cls="mt-4",
+                ),
+            ),
+            cls="w-full",
+        )
+
     values = _gateway_form_state(state)
     enabled = bool(values[GATEWAY_FORM_FIELDS["enabled"]])
 
@@ -818,6 +886,42 @@ def _render_download_range_info(years: int) -> Any:
 
 def Step5_DataSetup(state: dict | None = None):
     """步骤5：数据源设置及下载"""
+    if dev_stubs_enabled():
+        state = state or {}
+        app_home = str(state.get(RUNTIME_FORM_FIELDS["home"], DEFAULT_DATA_HOME) or DEFAULT_DATA_HOME)
+        return Div(
+            Div(
+                P(
+                    "当前进程已启用开发 Stub 模式。向导将直接导入内置样本数据到本地数据目录，不会访问真实 Tushare，也不需要填写 Tushare Token。",
+                    style=FONT_STYLES["description"],
+                    cls="mb-4",
+                ),
+                Div(
+                    Div(
+                        Span("数据目录", cls="font-medium text-gray-700 mr-2"),
+                        Span(app_home, cls="text-gray-900"),
+                        cls="mb-2",
+                    ),
+                    Div(
+                        Span("数据源", cls="font-medium text-gray-700 mr-2"),
+                        Span("fixture-backed Tushare stub", cls="text-gray-900"),
+                        cls="mb-2",
+                    ),
+                    Div(
+                        Span("导入内容", cls="font-medium text-gray-700 mr-2"),
+                        Span("证券日历、全A证券列表、历史日线样本、复权因子、涨跌停价格、ST 数据", cls="text-gray-900"),
+                    ),
+                    cls="rounded-lg border border-blue-200 bg-blue-50 px-4 py-4",
+                ),
+                P(
+                    "点击下一步后，系统会快速导入这组内置样本，并直接进入完成页，不再弹出首次下载对话框。",
+                    style=FONT_STYLES["description"],
+                    cls="mt-4",
+                ),
+            ),
+            cls="w-full",
+        )
+
     values = _data_init_form_state(state)
     epoch = values[DATA_INIT_FORM_FIELDS["epoch"]]
     data_source = str(values[DATA_INIT_FORM_FIELDS["data_source"]] or "tushare").strip().lower() or "tushare"
@@ -1059,7 +1163,9 @@ def WizardButtons(current_step: int, total_steps: int = WIZARD_TOTAL_STEPS):
 
     if current_step < total_steps:
         if current_step == 5:
-            # 第5步（数据设置）点击下一步触发下载
+            next_target = "/init-wizard/download"
+            if dev_stubs_enabled():
+                next_target = f"/init-wizard/step/{current_step + 1}"
             right_buttons.append(
                 Button(
                     "下一步",
@@ -1068,7 +1174,7 @@ def WizardButtons(current_step: int, total_steps: int = WIZARD_TOTAL_STEPS):
                     value="next",
                     cls="btn px-5 py-2.5 rounded-md font-medium text-sm",
                     style=f"background: {PRIMARY_COLOR}; color: white; border: none; box-shadow: 0 1px 2px rgba(209, 53, 39, 0.3); transition: all 0.2s;",
-                    hx_post=_with_force_query("/init-wizard/download"),
+                    hx_post=_with_force_query(next_target),
                     hx_target="#wizard-main-container",
                     hx_swap="innerHTML",
                     hx_include="[name]",
@@ -1283,92 +1389,120 @@ async def handle_step(request: Request, step: int):
                     error_message=str(e),
                 )
         elif current_step == 4:
-            state = init_wizard.get_state(force_refresh=True)
-            state_dict = _merge_state(
-                _gateway_form_state(state.to_dict()),
-                _extract_form_updates(form_dict, GATEWAY_FIELD_ALIASES),
-            )
-            state_dict[GATEWAY_FORM_FIELDS["enabled"]] = (
-                GATEWAY_FORM_FIELDS["enabled"] in form_dict
-            )
-            enabled = bool(state_dict[GATEWAY_FORM_FIELDS["enabled"]])
-            server = str(state_dict[GATEWAY_FORM_FIELDS["server"]]).strip()
-            prefix = str(state_dict[GATEWAY_FORM_FIELDS["prefix"]]).strip() or "/"
-            api_key = str(state_dict[GATEWAY_FORM_FIELDS["api_key"]]).strip()
-            try:
-                port = _parse_int_input(
-                    state_dict[GATEWAY_FORM_FIELDS["port"]],
-                    "网关端口",
-                    8000,
-                )
-            except ValueError as e:
-                return _render_wizard_main_content(
-                    4,
-                    state_dict,
-                    step_content=Step4_Gateway(state_dict),
-                    current_step_value=4,
-                    error_message=str(e),
-                )
-
-            if enabled and not server:
-                return _render_wizard_main_content(
-                    4,
-                    state_dict,
-                    step_content=Step4_Gateway(state_dict),
-                    current_step_value=4,
-                    error_message="启用 gateway 时必须填写服务器地址",
-                )
-            if enabled and not api_key:
-                return _render_wizard_main_content(
-                    4,
-                    state_dict,
-                    step_content=Step4_Gateway(state_dict),
-                    current_step_value=4,
-                    error_message="启用 gateway 时必须填写访问密钥",
-                )
-
-            # 如果启用 gateway，进行连通性校验
-            if enabled:
-                ok, msg = init_wizard.test_gateway_connection(server=server, port=port, prefix=prefix)
-                if not ok:
-                    state_dict[GATEWAY_FORM_FIELDS["enabled"]] = enabled
-                    state_dict[GATEWAY_FORM_FIELDS["server"]] = server
-                    state_dict[GATEWAY_FORM_FIELDS["port"]] = port
-                    state_dict[GATEWAY_FORM_FIELDS["prefix"]] = prefix
-                    state_dict[GATEWAY_FORM_FIELDS["api_key"]] = api_key
+            if dev_stubs_enabled():
+                runtime = ensure_dev_stubs_started()
+                if runtime is None:
+                    state = init_wizard.get_state(force_refresh=True)
+                    state_dict = state.to_dict()
                     return _render_wizard_main_content(
                         4,
                         state_dict,
                         step_content=Step4_Gateway(state_dict),
                         current_step_value=4,
-                        error_message=f"{msg}",
+                        error_message="开发 Stub gateway 尚未就绪，请重新启动应用后再试。",
+                    )
+                try:
+                    init_wizard.save_gateway_config(
+                        enabled=True,
+                        server=runtime.gateway_server,
+                        port=runtime.gateway_port,
+                        prefix=runtime.gateway_prefix,
+                        api_key=runtime.gateway_api_key,
+                    )
+                except Exception as e:
+                    state = init_wizard.get_state(force_refresh=True)
+                    state_dict = state.to_dict()
+                    return _render_wizard_main_content(
+                        4,
+                        state_dict,
+                        step_content=Step4_Gateway(state_dict),
+                        current_step_value=4,
+                        error_message=str(e),
+                    )
+            else:
+                state = init_wizard.get_state(force_refresh=True)
+                state_dict = _merge_state(
+                    _gateway_form_state(state.to_dict()),
+                    _extract_form_updates(form_dict, GATEWAY_FIELD_ALIASES),
+                )
+                state_dict[GATEWAY_FORM_FIELDS["enabled"]] = (
+                    GATEWAY_FORM_FIELDS["enabled"] in form_dict
+                )
+                enabled = bool(state_dict[GATEWAY_FORM_FIELDS["enabled"]])
+                server = str(state_dict[GATEWAY_FORM_FIELDS["server"]]).strip()
+                prefix = str(state_dict[GATEWAY_FORM_FIELDS["prefix"]]).strip() or "/"
+                api_key = str(state_dict[GATEWAY_FORM_FIELDS["api_key"]]).strip()
+                try:
+                    port = _parse_int_input(
+                        state_dict[GATEWAY_FORM_FIELDS["port"]],
+                        "网关端口",
+                        8000,
+                    )
+                except ValueError as e:
+                    return _render_wizard_main_content(
+                        4,
+                        state_dict,
+                        step_content=Step4_Gateway(state_dict),
+                        current_step_value=4,
+                        error_message=str(e),
                     )
 
-            try:
-                init_wizard.save_gateway_config(
-                    enabled=enabled,
-                    server=server,
-                    port=port,
-                    prefix=prefix,
-                    api_key=api_key,
-                )
-            except Exception as e:
-                return _render_wizard_main_content(
-                    4,
-                    state_dict,
-                    step_content=Step4_Gateway(state_dict),
-                    current_step_value=4,
-                    error_message=str(e),
-                )
+                if enabled and not server:
+                    return _render_wizard_main_content(
+                        4,
+                        state_dict,
+                        step_content=Step4_Gateway(state_dict),
+                        current_step_value=4,
+                        error_message="启用 gateway 时必须填写服务器地址",
+                    )
+                if enabled and not api_key:
+                    return _render_wizard_main_content(
+                        4,
+                        state_dict,
+                        step_content=Step4_Gateway(state_dict),
+                        current_step_value=4,
+                        error_message="启用 gateway 时必须填写访问密钥",
+                    )
+
+                if enabled:
+                    ok, msg = init_wizard.test_gateway_connection(server=server, port=port, prefix=prefix)
+                    if not ok:
+                        state_dict[GATEWAY_FORM_FIELDS["enabled"]] = enabled
+                        state_dict[GATEWAY_FORM_FIELDS["server"]] = server
+                        state_dict[GATEWAY_FORM_FIELDS["port"]] = port
+                        state_dict[GATEWAY_FORM_FIELDS["prefix"]] = prefix
+                        state_dict[GATEWAY_FORM_FIELDS["api_key"]] = api_key
+                        return _render_wizard_main_content(
+                            4,
+                            state_dict,
+                            step_content=Step4_Gateway(state_dict),
+                            current_step_value=4,
+                            error_message=f"{msg}",
+                        )
+
+                try:
+                    init_wizard.save_gateway_config(
+                        enabled=enabled,
+                        server=server,
+                        port=port,
+                        prefix=prefix,
+                        api_key=api_key,
+                    )
+                except Exception as e:
+                    return _render_wizard_main_content(
+                        4,
+                        state_dict,
+                        step_content=Step4_Gateway(state_dict),
+                        current_step_value=4,
+                        error_message=str(e),
+                    )
         elif current_step == 5:
             state = init_wizard.get_state(force_refresh=True)
             state_dict = _merge_state(state.to_dict(), _extract_form_updates(form_dict, DATA_INIT_FIELD_ALIASES))
             epoch_str = str(state_dict[DATA_INIT_FORM_FIELDS["epoch"]]).strip()
-            data_source = str(state_dict[DATA_INIT_FORM_FIELDS["data_source"]]).strip().lower() or "tushare"
-            token = str(state_dict[DATA_INIT_FORM_FIELDS["tushare_token"]]).strip()
             try:
                 epoch = _parse_epoch_input(epoch_str)
-                history_years = _parse_positive_int_input(
+                history_years = 1 if dev_stubs_enabled() else _parse_positive_int_input(
                     state_dict[DATA_INIT_FORM_FIELDS["history_years"]],
                     "首次下载时长",
                     1,
@@ -1382,6 +1516,32 @@ async def handle_step(request: Request, step: int):
                     current_step_value=5,
                     error_message=str(e),
                 )
+            if dev_stubs_enabled():
+                try:
+                    init_wizard.save_data_init_config(
+                        epoch=epoch,
+                        data_source="tushare",
+                        tushare_token=DEV_STUB_TUSHARE_TOKEN,
+                        history_years=history_years,
+                    )
+                    state = init_wizard.get_state(force_refresh=True)
+                    await asyncio.to_thread(_prepare_dev_stub_sample_data, state)
+                except Exception as e:
+                    step_content = Step5_DataSetup(state_dict)
+                    return _render_wizard_main_content(
+                        5,
+                        state_dict,
+                        step_content=step_content,
+                        current_step_value=5,
+                        error_message=str(e),
+                    )
+                init_wizard.update_step(step)
+                state = init_wizard.get_state(force_refresh=True)
+                state_dict = state.to_dict()
+                return _render_wizard_main_content(6, state_dict, current_step_value=6)
+
+            data_source = str(state_dict[DATA_INIT_FORM_FIELDS["data_source"]]).strip().lower() or "tushare"
+            token = str(state_dict[DATA_INIT_FORM_FIELDS["tushare_token"]]).strip()
             if data_source == "tushare" and not token:
                 step_content = Step5_DataSetup(state_dict)
                 return _render_wizard_main_content(
@@ -1418,6 +1578,14 @@ async def handle_step(request: Request, step: int):
 async def gateway_test(request: Request):
     """网关连通性测试"""
     _set_reconfigure_mode(_request_in_force_mode(request))
+    if dev_stubs_enabled():
+        runtime = ensure_dev_stubs_started()
+        gateway_url = getattr(runtime, "gateway_base_url", "") if runtime is not None else ""
+        return Div(
+            Span("ℹ️", cls="mr-2"),
+            Span(f"开发 Stub 模式下已自动启用 gateway：{gateway_url or '未初始化'}。"),
+            cls="text-sm text-blue-600 mt-2 flex items-center",
+        )
     form_data = await request.form()
     form_dict = dict(form_data)
     values = _merge_state(
@@ -1458,6 +1626,44 @@ async def gateway_test(request: Request):
     )
 
 
+def _prepare_dev_stub_sample_data(state: Any) -> None:
+    """Import local fixture-backed sample data for dev-stub initialization."""
+    from quantide.data import init_data
+
+    home = str(getattr(state, "app_home", "") or DEFAULT_DATA_HOME)
+    init_data(home, init_db=True)
+
+    stock_sync = StockSyncService(stock_list, daily_bars.store, calendar)
+    calendar.update()
+    stock_sync.sync_stock_list()
+
+    sync_end = calendar.last_trade_date()
+    sync_start = getattr(state, "epoch", None) or sync_end
+    if sync_start > sync_end:
+        sync_start = sync_end
+    stock_sync.sync_daily_bars(sync_start, sync_end)
+
+
+def _bootstrap_runtime_for_initialized_app(app: Any) -> None:
+    """Bootstrap the effective runtime into the current app after init completes."""
+    from quantide.app_factory import _attach_runtime_to_app_states
+    from quantide.config.settings import get_data_home
+    from quantide.core.runtime import RuntimeBootstrap
+    from quantide.data import init_data
+    from quantide.service.strategy_runtime import strategy_runtime_manager
+
+    root_app = getattr(getattr(app, "state", None), "root_app", None) or app
+    if getattr(root_app.state, "runtime", None) is not None:
+        return
+
+    init_data(get_data_home(), init_db=False)
+    runtime = RuntimeBootstrap().bootstrap()
+    strategy_runtime_manager.bootstrap_from_runtime(runtime)
+    root_app.state.runtime = runtime
+    root_app.state.strategy_runtime_manager = strategy_runtime_manager
+    _attach_runtime_to_app_states(runtime)
+
+
 async def _run_data_sync(start_date: datetime.date | None = None):
     """在后台运行数据同步任务
 
@@ -1484,6 +1690,14 @@ async def _run_data_sync(start_date: datetime.date | None = None):
 
         _update_sync_status(15, "正在同步证券日历", "正在同步证券日历...")
         await asyncio.to_thread(calendar.update)
+        sync_end = calendar.last_trade_date()
+        if effective_start > sync_end:
+            logger.warning(
+                "初始化向导请求的历史起始日 {} 晚于当前可同步结束日 {}，已自动裁剪到结束日",
+                effective_start,
+                sync_end,
+            )
+            effective_start = sync_end
 
         _update_sync_status(30, "正在同步全A证券列表", "正在同步全A证券列表...")
         stock_count = await asyncio.to_thread(stock_sync.sync_stock_list)
@@ -1559,7 +1773,7 @@ async def _run_data_sync(start_date: datetime.date | None = None):
             await asyncio.to_thread(
                 stock_sync.sync_daily_bars,
                 effective_start,
-                None,
+                sync_end,
             )
         finally:
             msg_hub.unsubscribe("fetch_data_progress", _on_fetch_progress)
@@ -1603,6 +1817,32 @@ async def handle_download(request: Request):
     form_dict = dict(form_data)
     state = init_wizard.get_state(force_refresh=True)
     state_dict = _merge_state(state.to_dict(), _extract_form_updates(form_dict, DATA_INIT_FIELD_ALIASES))
+    if dev_stubs_enabled():
+        epoch_str = str(state_dict[DATA_INIT_FORM_FIELDS["epoch"]]).strip()
+        try:
+            epoch = _parse_epoch_input(epoch_str) if epoch_str else state.epoch
+            history_years = 1
+            init_wizard.save_data_init_config(
+                epoch=epoch,
+                data_source="tushare",
+                tushare_token=DEV_STUB_TUSHARE_TOKEN,
+                history_years=history_years,
+            )
+            state = init_wizard.get_state(force_refresh=True)
+            await asyncio.to_thread(_prepare_dev_stub_sample_data, state)
+            init_wizard.update_step(6)
+            state = init_wizard.get_state(force_refresh=True)
+        except Exception as e:
+            step_content = Step5_DataSetup(state_dict)
+            return _render_wizard_main_content(
+                5,
+                state_dict,
+                step_content=step_content,
+                current_step_value=5,
+                error_message=f"导入开发 Stub 样本失败：{e}",
+            )
+        return _render_wizard_main_content(6, state.to_dict(), current_step_value=6)
+
     epoch_str = str(state_dict[DATA_INIT_FORM_FIELDS["epoch"]]).strip()
     data_source = str(state_dict[DATA_INIT_FORM_FIELDS["data_source"]]).strip().lower() or state.data_source
     token_str = str(state_dict[DATA_INIT_FORM_FIELDS["tushare_token"]]).strip()
@@ -1658,10 +1898,11 @@ async def handle_download(request: Request):
 
 
 @rt("/complete")
-async def handle_complete():
+async def handle_complete(request: Request):
     """完成初始化并跳转目标菜单"""
     try:
         init_wizard.complete_initialization()
+        _bootstrap_runtime_for_initialized_app(request.app)
         target = init_wizard.get_completion_redirect()
         _set_reconfigure_mode(False)
         return Div(
