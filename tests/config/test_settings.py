@@ -1,6 +1,8 @@
 import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
+import quantide.config.dev_stubs as dev_stubs_module
 import quantide.config.settings as settings_module
 from quantide.config.settings import (
     DEFAULT_TIMEZONE,
@@ -200,3 +202,50 @@ def test_app_state_can_project_to_settings(tmp_path: Path):
 
     assert settings.app_home == str(tmp_path)
     assert settings.app_prefix == "/demo"
+
+
+def test_get_settings_applies_dev_stub_overrides(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv(dev_stubs_module.DEV_STUBS_ENV_VAR, "1")
+    monkeypatch.setattr(
+        settings_module,
+        "_load_app_state",
+        lambda: AppState(
+            app_home=str(tmp_path),
+            gateway_enabled=False,
+            gateway_server="real-gateway",
+            gateway_port=9000,
+            gateway_base_url="/real",
+            livequote_mode="none",
+            runtime_mode="backtest",
+            runtime_market_adapter="",
+            runtime_broker_adapter="",
+            data_source="csv",
+            tushare_token="real-token",
+        ),
+    )
+    monkeypatch.setattr(
+        settings_module,
+        "ensure_dev_stubs_started",
+        lambda: SimpleNamespace(
+            gateway_base_url="http://127.0.0.1:19001/qmt",
+            gateway_api_key="stub-api-key",
+            gateway_username="stub-user",
+            gateway_password="stub-password",
+            gateway_scheme="http",
+            gateway_server="127.0.0.1",
+            gateway_port=19001,
+        ),
+    )
+
+    settings = get_settings()
+
+    assert settings.gateway_enabled is True
+    assert settings.gateway_base_url == "http://127.0.0.1:19001/qmt"
+    assert settings.gateway_username == "stub-user"
+    assert settings.gateway_password == "stub-password"
+    assert settings.livequote_mode == "gateway"
+    assert settings.runtime_mode == "live"
+    assert settings.runtime_market_adapter == "gateway"
+    assert settings.runtime_broker_adapter == "gateway"
+    assert settings.data_source == "tushare"
+    assert get_tushare_token() == dev_stubs_module.DEV_STUB_TUSHARE_TOKEN

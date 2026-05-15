@@ -1,17 +1,24 @@
-"""系统设置 - 交易网关页面测试"""
+"""系统设置 - 交易网关页面测试。"""
+
+from contextlib import contextmanager
 
 from starlette.testclient import TestClient
 
 import pytest
 
+from tests.e2e.support.system_settings_session import system_settings_e2e_session
+
 
 @pytest.fixture(scope="module")
 def client():
-    """创建测试客户端"""
-    from quantide.app_factory import create_app
+    """创建已初始化且已登录的测试客户端。"""
 
-    app = create_app(enforce_single_instance=False)
-    with TestClient(app) as c:
+    @contextmanager
+    def _client_context():
+        with system_settings_e2e_session() as session:
+            yield session.client
+
+    with _client_context() as c:
         yield c
 
 
@@ -40,6 +47,21 @@ class TestGatewayPage:
         resp = client.get("/system/gateway/", follow_redirects=True)
         assert "交易网关" in resp.text
         assert "连接状态" in resp.text or "连接配置" in resp.text
+
+    def test_gateway_shows_dev_stub_notice_when_enabled(self, client, monkeypatch):
+        """开发 stub 模式下展示 effective gateway 提示。"""
+
+        monkeypatch.setattr("quantide.web.pages.system.gateway.dev_stubs_enabled", lambda: True)
+        monkeypatch.setattr(
+            "quantide.web.pages.system.gateway.get_settings",
+            lambda: type("Settings", (), {"gateway_base_url": "/runtime-gateway"})(),
+        )
+
+        resp = client.get("/system/gateway/", follow_redirects=True)
+
+        assert resp.status_code == 200
+        assert "开发 Stub 运行时" in resp.text
+        assert "当前运行地址：/runtime-gateway。" in resp.text
 
     def test_gateway_htmx_request_returns_layout_fragment(self, client):
         """HTMX 请求只返回 main fragment 和 sidebar OOB。"""

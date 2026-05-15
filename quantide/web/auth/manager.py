@@ -75,10 +75,6 @@ class AuthManager:
             self.register_routes(app, prefix=prefix)
             self._prioritize_prefixed_routes(app, prefix)
 
-        admin = self.get_user("admin")
-        (f"Admin User class: {type(admin)}")
-        print(f"Are they the same class? {type(admin) is User}")
-
         return self.db
 
     def rebind_database(self, db_path: str) -> None:

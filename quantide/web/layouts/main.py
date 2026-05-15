@@ -76,7 +76,7 @@ MARKET_MENU = [
 STRATEGY_MENU = [
     {"title": "策略列表", "url": "/strategy", "icon_path": "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"},
     {"title": "回测管理", "url": "/strategy/backtest", "icon_path": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"},
-    {"title": "实盘运行", "url": "/strategy/live", "icon_path": "M13 10V3L4 14h7v7l9-11h-7z"},
+    {"title": "实盘运行", "url": "/trade/live", "icon_path": "M13 10V3L4 14h7v7l9-11h-7z"},
 ]
 
 ANALYSIS_MENU = [

@@ -14,6 +14,7 @@ from fasthtml.common import *
 from loguru import logger
 from monsterui.all import *
 
+from quantide.config.dev_stubs import dev_stubs_enabled
 from quantide.config.settings import get_settings
 from quantide.data.models.app_state import AppState
 from quantide.data.sqlite import db
@@ -205,6 +206,41 @@ def _build_flash(message: str, tone: str) -> Div:
     return Div(message, cls=f"mb-4 rounded-lg border px-4 py-3 text-sm {bg} {border} {text}")
 
 
+def _build_dev_stub_notice(config: dict[str, Any]) -> Div | None:
+    """在开发 stub 模式下展示当前生效的运行时网关配置。"""
+    if not dev_stubs_enabled():
+        return None
+
+    effective = get_settings()
+    persisted_url = str(config.get("base_url") or "").strip() or "未配置"
+    effective_url = str(effective.gateway_base_url or "").strip() or "未配置"
+    differs = persisted_url != effective_url
+    persisted_text = (
+        f"已保存配置地址：{persisted_url}。"
+        if differs
+        else "当前保存配置与运行时 effective gateway 地址一致。"
+    )
+
+    return Div(
+        Div(
+            UkIcon("info", size=16, cls="text-blue-500 mr-2"),
+            H3("开发 Stub 运行时", cls="text-lg font-semibold text-gray-900"),
+            cls="mb-3 flex items-center",
+        ),
+        P(
+            "当前进程已启用开发 stub 模式。交易链路读取的是 effective settings，而不是仅依赖下面表单中的持久化配置。",
+            cls="text-sm text-gray-700",
+        ),
+        P(f"当前运行地址：{effective_url}。", cls="mt-2 text-sm text-gray-700"),
+        P(persisted_text, cls="mt-2 text-sm text-gray-700"),
+        P(
+            "连接测试针对的是当前表单地址；保存配置不会热更新已启动进程，如需切换运行时配置请重启应用。",
+            cls="mt-2 text-sm text-gray-600",
+        ),
+        cls="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-4",
+    )
+
+
 def _build_config_form(config: dict[str, Any]) -> Div:
     """构建配置编辑表单"""
     masked_key = ""
@@ -326,6 +362,9 @@ def _render_page(
     layout.set_sidebar_active("/system/gateway")
 
     blocks: list[Any] = []
+    dev_stub_notice = _build_dev_stub_notice(config)
+    if dev_stub_notice is not None:
+        blocks.append(dev_stub_notice)
     if success_message:
         blocks.append(_build_flash(success_message, "success"))
     if error_message:

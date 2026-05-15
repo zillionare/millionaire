@@ -13,8 +13,11 @@ from starlette.testclient import TestClient
 from quantide.app_factory import create_app
 from quantide.config.paths import clear_app_config_dir_override
 from quantide.core.init_wizard_steps import WIZARD_FINAL_STEP
+from quantide.core.runtime.modes import RuntimeBootstrap
 from quantide.data.models.app_state import AppState
+from quantide.app_factory import _attach_runtime_to_app_states
 from quantide.service.init_wizard import init_wizard
+from quantide.service.strategy_runtime import strategy_runtime_manager
 from quantide.web.auth.manager import AuthManager
 from quantide.web.pages import init_wizard as init_wizard_page
 
@@ -70,6 +73,10 @@ def open_system_settings_client(app_config_dir: Path, market_home: Path | None =
     )
     if market_home is not None:
         _seed_initialized_state(market_home)
+        runtime = RuntimeBootstrap().bootstrap()
+        strategy_runtime_manager.bootstrap_from_runtime(runtime)
+        app.state.runtime = runtime
+        _attach_runtime_to_app_states(runtime)
     with TestClient(app) as client:
         _login_as_admin(client)
         yield client

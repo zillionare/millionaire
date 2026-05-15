@@ -6,6 +6,7 @@ from fasthtml.common import to_xml
 
 from quantide.data.sqlite import Portfolio
 from quantide.web.pages import strategy as strategy_page
+from tests.e2e.support.system_settings_session import system_settings_e2e_session
 
 
 class FakeRequest:
@@ -19,6 +20,14 @@ class FakeRequest:
 class FakePageRequest:
     def __init__(self, query_params=None):
         self.query_params = query_params or {}
+
+
+def test_strategy_live_redirects_to_trade_live_with_create_app_client():
+    with system_settings_e2e_session() as session:
+        response = session.client.get("/strategy/live", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/trade/live"
 
 
 def test_strategy_index_page_omits_runtime_and_risk_panels(monkeypatch, db):
@@ -342,7 +351,7 @@ def test_build_backtest_rows_keeps_missing_metrics_blank(monkeypatch):
     assert 'btn btn-primary btn-sm' not in html
 
 
-def test_build_backtest_rows_disabled_deploy_buttons_explain_gateway_requirement(monkeypatch):
+def test_build_backtest_rows_keeps_paper_deploy_available_when_gateway_missing(monkeypatch):
     portfolios = pd.DataFrame(
         [
             {
@@ -364,11 +373,53 @@ def test_build_backtest_rows_disabled_deploy_buttons_explain_gateway_requirement
         lambda portfolio_id: {},
     )
 
-    rows = strategy_page._build_backtest_rows({}, gateway_available=False)
+    rows = strategy_page._build_backtest_rows(
+        {},
+        paper_available=True,
+        live_available=False,
+        live_unavailable_reason="请先配置交易网关，才能转实盘",
+    )
     html = to_xml(rows[0])
 
-    assert 'title="请先配置交易网关，才能转仿真"' in html
     assert 'title="请先配置交易网关，才能转实盘"' in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/paper/modal"' in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/live/modal"' not in html
+    assert html.count("pointer-events-none") == 1
+
+
+def test_build_backtest_rows_disables_only_paper_deploy_when_runtime_missing(monkeypatch):
+    portfolios = pd.DataFrame(
+        [
+            {
+                "portfolio_id": "demo-pf",
+                "kind": "bt",
+                "name": "DualMAStrategy",
+                "start": "2024-01-01",
+                "end": "2024-01-31",
+                "info": "",
+            }
+        ]
+    )
+    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
+    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "backtest_deployment_modes",
+        lambda portfolio_id: {},
+    )
+
+    rows = strategy_page._build_backtest_rows(
+        {},
+        paper_available=False,
+        paper_unavailable_reason="运行时未初始化，无法转仿真",
+        live_available=True,
+    )
+    html = to_xml(rows[0])
+
+    assert 'title="运行时未初始化，无法转仿真"' in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/paper/modal"' not in html
+    assert 'hx-get="/strategy/backtest/demo-pf/deploy/live/modal"' in html
     assert "pointer-events-none" in html
     assert "disabled" in html
 

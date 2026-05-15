@@ -17,6 +17,7 @@ from quantide.core.init_wizard_steps import (
     WIZARD_TOTAL_STEPS,
     build_wizard_steps,
 )
+from quantide.config.dev_stubs import dev_stubs_enabled, ensure_dev_stubs_started
 from quantide.config.paths import get_app_db_path, normalize_data_home
 from quantide.config.settings import (
     get_data_source,
@@ -194,16 +195,21 @@ class InitWizardService:
             - live_trading: 实盘交易是否可用
         """
         state = self.get_state()
+        backtest_available = state.is_fully_initialized and (
+            dev_stubs_enabled() or bool(str(state.tushare_token or "").strip())
+        )
         live_trading_available = self._is_gateway_available(state)
 
         return {
-            "backtest": state.can_use_backtest(),
+            "backtest": backtest_available,
             "simulation": live_trading_available,
             "live_trading": live_trading_available,
         }
 
     def _is_gateway_available(self, state: AppState) -> bool:
         """判断 gateway 是否处于可用状态。"""
+        if dev_stubs_enabled() and state.is_fully_initialized:
+            return ensure_dev_stubs_started() is not None
         if not state.can_use_live_trading():
             return False
         if not str(state.gateway_server or "").strip():

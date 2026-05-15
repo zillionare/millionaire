@@ -6,6 +6,7 @@ import base64
 import datetime as dt
 import hashlib
 import json
+import socket
 import threading
 import time
 import urllib.parse
@@ -509,16 +510,67 @@ def _websocket_accept(key: str) -> str:
     return base64.b64encode(digest).decode("ascii")
 
 
+def _ws_frame(opcode: int, payload: bytes = b"") -> bytes:
+    size = len(payload)
+    if size <= 125:
+        header = bytes([0x80 | (opcode & 0x0F), size])
+    elif size <= 65535:
+        header = bytes([0x80 | (opcode & 0x0F), 126]) + size.to_bytes(2, "big")
+    else:
+        header = bytes([0x80 | (opcode & 0x0F), 127]) + size.to_bytes(8, "big")
+    return header + payload
+
+
 def _ws_text_frame(payload: Mapping[str, Any]) -> bytes:
     body = _json_bytes(payload)
-    size = len(body)
-    if size <= 125:
-        header = bytes([0x81, size])
-    elif size <= 65535:
-        header = bytes([0x81, 126]) + size.to_bytes(2, "big")
-    else:
-        header = bytes([0x81, 127]) + size.to_bytes(8, "big")
-    return header + body
+    return _ws_frame(0x1, body)
+
+
+def _read_exact(connection: socket.socket, size: int) -> bytes | None:
+    chunks = bytearray()
+    while len(chunks) < size:
+        chunk = connection.recv(size - len(chunks))
+        if not chunk:
+            return None
+        chunks.extend(chunk)
+    return bytes(chunks)
+
+
+def _read_ws_frame(connection: socket.socket) -> tuple[int, bytes] | None:
+    header = _read_exact(connection, 2)
+    if header is None:
+        return None
+
+    first, second = header
+    opcode = first & 0x0F
+    masked = bool(second & 0x80)
+    size = second & 0x7F
+
+    if size == 126:
+        extended = _read_exact(connection, 2)
+        if extended is None:
+            return None
+        size = int.from_bytes(extended, "big")
+    elif size == 127:
+        extended = _read_exact(connection, 8)
+        if extended is None:
+            return None
+        size = int.from_bytes(extended, "big")
+
+    mask = _read_exact(connection, 4) if masked else b""
+    if masked and mask is None:
+        return None
+
+    payload = _read_exact(connection, size)
+    if payload is None:
+        return None
+
+    if masked:
+        mask_bytes = mask or b""
+        payload = bytes(
+            byte ^ mask_bytes[index % 4] for index, byte in enumerate(payload)
+        )
+    return opcode, payload
 
 
 def _build_gateway_handler(state: GatewayStubState) -> type[BaseHTTPRequestHandler]:
@@ -594,7 +646,27 @@ def _build_gateway_handler(state: GatewayStubState) -> type[BaseHTTPRequestHandl
                 self.connection.sendall(_ws_text_frame(quote))
                 if interval > 0:
                     time.sleep(interval)
-            self.connection.sendall(b"\x88\x00")
+
+            self.connection.settimeout(1.0)
+            try:
+                while True:
+                    try:
+                        frame = _read_ws_frame(self.connection)
+                    except socket.timeout:
+                        continue
+                    if frame is None:
+                        break
+                    opcode, payload = frame
+                    if opcode == 0x8:
+                        try:
+                            self.connection.sendall(_ws_frame(0x8, payload))
+                        except OSError:
+                            pass
+                        break
+                    if opcode == 0x9:
+                        self.connection.sendall(_ws_frame(0xA, payload))
+            except OSError:
+                pass
             self.close_connection = True
 
         def _send_json(

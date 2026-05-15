@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import urllib.request
 
@@ -90,6 +91,32 @@ async def test_gateway_stub_streams_scripted_ws_quotes() -> None:
     ) as stub:
         async with websockets.connect(stub.ws_url) as ws:
             payload = json.loads(await ws.recv())
+
+    assert payload == quote
+
+
+@pytest.mark.asyncio  # type: ignore[untyped-decorator]
+async def test_gateway_stub_responds_to_websocket_ping() -> None:
+    websockets = pytest.importorskip("websockets")
+    quote = {
+        "symbol": "000003.SZ",
+        "timestamp": "2026-05-08 09:32:00",
+        "1m": {
+            "open": 10,
+            "high": 10,
+            "low": 10,
+            "close": 10,
+            "volume": 200,
+            "amount": 2000,
+        },
+    }
+    with running_gateway_stub(
+        prefix="/qmt", scenario=GatewayScenario(quotes=[quote])
+    ) as stub:
+        async with websockets.connect(stub.ws_url) as ws:
+            payload = json.loads(await ws.recv())
+            pong_waiter = await ws.ping()
+            await asyncio.wait_for(pong_waiter, timeout=1)
 
     assert payload == quote
 

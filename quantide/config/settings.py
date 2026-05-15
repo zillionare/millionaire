@@ -8,12 +8,17 @@ from __future__ import annotations
 
 import datetime
 import urllib.parse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import pytz
 from loguru import logger
 
+from quantide.config.dev_stubs import (
+    DEV_STUB_TUSHARE_TOKEN,
+    dev_stubs_enabled,
+    ensure_dev_stubs_started,
+)
 from quantide.config.paths import normalize_data_home
 
 
@@ -108,6 +113,30 @@ def _build_gateway_base_url(state: Any) -> str:
     return f"{base}{prefix}"
 
 
+def _apply_dev_stub_overrides(settings: "Settings") -> "Settings":
+    """Overlay development stub settings when the switch is enabled."""
+    runtime = ensure_dev_stubs_started()
+    if runtime is None:
+        return settings
+
+    return replace(
+        settings,
+        gateway_enabled=True,
+        gateway_base_url=runtime.gateway_base_url,
+        gateway_api_key=runtime.gateway_api_key,
+        gateway_username=runtime.gateway_username,
+        gateway_password=runtime.gateway_password,
+        gateway_scheme=runtime.gateway_scheme,
+        gateway_server=runtime.gateway_server,
+        gateway_port=runtime.gateway_port,
+        runtime_mode="live",
+        runtime_market_adapter="gateway",
+        runtime_broker_adapter="gateway",
+        livequote_mode="gateway",
+        data_source="tushare",
+    )
+
+
 @dataclass(frozen=True)
 class Settings:
     """Effective application settings for runtime reads."""
@@ -191,7 +220,10 @@ class Settings:
 
 def get_settings() -> Settings:
     """Return the effective application settings."""
-    return Settings.from_state(_load_app_state())
+    settings = Settings.from_state(_load_app_state())
+    if dev_stubs_enabled():
+        return _apply_dev_stub_overrides(settings)
+    return settings
 
 
 def get_data_home() -> str:
@@ -220,6 +252,8 @@ def _state_or_default() -> Any:
 
 def get_tushare_token() -> str:
     """Return the configured Tushare token."""
+    if dev_stubs_enabled():
+        return DEV_STUB_TUSHARE_TOKEN
     state = _state_or_default()
     return str(getattr(state, "tushare_token", "") or "")
 

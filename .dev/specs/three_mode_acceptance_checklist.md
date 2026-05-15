@@ -28,6 +28,7 @@
    - 当前 `tests/e2e/support/gateway_stub.py` 已具备场景脚本、资产/持仓回写和 qtoid 映射校验能力，但风险事件与阻断持久化链路还未纳入 release gate。
    - 现有 release gate 已覆盖初始化、数据下载、backtest、paper 和 live 准确性链路，但仍缺策略发现/加载、异常阻断与任务恢复链路。
    - 仓库内尚未形成独立的风险事件中心与阻断持久化的验收证据。
+5. `three-mode parity`：已具备 controlled stub 场景下的跨模式一致性证据，能在同一策略、同一标的、同一时间窗口下比较 `backtest / paper / live` 的成交事实、每日权益曲线和收益指标。
 
 结论是：当前代码已经具备发布态架构的若干核心部件，但**尚未达到“可发布、可长期运行”的放行标准**。
 
@@ -180,16 +181,24 @@
 | 异常告警与阻断 | 暂无 | 待补 `release_gate` 用例 | missing | 风险事件中心与阻断恢复链路尚无 QA 级自动化证据。 |
 | 任务恢复与重启恢复 | 暂无 | 待补 `release_gate` 用例 | missing | 当前 jobs 设置页只验证开关持久化，未形成发布态恢复验收。 |
 
+### 当前跨模式一致性证据
+
+| 契约 | 当前测试入口 | Marker / 命令 | 状态 | 最近证据说明 |
+| --- | --- | --- | --- | --- |
+| `three-mode parity` | `tests/e2e/three_mode/test_dual_ma_parity.py::test_dual_ma_parity_across_backtest_paper_and_live` | `release_gate` / `conda run -n quantide pytest tests/e2e/three_mode/test_dual_ma_parity.py -q` | passing | 在 `DualMAStrategy + 000001.SZ + 2024-01-02~2024-05-31` 的固定场景下，比较三模式的 14 笔成交、每日资产曲线和 `metrics()` 摘要，结果与共享 baseline 一致。 |
+
 ### 当前本地 release_gate 命令
 
 1. `conda run -n quantide poetry run pytest -m "e2e and release_gate" tests/e2e -q`
 2. `tox -e release-gate`
+3. `conda run -n quantide pytest tests/e2e/three_mode/test_dual_ma_parity.py -q`
 
 说明：
 
-1. 当前主命令已可稳定收集并执行 release gate 套件；最近一次运行结果为 `11 passed, 13 deselected`。
-2. 上述命令当前只运行已经纳入 QA release_gate 的证据用例，用于追踪“已具备的发布态证据”，不能掩盖仍为 `missing` 的链路。
-3. `tests/e2e/web/test_system_settings_flow.py::test_gateway_settings_can_test_and_persist_configuration` 已标记 `release_gate`，作为 gateway stub 配置与持久化的辅助证据，但它不替代 8 条强制主链路中的异常阻断与恢复验收。
+1. 当前主命令已可稳定收集并执行 release gate 套件；最近一次全量结果仍应以实际命令输出为准。
+2. 第 3 条是跨模式一致性的定向核查命令，适合在开发中快速确认 parity 证据未回归。
+3. 上述命令当前只运行已经纳入 QA release_gate 的证据用例，用于追踪“已具备的发布态证据”，不能掩盖仍为 `missing` 的链路。
+4. `tests/e2e/web/test_system_settings_flow.py::test_gateway_settings_can_test_and_persist_configuration` 已标记 `release_gate`，作为 gateway stub 配置与持久化的辅助证据，但它不替代 8 条强制主链路中的异常阻断与恢复验收。
 
 ## 5. 当前回归基线
 

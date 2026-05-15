@@ -881,12 +881,12 @@ def _build_backtest_deploy_button(
     label: str,
     modal_path: str,
     *,
-    gateway_available: bool,
+    is_available: bool,
     unavailable_reason: str,
 ) -> Any:
     """构建回测报告列表中的投放按钮。"""
     button_cls = "btn btn-secondary btn-sm"
-    if gateway_available:
+    if is_available:
         return Button(
             label,
             cls=button_cls,
@@ -910,7 +910,10 @@ def _build_backtest_action_cell(
     portfolio_id: str,
     deployment_modes: dict[str, dict[str, Any]] | None = None,
     *,
-    gateway_available: bool = True,
+    paper_available: bool = True,
+    paper_unavailable_reason: str = "",
+    live_available: bool = True,
+    live_unavailable_reason: str = "",
     hx_swap_oob: bool = False,
 ) -> Any:
     """构建回测报告列表操作列。"""
@@ -929,8 +932,8 @@ def _build_backtest_action_cell(
             _build_backtest_deploy_button(
                 "转仿真",
                 f"/strategy/backtest/{portfolio_id}/deploy/paper/modal",
-                gateway_available=gateway_available,
-                unavailable_reason="请先配置交易网关，才能转仿真",
+                is_available=paper_available,
+                unavailable_reason=paper_unavailable_reason,
             )
         )
 
@@ -946,8 +949,8 @@ def _build_backtest_action_cell(
             _build_backtest_deploy_button(
                 "转实盘",
                 f"/strategy/backtest/{portfolio_id}/deploy/live/modal",
-                gateway_available=gateway_available,
-                unavailable_reason="请先配置交易网关，才能转实盘",
+                is_available=live_available,
+                unavailable_reason=live_unavailable_reason,
             )
         )
 
@@ -1024,13 +1027,19 @@ def _build_strategy_rows(strategies: dict) -> list:
 def _build_backtest_rows(
     strategies: dict,
     *,
-    gateway_available: bool = True,
+    paper_available: bool = True,
+    paper_unavailable_reason: str = "",
+    live_available: bool = True,
+    live_unavailable_reason: str = "",
 ) -> list:
     """构建回测报告列表行。
 
     Args:
         strategies: 策略字典
-        gateway_available: 是否已配置可用 gateway。
+        paper_available: 是否允许转入仿真。
+        paper_unavailable_reason: 仿真不可用原因。
+        live_available: 是否允许转入实盘。
+        live_unavailable_reason: 实盘不可用原因。
 
     Returns:
         list: 行数据
@@ -1089,7 +1098,10 @@ def _build_backtest_rows(
                 _build_backtest_action_cell(
                     portfolio_id,
                     deployment_modes,
-                    gateway_available=gateway_available,
+                    paper_available=paper_available,
+                    paper_unavailable_reason=paper_unavailable_reason,
+                    live_available=live_available,
+                    live_unavailable_reason=live_unavailable_reason,
                 ),
                 cls="border-b border-gray-200 hover:bg-gray-50",
             )
@@ -1118,10 +1130,7 @@ def index(req, session):
     # 从缓存加载策略（不再每次扫描）
     strategies = strategy_loader.load_from_cache()
     strategy_rows = _build_strategy_rows(strategies)
-    backtest_rows = _build_backtest_rows(
-        strategies,
-        gateway_available=bool(_get_live_accounts(req)),
-    )
+    backtest_rows = _build_backtest_rows(strategies, **_get_backtest_deploy_capabilities(req))
 
     strategy_table = Table(
         Thead(
@@ -1612,12 +1621,41 @@ def _get_market_data(req):
     return runtime.market_data
 
 
-def _get_live_accounts(req) -> list[dict[str, Any]]:
+def _get_paper_deploy_availability(req) -> tuple[bool, str]:
+    """返回转入仿真的可用性。"""
     runtime = _get_runtime(req)
     if runtime is None:
-        return []
-    broker = runtime.adapters.get("broker", "gateway:default")
-    if broker is None:
+        return False, "运行时未初始化，无法转仿真"
+    if runtime.market_data is None:
+        return False, "行情源未初始化，无法转仿真"
+    return True, ""
+
+
+def _get_live_deploy_availability(req) -> tuple[bool, str]:
+    """返回转入实盘的可用性。"""
+    registry = _get_registry(req)
+    if registry is None:
+        return False, "运行时未初始化，无法转实盘"
+    if registry.get(BrokerKind.QMT, "gateway") is None:
+        return False, "请先配置交易网关，才能转实盘"
+    return True, ""
+
+
+def _get_backtest_deploy_capabilities(req) -> dict[str, Any]:
+    """返回回测投放按钮的可用性上下文。"""
+    paper_available, paper_unavailable_reason = _get_paper_deploy_availability(req)
+    live_available, live_unavailable_reason = _get_live_deploy_availability(req)
+    return {
+        "paper_available": paper_available,
+        "paper_unavailable_reason": paper_unavailable_reason,
+        "live_available": live_available,
+        "live_unavailable_reason": live_unavailable_reason,
+    }
+
+
+def _get_live_accounts(req) -> list[dict[str, Any]]:
+    live_available, _ = _get_live_deploy_availability(req)
+    if not live_available:
         return []
     return [{"id": "gateway:default", "name": "gateway:default"}]
 
@@ -1880,7 +1918,11 @@ async def deploy_backtest_to_paper(req, portfolio_id: str):
                 f"该回测已在仿真中：{existing_runtime.portfolio_id}，策略ID={existing_runtime.strategy_id}",
                 is_error=False,
             ),
-            _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
+            _build_backtest_action_cell(
+                portfolio_id,
+                hx_swap_oob=True,
+                **_get_backtest_deploy_capabilities(req),
+            ),
         )
     try:
         runtime = strategy_runtime_manager.deploy_to_paper(
@@ -1895,7 +1937,11 @@ async def deploy_backtest_to_paper(req, portfolio_id: str):
                 f"已转入仿真：{runtime.portfolio_id}，策略ID={runtime.strategy_id}",
                 is_error=False,
             ),
-            _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
+            _build_backtest_action_cell(
+                portfolio_id,
+                hx_swap_oob=True,
+                **_get_backtest_deploy_capabilities(req),
+            ),
         )
     except Exception as e:
         return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message=f"转入仿真失败: {e}")
@@ -1919,7 +1965,11 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
                 f"该回测已在实盘中：{existing_runtime.portfolio_id}，策略ID={existing_runtime.strategy_id}",
                 is_error=False,
             ),
-            _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
+            _build_backtest_action_cell(
+                portfolio_id,
+                hx_swap_oob=True,
+                **_get_backtest_deploy_capabilities(req),
+            ),
         )
     try:
         runtime = strategy_runtime_manager.deploy_to_live(
@@ -1934,7 +1984,11 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
                 f"已转入实盘：{runtime.portfolio_id}，策略ID={runtime.strategy_id}",
                 is_error=False,
             ),
-            _build_backtest_action_cell(portfolio_id, hx_swap_oob=True),
+            _build_backtest_action_cell(
+                portfolio_id,
+                hx_swap_oob=True,
+                **_get_backtest_deploy_capabilities(req),
+            ),
         )
     except Exception as e:
         return _strategy_dialog_modal(
