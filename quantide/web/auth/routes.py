@@ -2,6 +2,9 @@
 from fasthtml.common import *
 from monsterui.all import *
 
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
+
 from .forms import (
     create_forgot_password_form,
     create_login_form,
@@ -382,17 +385,17 @@ class AuthRoutes:
             form_content = Form(
                 Input(type="hidden", name="modal", value="1"),
                 Div(
-                    Label("当前密码", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    _Label("当前密码", cls="block text-sm font-medium text-gray-700 mb-1"),
                     Input(type="password", name="current_password", required=True, cls="w-full h-10 px-3 rounded-md border border-gray-300"),
                     cls="mb-4"
                 ),
                 Div(
-                    Label("新密码", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    _Label("新密码", cls="block text-sm font-medium text-gray-700 mb-1"),
                     Input(type="password", name="new_password", required=True, cls="w-full h-10 px-3 rounded-md border border-gray-300"),
                     cls="mb-4"
                 ),
                 Div(
-                    Label("确认新密码", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    _Label("确认新密码", cls="block text-sm font-medium text-gray-700 mb-1"),
                     Input(type="password", name="confirm_password", required=True, cls="w-full h-10 px-3 rounded-md border border-gray-300"),
                     cls="mb-4"
                 ),

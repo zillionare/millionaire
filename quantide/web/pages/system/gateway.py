@@ -22,6 +22,9 @@ from quantide.service.init_wizard import init_wizard
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme, PRIMARY_COLOR
 
+# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
+from fasthtml.common import Label as _Label, Input as _Input
+
 # 定义子路由应用
 system_gateway_app, rt = fast_app(hdrs=AppTheme.headers())
 
@@ -258,12 +261,12 @@ def _build_config_form(config: dict[str, Any]) -> Div:
         ),
         Form(
             Div(
-                Label(
-                    Input(
+                _Label(
+                    _Input(
                         type="checkbox",
                         name="gateway_enabled",
                         checked=bool(config.get("enabled")),
-                        cls="mr-2",
+                        cls="uk-checkbox mr-2",
                     ),
                     Span("启用交易网关", cls="text-sm font-medium text-gray-900"),
                     cls="flex items-center",
@@ -272,7 +275,7 @@ def _build_config_form(config: dict[str, Any]) -> Div:
             ),
             Div(
                 Div(
-                    Label("服务器地址", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    _Label("服务器地址", cls="block text-sm font-medium text-gray-700 mb-1"),
                     Input(
                         type="text",
                         name="gateway_server",
@@ -283,7 +286,7 @@ def _build_config_form(config: dict[str, Any]) -> Div:
                     cls="mb-3",
                 ),
                 Div(
-                    Label("端口", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    _Label("端口", cls="block text-sm font-medium text-gray-700 mb-1"),
                     Input(
                         type="number",
                         name="gateway_port",
@@ -294,7 +297,7 @@ def _build_config_form(config: dict[str, Any]) -> Div:
                     cls="mb-3",
                 ),
                 Div(
-                    Label("路径前缀", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    _Label("路径前缀", cls="block text-sm font-medium text-gray-700 mb-1"),
                     Input(
                         type="text",
                         name="gateway_prefix",
@@ -305,7 +308,7 @@ def _build_config_form(config: dict[str, Any]) -> Div:
                     cls="mb-3",
                 ),
                 Div(
-                    Label("API Key", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    _Label("API Key", cls="block text-sm font-medium text-gray-700 mb-1"),
                     Input(
                         type="password",
                         name="gateway_api_key",
@@ -316,7 +319,7 @@ def _build_config_form(config: dict[str, Any]) -> Div:
                     cls="mb-3",
                 ),
                 Div(
-                    Label("超时(秒)", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    _Label("超时(秒)", cls="block text-sm font-medium text-gray-700 mb-1"),
                     Input(
                         type="number",
                         name="gateway_timeout",

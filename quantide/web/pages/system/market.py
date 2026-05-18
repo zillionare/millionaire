@@ -11,6 +11,9 @@ from quantide.data.models.daily_bars import daily_bars
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme, PRIMARY_COLOR
 
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
+
 # 定义子路由应用
 system_market_app, rt = fast_app(hdrs=AppTheme.headers())
 
@@ -223,25 +226,25 @@ async def index(req, code: str = "", start_date: str = "", end_date: str = "",
             Form(
                 Div(
                     Div(
-                        Label("证券代码", cls="block text-sm font-medium text-gray-700 mb-1"),
+                        _Label("证券代码", cls="block text-sm font-medium text-gray-700 mb-1"),
                         Input(type="text", name="code", value=code, placeholder="输入股票代码",
                               cls="input input-bordered w-full"),
                         cls="mb-2"
                     ),
                     Div(
-                        Label("起始日期", cls="block text-sm font-medium text-gray-700 mb-1"),
+                        _Label("起始日期", cls="block text-sm font-medium text-gray-700 mb-1"),
                         Input(type="date", name="start_date", value=start_date,
                               cls="input input-bordered w-full"),
                         cls="mb-2"
                     ),
                     Div(
-                        Label("结束日期", cls="block text-sm font-medium text-gray-700 mb-1"),
+                        _Label("结束日期", cls="block text-sm font-medium text-gray-700 mb-1"),
                         Input(type="date", name="end_date", value=end_date,
                               cls="input input-bordered w-full"),
                         cls="mb-2"
                     ),
                     Div(
-                        Label(" ", cls="block mb-1"),
+                        Div(cls="block mb-1"),
                         Button("查询", type="submit", cls="btn btn-primary w-full"),
                         cls="flex items-end"
                     ),

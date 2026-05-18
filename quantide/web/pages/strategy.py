@@ -1499,8 +1499,8 @@ def backtest_modal(name: str):
                 ),
                 Div(
                     Span("日志保存", cls="text-sm font-medium text-gray-500 w-24 shrink-0"),
-                    Label(
-                        Input(name="save_logs", type="checkbox", cls="checkbox checkbox-sm"),
+                    fh.Label(
+                        fh.Input(name="save_logs", type="checkbox", cls="checkbox checkbox-sm"),
                         Span("保存回测日志到本地文件", cls="text-sm text-gray-700"),
                         cls="flex items-center gap-2",
                     ),
@@ -1689,7 +1689,7 @@ def _paper_deploy_modal(
             Form(
                 Input(type="hidden", name="portfolio_id", value=portfolio_id),
                 Div(
-                    Label("仿真本金", cls="text-sm text-gray-500"),
+                    fh.Label("仿真本金", cls="text-sm text-gray-500"),
                     Input(
                         name="paper_principal",
                         type="number",
@@ -2643,27 +2643,27 @@ def backtest_result(req, session, portfolio_id: str):
         ),
         Div(
             H3("收益曲线", cls="text-xl font-bold mb-4"),
-            Div(
                 Div(
-                    Label("开始日期", cls="block text-xs text-gray-500 mb-1"),
-                    Input(
-                        id="filter_start",
-                        type="date",
-                        value=filter_start_value,
-                        cls="input input-sm",
+                    Div(
+                        fh.Label("开始日期", cls="block text-xs text-gray-500 mb-1"),
+                        Input(
+                            id="filter_start",
+                            type="date",
+                            value=filter_start_value,
+                            cls="input input-sm",
+                        ),
+                        cls="flex flex-col"
                     ),
-                    cls="flex flex-col"
-                ),
-                Div(
-                    Label("结束日期", cls="block text-xs text-gray-500 mb-1"),
-                    Input(
-                        id="filter_end",
-                        type="date",
-                        value=filter_end_value,
-                        cls="input input-sm",
+                    Div(
+                        fh.Label("结束日期", cls="block text-xs text-gray-500 mb-1"),
+                        Input(
+                            id="filter_end",
+                            type="date",
+                            value=filter_end_value,
+                            cls="input input-sm",
+                        ),
+                        cls="flex flex-col"
                     ),
-                    cls="flex flex-col"
-                ),
                 cls="flex flex-wrap gap-4 mb-4"
             ),
             Div(id=chart_id, cls="w-full h-[560px] bg-white p-4 rounded-xl shadow-sm border border-gray-100"),

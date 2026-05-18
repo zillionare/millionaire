@@ -15,6 +15,9 @@ from quantide.web.layouts.main import MainLayout
 
 from quantide.web.theme import AppTheme
 
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
+
 home_app, rt = fast_app(hdrs=AppTheme.headers())
 
 
@@ -263,14 +266,14 @@ def TradePanel():
             Input(type="hidden", id="side", name="side", value="BUY"),
             # Inputs
             Div(
-                Label("股票代码", cls=label_cls),
+                _Label("股票代码", cls=label_cls),
                 Input(
                     name="asset",
                     placeholder="例如: 000001.SZ",
                     cls=input_cls,
                     required=True,
                 ),
-                Label("买入价格", cls=label_cls),
+                _Label("买入价格", cls=label_cls),
                 Input(
                     name="price",
                     type="number",
@@ -278,7 +281,7 @@ def TradePanel():
                     value="0.00",
                     cls=input_cls,
                 ),
-                Label("仓位选择", cls=label_cls),
+                _Label("仓位选择", cls=label_cls),
                 Div(
                     Button("满仓", type="button", cls=ratio_btn_cls),
                     Button("1/2", type="button", cls=ratio_btn_cls),
@@ -287,7 +290,7 @@ def TradePanel():
                     Button("1/10", type="button", cls=ratio_btn_cls),
                     cls="flex gap-1 mb-4 mt-1",
                 ),
-                Label("交易数量 (股)", cls=label_cls),
+                _Label("交易数量 (股)", cls=label_cls),
                 Input(
                     name="shares", type="number", step="100", cls=input_cls, required=True
                 ),

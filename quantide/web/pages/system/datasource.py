@@ -20,6 +20,9 @@ from quantide.service.init_wizard import init_wizard
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme, PRIMARY_COLOR
 
+# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
+from fasthtml.common import Label as _Label, Input as _Input, Select as _Select
+
 # 定义子路由应用
 system_datasource_app, rt = fast_app(hdrs=AppTheme.headers())
 
@@ -202,8 +205,8 @@ def _build_config_card(config: dict[str, Any]) -> Div:
         ),
         Form(
             Div(
-                Label("数据源", cls="block text-sm font-medium text-gray-700 mb-1"),
-                Select(
+                _Label("数据源", cls="block text-sm font-medium text-gray-700 mb-1"),
+                _Select(
                     Option("Tushare Pro", value="tushare", selected=str(config.get("data_source", "tushare")) == "tushare"),
                     name="data_source",
                     cls="select select-bordered w-full",
@@ -211,7 +214,7 @@ def _build_config_card(config: dict[str, Any]) -> Div:
                 cls="mb-3",
             ),
             Div(
-                Label("Tushare Token", cls="block text-sm font-medium text-gray-700 mb-1"),
+                _Label("Tushare Token", cls="block text-sm font-medium text-gray-700 mb-1"),
                 Input(
                     type="password",
                     name="tushare_token",
@@ -222,7 +225,7 @@ def _build_config_card(config: dict[str, Any]) -> Div:
                 cls="mb-3",
             ),
             Div(
-                Label("数据起始日", cls="block text-sm font-medium text-gray-700 mb-1"),
+                _Label("数据起始日", cls="block text-sm font-medium text-gray-700 mb-1"),
                 Input(
                     type="date",
                     name="epoch",

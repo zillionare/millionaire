@@ -13,6 +13,9 @@ from quantide.web.layouts.main import MainLayout
 
 from quantide.web.theme import AppTheme
 
+# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
+from fasthtml.common import Label as _Label, Input as _Input, Select as _Select
+
 trade_app, rt = fast_app(hdrs=AppTheme.headers())
 
 
@@ -330,7 +333,7 @@ def CreatePortfolioModal():
             H3("创建仿真账户", cls="text-lg font-bold mb-4"),
             Form(
                 Div(
-                    Label("账户名称", cls="block text-sm font-medium mb-1"),
+                    _Label("账户名称", cls="block text-sm font-medium mb-1"),
                     Input(
                         name="name",
                         placeholder="例如: 策略A",
@@ -340,7 +343,7 @@ def CreatePortfolioModal():
                     cls="mb-4",
                 ),
                 Div(
-                    Label("初始资金", cls="block text-sm font-medium mb-1"),
+                    _Label("初始资金", cls="block text-sm font-medium mb-1"),
                     Input(
                         name="principal",
                         type="number",
@@ -350,7 +353,7 @@ def CreatePortfolioModal():
                     cls="mb-4",
                 ),
                 Div(
-                    Label("佣金费率", cls="block text-sm font-medium mb-1"),
+                    _Label("佣金费率", cls="block text-sm font-medium mb-1"),
                     Input(
                         name="commission",
                         type="number",
@@ -361,8 +364,8 @@ def CreatePortfolioModal():
                     cls="mb-4",
                 ),
                 Div(
-                    Label("市值更新间隔 (秒)", cls="block text-sm font-medium mb-1"),
-                    Select(
+                    _Label("市值更新间隔 (秒)", cls="block text-sm font-medium mb-1"),
+                    _Select(
                         Option("3 秒", value="3"),
                         Option("5 秒", value="5"),
                         Option("10 秒 (推荐)", value="10", selected=True),
@@ -372,7 +375,7 @@ def CreatePortfolioModal():
                     cls="mb-4",
                 ),
                 Div(
-                    Label("描述信息", cls="block text-sm font-medium mb-1"),
+                    _Label("描述信息", cls="block text-sm font-medium mb-1"),
                     Textarea(
                         name="info",
                         placeholder="账户描述（可选）",

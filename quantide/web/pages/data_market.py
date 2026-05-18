@@ -15,6 +15,9 @@ from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme, PRIMARY_COLOR
 from loguru import logger
 
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
+
 # 定义子路由应用
 data_market_app, rt = fast_app(hdrs=AppTheme.headers())
 
@@ -118,22 +121,22 @@ def _VerifyTab():
             Form(
                 Div(
                     Div(
-                        Label("资产 (逗号分隔，可选)", cls="block text-sm font-medium mb-1"),
+                        _Label("资产 (逗号分隔，可选)", cls="block text-sm font-medium mb-1"),
                         Input(name="assets", placeholder="例如: 000001.SZ, 600000.SH", cls="input w-full"),
                         cls="flex-1"
                     ),
                     Div(
-                        Label("开始年份", cls="block text-sm font-medium mb-1"),
+                        _Label("开始年份", cls="block text-sm font-medium mb-1"),
                         Input(name="start_year", type="number", value="2024", cls="input w-full"),
                         cls="w-32"
                     ),
                     Div(
-                        Label("结束年份", cls="block text-sm font-medium mb-1"),
+                        _Label("结束年份", cls="block text-sm font-medium mb-1"),
                         Input(name="end_year", type="number", value="2024", cls="input w-full"),
                         cls="w-32"
                     ),
                     Div(
-                        Label(" ", cls="block text-sm mb-1"),
+                        Div(cls="block text-sm mb-1"),
                         Button("手动校验", type="submit", cls="btn btn-primary w-full"),
                         cls="w-32"
                     ),
@@ -165,17 +168,17 @@ def _UpdateTab():
             Form(
                 Div(
                     Div(
-                        Label("开始日期", cls="block text-sm font-medium mb-1"),
+                        _Label("开始日期", cls="block text-sm font-medium mb-1"),
                         Input(name="start_date", type="date", value="2024-01-01", cls="input w-full"),
                         cls="flex-1"
                     ),
                     Div(
-                        Label("结束日期", cls="block text-sm font-medium mb-1"),
+                        _Label("结束日期", cls="block text-sm font-medium mb-1"),
                         Input(name="end_date", type="date", value=today_str, cls="input w-full"),
                         cls="flex-1"
                     ),
                     Div(
-                        Label(" ", cls="block text-sm mb-1"),
+                        Div(cls="block text-sm mb-1"),
                         Button(
                             Div(UkIcon("download", cls="mr-2"), "立即更新", cls="flex items-center"),
                             type="submit",

@@ -30,6 +30,9 @@ from quantide.web.layouts.base import BaseLayout
 
 from quantide.web.theme import AppTheme, PRIMARY_COLOR
 
+# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
+from fasthtml.common import Label as _Label, Input as _Input
+
 init_wizard_app, rt = fast_app(hdrs=AppTheme.headers())
 
 
@@ -698,8 +701,8 @@ def Step2_Runtime(state: dict | None = None):
             ),
             # 只允许本机访问
             Div(
-                Label(
-                    Input(
+                _Label(
+                    _Input(
                         type="checkbox",
                         name=RUNTIME_FORM_FIELDS["localhost_only"],
                         value="true",
@@ -793,8 +796,8 @@ def Step4_Gateway(state: dict | None = None):
         Div(
             # 启用 gateway
             Div(
-                Label(
-                    Input(
+                _Label(
+                    _Input(
                         type="checkbox",
                         name=GATEWAY_FORM_FIELDS["enabled"],
                         value="true",

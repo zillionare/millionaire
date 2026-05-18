@@ -11,6 +11,9 @@ from quantide.data.models.calendar import calendar as trade_calendar
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme, PRIMARY_COLOR
 
+# Use FastHTML's plain Select to avoid MonsterUI's custom uk-select component
+from fasthtml.common import Select as _Select
+
 # 定义子路由应用
 system_calendar_app, rt = fast_app(hdrs=AppTheme.headers())
 
@@ -170,12 +173,12 @@ async def index(req, year: int = None, month: int = None):
                   cls="btn btn-sm btn-outline ml-1", title="下一年"),
                 cls="flex items-center space-x-1"
             ),
-                 Form(
+                  Form(
                   Div(
-                      Select(*year_options, name="year", id="year-select",
+                      _Select(*year_options, name="year", id="year-select",
                           cls="select select-bordered select-sm w-24", onchange="this.form.submit()"),
                       Span(" 年 ", cls="mx-1"),
-                      Select(*month_options, name="month", id="month-select",
+                      _Select(*month_options, name="month", id="month-select",
                           cls="select select-bordered select-sm w-20", onchange="this.form.submit()"),
                       Span(" 月", cls="ml-1"),
                       cls="flex items-center"
