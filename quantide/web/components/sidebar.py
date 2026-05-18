@@ -1,6 +1,7 @@
 """Sidebar 组件。"""
 
 from fasthtml.common import *
+from fasthtml.svg import Path as SvgPath
 from monsterui.all import *
 
 
@@ -37,7 +38,7 @@ def sidebar_component(
         if icon_path:
             # 使用自定义 SVG path
             icon_cmp = Svg(
-                Path(d=icon_path, stroke="currentColor", fill="none", stroke_width="2", stroke_linecap="round", stroke_linejoin="round"),
+                SvgPath(d=icon_path, stroke="currentColor", fill="none", stroke_width="2", stroke_linecap="round", stroke_linejoin="round"),
                 cls="w-5 h-5"
             )
         else:
@@ -59,7 +60,7 @@ def sidebar_component(
                 
                 if child_icon_path:
                     child_icon = Svg(
-                        Path(d=child_icon_path, stroke="currentColor", fill="none", stroke_width="2", stroke_linecap="round", stroke_linejoin="round"),
+                        SvgPath(d=child_icon_path, stroke="currentColor", fill="none", stroke_width="2", stroke_linecap="round", stroke_linejoin="round"),
                         cls="w-4 h-4 mr-2"
                     )
                 else:

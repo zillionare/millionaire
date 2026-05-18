@@ -2,13 +2,14 @@ import asyncio
 import datetime
 import json
 import uuid
-from pathlib import Path
+from pathlib import Path as FilePath
 from typing import Any
 
 import arrow
 import fasthtml.common as fh
 import polars as pl
 from fasthtml.common import *
+from fasthtml.svg import Path as SvgPath
 from loguru import logger
 from monsterui.all import *
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -1301,9 +1302,9 @@ def index(req, session):
                             placeholder="按策略名过滤...",
                             cls="pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent",
                         ),
-                        Svg(
-                            Path(
-                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+                         Svg(
+                             SvgPath(
+                                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
                                 **{
                                     "stroke-linecap": "round",
                                     "stroke-linejoin": "round",
@@ -2794,7 +2795,7 @@ def _strategy_scan_toolbar():
         Button(
             Span(
                 Svg(
-                    Path(
+                    SvgPath(
                         d="M12 4v16m8-8H4",
                         **{
                             "stroke-linecap": "round",
@@ -2841,7 +2842,7 @@ def _normalize_scan_directory(directory: str) -> tuple[str, Path]:
     if not text:
         raise ValueError("目录不能为空")
 
-    path = Path(text).expanduser()
+    path = FilePath(text).expanduser()
     if not path.is_absolute():
         raise ValueError("必须使用绝对路径，例如: /Users/name/strategies")
 
