@@ -111,3 +111,7 @@ site/
 .history/
 tests/assets/DailyBars-dates.pq
 .omc/**
+.playwright-mcp
+.sisyphus
+
+
