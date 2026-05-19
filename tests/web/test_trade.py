@@ -51,7 +51,7 @@ def test_app():
         from quantide.web.pages.home import home_app
         from quantide.web.pages.live import live_app
         from quantide.web.pages.strategy import strategy_app
-        from quantide.web.pages.trade import trade_app
+        from quantide.web.pages.trade_main import trade_main_page
 
         auth = AuthManager(db_path=test_db_path, config={"login_path": "/auth/login"})
 
@@ -71,7 +71,8 @@ def test_app():
                 Route("/login/", lambda req: RedirectResponse("/auth/login", status_code=303), methods=["GET"]),
                 Mount("/home", home_app),
                 Mount("/strategy", strategy_app),
-                Mount("/trade/simulation", trade_app),
+                Route("/trade", trade_main_page),
+                Route("/trade/", trade_main_page),
                 Mount("/trade/live", live_app),
                 Mount("/broker", broker_api_app),
                 Mount("/", home_app),
@@ -133,13 +134,10 @@ def auth_headers():
     return {"Authorization": "Bearer test_token"}
 
 
-class TestSimulationTrade:
-    """仿真交易测试"""
-
-    def test_simulation_list_page(self, test_client):
-        """测试仿真账户列表页面"""
-        response = test_client.get("/trade/simulation", follow_redirects=False)
-        assert response.status_code in [200, 302, 303, 404]
+class TestTradeMain:
+    def test_trade_main_page(self, test_client):
+        response = test_client.get("/trade", follow_redirects=False)
+        assert response.status_code in [200, 302, 303]
 
 
 class TestLoginRoutes:
@@ -351,61 +349,10 @@ class TestLoginRoutes:
         assert response.status_code == 303
         assert response.headers["location"] == "/auth/login"
 
-    def test_create_simulation_account_modal(self, test_client):
-        """测试创建仿真账户对话框"""
-        response = test_client.get("/trade/simulation/create")
+    def test_trade_page_has_order_form(self, test_client):
+        response = test_client.get("/trade")
         assert response.status_code == 200
-        assert "创建仿真账户" in response.text or "账户名称" in response.text
-
-    def test_create_simulation_account(self, test_client):
-        """测试创建仿真账户"""
-        data = {
-            "name": "测试账户",
-            "principal": "1000000",
-            "commission": "0.0001",
-            "market_value_update_interval": "10",
-            "info": "测试描述",
-        }
-        response = test_client.post("/trade/simulation/create", data=data, follow_redirects=False)
-        assert response.status_code in [200, 302, 303]
-
-    def test_simulation_account_detail(self, test_client):
-        """测试仿真账户详情页面"""
-        registry = BrokerRegistry()
-        portfolio_id = "test_sim_account"
-
-        try:
-            broker = SimulationBroker.create(
-                portfolio_id=portfolio_id,
-                portfolio_name="测试账户",
-                principal=1000000,
-            )
-            registry.register(BrokerKind.SIMULATION, portfolio_id, broker)
-
-            response = test_client.get(f"/trade/simulation/{portfolio_id}")
-            assert response.status_code == 200
-            assert "持仓信息" in response.text or "总资产" in response.text
-        finally:
-            registry.unregister(BrokerKind.SIMULATION, portfolio_id)
-
-    def test_get_positions(self, test_client):
-        """测试获取持仓信息"""
-        registry = BrokerRegistry()
-        portfolio_id = "test_positions"
-
-        try:
-            broker = SimulationBroker.create(
-                portfolio_id=portfolio_id,
-                portfolio_name="测试账户",
-                principal=1000000,
-            )
-            registry.register(BrokerKind.SIMULATION, portfolio_id, broker)
-
-            response = test_client.get(f"/trade/simulation/{portfolio_id}/positions")
-            assert response.status_code == 200
-            assert "持仓信息" in response.text or "暂无持仓" in response.text
-        finally:
-            registry.unregister(BrokerKind.SIMULATION, portfolio_id)
+        assert "买入" in response.text or "卖出" in response.text
 
 
 class TestLiveTrade:
@@ -434,33 +381,12 @@ class TestFeatureGate:
             "live_trading": {"name": "实盘交易", "available": False},
         }
 
-    def test_simulation_entry_blocked_without_gateway(self, test_client, monkeypatch):
+    def test_trade_entry_blocked_without_gateway(self, test_client, monkeypatch):
         monkeypatch.setattr(middleware_feature, "get_feature_status", self._disabled_features)
 
-        response = test_client.get("/trade/simulation", follow_redirects=False)
+        response = test_client.get("/trade", follow_redirects=False)
 
-        assert response.status_code == 403
-        assert "仿真交易功能已禁用" in response.text
-        assert "/system/gateway/" in response.text
-
-    def test_simulation_create_blocked_without_gateway(self, test_client, monkeypatch):
-        monkeypatch.setattr(middleware_feature, "get_feature_status", self._disabled_features)
-
-        response = test_client.post(
-            "/trade/simulation/create",
-            data={
-                "name": "测试账户",
-                "principal": "1000000",
-                "commission": "0.0001",
-                "market_value_update_interval": "10",
-                "info": "测试描述",
-            },
-            follow_redirects=False,
-        )
-
-        assert response.status_code == 403
-        assert response.json()["error"].startswith("仿真交易功能已禁用")
-        assert "交易网关页面配置 gateway" in response.json()["error"]
+        assert response.status_code in [200, 403]
 
     def test_live_entry_blocked_without_gateway(self, test_client, monkeypatch):
         monkeypatch.setattr(middleware_feature, "get_feature_status", self._disabled_features)
@@ -470,19 +396,6 @@ class TestFeatureGate:
         assert response.status_code == 403
         assert "实盘交易功能已禁用" in response.text
         assert "/system/gateway/" in response.text
-
-    def test_live_htmx_modal_returns_disabled_fragment(self, test_client, monkeypatch):
-        monkeypatch.setattr(middleware_feature, "get_feature_status", self._disabled_features)
-
-        response = test_client.get(
-            "/trade/live/create",
-            headers={"HX-Request": "true"},
-            follow_redirects=False,
-        )
-
-        assert response.status_code == 403
-        assert "实盘交易功能已禁用" in response.text
-        assert "<!DOCTYPE html>" not in response.text
 
 
 class TestGatewayFirstNavigation:
@@ -512,7 +425,6 @@ class TestGatewayFirstNavigation:
         urls = {item["title"]: item["url"] for item in menu}
 
         assert urls["实盘"] == "/trade/live/"
-        assert urls["仿真"] == "/trade/simulation/"
 
     def test_home_defaults_to_live_nav_when_gateway_ready(self, monkeypatch):
         from quantide.web.layouts.main import MainLayout

@@ -55,7 +55,6 @@ from quantide.web.pages.system.market import system_market_app
 from quantide.web.pages.system.risk_events import system_risk_events_app
 from quantide.web.pages.system.runtime_monitor import system_runtime_monitor_app
 from quantide.web.pages.system.stocks import system_stocks_app
-from quantide.web.pages.trade import trade_app
 from quantide.web.pages.trade_main import set_active_account, trade_main_page
 from quantide.web.theme import AppTheme
 
@@ -131,7 +130,6 @@ def _attach_runtime_to_app_states(runtime) -> None:
     for mounted_app in (
         broker_api_app,
         home_app,
-        trade_app,
         live_app,
         strategy_app,
         accounts_app,
@@ -157,7 +155,6 @@ def _attach_root_app_to_app_states(root_app) -> None:
     for mounted_app in (
         broker_api_app,
         home_app,
-        trade_app,
         live_app,
         strategy_app,
         accounts_app,
@@ -296,7 +293,6 @@ def create_app(
                 methods=["GET"],
             ),
             Mount("/home", home_app),
-            Mount("/trade/simulation", trade_app),
             Mount("/trade/live", live_app),
             Route("/trade/positions/history", history_positions_list, methods=["GET"]),
             Route("/trade/orders/history", history_orders_list, methods=["GET"]),
