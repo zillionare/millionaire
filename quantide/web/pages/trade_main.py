@@ -288,55 +288,52 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     ),
                     # Hidden submit for HTMX
                     Input(type="submit", cls="hidden", id="form-submit"),
-                    cls="col-span-2 space-y-3",
+                    cls="col-span-5 space-y-3",
                 ),
-                # 中间：价格快捷输入区（1/5）
+                # 中间：价格快捷输入区
                 Div(
+                    # 顶部标题行：快捷价格 + 参考价格按钮 + 实时价格
                     Div(
                         Span("快捷价格", cls="text-sm font-medium text-gray-700 dark:text-gray-300"),
-                        Span("实时: 0.00", cls="text-xs text-gray-500 dark:text-gray-400"),
-                        cls="flex items-center justify-between mb-2",
-                    ),
-                    Div(
-                        # 中间列：4x5 涨跌百分比按钮网格
-                        Div(
-                            *[
-                                Button(
-                                    Div(label, cls="text-xs font-medium leading-tight"),
-                                    Div("--", cls="quick-price-display text-[10px] text-gray-400 leading-tight mt-0.5"),
-                                    type="button",
-                                    cls=(
-                                        "quick-price-btn w-full px-1 py-1 rounded font-medium text-center "
-                                        + ("bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200" if label == "涨停" else
-                                           "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200" if label == "跌停" else
-                                           "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200")
-                                    ),
-                                    data_pct=str(pct),
-                                )
-                                for row in [
-                                    [("涨停", 0.10), ("9", 0.09), ("8", 0.08), ("7", 0.07)],
-                                    [("6", 0.06), ("5", 0.05), ("4", 0.04), ("3", 0.03)],
-                                    [("2", 0.02), ("1", 0.01), ("-1", -0.01), ("-2", -0.02)],
-                                    [("-3", -0.03), ("-4", -0.04), ("-5", -0.05), ("-6", -0.06)],
-                                    [("-7", -0.07), ("-8", -0.08), ("-9", -0.09), ("跌停", -0.10)],
-                                ]
-                                for label, pct in row
-                            ],
-                            cls="grid grid-cols-4 gap-1 flex-1",
-                        ),
-                        # 右上角列：参考价格
                         Div(
                             *[
                                 Button(
                                     label,
                                     type="button",
-                                    cls="ref-price-btn w-full px-1 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium",
+                                    cls="ref-price-btn px-1.5 py-0.5 text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 font-medium",
                                 )
                                 for label in ["昨收", "MA5", "MA10", "MA20", "MA30", "MA60", "现价"]
                             ],
-                            cls="space-y-1 w-14",
+                            cls="flex gap-1",
                         ),
-                        cls="flex gap-2",
+                        Span("实时: 0.00", cls="text-xs text-gray-500 dark:text-gray-400"),
+                        cls="flex items-center justify-between mb-2 gap-2",
+                    ),
+                    # 中间主体：4x5 涨跌百分比按钮网格
+                    Div(
+                        *[
+                            Button(
+                                Div(label, cls="text-xs font-medium leading-tight"),
+                                Div("--", cls="quick-price-display text-[10px] text-gray-400 leading-tight mt-0.5"),
+                                type="button",
+                                cls=(
+                                    "quick-price-btn w-full px-1 py-1 rounded font-medium text-center "
+                                    + ("bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200" if label == "涨停" else
+                                       "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200" if label == "跌停" else
+                                       "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200")
+                                ),
+                                data_pct=str(pct),
+                            )
+                            for row in [
+                                [("涨停", 0.10), ("9", 0.09), ("8", 0.08), ("7", 0.07)],
+                                [("6", 0.06), ("5", 0.05), ("4", 0.04), ("3", 0.03)],
+                                [("2", 0.02), ("1", 0.01), ("-1", -0.01), ("-2", -0.02)],
+                                [("-3", -0.03), ("-4", -0.04), ("-5", -0.05), ("-6", -0.06)],
+                                [("-7", -0.07), ("-8", -0.08), ("-9", -0.09), ("跌停", -0.10)],
+                            ]
+                            for label, pct in row
+                        ],
+                        cls="grid grid-cols-4 gap-1",
                     ),
                     cls="space-y-2",
                 ),
@@ -369,9 +366,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         ),
                         cls="space-y-2",
                     ),
-                    cls="col-span-2 bg-gray-50 dark:bg-gray-700 rounded-lg p-4",
+                    cls="col-span-3 bg-gray-50 dark:bg-gray-700 rounded-lg p-4",
                 ),
-                cls="grid grid-cols-5 gap-4",
+                cls="grid grid-cols-12 gap-4",
             ),
             Script(
                 """
@@ -514,6 +511,13 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         assetDisplay.value = item.dataset.display;
                         assetCode.value = item.dataset.asset;
                         searchDropdown.classList.add('hidden');
+                        // Auto-fill price if available
+                        const price = item.dataset.price;
+                        if (price && price !== '') {
+                            priceInput.value = price;
+                            updateEstShares();
+                            updateQuickPrices();
+                        }
                     }
 
                     function attachSearchItemListeners() {
@@ -1034,12 +1038,25 @@ async def search_trade_assets(req):
             cls="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto",
         )))
 
+    # 查询最新价格
+    from quantide.data.models.daily_bars import daily_bars
+    import datetime
+
+    today = datetime.date.today()
     items = []
     for _, row in result_df.iterrows():
         asset = row.get("asset", "")
         name = row.get("name", "")
         pinyin = row.get("pinyin", "")
         display = f"{name}（{asset}）"
+        # 尝试获取最新收盘价
+        price = ""
+        try:
+            close, up_limit, down_limit = daily_bars.get_price(asset, today)
+            if close and close > 0:
+                price = str(close)
+        except Exception:
+            pass
         items.append(
             Div(
                 Div(name, cls="text-sm font-medium text-gray-900 dark:text-white"),
@@ -1048,6 +1065,7 @@ async def search_trade_assets(req):
                 data_asset=asset,
                 data_name=name,
                 data_display=display,
+                data_price=price,
             )
         )
 
