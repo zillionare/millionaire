@@ -55,7 +55,7 @@ from quantide.web.pages.system.market import system_market_app
 from quantide.web.pages.system.risk_events import system_risk_events_app
 from quantide.web.pages.system.runtime_monitor import system_runtime_monitor_app
 from quantide.web.pages.system.stocks import system_stocks_app
-from quantide.web.pages.trade_main import set_active_account, trade_main_page
+from quantide.web.pages.trade_main import place_order_trade, search_trade_assets, set_active_account, trade_main_page
 from quantide.web.theme import AppTheme
 
 
@@ -299,6 +299,8 @@ def create_app(
             Route("/trade/records/history", history_trades_list, methods=["GET"]),
             Route("/trade", trade_main_page),
             Route("/trade/", trade_main_page),
+            Route("/trade/search", search_trade_assets, methods=["GET"]),
+            Route("/trade/order", place_order_trade, methods=["POST"]),
             Route("/system/accounts", accounts_list, methods=["GET"]),
             Route("/system/accounts/", accounts_list, methods=["GET"]),
             Mount("/system/accounts", accounts_app),

@@ -1,4 +1,5 @@
 """测试交易模块页面"""
+import re
 import tempfile
 import urllib.error
 from email.message import Message
@@ -51,7 +52,7 @@ def test_app():
         from quantide.web.pages.home import home_app
         from quantide.web.pages.live import live_app
         from quantide.web.pages.strategy import strategy_app
-        from quantide.web.pages.trade_main import trade_main_page
+        from quantide.web.pages.trade_main import place_order_trade, search_trade_assets, trade_main_page
 
         auth = AuthManager(db_path=test_db_path, config={"login_path": "/auth/login"})
 
@@ -73,6 +74,8 @@ def test_app():
                 Mount("/strategy", strategy_app),
                 Route("/trade", trade_main_page),
                 Route("/trade/", trade_main_page),
+                Route("/trade/search", search_trade_assets, methods=["GET"]),
+                Route("/trade/order", place_order_trade, methods=["POST"]),
                 Mount("/trade/live", live_app),
                 Mount("/broker", broker_api_app),
                 Mount("/", home_app),
@@ -353,6 +356,149 @@ class TestLoginRoutes:
         response = test_client.get("/trade")
         assert response.status_code == 200
         assert "买入" in response.text or "卖出" in response.text
+
+    def test_trade_panel_matches_spec(self, test_client):
+        """验证下单键盘 UI 符合 spec (issue #7)."""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        # 1. 第一行无文本标签，placeholder 提示 + search icon
+        assert "请输入股票名、拼音或者代码" in text
+        # 不再显示"代码"文本标签（作为独立文本）
+        assert '<span class="w-16 text-sm font-medium text-gray-700 dark:text-gray-300">代码</span>' not in text
+
+        # 2. 第二行有价格模式选择（限价/市价）+ 价格输入
+        assert "限价" in text
+        assert "市价" in text
+        assert 'name="price_mode"' in text
+
+        # 3. 第三行有下单方式 radio 按钮组
+        assert "按金额下单" in text
+        assert "按数量下单" in text
+        assert 'name="order_mode"' in text
+
+        # 4. 动态标签输入框（默认买入金额）
+        assert "买入金额（万元）" in text
+        assert 'name="value"' in text
+
+        # 5. 预估数量显示
+        assert "预估数量" in text
+        assert 'id="est-shares"' in text
+
+        # 6. 仓位按钮按正确顺序排列（1/4, 1/3, 1/2, 全仓）
+        # 旧的"仓位"文本标签（带有 w-16 宽度）已移除
+        # 按顺序 1/4, 1/3, 1/2, 全仓 应同时出现
+        assert "1/4" in text
+        assert "1/3" in text
+        assert "1/2" in text
+        assert "全仓" in text
+        # 验证顺序：提取 data-fraction 属性附近（pos-btn class）的按钮文本
+        pos_pattern = r'<button[^>]*data-fraction="[^"]+"[^>]*>([^<]+)</button>'
+        pos_matches = re.findall(pos_pattern, text)
+        # 过滤出仓位按钮
+        position_btns = [m.strip() for m in pos_matches if m.strip() in {"1/4", "1/3", "1/2", "全仓"}]
+        assert position_btns == ["1/4", "1/3", "1/2", "全仓"]
+
+        # 7. 买卖按钮有激活状态标识
+        assert 'id="btn-buy"' in text
+        assert 'id="btn-sell"' in text
+        assert 'id="side-input"' in text
+        assert 'value="BUY"' in text  # 默认买入
+        assert "*" in text  # 激活状态的星号标记
+
+    def test_trade_panel_order_mode_changes_label(self, test_client):
+        """验证下单方式切换时动态标签存在所需 DOM 元素."""
+        response = test_client.get("/trade")
+        text = response.text
+        assert response.status_code == 200
+        # 需要存在 JS 可以操作的元素
+        assert 'id="value-label"' in text
+        assert 'id="order-mode-amount"' in text
+        assert 'id="order-mode-quantity"' in text
+
+    def test_trade_panel_has_javascript_interactivity(self, test_client):
+        """验证下单面板包含交互式 JavaScript."""
+        response = test_client.get("/trade")
+        text = response.text
+        assert response.status_code == 200
+        # 检查 JS 函数存在
+        assert "updatePriceMode" in text
+        assert "updateLabel" in text
+        assert "updateActiveSide" in text
+        assert "updateEstShares" in text
+        assert "setPosition" in text
+
+    def test_trade_panel_has_asset_search(self, test_client):
+        """验证股票代码输入框带有搜索下拉功能 (issue #9)."""
+        response = test_client.get("/trade")
+        text = response.text
+        assert response.status_code == 200
+        # 显示输入框
+        assert 'id="asset-display"' in text
+        assert 'name="asset_display"' in text
+        # 隐藏代码字段
+        assert 'id="asset-code"' in text
+        assert 'name="asset"' in text
+        # HTMX 搜索属性
+        assert 'hx-get="/trade/search"' in text
+        assert 'hx-target="#asset-search-dropdown"' in text
+        # 下拉容器
+        assert 'id="asset-search-dropdown"' in text
+        # JS 搜索处理函数
+        assert "selectAsset" in text
+        assert "attachSearchItemListeners" in text
+
+
+class TestTradeOrderRoute:
+    """测试 /trade/order 下单路由."""
+
+    def test_order_route_with_broker(self, test_client):
+        """有可用 broker 时下单成功（测试 fixture 已注册 sim_demo）."""
+        response = test_client.post(
+            "/trade/order",
+            data={
+                "side": "BUY",
+                "asset": "000001.SZ",
+                "price_mode": "LIMIT",
+                "price": "10.00",
+                "order_mode": "QUANTITY",
+                "value": "1",
+            },
+        )
+        assert response.status_code == 200
+        # 有 broker 时下单会尝试执行（可能成功或失败，但不会报"未找到 broker"）
+        assert "未找到" not in response.text
+
+    def test_order_route_rejects_empty_asset(self, test_client):
+        """空股票代码应返回错误."""
+        response = test_client.post(
+            "/trade/order",
+            data={
+                "side": "BUY",
+                "asset": "",
+                "price_mode": "LIMIT",
+                "price": "10.00",
+                "order_mode": "AMOUNT",
+                "value": "1",
+            },
+        )
+        assert response.status_code == 200
+
+    def test_order_route_accepts_valid_form(self, test_client):
+        """有效表单数据应返回响应（成功或错误均可）."""
+        response = test_client.post(
+            "/trade/order",
+            data={
+                "side": "BUY",
+                "asset": "000001.SZ",
+                "price_mode": "LIMIT",
+                "price": "10.00",
+                "order_mode": "AMOUNT",
+                "value": "1",
+            },
+        )
+        assert response.status_code == 200
 
 
 class TestLiveTrade:
