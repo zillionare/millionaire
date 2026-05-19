@@ -298,37 +298,45 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         cls="flex items-center justify-between mb-2",
                     ),
                     Div(
-                        # 涨幅按钮
+                        # 中间列：4x5 涨跌百分比按钮网格
                         Div(
-                            Button("1%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("2%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("3%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("4%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("5%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("涨停", type="button", cls="w-full px-1 py-1.5 text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded hover:bg-red-200 font-medium"),
-                            cls="space-y-1",
+                            *[
+                                Button(
+                                    Div(label, cls="text-xs font-medium leading-tight"),
+                                    Div("--", cls="quick-price-display text-[10px] text-gray-400 leading-tight mt-0.5"),
+                                    type="button",
+                                    cls=(
+                                        "quick-price-btn w-full px-1 py-1 rounded font-medium text-center "
+                                        + ("bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200" if label == "涨停" else
+                                           "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200" if label == "跌停" else
+                                           "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200")
+                                    ),
+                                    data_pct=str(pct),
+                                )
+                                for row in [
+                                    [("涨停", 0.10), ("9", 0.09), ("8", 0.08), ("7", 0.07)],
+                                    [("6", 0.06), ("5", 0.05), ("4", 0.04), ("3", 0.03)],
+                                    [("2", 0.02), ("1", 0.01), ("-1", -0.01), ("-2", -0.02)],
+                                    [("-3", -0.03), ("-4", -0.04), ("-5", -0.05), ("-6", -0.06)],
+                                    [("-7", -0.07), ("-8", -0.08), ("-9", -0.09), ("跌停", -0.10)],
+                                ]
+                                for label, pct in row
+                            ],
+                            cls="grid grid-cols-4 gap-1 flex-1",
                         ),
-                        # 跌幅按钮
+                        # 右上角列：参考价格
                         Div(
-                            Button("跌停", type="button", cls="w-full px-1 py-1.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 font-medium"),
-                            Button("-5%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("-4%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("-3%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("-2%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            Button("-1%", type="button", cls="w-full px-1 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium"),
-                            cls="space-y-1",
+                            *[
+                                Button(
+                                    label,
+                                    type="button",
+                                    cls="ref-price-btn w-full px-1 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 font-medium",
+                                )
+                                for label in ["昨收", "MA5", "MA10", "MA20", "MA30", "MA60", "现价"]
+                            ],
+                            cls="space-y-1 w-14",
                         ),
-                        # MA均线按钮
-                        Div(
-                            Button("MA5", type="button", cls="w-full px-1 py-1.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 font-medium"),
-                            Button("MA10", type="button", cls="w-full px-1 py-1.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 font-medium"),
-                            Button("MA20", type="button", cls="w-full px-1 py-1.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 font-medium"),
-                            Button("MA30", type="button", cls="w-full px-1 py-1.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 font-medium"),
-                            Button("MA60", type="button", cls="w-full px-1 py-1.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 font-medium"),
-                            Button("MA120", type="button", cls="w-full px-1 py-1.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 font-medium"),
-                            cls="space-y-1",
-                        ),
-                        cls="grid grid-cols-3 gap-1",
+                        cls="flex gap-2",
                     ),
                     cls="space-y-2",
                 ),
@@ -536,9 +544,49 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         assetCode.value = '';
                     });
 
+                    // --- Quick price button handlers ---
+                    function updateQuickPrices() {
+                        const basePrice = parseFloat(priceInput.value) || 0;
+                        document.querySelectorAll('.quick-price-btn').forEach(function(btn) {
+                            const display = btn.querySelector('.quick-price-display');
+                            const pct = parseFloat(btn.dataset.pct);
+                            if (basePrice <= 0 || isNaN(pct)) {
+                                display.textContent = '--';
+                                return;
+                            }
+                            const newPrice = basePrice * (1 + pct);
+                            display.textContent = newPrice.toFixed(2);
+                        });
+                    }
+
+                    // Click quick price button to set price
+                    document.querySelectorAll('.quick-price-btn').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            const basePrice = parseFloat(priceInput.value) || 0;
+                            const pct = parseFloat(this.dataset.pct);
+                            if (basePrice > 0 && !isNaN(pct)) {
+                                priceInput.value = (basePrice * (1 + pct)).toFixed(2);
+                                updateEstShares();
+                            }
+                        });
+                    });
+
+                    // Click reference price button (placeholder)
+                    document.querySelectorAll('.ref-price-btn').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            // Reference price buttons are placeholders
+                            // In a real implementation, these would fetch
+                            // 昨收/MA5/MA10/etc. from market data
+                        });
+                    });
+
+                    // Update quick price displays when price changes
+                    priceInput.addEventListener('input', updateQuickPrices);
+
                     // Initial state
                     updateActiveSide();
                     updateLabel();
+                    updateQuickPrices();
                 })();
                 """
             ),
