@@ -358,9 +358,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                 ),
                                 id="price-change-hint",
                             ),
-                            cls="relative flex-1 pb-4",
+                            cls="relative flex-1",
                         ),
-                        cls="flex items-center mb-2",
+                        cls="flex items-start mb-6",
                     ),
                     # Row 3: Order mode radio buttons (raw ft_hx to avoid MonsterUI uk-input/uk-label borders)
                     Div(
