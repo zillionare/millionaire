@@ -317,6 +317,40 @@ def test_trade_main_renders_lightning_controls_with_gateway_stub():
 
 
 @pytest.mark.e2e
+def test_trade_lightning_create_modal_matches_buy_order_markup_with_gateway_stub():
+    with (
+        system_settings_e2e_session() as session,
+        running_gateway_stub(prefix="/qmt") as gateway_stub,
+        patched_tushare_fetcher(),
+    ):
+        state = init_wizard.get_state(force_refresh=True)
+        state.gateway_enabled = True
+        state.gateway_server = gateway_stub.host
+        state.gateway_port = gateway_stub.port
+        state.gateway_base_url = gateway_stub.prefix
+        state.gateway_api_key = "gateway-key"
+        state.runtime_mode = "live"
+        state.runtime_market_adapter = "gateway"
+        state.runtime_broker_adapter = "gateway"
+        state.livequote_mode = "gateway"
+        init_wizard.save_state(state)
+
+        with open_system_settings_client(session.app_config_dir, session.market_home) as reopened_client:
+            response = reopened_client.get(
+                "/trade/lightning/sim_demo/create-modal",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 200
+        assert "创建闪电买入单" in response.text
+        assert 'name="asset_query"' in response.text
+        assert 'name="amount_wan"' in response.text
+        assert 'name="price_ref"' in response.text
+        assert "请输入股票代码、拼音或者名称" in response.text
+        assert "闪电单是一种预先确定买入标的、金额和价格的预埋单" in response.text
+
+
+@pytest.mark.e2e
 def test_trade_search_supports_name_and_pinyin_in_stub_mode():
     with system_settings_e2e_session() as session, patched_tushare_fetcher():
         with open_system_settings_client(session.app_config_dir, session.market_home) as reopened_client:

@@ -22,10 +22,17 @@ class TradeLightningEntry:
     portfolio_id: str
     asset: str
     tags: str = ""
+    amount_wan: float = 10.0
+    price_ref: str = "current"
     created_at: datetime.datetime = field(default_factory=datetime.datetime.now)
     updated_at: datetime.datetime = field(default_factory=datetime.datetime.now)
 
     def __post_init__(self) -> None:
+        if self.amount_wan in (None, ""):
+            self.amount_wan = 10.0
+        else:
+            self.amount_wan = float(self.amount_wan)
+        self.price_ref = str(self.price_ref or "current")
         if isinstance(self.created_at, str):
             self.created_at = datetime.datetime.fromisoformat(self.created_at)
         if isinstance(self.updated_at, str):
@@ -41,6 +48,8 @@ class TradeLightningEntry:
             "portfolio_id": self.portfolio_id,
             "asset": self.asset,
             "tags": self.tags,
+            "amount_wan": self.amount_wan,
+            "price_ref": self.price_ref,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -54,12 +63,21 @@ def _ensure_lightning_table() -> None:
             "portfolio_id": str,
             "asset": str,
             "tags": str,
+            "amount_wan": float,
+            "price_ref": str,
             "created_at": str,
             "updated_at": str,
         },
         pk=("portfolio_id", "asset"),
         if_not_exists=True,
     )
+    for col, typ in {
+        "tags": str,
+        "amount_wan": float,
+        "price_ref": str,
+    }.items():
+        if col not in table.columns_dict:
+            table.add_column(col, typ)  # pylint: disable=no-member
     table.create_index(  # pylint: disable=no-member
         ["portfolio_id", "updated_at"], if_not_exists=True
     )
@@ -108,14 +126,18 @@ def get_trade_lightning_entry(
 
 
 def add_trade_lightning_entry(
-    portfolio_id: str, asset: str, tags: str = ""
+    portfolio_id: str,
+    asset: str,
+    amount_wan: float = 10.0,
+    price_ref: str = "current",
 ) -> tuple[TradeLightningEntry, bool]:
     """新增闪电单条目。
 
     Args:
         portfolio_id: 交易账户 ID。
         asset: 股票代码。
-        tags: 用户标签。
+        amount_wan: 预埋买入金额，单位万元。
+        price_ref: 买入价格参考键。
 
     Returns:
         ``(entry, created)``。若已存在则返回现有条目并给出 ``False``。
@@ -124,7 +146,12 @@ def add_trade_lightning_entry(
     if existing is not None:
         return existing, False
 
-    entry = TradeLightningEntry(portfolio_id=portfolio_id, asset=asset, tags=tags.strip())
+    entry = TradeLightningEntry(
+        portfolio_id=portfolio_id,
+        asset=asset,
+        amount_wan=amount_wan,
+        price_ref=price_ref,
+    )
     table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
     table.insert(  # pylint: disable=no-member
         entry.to_record(), pk=("portfolio_id", "asset")
@@ -132,15 +159,19 @@ def add_trade_lightning_entry(
     return entry, True
 
 
-def update_trade_lightning_tags(
-    portfolio_id: str, asset: str, tags: str
+def update_trade_lightning_entry(
+    portfolio_id: str,
+    asset: str,
+    amount_wan: float,
+    price_ref: str,
 ) -> TradeLightningEntry | None:
-    """更新闪电单条目的标签。
+    """更新闪电单条目。
 
     Args:
         portfolio_id: 交易账户 ID。
         asset: 股票代码。
-        tags: 新标签文本。
+        amount_wan: 预埋买入金额，单位万元。
+        price_ref: 买入价格参考键。
 
     Returns:
         更新后的条目；若条目不存在，返回 ``None``。
@@ -152,7 +183,8 @@ def update_trade_lightning_tags(
     updated = TradeLightningEntry(
         portfolio_id=portfolio_id,
         asset=asset,
-        tags=tags.strip(),
+        amount_wan=amount_wan,
+        price_ref=price_ref,
         created_at=entry.created_at,
         updated_at=datetime.datetime.now(),
     )

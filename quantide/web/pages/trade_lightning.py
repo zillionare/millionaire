@@ -1,6 +1,6 @@
 """交易页闪电单组件与接口。
 
-本模块负责闪电单列表的渲染，以及新增、编辑标签和删除等交互。
+本模块负责闪电单列表的渲染，以及创建、编辑、删除闪电买入单等交互。
 """
 
 from __future__ import annotations
@@ -19,8 +19,19 @@ from quantide.service.trade_lightning import (
     get_trade_lightning_entry,
     list_trade_lightning_entries,
     remove_trade_lightning_entry,
-    update_trade_lightning_tags,
+    update_trade_lightning_entry,
 )
+
+PRICE_REFERENCE_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("最新价", "current"),
+    ("昨收价", "close"),
+    ("5日均线", "ma5"),
+    ("10日均线", "ma10"),
+    ("20日均线", "ma20"),
+    ("30日均线", "ma30"),
+    ("60日均线", "ma60"),
+)
+PRICE_REFERENCE_LABELS = {key: label for label, key in PRICE_REFERENCE_OPTIONS}
 
 
 def _lightning_toast(message: str, level: str = "error", *, hx_swap_oob: bool = False):
@@ -113,6 +124,52 @@ def _asset_profile(asset: str) -> tuple[str, str]:
         return asset, ""
 
 
+def _resolve_asset_input(asset_query: str) -> str | None:
+    """将用户输入解析成唯一股票代码。"""
+    normalized = asset_query.strip().upper()
+    if not normalized:
+        return None
+
+    try:
+        stock_list.get_name(normalized)
+        return normalized
+    except Exception:
+        pass
+
+    try:
+        matches = stock_list.fuzzy_search(asset_query, id_only=True)
+    except Exception:
+        return None
+    return matches[0] if len(matches) == 1 else None
+
+
+def _parse_amount_wan(raw_value: str) -> float | None:
+    """解析万元金额输入。"""
+    text = raw_value.strip()
+    if not text:
+        return None
+    try:
+        amount_wan = float(text)
+    except ValueError:
+        return None
+    return amount_wan if amount_wan > 0 else None
+
+
+def _format_amount_wan(amount_wan: float) -> str:
+    """格式化万元金额显示。"""
+    return f"{amount_wan:g}万"
+
+
+def _price_reference_label(price_ref: str) -> str:
+    """返回价格参考的展示名称。"""
+    return PRICE_REFERENCE_LABELS.get(price_ref, PRICE_REFERENCE_LABELS["current"])
+
+
+def _is_valid_price_ref(price_ref: str) -> bool:
+    """判断价格参考键是否合法。"""
+    return price_ref in PRICE_REFERENCE_LABELS
+
+
 def _reference_price_panel() -> Any:
     """渲染参考价格按钮区。"""
     return Div(
@@ -148,15 +205,6 @@ def _reference_price_panel() -> Any:
     )
 
 
-def _icon_svg(path: str, *, size: int = 14, extra_cls: str = "") -> Any:
-    """生成统一尺寸的 SVG 图标。"""
-    return NotStr(
-        f'<svg class="{extra_cls}" width="{size}" height="{size}" viewBox="0 0 24 24" '
-        'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
-        f'stroke-linejoin="round"><path d="{path}"></path></svg>'
-    )
-
-
 def _plus_circle_icon() -> Any:
     return NotStr(
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -188,18 +236,42 @@ def _pencil_icon() -> Any:
     )
 
 
+def _search_icon() -> Any:
+    return NotStr(
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+        '<circle cx="11" cy="11" r="7"></circle>'
+        '<path d="m20 20-3.5-3.5"></path>'
+        "</svg>"
+    )
+
+
+def _close_circle_icon() -> Any:
+    return NotStr(
+        '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+        '<circle cx="12" cy="12" r="9"></circle>'
+        '<path d="m9 9 6 6"></path>'
+        '<path d="m15 9-6 6"></path>'
+        "</svg>"
+    )
+
+
 def _header_icon_button(icon: Any, *, title: str, button_id: str, hx_get: str) -> Any:
     """渲染表头的纯图标按钮。"""
-    return Button(
+    return ft_hx(
+        "button",
         icon,
         type="button",
         title=title,
         hx_get=hx_get,
         hx_target="#trade-lightning-modal-container",
         cls=(
-            "inline-flex h-5 w-5 items-center justify-center text-gray-500 "
-            "transition-colors hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+            "inline-flex h-5 w-5 items-center justify-center bg-transparent p-0 text-gray-600 "
+            "outline-none ring-0 transition-colors hover:text-gray-900 dark:text-gray-200 "
+            "dark:hover:text-white"
         ),
+        style="background:none;border:none;box-shadow:none;",
         id=button_id,
     )
 
@@ -215,7 +287,10 @@ def _empty_lightning_state() -> Any:
 def _lightning_row(portfolio_id: str, entry: TradeLightningEntry) -> Any:
     """渲染单个闪电单条目。"""
     name, _ = _asset_profile(entry.asset)
-    tags = entry.tags.strip()
+    summary = (
+        f"{_format_amount_wan(entry.amount_wan)} · "
+        f"{_price_reference_label(entry.price_ref)}"
+    )
     return Div(
         Span(
             _asset_symbol(entry.asset),
@@ -226,22 +301,22 @@ def _lightning_row(portfolio_id: str, entry: TradeLightningEntry) -> Any:
             cls="flex items-center min-w-0",
         ),
         Span(
-            tags,
+            summary,
             cls="text-[11px] text-gray-400 dark:text-gray-500 mr-2 truncate max-w-[120px]",
-        )
-        if tags
-        else Span("", cls="text-[11px] mr-2"),
+            title=summary,
+        ),
         Div(
             Button(
                 _pencil_icon(),
                 type="button",
-                title="修改标签",
+                title="修改闪电单",
                 hx_get=f"/trade/lightning/{portfolio_id}/{entry.asset}/edit-modal",
                 hx_target="#trade-lightning-modal-container",
                 cls=(
-                    "inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 "
-                    "hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
+                    "inline-flex h-4 w-4 items-center justify-center bg-transparent p-0 text-gray-500 "
+                    "hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
                 ),
+                style="background:none;border:none;box-shadow:none;",
             ),
             Button(
                 _minus_circle_icon(),
@@ -250,11 +325,12 @@ def _lightning_row(portfolio_id: str, entry: TradeLightningEntry) -> Any:
                 hx_get=f"/trade/lightning/{portfolio_id}/{entry.asset}/delete-modal",
                 hx_target="#trade-lightning-modal-container",
                 cls=(
-                    "inline-flex h-6 w-6 items-center justify-center rounded text-gray-500 "
-                    "hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
+                    "inline-flex h-4 w-4 items-center justify-center bg-transparent p-0 text-gray-500 "
+                    "hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400"
                 ),
+                style="background:none;border:none;box-shadow:none;",
             ),
-            cls="flex items-center gap-1 text-xs",
+            cls="flex items-center gap-2 text-xs",
         ),
         cls=(
             "grid grid-cols-[80px_1fr_auto_auto] items-center py-2.5 px-4 border-b "
@@ -329,17 +405,41 @@ def _close_modal_button() -> str:
     return "document.getElementById('trade-lightning-modal-container').innerHTML='';"
 
 
-def _dialog_modal(title: str, body: Any, footer: Any, *, modal_id: str) -> Any:
-    """渲染闪电单弹窗。"""
+def _dialog_modal(title: str, body: Any, *, modal_id: str) -> Any:
+    """渲染带红色标题栏的闪电单弹窗。"""
     return Div(
-        Div(cls="fixed inset-0 bg-black/50 transition-opacity"),
+        Div(
+            cls="fixed inset-0 bg-black/50 transition-opacity",
+            onclick=_close_modal_button(),
+        ),
         Div(
             Div(
                 Div(
-                    Div(H3(title, cls="text-lg font-medium leading-6 text-gray-900"), cls="px-6 py-5 border-b border-gray-200"),
-                    Div(body, cls="px-6 py-5"),
-                    Div(footer, cls="px-6 py-4 border-t border-gray-100"),
-                    cls="inline-block w-full max-w-md overflow-hidden rounded-lg bg-white text-left align-middle shadow-xl",
+                    Div(
+                        Div(
+                            "致格\n知物",
+                            cls="whitespace-pre-line text-left text-sm font-semibold leading-4 text-white",
+                        ),
+                        H3(
+                            title,
+                            cls="m-0 text-center text-[30px] font-medium tracking-wide text-white",
+                        ),
+                        Button(
+                            _close_circle_icon(),
+                            type="button",
+                            title="关闭弹窗",
+                            aria_label="关闭弹窗",
+                            onclick=_close_modal_button(),
+                            cls=(
+                                "inline-flex h-8 w-8 items-center justify-center bg-transparent p-0 "
+                                "text-white hover:opacity-90"
+                            ),
+                            style="background:none;border:none;box-shadow:none;",
+                        ),
+                        cls="grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-[#d00000] px-5 py-4",
+                    ),
+                    Div(body, cls="bg-[#f7f7f7]"),
+                    cls="inline-block w-full max-w-4xl overflow-hidden rounded-xl bg-white text-left align-middle shadow-2xl",
                 ),
                 cls="flex min-h-full items-center justify-center p-4 text-center",
             ),
@@ -349,119 +449,282 @@ def _dialog_modal(title: str, body: Any, footer: Any, *, modal_id: str) -> Any:
     )
 
 
-def _edit_modal(portfolio_id: str, entry: TradeLightningEntry) -> Any:
-    """渲染编辑标签弹窗。"""
+def _modal_field_row(label: str, control: Any) -> Any:
+    """渲染设计稿风格的表单行。"""
+    return Div(
+        Div(
+            label,
+            cls=(
+                "flex items-center justify-start bg-[#d9d9d9] px-4 text-left text-[15px] "
+                "font-medium text-gray-800"
+            ),
+        ),
+        control,
+        cls="grid grid-cols-[110px_1fr] overflow-hidden rounded-md border border-[#cfcfcf] bg-white",
+    )
+
+
+def _modal_stock_input(asset_query: str, *, readonly: bool = False) -> Any:
+    """渲染股票输入框。"""
+    input_attrs: dict[str, Any] = {
+        "type": "text",
+        "value": asset_query,
+        "placeholder": "请输入股票代码、拼音或者名称",
+        "cls": (
+            "w-full border-0 bg-transparent px-4 py-3 pr-11 text-base text-gray-900 "
+            "placeholder:text-gray-500 focus:outline-none"
+        ),
+    }
+    if readonly:
+        input_attrs["readonly"] = True
+    else:
+        input_attrs["name"] = "asset_query"
+    return Div(
+        Input(**input_attrs),
+        Span(
+            _search_icon(),
+            cls="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400",
+        ),
+        cls="relative bg-white",
+    )
+
+
+def _modal_amount_input(amount_wan: str) -> Any:
+    """渲染金额输入框。"""
+    return Div(
+        Input(
+            type="number",
+            name="amount_wan",
+            value=amount_wan,
+            min="0.1",
+            step="0.1",
+            placeholder="10",
+            cls=(
+                "w-full border-0 bg-transparent px-4 py-3 pr-10 text-right text-base text-gray-900 "
+                "focus:outline-none"
+            ),
+        ),
+        Span(
+            "万",
+            cls="pointer-events-none absolute inset-y-0 right-4 flex items-center text-base text-gray-700",
+        ),
+        cls="relative bg-white",
+    )
+
+
+def _modal_price_ref_select(price_ref: str) -> Any:
+    """渲染价格参考下拉框。"""
+    options = [
+        ft_hx(
+            "option",
+            label,
+            value=key,
+            selected="selected" if key == price_ref else None,
+        )
+        for label, key in PRICE_REFERENCE_OPTIONS
+    ]
+    return ft_hx(
+        "select",
+        *options,
+        name="price_ref",
+        cls=(
+            "w-full border-0 bg-white px-4 py-3 text-base text-gray-900 focus:outline-none "
+            "focus:ring-0"
+        ),
+    )
+
+
+def _modal_illustration() -> Any:
+    """渲染弹窗左侧的装饰插画区。"""
+    blocks = [
+        "h-24 rounded-2xl bg-white/80",
+        "h-32 rounded-2xl bg-white/60 ml-10",
+        "h-40 rounded-2xl bg-white/75 mr-8",
+    ]
+    return Div(
+        *[Div(cls=f"{block} shadow-sm") for block in blocks],
+        cls=(
+            "hidden min-h-full flex-col justify-center gap-4 bg-[linear-gradient(180deg,#efefef,#f9f9f9)] "
+            "px-6 py-8 md:flex"
+        ),
+    )
+
+
+def _detail_row(label: str, value: str) -> Any:
+    """渲染确认弹窗中的信息行。"""
+    return Div(
+        Span(label, cls="text-[15px] text-gray-500"),
+        Span(value, cls="text-[15px] font-medium text-gray-900"),
+        cls="grid grid-cols-[96px_1fr] gap-4",
+    )
+
+
+def _entry_display_name(entry: TradeLightningEntry) -> str:
+    """返回闪电单的展示股票名。"""
     name, _ = _asset_profile(entry.asset)
-    body = Form(
-        Div(
-            Div(f"{_asset_symbol(entry.asset)} · {name}", cls="mb-3 text-sm font-medium text-gray-900"),
-            Label("标签", cls="mb-2 block text-sm font-medium text-gray-700"),
-            Input(
-                type="text",
-                name="tags",
-                value=entry.tags,
-                placeholder="请输入标签，如：天然气、地产",
-                cls="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm",
-            ),
-            cls="space-y-2",
-        ),
-        Div(
-            Button("取消", type="button", cls="rounded-lg border border-gray-300 px-4 py-2 text-sm", onclick=_close_modal_button()),
-            Button(
-                "保存",
-                type="submit",
-                cls="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700",
-            ),
-            cls="flex justify-end gap-2",
-        ),
-        hx_post=f"/trade/lightning/{portfolio_id}/{entry.asset}/update",
-        hx_target="#trade-lightning-modal-container",
-        cls="space-y-4",
-    )
-    return _dialog_modal("编辑闪电单", body, "", modal_id="trade-lightning-edit-modal")
+    symbol = _asset_symbol(entry.asset)
+    return f"{name}（{symbol}）" if name != entry.asset else symbol
 
 
-def _create_modal(portfolio_id: str, *, asset: str = "", tags: str = "") -> Any:
-    """渲染新建闪电单弹窗。"""
-    body = Form(
+def _upsert_modal(
+    portfolio_id: str,
+    *,
+    modal_id: str,
+    title: str,
+    submit_label: str,
+    submit_path: str,
+    asset_query: str,
+    amount_wan: str,
+    price_ref: str,
+    readonly_asset: bool = False,
+    intro: str,
+) -> Any:
+    """渲染创建或编辑闪电买入单弹窗。"""
+    form = Form(
         Div(
-            Label("股票代码", cls="mb-2 block text-sm font-medium text-gray-700"),
-            Input(
-                type="text",
-                name="asset",
-                value=asset,
-                placeholder="请输入股票代码，如：000001.SZ",
-                cls="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm",
+            P(
+                intro,
+                cls="text-left text-sm leading-7 text-gray-500",
             ),
-            Label("标签", cls="mb-2 block pt-2 text-sm font-medium text-gray-700"),
-            Input(
-                type="text",
-                name="tags",
-                value=tags,
-                placeholder="请输入标签，如：天然气、地产",
-                cls="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm",
+            Div(
+                _modal_field_row(
+                    "股票代码",
+                    _modal_stock_input(asset_query, readonly=readonly_asset),
+                ),
+                _modal_field_row("买入金额", _modal_amount_input(amount_wan)),
+                _modal_field_row("买入价格", _modal_price_ref_select(price_ref)),
+                cls="space-y-5",
             ),
-            cls="space-y-2",
+            Div(cls="border-t border-[#e5e5e5]"),
+            Div(
+                Button(
+                    submit_label,
+                    type="submit",
+                    cls=(
+                        "inline-flex min-w-[264px] items-center justify-center rounded-md border "
+                        "border-[#c5c5c5] bg-white px-6 py-3 text-[15px] font-medium text-gray-900 "
+                        "transition-colors hover:bg-gray-50"
+                    ),
+                ),
+                cls="flex justify-center pt-2",
+            ),
+            cls="space-y-8 px-8 py-10",
         ),
-        Div(
-            Button(
-                "取消",
-                type="button",
-                cls="rounded-lg border border-gray-300 px-4 py-2 text-sm",
-                onclick=_close_modal_button(),
-            ),
-            Button(
-                "创建",
-                type="submit",
-                cls="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700",
-            ),
-            cls="flex justify-end gap-2",
-        ),
-        hx_post=f"/trade/lightning/{portfolio_id}/create",
+        hx_post=submit_path,
         hx_target="#trade-lightning-modal-container",
-        cls="space-y-4",
+        cls="h-full",
     )
-    return _dialog_modal("新建闪电单", body, "", modal_id="trade-lightning-create-modal")
+    body = Div(
+        _modal_illustration(),
+        Div(form, cls="min-h-full bg-[#f7f7f7]"),
+        cls="grid md:grid-cols-[260px_1fr]",
+    )
+    return _dialog_modal(title, body, modal_id=modal_id)
+
+
+def _edit_modal(
+    portfolio_id: str,
+    entry: TradeLightningEntry,
+    *,
+    amount_wan: str | None = None,
+    price_ref: str | None = None,
+) -> Any:
+    """渲染编辑闪电买入单弹窗。"""
+    return _upsert_modal(
+        portfolio_id,
+        modal_id="trade-lightning-edit-modal",
+        title="修改闪电买入单",
+        submit_label="确定",
+        submit_path=f"/trade/lightning/{portfolio_id}/{entry.asset}/update",
+        asset_query=_entry_display_name(entry),
+        amount_wan=amount_wan or f"{entry.amount_wan:g}",
+        price_ref=price_ref or entry.price_ref,
+        readonly_asset=True,
+        intro="请调整预先设置的买入金额和价格参考，保存后可直接用于闪电买入。",
+    )
+
+
+def _create_modal(
+    portfolio_id: str,
+    *,
+    asset_query: str = "",
+    amount_wan: str = "10",
+    price_ref: str = "current",
+) -> Any:
+    """渲染创建闪电买入单弹窗。"""
+    return _upsert_modal(
+        portfolio_id,
+        modal_id="trade-lightning-create-modal",
+        title="创建闪电买入单",
+        submit_label="确定",
+        submit_path=f"/trade/lightning/{portfolio_id}/create",
+        asset_query=asset_query,
+        amount_wan=amount_wan,
+        price_ref=price_ref,
+        intro="闪电单是一种预先确定买入标的、金额和价格的预埋单。执行时可双击买入，无须再走填单流程。",
+    )
 
 
 def _delete_modal(portfolio_id: str, entry: TradeLightningEntry) -> Any:
     """渲染删除确认弹窗。"""
-    name, _ = _asset_profile(entry.asset)
-    footer = Div(
-        Button("取消", type="button", cls="rounded-lg border border-gray-300 px-4 py-2 text-sm", onclick=_close_modal_button()),
-        Button(
-            "删除",
-            type="button",
-            cls="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700",
-            hx_post=f"/trade/lightning/{portfolio_id}/{entry.asset}/delete",
-            hx_target="#trade-lightning-modal-container",
+    body = Div(
+        Div(
+            P("确定删除以下闪电买入单吗？", cls="text-center text-[15px] text-gray-500"),
+            Div(
+                _detail_row("股票名", _entry_display_name(entry)),
+                _detail_row("买入金额", _format_amount_wan(entry.amount_wan)),
+                _detail_row("买入价格", _price_reference_label(entry.price_ref)),
+                cls="mx-auto max-w-[280px] space-y-4",
+            ),
+            cls="space-y-8 px-8 py-12",
         ),
-        cls="flex justify-end gap-2",
+        Div(cls="border-t border-[#e5e5e5]"),
+        Div(
+            Button(
+                "确定",
+                type="button",
+                hx_post=f"/trade/lightning/{portfolio_id}/{entry.asset}/delete",
+                hx_target="#trade-lightning-modal-container",
+                cls=(
+                    "inline-flex min-w-[180px] items-center justify-center rounded-md border "
+                    "border-[#c5c5c5] bg-white px-6 py-3 text-[15px] font-medium text-gray-900 "
+                    "transition-colors hover:bg-gray-50"
+                ),
+            ),
+            cls="flex justify-center px-8 py-8",
+        ),
+        cls="bg-[#f7f7f7]",
     )
-    body = P(f"确定删除 {_asset_symbol(entry.asset)} · {name} 吗？", cls="text-sm text-gray-700")
-    return _dialog_modal("删除闪电单", body, footer, modal_id="trade-lightning-delete-modal")
+    return _dialog_modal("删除闪电买入单", body, modal_id="trade-lightning-delete-modal")
 
 
 def _clear_modal(portfolio_id: str) -> Any:
     """渲染清空确认弹窗。"""
-    footer = Div(
-        Button(
-            "取消",
-            type="button",
-            cls="rounded-lg border border-gray-300 px-4 py-2 text-sm",
-            onclick=_close_modal_button(),
+    body = Div(
+        Div(
+            P(
+                "确定清空当前账户下的全部闪电买入单吗？",
+                cls="px-8 py-12 text-center text-[15px] text-gray-500",
+            ),
         ),
-        Button(
-            "清空",
-            type="button",
-            cls="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700",
-            hx_post=f"/trade/lightning/{portfolio_id}/clear",
-            hx_target="#trade-lightning-modal-container",
+        Div(cls="border-t border-[#e5e5e5]"),
+        Div(
+            Button(
+                "确定",
+                type="button",
+                hx_post=f"/trade/lightning/{portfolio_id}/clear",
+                hx_target="#trade-lightning-modal-container",
+                cls=(
+                    "inline-flex min-w-[180px] items-center justify-center rounded-md border "
+                    "border-[#c5c5c5] bg-white px-6 py-3 text-[15px] font-medium text-gray-900 "
+                    "transition-colors hover:bg-gray-50"
+                ),
+            ),
+            cls="flex justify-center px-8 py-8",
         ),
-        cls="flex justify-end gap-2",
+        cls="bg-[#f7f7f7]",
     )
-    body = P("确定清空当前账户下的全部闪电单吗？", cls="text-sm text-gray-700")
-    return _dialog_modal("清空闪电单", body, footer, modal_id="trade-lightning-clear-modal")
+    return _dialog_modal("清空闪电买入单", body, modal_id="trade-lightning-clear-modal")
 
 
 def _panel_with_toast(
@@ -515,28 +778,63 @@ async def trade_lightning_create(req):
     """创建新的闪电单条目。"""
     portfolio_id = req.path_params["portfolio_id"]
     form = await req.form()
-    asset = str(form.get("asset") or "").strip()
-    tags = str(form.get("tags") or "").strip()
-    if not asset:
+    asset_query = str(form.get("asset_query") or "").strip()
+    amount_wan_raw = str(form.get("amount_wan") or "10").strip()
+    price_ref = str(form.get("price_ref") or "current").strip()
+    if not asset_query:
         return _render_response(
-            _create_modal(portfolio_id, asset=asset, tags=tags),
-            _lightning_toast("请先输入股票代码", hx_swap_oob=True),
+            _create_modal(
+                portfolio_id,
+                asset_query=asset_query,
+                amount_wan=amount_wan_raw or "10",
+                price_ref=price_ref or "current",
+            ),
+            _lightning_toast("请输入股票代码、拼音或者名称", hx_swap_oob=True),
+        )
+    asset = _resolve_asset_input(asset_query)
+    if asset is None:
+        return _render_response(
+            _create_modal(
+                portfolio_id,
+                asset_query=asset_query,
+                amount_wan=amount_wan_raw or "10",
+                price_ref=price_ref or "current",
+            ),
+            _lightning_toast("未找到唯一匹配股票，请输入完整代码、拼音或名称", hx_swap_oob=True),
+        )
+    amount_wan = _parse_amount_wan(amount_wan_raw)
+    if amount_wan is None:
+        return _render_response(
+            _create_modal(
+                portfolio_id,
+                asset_query=asset_query,
+                amount_wan=amount_wan_raw or "10",
+                price_ref=price_ref or "current",
+            ),
+            _lightning_toast("请输入有效的买入金额", hx_swap_oob=True),
+        )
+    if not _is_valid_price_ref(price_ref):
+        return _render_response(
+            _create_modal(
+                portfolio_id,
+                asset_query=asset_query,
+                amount_wan=amount_wan_raw or "10",
+                price_ref="current",
+            ),
+            _lightning_toast("请选择有效的买入价格", hx_swap_oob=True),
         )
 
-    try:
-        stock_list.get_name(asset)
-    except Exception:
-        return _render_response(
-            _create_modal(portfolio_id, asset=asset, tags=tags),
-            _lightning_toast("股票代码无效，无法创建闪电单", hx_swap_oob=True),
-        )
-
-    _, created = add_trade_lightning_entry(portfolio_id, asset, tags)
-    message = "已创建闪电单" if created else "该股票已在闪电单中"
+    _, created = add_trade_lightning_entry(portfolio_id, asset, amount_wan, price_ref)
+    message = "已创建闪电买入单" if created else "该股票已存在于闪电买入单中"
     level = "success" if created else "error"
     if not created:
         return _render_response(
-            _create_modal(portfolio_id, asset=asset, tags=tags),
+            _create_modal(
+                portfolio_id,
+                asset_query=asset_query,
+                amount_wan=amount_wan_raw or "10",
+                price_ref=price_ref,
+            ),
             _lightning_toast(message, level=level, hx_swap_oob=True),
         )
     return _render_response(
@@ -558,13 +856,13 @@ async def trade_lightning_clear(req):
     if removed_count == 0:
         return _render_response(
             Div(id="trade-lightning-modal-container"),
-            _panel_with_toast(portfolio_id, "当前没有可清空的闪电单", hx_swap_oob=True),
+            _panel_with_toast(portfolio_id, "当前没有可清空的闪电买入单", hx_swap_oob=True),
         )
     return _render_response(
         Div(id="trade-lightning-modal-container"),
         _panel_with_toast(
             portfolio_id,
-            f"已清空 {removed_count} 条闪电单",
+            f"已清空 {removed_count} 条闪电买入单",
             level="success",
             hx_swap_oob=True,
         ),
@@ -572,13 +870,41 @@ async def trade_lightning_clear(req):
 
 
 async def trade_lightning_update(req):
-    """更新闪电单标签。"""
+    """更新闪电买入单。"""
     portfolio_id = req.path_params["portfolio_id"]
     asset = req.path_params["asset"]
+    entry = get_trade_lightning_entry(portfolio_id, asset)
+    if entry is None:
+        return _render_response(
+            Div(id="trade-lightning-modal-container"),
+            _lightning_toast("该闪电买入单不存在", hx_swap_oob=True),
+        )
     form = await req.form()
-    tags = str(form.get("tags") or "")
-    updated = update_trade_lightning_tags(portfolio_id, asset, tags)
-    message = "闪电单标签已更新" if updated is not None else "该闪电单条目不存在"
+    amount_wan_raw = str(form.get("amount_wan") or f"{entry.amount_wan:g}").strip()
+    price_ref = str(form.get("price_ref") or entry.price_ref).strip()
+    amount_wan = _parse_amount_wan(amount_wan_raw)
+    if amount_wan is None:
+        return _render_response(
+            _edit_modal(
+                portfolio_id,
+                entry,
+                amount_wan=amount_wan_raw or f"{entry.amount_wan:g}",
+                price_ref=price_ref,
+            ),
+            _lightning_toast("请输入有效的买入金额", hx_swap_oob=True),
+        )
+    if not _is_valid_price_ref(price_ref):
+        return _render_response(
+            _edit_modal(
+                portfolio_id,
+                entry,
+                amount_wan=amount_wan_raw or f"{entry.amount_wan:g}",
+                price_ref=entry.price_ref,
+            ),
+            _lightning_toast("请选择有效的买入价格", hx_swap_oob=True),
+        )
+    updated = update_trade_lightning_entry(portfolio_id, asset, amount_wan, price_ref)
+    message = "闪电买入单已更新" if updated is not None else "该闪电买入单不存在"
     level = "success" if updated is not None else "error"
     return _render_response(
         Div(id="trade-lightning-modal-container"),
@@ -591,7 +917,7 @@ async def trade_lightning_delete(req):
     portfolio_id = req.path_params["portfolio_id"]
     asset = req.path_params["asset"]
     removed = remove_trade_lightning_entry(portfolio_id, asset)
-    message = "已删除闪电单条目" if removed else "该闪电单条目不存在"
+    message = "已删除闪电买入单" if removed else "该闪电买入单不存在"
     level = "success" if removed else "error"
     return _render_response(
         Div(id="trade-lightning-modal-container"),

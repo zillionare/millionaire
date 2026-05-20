@@ -549,70 +549,103 @@ class TestLoginRoutes:
         assert "尚未添加闪电单股票" in text
 
     def test_trade_lightning_create_update_delete_and_clear_flow(self, test_client, monkeypatch):
-        """验证闪电单支持新建、编辑、删除和清空。"""
+        """验证闪电买入单支持新建、编辑、删除和清空。"""
         from quantide.web.pages import trade_lightning as lightning_page
 
-        monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
-        monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
+        portfolio_id = "sim_lightning_flow"
+        names = {
+            "000001.SZ": "平安银行",
+            "000002.SZ": "万科A",
+        }
+        monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: names[asset])
+        monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PINYIN")
 
         create_response = test_client.post(
-            "/trade/lightning/sim_demo/create",
-            data={"asset": "000001.SZ", "tags": "银行"},
+            f"/trade/lightning/{portfolio_id}/create",
+            data={
+                "asset_query": "000001.SZ",
+                "amount_wan": "12",
+                "price_ref": "ma5",
+            },
         )
         create_text = create_response.text
         assert create_response.status_code == 200
-        assert "已创建闪电单" in create_text
+        assert "已创建闪电买入单" in create_text
         assert 'data-lightning-asset="000001.SZ"' in create_text
         assert "平安银行" in create_text
-        assert "银行" in create_text
+        assert "12万" in create_text
+        assert "5日均线" in create_text
 
         update_response = test_client.post(
-            "/trade/lightning/sim_demo/000001.SZ/update",
-            data={"tags": "银行、低波"},
+            f"/trade/lightning/{portfolio_id}/000001.SZ/update",
+            data={"amount_wan": "8.5", "price_ref": "current"},
         )
         update_text = update_response.text
         assert update_response.status_code == 200
-        assert "闪电单标签已更新" in update_text
-        assert "银行、低波" in update_text
+        assert "闪电买入单已更新" in update_text
+        assert "8.5万" in update_text
+        assert "最新价" in update_text
         assert 'hx-swap-oob="outerHTML"' in update_text
 
-        delete_response = test_client.post("/trade/lightning/sim_demo/000001.SZ/delete")
+        delete_response = test_client.post(
+            f"/trade/lightning/{portfolio_id}/000001.SZ/delete"
+        )
         delete_text = delete_response.text
         assert delete_response.status_code == 200
-        assert "已删除闪电单条目" in delete_text
+        assert "已删除闪电买入单" in delete_text
         assert "尚未添加闪电单股票" in delete_text
 
         test_client.post(
-            "/trade/lightning/sim_demo/create",
-            data={"asset": "000001.SZ", "tags": "银行"},
+            f"/trade/lightning/{portfolio_id}/create",
+            data={
+                "asset_query": "000001.SZ",
+                "amount_wan": "10",
+                "price_ref": "current",
+            },
         )
         test_client.post(
-            "/trade/lightning/sim_demo/create",
-            data={"asset": "000002.SZ", "tags": "地产"},
+            f"/trade/lightning/{portfolio_id}/create",
+            data={
+                "asset_query": "000002.SZ",
+                "amount_wan": "15",
+                "price_ref": "ma10",
+            },
         )
-        clear_response = test_client.post("/trade/lightning/sim_demo/clear")
+        clear_response = test_client.post(f"/trade/lightning/{portfolio_id}/clear")
         clear_text = clear_response.text
         assert clear_response.status_code == 200
-        assert "已清空 2 条闪电单" in clear_text
+        assert "已清空 2 条闪电买入单" in clear_text
         assert "尚未添加闪电单股票" in clear_text
 
-    def test_trade_lightning_edit_modal_renders_tag_input(self, test_client, monkeypatch):
-        """验证闪电单编辑按钮会返回标签编辑弹窗。"""
+    def test_trade_lightning_edit_modal_renders_buy_order_form(self, test_client, monkeypatch):
+        """验证闪电买入单编辑按钮会返回买入单表单弹窗。"""
         from quantide.web.pages import trade_lightning as lightning_page
 
+        portfolio_id = "sim_lightning_edit_modal"
         monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
         monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
         test_client.post(
-            "/trade/lightning/sim_demo/create",
-            data={"asset": "000001.SZ", "tags": ""},
+            f"/trade/lightning/{portfolio_id}/create",
+            data={
+                "asset_query": "000001.SZ",
+                "amount_wan": "6",
+                "price_ref": "ma20",
+            },
         )
 
-        response = test_client.get("/trade/lightning/sim_demo/000001.SZ/edit-modal")
+        response = test_client.get(
+            f"/trade/lightning/{portfolio_id}/000001.SZ/edit-modal"
+        )
         text = response.text
 
         assert response.status_code == 200
-        assert "编辑闪电单" in text
-        assert 'name="tags"' in text
+        assert "修改闪电买入单" in text
+        assert 'name="amount_wan"' in text
+        assert 'name="price_ref"' in text
+        assert "平安银行（000001）" in text
+        assert "readonly" in text
+        assert "20日均线" in text
+        assert 'value="ma20" selected="selected"' in text
         assert "000001" in text
         assert "平安银行" in text
 
@@ -621,15 +654,19 @@ class TestLoginRoutes:
         create_modal = test_client.get("/trade/lightning/sim_demo/create-modal")
         create_text = create_modal.text
         assert create_modal.status_code == 200
-        assert "新建闪电单" in create_text
-        assert 'name="asset"' in create_text
-        assert 'name="tags"' in create_text
+        assert "创建闪电买入单" in create_text
+        assert 'name="asset_query"' in create_text
+        assert 'name="amount_wan"' in create_text
+        assert 'name="price_ref"' in create_text
+        assert "请输入股票代码、拼音或者名称" in create_text
+        assert "买入金额" in create_text
+        assert "买入价格" in create_text
 
         clear_modal = test_client.get("/trade/lightning/sim_demo/clear-modal")
         clear_text = clear_modal.text
         assert clear_modal.status_code == 200
-        assert "清空闪电单" in clear_text
-        assert "确定清空当前账户下的全部闪电单吗？" in clear_text
+        assert "清空闪电买入单" in clear_text
+        assert "确定清空当前账户下的全部闪电买入单吗？" in clear_text
 
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""
