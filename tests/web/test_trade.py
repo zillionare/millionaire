@@ -492,6 +492,7 @@ class TestLoginRoutes:
         assert ">涨停<" in text
         assert ">跌停<" in text
         assert 'data-market-order="true"' in text
+        assert "text-sm font-medium leading-tight whitespace-nowrap" in text
 
     def test_trade_panel_uses_market_order_for_limit_buttons(self, test_client):
         """验证点击涨停和跌停按钮会自动切换到市价委托。"""
@@ -501,6 +502,8 @@ class TestLoginRoutes:
         assert response.status_code == 200
         assert "function getQuickPriceBase()" in text
         assert "this.dataset.marketOrder === 'true'" in text
+        assert "btn.dataset.marketOrder === 'true'" in text
+        assert "display.textContent = '';" in text
         assert "priceMode.value = 'MARKET';" in text
         assert "priceMode.value = 'LIMIT';" in text
 

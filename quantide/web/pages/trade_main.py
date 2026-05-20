@@ -454,7 +454,14 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     Div(
                         *[
                             Button(
-                                Div(label, cls="text-base font-medium leading-tight"),
+                                Div(
+                                    label,
+                                    cls=(
+                                        "text-sm font-medium leading-tight whitespace-nowrap"
+                                        if abs(pct) == 0.10
+                                        else "text-base font-medium leading-tight"
+                                    ),
+                                ),
                                 Div("", cls="quick-price-display text-[11px] text-gray-400 leading-tight mt-0.5 min-h-4"),
                                 type="button",
                                 cls=(
@@ -903,7 +910,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         document.querySelectorAll('.quick-price-btn').forEach(function(btn) {
                             const display = btn.querySelector('.quick-price-display');
                             const pct = parseFloat(btn.dataset.pct);
-                            if (basePrice <= 0 || isNaN(pct)) {
+                            if (btn.dataset.marketOrder === 'true' || basePrice <= 0 || isNaN(pct)) {
                                 display.textContent = '';
                                 return;
                             }
