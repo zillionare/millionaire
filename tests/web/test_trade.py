@@ -55,6 +55,14 @@ def test_app():
         from quantide.web.pages.home import home_app
         from quantide.web.pages.live import live_app
         from quantide.web.pages.strategy import strategy_app
+        from quantide.web.pages.trade_lightning import (
+            trade_lightning_add,
+            trade_lightning_delete,
+            trade_lightning_delete_modal,
+            trade_lightning_edit_modal,
+            trade_lightning_remove_current,
+            trade_lightning_update,
+        )
         from quantide.web.pages.trade_main import (
             place_order_trade,
             search_trade_assets,
@@ -87,6 +95,32 @@ def test_app():
                 Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
                 Route("/trade/live-quote", trade_live_quote, methods=["GET"]),
                 Route("/trade/order", place_order_trade, methods=["POST"]),
+                Route("/trade/lightning/{portfolio_id:str}/add", trade_lightning_add, methods=["POST"]),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/remove-current",
+                    trade_lightning_remove_current,
+                    methods=["POST"],
+                ),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/{asset:str}/edit-modal",
+                    trade_lightning_edit_modal,
+                    methods=["GET"],
+                ),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/{asset:str}/update",
+                    trade_lightning_update,
+                    methods=["POST"],
+                ),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/{asset:str}/delete-modal",
+                    trade_lightning_delete_modal,
+                    methods=["GET"],
+                ),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/{asset:str}/delete",
+                    trade_lightning_delete,
+                    methods=["POST"],
+                ),
                 Mount("/trade/live", live_app),
                 Mount("/broker", broker_api_app),
                 Mount("/", home_app),
@@ -475,13 +509,76 @@ class TestLoginRoutes:
 
         assert response.status_code == 200
         assert "请输入股票代码" in text
-        assert "pointer-events-auto flex min-h-12 items-start rounded-xl border px-4 py-3" in text
+        assert "pointer-events-auto flex min-h-8 items-start rounded-xl border px-4 py-3" in text
         assert 'role="alert"' in text
         assert "bg-red-50 text-red-700" in text
         assert 'aria-label="关闭提示"' in text
         assert "window.setTimeout(function()" in text
         assert "7000" in text
         assert "bg-red-100 rounded" not in text
+
+    def test_trade_panel_uses_independent_lightning_routes(self, test_client):
+        """验证闪电单由独立路由与容器驱动。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert 'id="trade-lightning-panel"' in text
+        assert 'id="trade-lightning-modal-container"' in text
+        assert "/trade/lightning/" in text
+        assert "lightning-add-button" in text
+        assert "lightning-remove-button" in text
+        assert "尚未添加闪电单股票" in text
+
+    def test_trade_lightning_add_update_and_delete_flow(self, test_client, monkeypatch):
+        """验证闪电单支持新增、编辑标签和删除。"""
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
+        monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
+
+        add_response = test_client.post(
+            "/trade/lightning/sim_demo/add",
+            data={"asset": "000001.SZ"},
+        )
+        add_text = add_response.text
+        assert add_response.status_code == 200
+        assert "已加入闪电单" in add_text
+        assert 'data-lightning-asset="000001.SZ"' in add_text
+        assert "平安银行" in add_text
+
+        update_response = test_client.post(
+            "/trade/lightning/sim_demo/000001.SZ/update",
+            data={"tags": "银行、低波"},
+        )
+        update_text = update_response.text
+        assert update_response.status_code == 200
+        assert "闪电单标签已更新" in update_text
+        assert "银行、低波" in update_text
+        assert 'hx-swap-oob="outerHTML"' in update_text
+
+        delete_response = test_client.post("/trade/lightning/sim_demo/000001.SZ/delete")
+        delete_text = delete_response.text
+        assert delete_response.status_code == 200
+        assert "已删除闪电单条目" in delete_text
+        assert "尚未添加闪电单股票" in delete_text
+
+    def test_trade_lightning_edit_modal_renders_tag_input(self, test_client, monkeypatch):
+        """验证闪电单编辑按钮会返回标签编辑弹窗。"""
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
+        monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
+        test_client.post("/trade/lightning/sim_demo/add", data={"asset": "000001.SZ"})
+
+        response = test_client.get("/trade/lightning/sim_demo/000001.SZ/edit-modal")
+        text = response.text
+
+        assert response.status_code == 200
+        assert "编辑闪电单" in text
+        assert 'name="tags"' in text
+        assert "000001" in text
+        assert "平安银行" in text
 
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""

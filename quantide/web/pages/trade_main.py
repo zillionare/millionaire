@@ -10,8 +10,8 @@
 import datetime
 
 import polars as pl
-from fasthtml.common import Select as _Select
 from fasthtml.common import *
+from fasthtml.common import Select as _Select
 from monsterui.all import *
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -25,6 +25,7 @@ from quantide.data.sqlite import Order, Position
 from quantide.service.livequote import live_quote
 from quantide.service.registry import BrokerRegistry
 from quantide.web.layouts.main import MainLayout
+from quantide.web.pages.trade_lightning import TradeLightningSidebar
 
 
 def _get_registry(req) -> BrokerRegistry:
@@ -656,79 +657,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     cls="flex shrink-0 items-stretch",
                 ),
                 # 右边：闪电单
-                Div(
-                    # Stats row
-                    Div(
-                        *[
-                            Button(
-                                Div(label, cls="text-[11px] text-gray-500 dark:text-gray-400 mb-1"),
-                                Div("", cls="text-xs font-medium text-gray-700 dark:text-gray-300 min-h-4", id=f"ref-{key}"),
-                                type="button",
-                                cls=(
-                                    "reference-price-btn bg-[#f9fafb] dark:bg-gray-700 rounded-md py-1.5 px-1 "
-                                    "text-center flex flex-col items-center justify-center gap-1 flex-1 min-w-0 "
-                                    "disabled:opacity-40 disabled:cursor-not-allowed"
-                                ),
-                                data_ref_key=key,
-                                disabled=True,
-                            )
-                            for label, key in [
-                                ("昨收", "close"),
-                                ("MA5", "ma5"),
-                                ("MA10", "ma10"),
-                                ("MA20", "ma20"),
-                                ("MA30", "ma30"),
-                                ("MA60", "ma60"),
-                                ("现价", "current"),
-                            ]
-                        ],
-                        cls="flex gap-1 mb-2",
-                        id="reference-price-panel",
-                    ),
-                    # List header
-                    Div(
-                        H3("闪电单", cls="text-base font-semibold text-gray-900 dark:text-white m-0"),
-                        Div(
-                            Button(
-                                NotStr('<svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>'),
-                                type="button",
-                                cls="w-6 h-6 flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100",
-                            ),
-                            Button(
-                                NotStr('<svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><line x1="5" y1="12" x2="19" y2="12"></line></svg>'),
-                                type="button",
-                                cls="w-6 h-6 flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100",
-                            ),
-                            cls="flex gap-1",
-                        ),
-                        cls="flex items-center justify-between bg-[#e0e0e0] dark:bg-gray-600 px-4 py-2.5 rounded-t-lg",
-                    ),
-                    # Stock list
-                    Div(
-                        *[
-                            Div(
-                                Span(code, cls="text-xs font-bold text-gray-900 dark:text-white w-20"),
-                                Div(Span(name, cls="text-xs text-gray-600 dark:text-gray-400"), cls="flex items-center"),
-                                Span(tags, cls="text-[11px] text-gray-400 dark:text-gray-500 mr-2") if tags else Span("", cls="text-[11px] mr-2"),
-                                Div(
-                                    NotStr('<svg class="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l15-15Z"></path></svg>'),
-                                    NotStr('<svg class="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>'),
-                                    cls="flex items-center",
-                                ),
-                                cls="grid grid-cols-[80px_1fr_auto_auto] items-center py-2.5 px-4 border-b border-gray-100 dark:border-gray-700 last:border-b-0 even:bg-[#f9fafb] dark:even:bg-gray-700/50",
-                            )
-                            for code, name, tags in [
-                                ("600777", "新潮能源", "天然气、白酒、地产"),
-                                ("000001", "新潮能源", ""),
-                                ("000002", "新潮能源", ""),
-                                ("000004", "新潮能源", ""),
-                                ("000004", "新潮能源", ""),
-                            ]
-                        ],
-                        cls="bg-white dark:bg-gray-800 rounded-b-lg",
-                    ),
-                    cls="flex-[0.95] space-y-0",
-                ),
+                TradeLightningSidebar(portfolio_id),
                 cls="flex gap-3",
             ),
             Script(

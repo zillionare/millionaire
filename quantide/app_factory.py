@@ -55,6 +55,14 @@ from quantide.web.pages.system.market import system_market_app
 from quantide.web.pages.system.risk_events import system_risk_events_app
 from quantide.web.pages.system.runtime_monitor import system_runtime_monitor_app
 from quantide.web.pages.system.stocks import system_stocks_app
+from quantide.web.pages.trade_lightning import (
+    trade_lightning_add,
+    trade_lightning_delete,
+    trade_lightning_delete_modal,
+    trade_lightning_edit_modal,
+    trade_lightning_remove_current,
+    trade_lightning_update,
+)
 from quantide.web.pages.trade_main import (
     place_order_trade,
     search_trade_assets,
@@ -310,6 +318,32 @@ def create_app(
             Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
             Route("/trade/live-quote", trade_live_quote, methods=["GET"]),
             Route("/trade/order", place_order_trade, methods=["POST"]),
+            Route("/trade/lightning/{portfolio_id:str}/add", trade_lightning_add, methods=["POST"]),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/remove-current",
+                trade_lightning_remove_current,
+                methods=["POST"],
+            ),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/{asset:str}/edit-modal",
+                trade_lightning_edit_modal,
+                methods=["GET"],
+            ),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/{asset:str}/update",
+                trade_lightning_update,
+                methods=["POST"],
+            ),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/{asset:str}/delete-modal",
+                trade_lightning_delete_modal,
+                methods=["GET"],
+            ),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/{asset:str}/delete",
+                trade_lightning_delete,
+                methods=["POST"],
+            ),
             Route("/system/accounts", accounts_list, methods=["GET"]),
             Route("/system/accounts/", accounts_list, methods=["GET"]),
             Mount("/system/accounts", accounts_app),
