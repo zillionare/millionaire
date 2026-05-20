@@ -255,6 +255,35 @@ def test_trade_main_polls_live_quote_and_gates_speed_dial_with_gateway_stub():
 
 
 @pytest.mark.e2e
+def test_trade_main_uses_top_toast_placeholder_with_gateway_stub():
+    with (
+        system_settings_e2e_session() as session,
+        running_gateway_stub(prefix="/qmt") as gateway_stub,
+        patched_tushare_fetcher(),
+    ):
+        state = init_wizard.get_state(force_refresh=True)
+        state.gateway_enabled = True
+        state.gateway_server = gateway_stub.host
+        state.gateway_port = gateway_stub.port
+        state.gateway_base_url = gateway_stub.prefix
+        state.gateway_api_key = "gateway-key"
+        state.runtime_mode = "live"
+        state.runtime_market_adapter = "gateway"
+        state.runtime_broker_adapter = "gateway"
+        state.livequote_mode = "gateway"
+        init_wizard.save_state(state)
+
+        with open_system_settings_client(session.app_config_dir, session.market_home) as reopened_client:
+            response = reopened_client.get("/trade/", follow_redirects=False)
+
+        assert response.status_code == 200
+        assert 'id="trade-toast-slot"' in response.text
+        assert 'hx-target="#trade-toast-slot"' in response.text
+        assert "pointer-events-none absolute inset-x-6 top-0 z-50" in response.text
+        assert 'id="trade-result"' not in response.text
+
+
+@pytest.mark.e2e
 def test_trade_search_supports_name_and_pinyin_in_stub_mode():
     with system_settings_e2e_session() as session, patched_tushare_fetcher():
         with open_system_settings_client(session.app_config_dir, session.market_home) as reopened_client:

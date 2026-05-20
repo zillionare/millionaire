@@ -367,6 +367,9 @@ class TestLoginRoutes:
         response = test_client.get("/trade")
         assert response.status_code == 200
         assert "买入" in response.text or "卖出" in response.text
+        assert 'id="trade-toast-slot"' in response.text
+        assert "pointer-events-none absolute inset-x-6 top-0 z-50" in response.text
+        assert 'class="relative p-6"' in response.text
 
     def test_trade_panel_matches_spec(self, test_client):
         """验证下单键盘 UI 符合 spec (issue #7)."""
@@ -419,6 +422,8 @@ class TestLoginRoutes:
         assert 'id="sell-star"' in text
         assert 'value="BUY"' in text  # 默认买入
         assert "*" in text  # 激活状态的星号标记
+        assert 'hx-target="#trade-toast-slot"' in text
+        assert 'id="trade-result"' not in text
 
     def test_trade_panel_order_mode_changes_label(self, test_client):
         """验证下单方式切换时动态标签存在所需 DOM 元素."""
@@ -452,6 +457,31 @@ class TestLoginRoutes:
         assert "priceChangeHint.textContent = sign + deltaPct.toFixed(2) + '%';" in text
         assert "if (lastQuickPricePct !== null && priceInput.value === lastQuickPriceValue)" in text
         assert "lastQuickPriceValue = nextPrice;" in text
+
+    def test_trade_order_errors_render_as_top_toast(self, test_client):
+        """验证下单错误通过顶部 toast 返回，而不是底部行内提示。"""
+        response = test_client.post(
+            "/trade/order",
+            data={
+                "side": "BUY",
+                "asset": "",
+                "price_mode": "LIMIT",
+                "order_mode": "AMOUNT",
+                "price": "10.0",
+                "value": "1",
+            },
+        )
+        text = response.text
+
+        assert response.status_code == 200
+        assert "请输入股票代码" in text
+        assert "pointer-events-auto flex min-h-12 items-start rounded-xl border px-4 py-3" in text
+        assert 'role="alert"' in text
+        assert "bg-red-50 text-red-700" in text
+        assert 'aria-label="关闭提示"' in text
+        assert "window.setTimeout(function()" in text
+        assert "7000" in text
+        assert "bg-red-100 rounded" not in text
 
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""

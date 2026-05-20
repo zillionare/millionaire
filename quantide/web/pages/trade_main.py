@@ -10,8 +10,8 @@
 import datetime
 
 import polars as pl
-from fasthtml.common import *
 from fasthtml.common import Select as _Select
+from fasthtml.common import *
 from monsterui.all import *
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -322,6 +322,65 @@ def _build_live_quote_payload(asset: str) -> dict[str, str | bool]:
         "current": _format_trade_metric(current_price),
         "visible": current_price > 0,
     }
+
+
+def _trade_toast(message: str, level: str = "error"):
+    """Build a toast block for the fixed placeholder at the page top.
+
+    Args:
+        message: Toast message text.
+        level: Toast tone, ``error`` or ``success``.
+
+    Returns:
+        A styled toast block.
+    """
+    tone_classes = {
+        "error": "border-red-200 bg-red-50 text-red-700",
+        "success": "border-green-200 bg-green-50 text-green-700",
+    }
+    role = "alert" if level == "error" else "status"
+    dismiss_js = (
+        "const slot=document.getElementById('trade-toast-slot');"
+        "if(slot){slot.innerHTML='';delete slot.dataset.toastToken;}"
+    )
+    return Div(
+        Div(
+            Span(message, cls="pr-4"),
+            Button(
+                "x",
+                type="button",
+                cls="ml-auto text-base font-semibold leading-none opacity-70 hover:opacity-100",
+                aria_label="关闭提示",
+                onclick=dismiss_js,
+            ),
+            cls=(
+                "pointer-events-auto flex min-h-8 items-start rounded-xl border px-4 py-3 text-sm"
+                "font-medium shadow-sm "
+                + tone_classes.get(level, tone_classes["error"])
+            ),
+            role=role,
+        ),
+        Script(
+            """
+            (() => {
+                const slot = document.getElementById('trade-toast-slot');
+                if (!slot) {
+                    return;
+                }
+                const token = String(Date.now());
+                slot.dataset.toastToken = token;
+                window.setTimeout(function() {
+                    const currentSlot = document.getElementById('trade-toast-slot');
+                    if (currentSlot && currentSlot.dataset.toastToken === token) {
+                        currentSlot.innerHTML = '';
+                        delete currentSlot.dataset.toastToken;
+                    }
+                }, 7000);
+            })();
+            """
+        ),
+        cls="contents",
+    )
 
 
 def AssetInfoBar(total: float = 0, cash: float = 0, market_value: float = 0):
@@ -1344,12 +1403,11 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                 """
             ),
             hx_post="/trade/order",
-            hx_target="#trade-result",
+            hx_target="#trade-toast-slot",
             id="trade-form",
             data_cash=str(cash),
             data_total=str(total),
         ),
-        Div(id="trade-result"),
         cls="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 p-6",
     )
 
@@ -1655,6 +1713,13 @@ def trade_main_page(request):
 
     def main_block():
         return Div(
+            Div(
+                id="trade-toast-slot",
+                cls=(
+                    "pointer-events-none absolute inset-x-6 top-0 z-50"
+                ),
+                aria_live="polite",
+            ),
             # 账号信息
             Div(
                 Div(
@@ -1672,7 +1737,7 @@ def trade_main_page(request):
             PositionTable(positions),
             # 当日委托
             TodayOrdersTable(orders),
-            cls="p-6",
+            cls="relative p-6",
         )
 
     layout.main_block = main_block
@@ -1704,11 +1769,11 @@ async def place_order_trade(req):
             if default:
                 broker = reg.get(default[0], default[1])
 
-    def _render(div):
-        return HTMLResponse(to_xml(div))
+    def _render_toast(message: str, level: str = "error"):
+        return HTMLResponse(to_xml(_trade_toast(message, level)))
 
     if not broker:
-        return _render(Div("未找到可用的交易账号", cls="text-red-500 p-4 bg-red-100 rounded"))
+        return _render_toast("未找到可用的交易账号")
 
     form = await req.form()
     side = form.get("side", "BUY")
@@ -1719,24 +1784,24 @@ async def place_order_trade(req):
     value_str = form.get("value", "0")
 
     if not asset:
-        return _render(Div("请输入股票代码", cls="text-red-500 p-4 bg-red-100 rounded"))
+        return _render_toast("请输入股票代码")
 
     price = 0.0
     if price_mode == "LIMIT":
         try:
             price = float(price_str)
         except ValueError:
-            return _render(Div("价格格式错误", cls="text-red-500 p-4 bg-red-100 rounded"))
+            return _render_toast("价格格式错误")
         if price <= 0:
-            return _render(Div("价格必须大于0", cls="text-red-500 p-4 bg-red-100 rounded"))
+            return _render_toast("价格必须大于0")
 
     try:
         value = float(value_str)
     except ValueError:
-        return _render(Div("金额/数量格式错误", cls="text-red-500 p-4 bg-red-100 rounded"))
+        return _render_toast("金额/数量格式错误")
 
     if value <= 0:
-        return _render(Div("金额/数量必须大于0", cls="text-red-500 p-4 bg-red-100 rounded"))
+        return _render_toast("金额/数量必须大于0")
 
     try:
         result = None
@@ -1764,20 +1829,12 @@ async def place_order_trade(req):
                 result = await broker.sell(asset, shares, price)
 
         if not _trade_result_has_order(result):
-            return _render(
-                Div(
-                    "未生成有效委托，请检查价格、数量和持仓后重试",
-                    cls="text-red-500 p-4 bg-red-100 rounded",
-                )
-            )
+            return _render_toast("未生成有效委托，请检查价格、数量和持仓后重试")
 
         side_text = "买入" if side == "BUY" else "卖出"
-        return _render(Div(
-            f"{side_text}委托已提交: {asset}",
-            cls="text-green-600 p-4 bg-green-100 rounded",
-        ))
+        return _render_toast(f"{side_text}委托已提交: {asset}", level="success")
     except Exception as e:
-        return _render(Div(f"下单失败: {str(e)}", cls="text-red-500 p-4 bg-red-100 rounded"))
+        return _render_toast(f"下单失败: {str(e)}")
 
 
 async def search_trade_assets(req):
