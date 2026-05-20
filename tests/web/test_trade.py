@@ -443,8 +443,13 @@ class TestLoginRoutes:
         assert 'class="flex items-start mb-6"' in text
         assert "function updatePriceChangeHint()" in text
         assert "function setLimitPlaceholderPrice(value)" in text
+        assert "let lastQuickPricePct = null;" in text
+        assert "function clearQuickPriceSelection()" in text
+        assert "function getReferenceClosePrice()" in text
         assert "priceInput.placeholder = limitPlaceholderPrice || '价格';" in text
         assert "priceChangeHint.textContent = sign + deltaPct.toFixed(2) + '%';" in text
+        assert "if (lastQuickPricePct !== null && priceInput.value === lastQuickPriceValue)" in text
+        assert "lastQuickPriceValue = nextPrice;" in text
 
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""

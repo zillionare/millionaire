@@ -617,6 +617,8 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     let selectedAssetStats = null;
                     let activeSearchIndex = -1;
                     let limitPlaceholderPrice = '';
+                    let lastQuickPricePct = null;
+                    let lastQuickPriceValue = '';
 
                     function refreshSearchDropdown() {
                         searchDropdown = document.getElementById('asset-search-dropdown');
@@ -658,6 +660,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     function clearReferencePrices() {
                         selectedAssetStats = null;
                         limitPlaceholderPrice = '';
+                        clearQuickPriceSelection();
                         Object.values(referenceValues).forEach(function(node) {
                             node.textContent = '';
                         });
@@ -676,6 +679,22 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             return;
                         }
                         referenceValues.current.textContent = selectedAssetStats.current || '';
+                    }
+
+                    function clearQuickPriceSelection() {
+                        lastQuickPricePct = null;
+                        lastQuickPriceValue = '';
+                    }
+
+                    function getReferenceClosePrice() {
+                        if (selectedAssetStats) {
+                            const closePrice = parseFloat(selectedAssetStats.close || '');
+                            if (!isNaN(closePrice) && closePrice > 0) {
+                                return closePrice;
+                            }
+                        }
+                        const placeholderPrice = parseFloat(limitPlaceholderPrice || '');
+                        return !isNaN(placeholderPrice) && placeholderPrice > 0 ? placeholderPrice : 0;
                     }
 
                     function setLimitPlaceholderPrice(value) {
@@ -699,6 +718,12 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     function updatePriceChangeHint() {
                         if (priceMode.value !== 'LIMIT') {
                             priceChangeHint.textContent = '';
+                            return;
+                        }
+                        if (lastQuickPricePct !== null && priceInput.value === lastQuickPriceValue) {
+                            const quickPct = lastQuickPricePct * 100;
+                            const sign = quickPct > 0 ? '+' : '';
+                            priceChangeHint.textContent = sign + quickPct.toFixed(2) + '%';
                             return;
                         }
                         const closePrice = parseFloat(selectedAssetStats && selectedAssetStats.close || '');
@@ -854,15 +879,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     }
 
                     function getQuickPriceBase() {
-                        const inputPrice = parseFloat(priceInput.value);
-                        if (!isNaN(inputPrice) && inputPrice > 0) {
-                            return inputPrice;
-                        }
-                        if (!selectedAssetStats) {
-                            return 0;
-                        }
-                        const closePrice = parseFloat(selectedAssetStats.close || '');
-                        return !isNaN(closePrice) && closePrice > 0 ? closePrice : 0;
+                        return getReferenceClosePrice();
                     }
 
                     function setPosition(fraction) {
@@ -922,6 +939,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         if (price && price !== '') {
                             setLimitPlaceholderPrice(price);
                         }
+                        clearQuickPriceSelection();
                         priceInput.value = '';
                         updatePriceChangeHint();
                         updateEstShares();
@@ -938,6 +956,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         assetCode.value = asset;
                         hideSearchDropdown();
                         priceMode.value = 'LIMIT';
+                        clearQuickPriceSelection();
                         priceInput.value = '';
                         updatePriceMode();
                         const rowPrice = parseFloat(row.dataset.price || '');
@@ -1082,6 +1101,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             const basePrice = getQuickPriceBase();
                             const pct = parseFloat(this.dataset.pct);
                             if (this.dataset.marketOrder === 'true') {
+                                clearQuickPriceSelection();
                                 priceMode.value = 'MARKET';
                                 updatePriceMode();
                                 updateCurrentReferencePrice();
@@ -1089,9 +1109,12 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                 return;
                             }
                             if (basePrice > 0 && !isNaN(pct)) {
+                                const nextPrice = (basePrice * (1 + pct)).toFixed(2);
                                 priceMode.value = 'LIMIT';
                                 updatePriceMode();
-                                priceInput.value = (basePrice * (1 + pct)).toFixed(2);
+                                priceInput.value = nextPrice;
+                                lastQuickPricePct = pct;
+                                lastQuickPriceValue = nextPrice;
                                 updateEstShares();
                                 updateCurrentReferencePrice();
                                 updatePriceChangeHint();
@@ -1111,6 +1134,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
 
                     // Update quick price displays when price changes
                     priceInput.addEventListener('input', function() {
+                        if (priceInput.value !== lastQuickPriceValue) {
+                            clearQuickPriceSelection();
+                        }
                         updateQuickPrices();
                         updateCurrentReferencePrice();
                         updatePriceChangeHint();
