@@ -13,6 +13,7 @@ from tests.e2e.support.system_settings_session import (
     open_system_settings_client,
     system_settings_e2e_session,
 )
+from tests.e2e.support.tushare_stub import patched_tushare_fetcher
 
 
 @pytest.mark.e2e
@@ -119,3 +120,33 @@ def test_jobs_toggle_persists_after_reopening_app():
             reopened_page = reopened_client.get("/system/jobs/", follow_redirects=False)
             assert reopened_page.status_code == 200
             assert "已停止" in reopened_page.text
+
+
+@pytest.mark.e2e
+def test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub():
+    with (
+        system_settings_e2e_session() as session,
+        running_gateway_stub(prefix="/qmt") as gateway_stub,
+        patched_tushare_fetcher(),
+    ):
+        state = init_wizard.get_state(force_refresh=True)
+        state.gateway_enabled = True
+        state.gateway_server = gateway_stub.host
+        state.gateway_port = gateway_stub.port
+        state.gateway_base_url = gateway_stub.prefix
+        state.gateway_api_key = "gateway-key"
+        state.runtime_mode = "live"
+        state.runtime_market_adapter = "gateway"
+        state.runtime_broker_adapter = "gateway"
+        state.livequote_mode = "gateway"
+        init_wizard.save_state(state)
+
+        with open_system_settings_client(session.app_config_dir, session.market_home) as reopened_client:
+            response = reopened_client.get("/trade/", follow_redirects=False)
+
+        assert response.status_code == 200
+        assert "昨收" in response.text
+        assert "现价" in response.text
+        assert "1678.23" not in response.text
+        assert ">--<" not in response.text
+        assert "reference-price-panel" in response.text

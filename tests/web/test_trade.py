@@ -5,6 +5,7 @@ import urllib.error
 from email.message import Message
 from pathlib import Path
 
+import polars as pl
 import pytest
 from fasthtml.common import Mount, fast_app
 from monsterui.all import Theme
@@ -52,7 +53,12 @@ def test_app():
         from quantide.web.pages.home import home_app
         from quantide.web.pages.live import live_app
         from quantide.web.pages.strategy import strategy_app
-        from quantide.web.pages.trade_main import place_order_trade, search_trade_assets, trade_main_page
+        from quantide.web.pages.trade_main import (
+            place_order_trade,
+            search_trade_assets,
+            trade_asset_stats,
+            trade_main_page,
+        )
 
         auth = AuthManager(db_path=test_db_path, config={"login_path": "/auth/login"})
 
@@ -75,6 +81,7 @@ def test_app():
                 Route("/trade", trade_main_page),
                 Route("/trade/", trade_main_page),
                 Route("/trade/search", search_trade_assets, methods=["GET"]),
+                Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
                 Route("/trade/order", place_order_trade, methods=["POST"]),
                 Mount("/trade/live", live_app),
                 Mount("/broker", broker_api_app),
@@ -448,6 +455,50 @@ class TestLoginRoutes:
         # JS 搜索处理函数
         assert "selectAsset" in text
         assert "attachSearchItemListeners" in text
+
+    def test_trade_panel_hides_placeholder_values_before_asset_selection(self, test_client):
+        """验证选股前不显示静态占位数值。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert 'id="reference-price-panel"' in text
+        assert "昨收" in text
+        assert "现价" in text
+        assert "1678.23" not in text
+        assert ">--<" not in text
+
+    def test_trade_asset_stats_returns_real_metrics_without_fake_fallbacks(
+        self, test_client, monkeypatch
+    ):
+        """验证参考行情接口返回真实统计值，不足窗口时留空。"""
+        from quantide.web.pages import trade_main as trade_page
+
+        bars = pl.DataFrame(
+            {
+                "date": [
+                    "2026-05-14",
+                    "2026-05-15",
+                    "2026-05-16",
+                    "2026-05-19",
+                    "2026-05-20",
+                ],
+                "close": [10.0, 11.0, 12.0, 13.0, 14.0],
+            }
+        )
+
+        monkeypatch.setattr(trade_page.daily_bars, "get_bars", lambda *args, **kwargs: bars)
+
+        response = test_client.get("/trade/asset-stats?asset=000001.SZ")
+        payload = response.json()
+
+        assert response.status_code == 200
+        assert payload["visible"] is True
+        assert payload["close"] == "14.00"
+        assert payload["current"] == "14.00"
+        assert payload["ma5"] == "12.00"
+        assert payload["ma10"] == ""
+        assert payload["ma60"] == ""
 
 
 class TestTradeOrderRoute:

@@ -1,4 +1,4 @@
-"""交易主页面 - 符合 livetrade-default.html 原型
+"""交易主页面 - 符合 livetrade-default.html 原型。
 
 包含：
 1. 资产信息条
@@ -7,14 +7,17 @@
 4. 当日委托
 """
 
+import datetime
+
 from fasthtml.common import *
 from fasthtml.common import Select as _Select
 from monsterui.all import *
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
+from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.stocks import stock_list
-from quantide.data.sqlite import Position, Order
+from quantide.data.sqlite import Order, Position
 from quantide.service.registry import BrokerRegistry
 from quantide.web.layouts.main import MainLayout
 
@@ -71,6 +74,60 @@ def _get_active_account(reg: BrokerRegistry, session: dict) -> dict | None:
     return None
 
 
+def _format_trade_metric(value: float | None) -> str:
+    """Format a trade metric for compact UI display.
+
+    Args:
+        value: The numeric value to format.
+
+    Returns:
+        A two-decimal string, or an empty string when unavailable.
+    """
+    if value is None:
+        return ""
+    return f"{value:.2f}"
+
+
+def _build_asset_stats(asset: str) -> dict[str, str | bool]:
+    """Build reference price stats for the selected asset.
+
+    Args:
+        asset: The selected stock code.
+
+    Returns:
+        A payload suitable for the trade reference panel.
+    """
+    payload: dict[str, str | bool] = {
+        "visible": False,
+        "close": "",
+        "ma5": "",
+        "ma10": "",
+        "ma20": "",
+        "ma30": "",
+        "ma60": "",
+        "current": "",
+    }
+    try:
+        bars = daily_bars.get_bars(60, end=datetime.date.today(), assets=[asset], eager_mode=True)
+    except Exception:
+        return payload
+    if bars.is_empty():
+        return payload
+
+    ordered = bars.sort("date")
+    closes = [float(value) for value in ordered.get_column("close").to_list()]
+    if not closes:
+        return payload
+
+    payload["visible"] = True
+    payload["close"] = _format_trade_metric(closes[-1])
+    payload["current"] = _format_trade_metric(closes[-1])
+    for period in (5, 10, 20, 30, 60):
+        if len(closes) >= period:
+            payload[f"ma{period}"] = _format_trade_metric(sum(closes[-period:]) / period)
+    return payload
+
+
 def AssetInfoBar(total: float = 0, cash: float = 0, market_value: float = 0):
     """资产信息条"""
     cash_ratio = (cash / total * 100) if total > 0 else 0
@@ -111,9 +168,9 @@ def AssetInfoBar(total: float = 0, cash: float = 0, market_value: float = 0):
 
 def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: float = 0):
     """闪电交易面板 - 符合 spec 的下单键盘"""
-    # 统一行高：所有输入控件使用 h-10 (40px)
-    input_cls = "flex-1 px-3 h-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
-    select_cls = "px-2 h-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white text-sm"
+    # 收紧输入区尺寸，并把更多宽度让给中间 speed dial 键盘。
+    input_cls = "flex-1 px-3 h-9 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white text-sm"
+    select_cls = "px-2 h-9 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white text-sm"
     # radio button 使用原生样式，避免 MonsterUI 的 uk-input 边框
     radio_cls = "w-4 h-4 text-red-600 focus:ring-red-500 cursor-pointer"
 
@@ -137,7 +194,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             type="text",
                             name="asset_display",
                             placeholder="请输入股票名、拼音或者代码",
-                            cls=f"{input_cls} rounded-r-none",
+                            cls=f"{input_cls} rounded-r-none text-sm",
                             id="asset-display",
                             autocomplete="off",
                             hx_get="/trade/search",
@@ -149,7 +206,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         Button(
                             search_svg,
                             type="button",
-                            cls="px-3 h-10 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 flex items-center justify-center",
+                            cls="px-3 h-9 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 flex items-center justify-center",
                         ),
                         Input(
                             type="hidden",
@@ -157,7 +214,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             id="asset-code",
                         ),
                         Div(id="asset-search-dropdown", cls="hidden absolute top-full left-0 right-0 z-50"),
-                        cls="flex items-center mb-3 relative",
+                        cls="flex items-center mb-2 relative",
                     ),
                     # Row 2: Price mode + Price (use _Select to avoid MonsterUI Uk_select)
                     Div(
@@ -173,10 +230,10 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             name="price",
                             placeholder="价格",
                             value="0.00",
-                            cls=f"{input_cls} text-right text-lg font-medium rounded-l-none",
+                            cls=f"{input_cls} text-right text-base font-medium rounded-l-none",
                             id="price-input",
                         ),
-                        cls="flex items-center mb-3",
+                        cls="flex items-center mb-2",
                     ),
                     # Row 3: Order mode radio buttons (raw ft_hx to avoid MonsterUI uk-input/uk-label borders)
                     Div(
@@ -191,8 +248,8 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                 cls=radio_cls,
                                 id="order-mode-amount",
                             ),
-                            Span("按金额下单", cls="ml-1 text-sm text-gray-700 dark:text-gray-300"),
-                            cls="flex items-center cursor-pointer h-10",
+                            Span("按金额下单", cls="ml-1 text-xs text-gray-700 dark:text-gray-300"),
+                            cls="flex items-center cursor-pointer h-8",
                         ),
                         ft_hx(
                             "label",
@@ -204,36 +261,36 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                 cls=radio_cls,
                                 id="order-mode-quantity",
                             ),
-                            Span("按数量下单", cls="ml-1 text-sm text-gray-700 dark:text-gray-300"),
-                            cls="flex items-center cursor-pointer h-10",
+                            Span("按数量下单", cls="ml-1 text-xs text-gray-700 dark:text-gray-300"),
+                            cls="flex items-center cursor-pointer h-8",
                         ),
-                        cls="flex items-center gap-4 mb-3",
+                        cls="flex items-center gap-3 mb-2",
                     ),
                     # Row 4: Dynamic label input
                     Div(
                         Span(
                             "买入金额（万元）",
-                            cls="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap",
+                            cls="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap",
                             id="value-label",
                         ),
                         Input(
                             type="text",
                             name="value",
                             placeholder="",
-                            cls=f"{input_cls} text-right text-lg font-medium",
+                            cls=f"{input_cls} text-right text-base font-medium",
                             id="value-input",
                         ),
-                        cls="flex items-center gap-2 mb-3",
+                        cls="flex items-center gap-2 mb-2",
                     ),
                     # Row 5: Estimated shares
                     Div(
-                        Span("预估数量 (股)", cls="text-sm font-medium text-gray-700 dark:text-gray-300"),
-                        Span(
-                            "--",
-                            cls="text-sm font-medium text-gray-900 dark:text-white ml-auto",
+                        Span("预估数量 (股)", cls="text-xs font-medium text-gray-700 dark:text-gray-300"),
+                        Div(
+                            "",
+                            cls="ml-auto min-w-[112px] px-3 h-9 flex items-center justify-end text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700",
                             id="est-shares",
                         ),
-                        cls="flex items-center mb-3 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg",
+                        cls="flex items-center gap-2 mb-2",
                     ),
                     # Row 6: Position fraction buttons (ordered: 1/4, 1/3, 1/2, 全仓)
                     Div(
@@ -241,30 +298,30 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             Button(
                                 "1/4",
                                 type="button",
-                                cls="pos-btn px-2 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 font-medium",
+                                cls="pos-btn px-2 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 font-medium",
                                 data_fraction="0.25",
                             ),
                             Button(
                                 "1/3",
                                 type="button",
-                                cls="pos-btn px-2 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 font-medium",
+                                cls="pos-btn px-2 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 font-medium",
                                 data_fraction="0.3333",
                             ),
                             Button(
                                 "1/2",
                                 type="button",
-                                cls="pos-btn px-2 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 font-medium",
+                                cls="pos-btn px-2 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 font-medium",
                                 data_fraction="0.5",
                             ),
                             Button(
                                 "全仓",
                                 type="button",
-                                cls="pos-btn px-2 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 font-medium",
+                                cls="pos-btn px-2 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 font-medium",
                                 data_fraction="1.0",
                             ),
-                            cls="grid grid-cols-4 gap-2",
+                            cls="grid grid-cols-4 gap-1.5",
                         ),
-                        cls="mb-3",
+                        cls="mb-2",
                     ),
                     # Row 7: Buy/Sell buttons with active state
                     Div(
@@ -273,7 +330,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             Span("*", cls="absolute top-0 left-2 text-xs"),
                             "买入",
                             type="button",
-                            cls="relative bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg text-lg w-full",
+                            cls="relative bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-lg text-base w-full",
                             id="btn-buy",
                             data_side="BUY",
                         ),
@@ -281,15 +338,15 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             Span("*", cls="absolute top-0 left-2 text-xs hidden", id="sell-star"),
                             "卖出",
                             type="button",
-                            cls="relative bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg w-full opacity-60",
+                            cls="relative bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg text-base w-full opacity-60",
                             id="btn-sell",
                             data_side="SELL",
                         ),
-                        cls="grid grid-cols-2 gap-3 pt-2",
+                        cls="grid grid-cols-2 gap-2 pt-1",
                     ),
                     # Hidden submit for HTMX
                     Input(type="submit", cls="hidden", id="form-submit"),
-                    cls="w-[280px] flex-shrink-0 space-y-3",
+                    cls="w-[236px] flex-shrink-0 space-y-2",
                 ),
                 # 中间：价格快捷输入区
                 Div(
@@ -297,11 +354,11 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     Div(
                         *[
                             Button(
-                                Div(label, cls="text-lg font-medium leading-tight"),
-                                Div("--", cls="quick-price-display text-xs text-gray-400 leading-tight mt-1"),
+                                Div(label, cls="text-base font-medium leading-tight"),
+                                Div("", cls="quick-price-display text-[11px] text-gray-400 leading-tight mt-0.5 min-h-4"),
                                 type="button",
                                 cls=(
-                                    "quick-price-btn w-full h-[70px] flex flex-col items-center justify-center "
+                                    "quick-price-btn w-full h-[46px] flex flex-col items-center justify-center "
                                     "bg-[#f9fafb] dark:bg-gray-800 rounded-lg shadow-sm transition-transform active:scale-[0.98] "
                                     + ("text-[#b71c1c]" if pct > 0 else "text-[#388e3c]")
                                 ),
@@ -316,9 +373,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             ]
                             for label, pct in row
                         ],
-                        cls="grid grid-cols-4 gap-2",
+                        cls="grid grid-cols-4 gap-1",
                     ),
-                    cls="flex-[0.6] space-y-2",
+                    cls="flex-[0.8] space-y-1.5",
                 ),
                 # 右边：闪电单
                 Div(
@@ -326,13 +383,22 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     Div(
                         *[
                             Div(
-                                Div(label, cls="text-xs text-gray-500 dark:text-gray-400 mb-1"),
-                                Div("1678.23", cls="text-xs text-gray-700 dark:text-gray-300"),
-                                cls="bg-[#f9fafb] dark:bg-gray-700 rounded-md py-2 px-1 text-center flex-1",
+                                Div(label, cls="text-[11px] text-gray-500 dark:text-gray-400 mb-1"),
+                                Div("", cls="text-xs font-medium text-gray-700 dark:text-gray-300 min-h-4", id=f"ref-{key}"),
+                                cls="bg-[#f9fafb] dark:bg-gray-700 rounded-md py-1.5 px-1 text-center flex-1 min-w-0",
                             )
-                            for label in ["昨收", "MA5", "MA10", "MA20", "MA30", "MA60", "现价"]
+                            for label, key in [
+                                ("昨收", "close"),
+                                ("MA5", "ma5"),
+                                ("MA10", "ma10"),
+                                ("MA20", "ma20"),
+                                ("MA30", "ma30"),
+                                ("MA60", "ma60"),
+                                ("现价", "current"),
+                            ]
                         ],
-                        cls="flex gap-1 mb-3",
+                        cls="flex gap-1 mb-2",
+                        id="reference-price-panel",
                     ),
                     # List header
                     Div(
@@ -350,21 +416,21 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             ),
                             cls="flex gap-1",
                         ),
-                        cls="flex items-center justify-between bg-[#e0e0e0] dark:bg-gray-600 px-4 py-3 rounded-t-lg",
+                        cls="flex items-center justify-between bg-[#e0e0e0] dark:bg-gray-600 px-4 py-2.5 rounded-t-lg",
                     ),
                     # Stock list
                     Div(
                         *[
                             Div(
-                                Span(code, cls="text-sm font-bold text-gray-900 dark:text-white w-20"),
-                                Div(Span(name, cls="text-sm text-gray-600 dark:text-gray-400"), cls="flex items-center"),
-                                Span(tags, cls="text-xs text-gray-400 dark:text-gray-500 mr-2") if tags else Span("", cls="text-xs mr-2"),
+                                Span(code, cls="text-xs font-bold text-gray-900 dark:text-white w-20"),
+                                Div(Span(name, cls="text-xs text-gray-600 dark:text-gray-400"), cls="flex items-center"),
+                                Span(tags, cls="text-[11px] text-gray-400 dark:text-gray-500 mr-2") if tags else Span("", cls="text-[11px] mr-2"),
                                 Div(
                                     NotStr('<svg class="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l15-15Z"></path></svg>'),
                                     NotStr('<svg class="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>'),
                                     cls="flex items-center",
                                 ),
-                                cls="grid grid-cols-[80px_1fr_auto_auto] items-center py-3 px-4 border-b border-gray-100 dark:border-gray-700 last:border-b-0 even:bg-[#f9fafb] dark:even:bg-gray-700/50",
+                                cls="grid grid-cols-[80px_1fr_auto_auto] items-center py-2.5 px-4 border-b border-gray-100 dark:border-gray-700 last:border-b-0 even:bg-[#f9fafb] dark:even:bg-gray-700/50",
                             )
                             for code, name, tags in [
                                 ("600777", "新潮能源", "天然气、白酒、地产"),
@@ -376,9 +442,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         ],
                         cls="bg-white dark:bg-gray-800 rounded-b-lg",
                     ),
-                    cls="flex-[1.2] space-y-0",
+                    cls="flex-[0.95] space-y-0",
                 ),
-                cls="flex gap-4",
+                cls="flex gap-3",
             ),
             Script(
                 """
@@ -399,6 +465,74 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     const assetDisplay = document.getElementById('asset-display');
                     const assetCode = document.getElementById('asset-code');
                     const searchDropdown = document.getElementById('asset-search-dropdown');
+                    const referenceValues = {
+                        close: document.getElementById('ref-close'),
+                        ma5: document.getElementById('ref-ma5'),
+                        ma10: document.getElementById('ref-ma10'),
+                        ma20: document.getElementById('ref-ma20'),
+                        ma30: document.getElementById('ref-ma30'),
+                        ma60: document.getElementById('ref-ma60'),
+                        current: document.getElementById('ref-current'),
+                    };
+                    let selectedAssetStats = null;
+
+                    function clearReferencePrices() {
+                        selectedAssetStats = null;
+                        Object.values(referenceValues).forEach(function(node) {
+                            node.textContent = '';
+                        });
+                    }
+
+                    function updateCurrentReferencePrice() {
+                        if (!selectedAssetStats) {
+                            referenceValues.current.textContent = '';
+                            return;
+                        }
+                        const currentPrice = parseFloat(priceInput.value);
+                        if (!isNaN(currentPrice) && currentPrice > 0) {
+                            referenceValues.current.textContent = currentPrice.toFixed(2);
+                            return;
+                        }
+                        referenceValues.current.textContent = selectedAssetStats.current || '';
+                    }
+
+                    function applyReferencePrices(stats) {
+                        if (!stats || !stats.visible) {
+                            clearReferencePrices();
+                            return;
+                        }
+                        selectedAssetStats = stats;
+                        referenceValues.close.textContent = stats.close || '';
+                        referenceValues.ma5.textContent = stats.ma5 || '';
+                        referenceValues.ma10.textContent = stats.ma10 || '';
+                        referenceValues.ma20.textContent = stats.ma20 || '';
+                        referenceValues.ma30.textContent = stats.ma30 || '';
+                        referenceValues.ma60.textContent = stats.ma60 || '';
+                        updateCurrentReferencePrice();
+                    }
+
+                    async function fetchAssetStats(asset) {
+                        if (!asset) {
+                            clearReferencePrices();
+                            return;
+                        }
+                        try {
+                            const response = await fetch('/trade/asset-stats?asset=' + encodeURIComponent(asset), {
+                                headers: {'X-Requested-With': 'fetch'}
+                            });
+                            if (!response.ok) {
+                                clearReferencePrices();
+                                return;
+                            }
+                            const stats = await response.json();
+                            if (assetCode.value !== asset) {
+                                return;
+                            }
+                            applyReferencePrices(stats);
+                        } catch (error) {
+                            clearReferencePrices();
+                        }
+                    }
 
                     function updatePriceMode() {
                         if (priceMode.value === 'MARKET') {
@@ -447,7 +581,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         const isMarket = priceMode.value === 'MARKET';
 
                         if ((price <= 0 && !isMarket) || value <= 0) {
-                            estShares.textContent = '--';
+                            estShares.textContent = '';
                             return;
                         }
 
@@ -460,7 +594,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             shares = Math.floor(value) * 100;
                         }
 
-                        estShares.textContent = shares + ' 股';
+                        estShares.textContent = shares > 0 ? (shares + ' 股') : '';
                     }
 
                     function setPosition(fraction) {
@@ -528,6 +662,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             updateEstShares();
                             updateQuickPrices();
                         }
+                        fetchAssetStats(item.dataset.asset);
                     }
 
                     function attachSearchItemListeners() {
@@ -556,6 +691,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     // Clear hidden code when user manually edits display field
                     assetDisplay.addEventListener('input', function() {
                         assetCode.value = '';
+                        clearReferencePrices();
                     });
 
                     // --- Quick price button handlers ---
@@ -565,7 +701,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             const display = btn.querySelector('.quick-price-display');
                             const pct = parseFloat(btn.dataset.pct);
                             if (basePrice <= 0 || isNaN(pct)) {
-                                display.textContent = '--';
+                                display.textContent = '';
                                 return;
                             }
                             const newPrice = basePrice * (1 + pct);
@@ -595,16 +731,21 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     });
 
                     // Update quick price displays when price changes
-                    priceInput.addEventListener('input', updateQuickPrices);
+                    priceInput.addEventListener('input', function() {
+                        updateQuickPrices();
+                        updateCurrentReferencePrice();
+                    });
 
                     // Initial state
+                    clearReferencePrices();
                     updateActiveSide();
                     updateLabel();
+                    updateEstShares();
                     updateQuickPrices();
                 })();
                 """
             ),
-            hx_post=f"/trade/order",
+            hx_post="/trade/order",
             hx_target="#trade-result",
             id="trade-form",
             data_cash=str(cash),
@@ -657,7 +798,7 @@ def PositionTable(positions: list[Position]):
                 " 刷新",
                 cls="uk-button uk-button-primary uk-button-small",
                 style="background-color: #d32f2f;",
-                hx_get=f"/trade/positions",
+                hx_get="/trade/positions",
                 hx_target="#position-table",
             ),
             cls="flex items-center justify-between mb-4 px-6 pt-4",
@@ -726,7 +867,7 @@ def TodayOrdersTable(orders: list[Order]):
                 " 刷新",
                 cls="uk-button uk-button-primary uk-button-small",
                 style="background-color: #d32f2f;",
-                hx_get=f"/trade/orders",
+                hx_get="/trade/orders",
                 hx_target="#today-orders",
             ),
             cls="flex items-center justify-between mb-4 px-6 pt-4",
@@ -1048,10 +1189,6 @@ async def search_trade_assets(req):
             cls="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto",
         )))
 
-    # 查询最新价格
-    from quantide.data.models.daily_bars import daily_bars
-    import datetime
-
     today = datetime.date.today()
     items = []
     for _, row in result_df.iterrows():
@@ -1084,6 +1221,19 @@ async def search_trade_assets(req):
         id="asset-search-dropdown",
         cls="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto",
     )))
+
+
+async def trade_asset_stats(req):
+    """Return reference price stats for the selected asset.
+
+    Args:
+        req: HTTP request carrying the asset query parameter.
+
+    Returns:
+        JSONResponse: Compact stats payload for the trade panel.
+    """
+    asset = req.query_params.get("asset", "").strip()
+    return JSONResponse(_build_asset_stats(asset) if asset else _build_asset_stats(""))
 
 
 async def set_active_account(req, session):
