@@ -6,6 +6,7 @@ import pandas as pd
 import polars as pl
 from loguru import logger
 
+from quantide.config.dev_stubs import dev_stubs_enabled
 from quantide.config.settings import get_timezone
 from quantide.core.singleton import singleton
 from quantide.data.fetchers.registry import get_data_fetcher
@@ -46,6 +47,14 @@ class StockList:
         """加载证券列表。如果指定文件不存在，则从tushare获取"""
         self._path = path
 
+        if dev_stubs_enabled():
+            logger.info("开发 stub 模式下强制刷新证券列表")
+            df = get_data_fetcher().fetch_stock_list()
+            if df is None or df.empty:
+                raise ValueError("未获取到股票列表数据")
+            self.save(df)
+            return
+
         try:
             self._data = pl.read_parquet(self._path)
             if self.size != 0:
@@ -78,7 +87,7 @@ class StockList:
         self.save(df)
 
     def days_since_ipo(self, asset: str, date: datetime.date | None = None) -> int:
-        """ ""获取指定证券的上市天数
+        """获取指定证券的上市天数。
 
         在上市之前获取此数据，将返回0
 
@@ -185,7 +194,7 @@ class StockList:
 
         record = daily_bars.get_bars_in_range(date, date, asset)
         if len(record):
-            return record.item(0, "is_st") == True
+            return bool(record.item(0, "is_st"))
 
         # 找不到记录则认为不是 st
         return False

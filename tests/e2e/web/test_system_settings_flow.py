@@ -152,7 +152,7 @@ def test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub():
         assert "reference-price-panel" in response.text
         assert "grid-cols-[88px_minmax(0,1fr)]" in response.text
         assert "quick-price-btn aspect-square" in response.text
-        assert 'hx-trigger="input changed delay:120ms"' in response.text
+        assert 'hx-trigger="input changed delay:200ms"' in response.text
         assert "setActiveSearchIndex(0);" in response.text
 
 
@@ -169,3 +169,14 @@ def test_trade_search_supports_name_and_pinyin_in_stub_mode():
 
         assert name_response.status_code == 200
         assert "平安银行" in name_response.text
+
+
+@pytest.mark.e2e
+def test_system_stock_list_uses_real_name_and_pinyin_in_stub_mode():
+    with system_settings_e2e_session() as session, patched_tushare_fetcher():
+        with open_system_settings_client(session.app_config_dir, session.market_home) as reopened_client:
+            response = reopened_client.get("/system/stocks/search?q=payh", follow_redirects=False)
+
+        assert response.status_code == 200
+        assert "平安银行" in response.text
+        assert "PAYH" in response.text

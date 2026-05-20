@@ -503,13 +503,13 @@ class TestLoginRoutes:
         assert "evt.target.closest('.asset-search-item')" in text
         assert "hideSearchDropdown();" in text
 
-    def test_trade_panel_uses_faster_asset_search_trigger(self, test_client):
-        """验证股票搜索使用更快的 input 触发而不是 keyup 防抖。"""
+    def test_trade_panel_uses_input_asset_search_trigger(self, test_client):
+        """验证股票搜索使用 input 触发，并保留 200ms 防抖。"""
         response = test_client.get("/trade")
         text = response.text
 
         assert response.status_code == 200
-        assert 'hx-trigger="input changed delay:120ms"' in text
+        assert 'hx-trigger="input changed delay:200ms"' in text
 
     def test_trade_search_returns_formatted_display_value(self, test_client, monkeypatch):
         """验证搜索结果包含名称加代码的显示值。"""

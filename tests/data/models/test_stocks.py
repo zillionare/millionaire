@@ -1,8 +1,7 @@
 import datetime
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
-from unittest import mock
 from unittest.mock import patch
 
 import pandas as pd
@@ -10,11 +9,8 @@ import pytest
 import pytz
 from freezegun import freeze_time
 
-
-from quantide.data import daily_bars
-from quantide.data import stock_list
 from quantide.config.settings import DEFAULT_TIMEZONE
-
+from quantide.data import daily_bars, stock_list
 
 cfg = SimpleNamespace(TIMEZONE=DEFAULT_TIMEZONE, epoch=datetime.date(2024, 1, 1))
 
@@ -51,6 +47,38 @@ def test_load(mock_get_data_fetcher, mock_logger):
             assert mock_logger.warning.call_args.args[0] == "加载股票列表失败,{}"
 
             assert mock_save.called
+
+
+@patch("quantide.data.models.stocks.dev_stubs_enabled", return_value=True)
+@patch("quantide.data.models.stocks.get_data_fetcher")
+def test_load_forces_refresh_in_dev_stub_mode(mock_get_data_fetcher, _mock_dev_stubs_enabled):
+    stub_frame = pd.DataFrame(
+        {
+            "asset": ["000001.SZ"],
+            "name": ["平安银行"],
+            "pinyin": ["PAYH"],
+            "list_date": [datetime.date(1991, 4, 3)],
+            "delist_date": [pd.NaT],
+        }
+    )
+    mock_get_data_fetcher.return_value.fetch_stock_list.return_value = stub_frame
+
+    with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as f:
+        pd.DataFrame(
+            {
+                "asset": ["000001.SZ"],
+                "name": ["000001.SZ"],
+                "pinyin": ["000001"],
+                "list_date": [datetime.date(1991, 4, 3)],
+                "delist_date": [pd.NaT],
+            }
+        ).to_parquet(f.name, index=False)
+
+        stock_list.load(f.name)
+
+    assert mock_get_data_fetcher.return_value.fetch_stock_list.called
+    assert stock_list.get_name("000001.SZ") == "平安银行"
+    assert stock_list.get_pinyin("000001.SZ") == "PAYH"
 
 
 @freeze_time("2025-01-01")
@@ -110,7 +138,7 @@ def test_is_st(setup):
     dates = [datetime.date(2024, 6, 28), datetime.date(2024, 7, 2)]
     expects = [True, False]
 
-    for date, expect in zip(dates, expects):
+    for date, expect in zip(dates, expects, strict=True):
         actual = stock_list.is_st("000007.SZ", date)
         assert actual == expect
 
