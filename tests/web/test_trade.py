@@ -56,11 +56,13 @@ def test_app():
         from quantide.web.pages.live import live_app
         from quantide.web.pages.strategy import strategy_app
         from quantide.web.pages.trade_lightning import (
-            trade_lightning_add,
+            trade_lightning_clear,
+            trade_lightning_clear_modal,
+            trade_lightning_create,
+            trade_lightning_create_modal,
             trade_lightning_delete,
             trade_lightning_delete_modal,
             trade_lightning_edit_modal,
-            trade_lightning_remove_current,
             trade_lightning_update,
         )
         from quantide.web.pages.trade_main import (
@@ -95,10 +97,24 @@ def test_app():
                 Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
                 Route("/trade/live-quote", trade_live_quote, methods=["GET"]),
                 Route("/trade/order", place_order_trade, methods=["POST"]),
-                Route("/trade/lightning/{portfolio_id:str}/add", trade_lightning_add, methods=["POST"]),
                 Route(
-                    "/trade/lightning/{portfolio_id:str}/remove-current",
-                    trade_lightning_remove_current,
+                    "/trade/lightning/{portfolio_id:str}/create-modal",
+                    trade_lightning_create_modal,
+                    methods=["GET"],
+                ),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/create",
+                    trade_lightning_create,
+                    methods=["POST"],
+                ),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/clear-modal",
+                    trade_lightning_clear_modal,
+                    methods=["GET"],
+                ),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/clear",
+                    trade_lightning_clear,
                     methods=["POST"],
                 ),
                 Route(
@@ -526,26 +542,29 @@ class TestLoginRoutes:
         assert 'id="trade-lightning-panel"' in text
         assert 'id="trade-lightning-modal-container"' in text
         assert "/trade/lightning/" in text
-        assert "lightning-add-button" in text
-        assert "lightning-remove-button" in text
+        assert "lightning-create-button" in text
+        assert "lightning-clear-button" in text
+        assert "/create-modal" in text
+        assert "/clear-modal" in text
         assert "尚未添加闪电单股票" in text
 
-    def test_trade_lightning_add_update_and_delete_flow(self, test_client, monkeypatch):
-        """验证闪电单支持新增、编辑标签和删除。"""
+    def test_trade_lightning_create_update_delete_and_clear_flow(self, test_client, monkeypatch):
+        """验证闪电单支持新建、编辑、删除和清空。"""
         from quantide.web.pages import trade_lightning as lightning_page
 
         monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
         monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
 
-        add_response = test_client.post(
-            "/trade/lightning/sim_demo/add",
-            data={"asset": "000001.SZ"},
+        create_response = test_client.post(
+            "/trade/lightning/sim_demo/create",
+            data={"asset": "000001.SZ", "tags": "银行"},
         )
-        add_text = add_response.text
-        assert add_response.status_code == 200
-        assert "已加入闪电单" in add_text
-        assert 'data-lightning-asset="000001.SZ"' in add_text
-        assert "平安银行" in add_text
+        create_text = create_response.text
+        assert create_response.status_code == 200
+        assert "已创建闪电单" in create_text
+        assert 'data-lightning-asset="000001.SZ"' in create_text
+        assert "平安银行" in create_text
+        assert "银行" in create_text
 
         update_response = test_client.post(
             "/trade/lightning/sim_demo/000001.SZ/update",
@@ -563,13 +582,30 @@ class TestLoginRoutes:
         assert "已删除闪电单条目" in delete_text
         assert "尚未添加闪电单股票" in delete_text
 
+        test_client.post(
+            "/trade/lightning/sim_demo/create",
+            data={"asset": "000001.SZ", "tags": "银行"},
+        )
+        test_client.post(
+            "/trade/lightning/sim_demo/create",
+            data={"asset": "000002.SZ", "tags": "地产"},
+        )
+        clear_response = test_client.post("/trade/lightning/sim_demo/clear")
+        clear_text = clear_response.text
+        assert clear_response.status_code == 200
+        assert "已清空 2 条闪电单" in clear_text
+        assert "尚未添加闪电单股票" in clear_text
+
     def test_trade_lightning_edit_modal_renders_tag_input(self, test_client, monkeypatch):
         """验证闪电单编辑按钮会返回标签编辑弹窗。"""
         from quantide.web.pages import trade_lightning as lightning_page
 
         monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
         monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
-        test_client.post("/trade/lightning/sim_demo/add", data={"asset": "000001.SZ"})
+        test_client.post(
+            "/trade/lightning/sim_demo/create",
+            data={"asset": "000001.SZ", "tags": ""},
+        )
 
         response = test_client.get("/trade/lightning/sim_demo/000001.SZ/edit-modal")
         text = response.text
@@ -579,6 +615,21 @@ class TestLoginRoutes:
         assert 'name="tags"' in text
         assert "000001" in text
         assert "平安银行" in text
+
+    def test_trade_lightning_create_and_clear_modals_render(self, test_client):
+        """验证表头新建与清空操作会返回对应弹窗。"""
+        create_modal = test_client.get("/trade/lightning/sim_demo/create-modal")
+        create_text = create_modal.text
+        assert create_modal.status_code == 200
+        assert "新建闪电单" in create_text
+        assert 'name="asset"' in create_text
+        assert 'name="tags"' in create_text
+
+        clear_modal = test_client.get("/trade/lightning/sim_demo/clear-modal")
+        clear_text = clear_modal.text
+        assert clear_modal.status_code == 200
+        assert "清空闪电单" in clear_text
+        assert "确定清空当前账户下的全部闪电单吗？" in clear_text
 
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""

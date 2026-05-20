@@ -308,9 +308,11 @@ def test_trade_main_renders_lightning_controls_with_gateway_stub():
         assert response.status_code == 200
         assert 'id="trade-lightning-panel"' in response.text
         assert 'id="trade-lightning-modal-container"' in response.text
-        assert "lightning-add-button" in response.text
-        assert "lightning-remove-button" in response.text
+        assert "lightning-create-button" in response.text
+        assert "lightning-clear-button" in response.text
         assert "/trade/lightning/" in response.text
+        assert "/create-modal" in response.text
+        assert "/clear-modal" in response.text
         assert "尚未添加闪电单股票" in response.text
 
 

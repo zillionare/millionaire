@@ -180,3 +180,22 @@ def remove_trade_lightning_entry(portfolio_id: str, asset: str) -> bool:
     table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
     table.delete((portfolio_id, asset))  # pylint: disable=no-member
     return True
+
+
+def clear_trade_lightning_entries(portfolio_id: str) -> int:
+    """清空指定账户下的全部闪电单条目。
+
+    Args:
+        portfolio_id: 交易账户 ID。
+
+    Returns:
+        实际删除的条目数量。
+    """
+    entries = list_trade_lightning_entries(portfolio_id)
+    if not entries:
+        return 0
+
+    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    for entry in entries:
+        table.delete((entry.portfolio_id, entry.asset))  # pylint: disable=no-member
+    return len(entries)

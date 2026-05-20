@@ -56,11 +56,13 @@ from quantide.web.pages.system.risk_events import system_risk_events_app
 from quantide.web.pages.system.runtime_monitor import system_runtime_monitor_app
 from quantide.web.pages.system.stocks import system_stocks_app
 from quantide.web.pages.trade_lightning import (
-    trade_lightning_add,
+    trade_lightning_clear,
+    trade_lightning_clear_modal,
+    trade_lightning_create,
+    trade_lightning_create_modal,
     trade_lightning_delete,
     trade_lightning_delete_modal,
     trade_lightning_edit_modal,
-    trade_lightning_remove_current,
     trade_lightning_update,
 )
 from quantide.web.pages.trade_main import (
@@ -318,10 +320,24 @@ def create_app(
             Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
             Route("/trade/live-quote", trade_live_quote, methods=["GET"]),
             Route("/trade/order", place_order_trade, methods=["POST"]),
-            Route("/trade/lightning/{portfolio_id:str}/add", trade_lightning_add, methods=["POST"]),
             Route(
-                "/trade/lightning/{portfolio_id:str}/remove-current",
-                trade_lightning_remove_current,
+                "/trade/lightning/{portfolio_id:str}/create-modal",
+                trade_lightning_create_modal,
+                methods=["GET"],
+            ),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/create",
+                trade_lightning_create,
+                methods=["POST"],
+            ),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/clear-modal",
+                trade_lightning_clear_modal,
+                methods=["GET"],
+            ),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/clear",
+                trade_lightning_clear,
                 methods=["POST"],
             ),
             Route(

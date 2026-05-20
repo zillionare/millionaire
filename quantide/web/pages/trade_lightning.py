@@ -15,6 +15,7 @@ from quantide.data.models.stocks import stock_list
 from quantide.service.trade_lightning import (
     TradeLightningEntry,
     add_trade_lightning_entry,
+    clear_trade_lightning_entries,
     get_trade_lightning_entry,
     list_trade_lightning_entries,
     remove_trade_lightning_entry,
@@ -187,6 +188,22 @@ def _pencil_icon() -> Any:
     )
 
 
+def _header_icon_button(icon: Any, *, title: str, button_id: str, hx_get: str) -> Any:
+    """渲染表头的纯图标按钮。"""
+    return Button(
+        icon,
+        type="button",
+        title=title,
+        hx_get=hx_get,
+        hx_target="#trade-lightning-modal-container",
+        cls=(
+            "inline-flex h-5 w-5 items-center justify-center text-gray-500 "
+            "transition-colors hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+        ),
+        id=button_id,
+    )
+
+
 def _empty_lightning_state() -> Any:
     """渲染闪电单空态。"""
     return Div(
@@ -272,33 +289,17 @@ def render_trade_lightning_panel(
         Div(
             H3("闪电单", cls="text-base font-semibold text-gray-900 dark:text-white m-0"),
             Div(
-                Button(
+                _header_icon_button(
                     _plus_circle_icon(),
-                    type="button",
-                    title="添加当前股票到闪电单",
-                    hx_post=f"/trade/lightning/{portfolio_id}/add",
-                    hx_include="#trade-form",
-                    hx_target="#trade-lightning-panel",
-                    hx_swap="outerHTML",
-                    cls=(
-                        "inline-flex h-5 w-5 items-center justify-center rounded text-gray-500 "
-                        "hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
-                    ),
-                    id="lightning-add-button",
+                    title="新建闪电单",
+                    button_id="lightning-create-button",
+                    hx_get=f"/trade/lightning/{portfolio_id}/create-modal",
                 ),
-                Button(
+                _header_icon_button(
                     _minus_circle_icon(),
-                    type="button",
-                    title="从闪电单移除当前股票",
-                    hx_post=f"/trade/lightning/{portfolio_id}/remove-current",
-                    hx_include="#trade-form",
-                    hx_target="#trade-lightning-panel",
-                    hx_swap="outerHTML",
-                    cls=(
-                        "inline-flex h-5 w-5 items-center justify-center rounded text-gray-500 "
-                        "hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700"
-                    ),
-                    id="lightning-remove-button",
+                    title="清空闪电单",
+                    button_id="lightning-clear-button",
+                    hx_get=f"/trade/lightning/{portfolio_id}/clear-modal",
                 ),
                 cls="flex gap-1 text-[80%]",
             ),
@@ -380,6 +381,49 @@ def _edit_modal(portfolio_id: str, entry: TradeLightningEntry) -> Any:
     return _dialog_modal("编辑闪电单", body, "", modal_id="trade-lightning-edit-modal")
 
 
+def _create_modal(portfolio_id: str, *, asset: str = "", tags: str = "") -> Any:
+    """渲染新建闪电单弹窗。"""
+    body = Form(
+        Div(
+            Label("股票代码", cls="mb-2 block text-sm font-medium text-gray-700"),
+            Input(
+                type="text",
+                name="asset",
+                value=asset,
+                placeholder="请输入股票代码，如：000001.SZ",
+                cls="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm",
+            ),
+            Label("标签", cls="mb-2 block pt-2 text-sm font-medium text-gray-700"),
+            Input(
+                type="text",
+                name="tags",
+                value=tags,
+                placeholder="请输入标签，如：天然气、地产",
+                cls="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm",
+            ),
+            cls="space-y-2",
+        ),
+        Div(
+            Button(
+                "取消",
+                type="button",
+                cls="rounded-lg border border-gray-300 px-4 py-2 text-sm",
+                onclick=_close_modal_button(),
+            ),
+            Button(
+                "创建",
+                type="submit",
+                cls="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700",
+            ),
+            cls="flex justify-end gap-2",
+        ),
+        hx_post=f"/trade/lightning/{portfolio_id}/create",
+        hx_target="#trade-lightning-modal-container",
+        cls="space-y-4",
+    )
+    return _dialog_modal("新建闪电单", body, "", modal_id="trade-lightning-create-modal")
+
+
 def _delete_modal(portfolio_id: str, entry: TradeLightningEntry) -> Any:
     """渲染删除确认弹窗。"""
     name, _ = _asset_profile(entry.asset)
@@ -396,6 +440,28 @@ def _delete_modal(portfolio_id: str, entry: TradeLightningEntry) -> Any:
     )
     body = P(f"确定删除 {_asset_symbol(entry.asset)} · {name} 吗？", cls="text-sm text-gray-700")
     return _dialog_modal("删除闪电单", body, footer, modal_id="trade-lightning-delete-modal")
+
+
+def _clear_modal(portfolio_id: str) -> Any:
+    """渲染清空确认弹窗。"""
+    footer = Div(
+        Button(
+            "取消",
+            type="button",
+            cls="rounded-lg border border-gray-300 px-4 py-2 text-sm",
+            onclick=_close_modal_button(),
+        ),
+        Button(
+            "清空",
+            type="button",
+            cls="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700",
+            hx_post=f"/trade/lightning/{portfolio_id}/clear",
+            hx_target="#trade-lightning-modal-container",
+        ),
+        cls="flex justify-end gap-2",
+    )
+    body = P("确定清空当前账户下的全部闪电单吗？", cls="text-sm text-gray-700")
+    return _dialog_modal("清空闪电单", body, footer, modal_id="trade-lightning-clear-modal")
 
 
 def _panel_with_toast(
@@ -439,41 +505,70 @@ async def trade_lightning_delete_modal(req):
     return HTMLResponse(to_xml(_delete_modal(portfolio_id, entry)))
 
 
-async def trade_lightning_add(req):
-    """将当前股票加入闪电单。"""
+async def trade_lightning_create_modal(req):
+    """返回新建弹窗。"""
+    portfolio_id = req.path_params["portfolio_id"]
+    return HTMLResponse(to_xml(_create_modal(portfolio_id)))
+
+
+async def trade_lightning_create(req):
+    """创建新的闪电单条目。"""
     portfolio_id = req.path_params["portfolio_id"]
     form = await req.form()
     asset = str(form.get("asset") or "").strip()
+    tags = str(form.get("tags") or "").strip()
     if not asset:
-        return HTMLResponse(
-            to_xml(_panel_with_toast(portfolio_id, "请先选择股票后再添加"))
+        return _render_response(
+            _create_modal(portfolio_id, asset=asset, tags=tags),
+            _lightning_toast("请先输入股票代码", hx_swap_oob=True),
         )
 
     try:
         stock_list.get_name(asset)
     except Exception:
-        return HTMLResponse(to_xml(_panel_with_toast(portfolio_id, "股票代码无效，无法加入闪电单")))
-
-    _, created = add_trade_lightning_entry(portfolio_id, asset)
-    message = "已加入闪电单" if created else "该股票已在闪电单中"
-    level = "success" if created else "error"
-    return HTMLResponse(to_xml(_panel_with_toast(portfolio_id, message, level=level)))
-
-
-async def trade_lightning_remove_current(req):
-    """从闪电单移除当前股票。"""
-    portfolio_id = req.path_params["portfolio_id"]
-    form = await req.form()
-    asset = str(form.get("asset") or "").strip()
-    if not asset:
-        return HTMLResponse(
-            to_xml(_panel_with_toast(portfolio_id, "请先选择股票后再移除"))
+        return _render_response(
+            _create_modal(portfolio_id, asset=asset, tags=tags),
+            _lightning_toast("股票代码无效，无法创建闪电单", hx_swap_oob=True),
         )
 
-    removed = remove_trade_lightning_entry(portfolio_id, asset)
-    message = "已从闪电单移除" if removed else "当前股票不在闪电单中"
-    level = "success" if removed else "error"
-    return HTMLResponse(to_xml(_panel_with_toast(portfolio_id, message, level=level)))
+    _, created = add_trade_lightning_entry(portfolio_id, asset, tags)
+    message = "已创建闪电单" if created else "该股票已在闪电单中"
+    level = "success" if created else "error"
+    if not created:
+        return _render_response(
+            _create_modal(portfolio_id, asset=asset, tags=tags),
+            _lightning_toast(message, level=level, hx_swap_oob=True),
+        )
+    return _render_response(
+        Div(id="trade-lightning-modal-container"),
+        _panel_with_toast(portfolio_id, message, level=level, hx_swap_oob=True),
+    )
+
+
+async def trade_lightning_clear_modal(req):
+    """返回清空确认弹窗。"""
+    portfolio_id = req.path_params["portfolio_id"]
+    return HTMLResponse(to_xml(_clear_modal(portfolio_id)))
+
+
+async def trade_lightning_clear(req):
+    """清空当前账户下的全部闪电单。"""
+    portfolio_id = req.path_params["portfolio_id"]
+    removed_count = clear_trade_lightning_entries(portfolio_id)
+    if removed_count == 0:
+        return _render_response(
+            Div(id="trade-lightning-modal-container"),
+            _panel_with_toast(portfolio_id, "当前没有可清空的闪电单", hx_swap_oob=True),
+        )
+    return _render_response(
+        Div(id="trade-lightning-modal-container"),
+        _panel_with_toast(
+            portfolio_id,
+            f"已清空 {removed_count} 条闪电单",
+            level="success",
+            hx_swap_oob=True,
+        ),
+    )
 
 
 async def trade_lightning_update(req):
