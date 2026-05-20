@@ -348,6 +348,8 @@ def test_trade_lightning_create_modal_matches_buy_order_markup_with_gateway_stub
         assert 'name="price_ref"' in response.text
         assert "请输入股票代码、拼音或者名称" in response.text
         assert "闪电单是一种预先确定买入标的、金额和价格的预埋单" in response.text
+        assert "/trade/lightning/search" in response.text
+        assert 'id="lightning-asset-search-dropdown"' in response.text
 
 
 @pytest.mark.e2e

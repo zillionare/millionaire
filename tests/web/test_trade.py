@@ -63,6 +63,7 @@ def test_app():
             trade_lightning_delete,
             trade_lightning_delete_modal,
             trade_lightning_edit_modal,
+            trade_lightning_search,
             trade_lightning_update,
         )
         from quantide.web.pages.trade_main import (
@@ -94,6 +95,7 @@ def test_app():
                 Route("/trade", trade_main_page),
                 Route("/trade/", trade_main_page),
                 Route("/trade/search", search_trade_assets, methods=["GET"]),
+                Route("/trade/lightning/search", trade_lightning_search, methods=["GET"]),
                 Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
                 Route("/trade/live-quote", trade_live_quote, methods=["GET"]),
                 Route("/trade/order", place_order_trade, methods=["POST"]),
@@ -661,12 +663,40 @@ class TestLoginRoutes:
         assert "请输入股票代码、拼音或者名称" in create_text
         assert "买入金额" in create_text
         assert "买入价格" in create_text
+        assert "/trade/lightning/search" in create_text
+        assert 'id="lightning-asset-search-dropdown"' in create_text
 
         clear_modal = test_client.get("/trade/lightning/sim_demo/clear-modal")
         clear_text = clear_modal.text
         assert clear_modal.status_code == 200
         assert "清空闪电买入单" in clear_text
         assert "确定清空当前账户下的全部闪电买入单吗？" in clear_text
+
+    def test_trade_lightning_search_supports_name_code_and_pinyin(self, test_client, monkeypatch):
+        """验证闪电买入单搜索接口支持代码、名称和拼音。"""
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        result_df = pl.DataFrame(
+            {
+                "asset": ["000001.SZ"],
+                "name": ["平安银行"],
+                "pinyin": ["PAYH"],
+            }
+        ).to_pandas()
+        monkeypatch.setattr(
+            lightning_page.stock_list,
+            "fuzzy_search",
+            lambda *args, **kwargs: result_df,
+        )
+
+        response = test_client.get("/trade/lightning/search?asset_query=payh")
+        text = response.text
+
+        assert response.status_code == 200
+        assert "平安银行" in text
+        assert "000001.SZ · PAYH" in text
+        assert 'data-display="平安银行（000001.SZ）"' in text
+        assert "lightning-asset-search-item" in text
 
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""

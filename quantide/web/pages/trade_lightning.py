@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from fasthtml.common import *
@@ -32,6 +33,7 @@ PRICE_REFERENCE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("60日均线", "ma60"),
 )
 PRICE_REFERENCE_LABELS = {key: label for label, key in PRICE_REFERENCE_OPTIONS}
+ASSET_CODE_PATTERN = re.compile(r"(\d{6}\.(?:SZ|SH|BJ))", re.IGNORECASE)
 
 
 def _lightning_toast(message: str, level: str = "error", *, hx_swap_oob: bool = False):
@@ -129,6 +131,9 @@ def _resolve_asset_input(asset_query: str) -> str | None:
     normalized = asset_query.strip().upper()
     if not normalized:
         return None
+    code_match = ASSET_CODE_PATTERN.search(normalized)
+    if code_match:
+        normalized = code_match.group(1).upper()
 
     try:
         stock_list.get_name(normalized)
@@ -254,6 +259,67 @@ def _close_circle_icon() -> Any:
         '<path d="m9 9 6 6"></path>'
         '<path d="m15 9-6 6"></path>'
         "</svg>"
+    )
+
+
+def _lightning_asset_search_script() -> Any:
+    """渲染创建弹窗股票搜索交互脚本。"""
+    return Script(
+        """
+        (() => {
+            if (window.__lightningAssetSearchBound) {
+                return;
+            }
+            window.__lightningAssetSearchBound = true;
+
+            function getInput() {
+                return document.getElementById('lightning-asset-query');
+            }
+
+            function getDropdown() {
+                return document.getElementById('lightning-asset-search-dropdown');
+            }
+
+            function hideDropdown() {
+                const dropdown = getDropdown();
+                if (!dropdown) {
+                    return;
+                }
+                dropdown.innerHTML = '';
+                dropdown.className = 'hidden';
+            }
+
+            document.body.addEventListener('click', function(evt) {
+                const item = evt.target.closest('.lightning-asset-search-item');
+                if (item) {
+                    const input = getInput();
+                    if (input) {
+                        input.value = item.dataset.display || item.dataset.asset || '';
+                    }
+                    hideDropdown();
+                    return;
+                }
+
+                if (!evt.target.closest('#lightning-asset-search-wrapper')) {
+                    hideDropdown();
+                }
+            });
+
+            document.body.addEventListener('keydown', function(evt) {
+                const input = getInput();
+                if (!input || evt.target !== input || evt.key !== 'Enter') {
+                    return;
+                }
+                const firstItem = document.querySelector('.lightning-asset-search-item');
+                if (!firstItem) {
+                    return;
+                }
+                evt.preventDefault();
+                input.value = firstItem.dataset.display || firstItem.dataset.asset || '';
+                hideDropdown();
+            });
+        })();
+        """
     )
 
 
@@ -417,12 +483,12 @@ def _dialog_modal(title: str, body: Any, *, modal_id: str) -> Any:
                 Div(
                     Div(
                         Div(
-                            "致格\n知物",
+                            "匡醍\n量化",
                             cls="whitespace-pre-line text-left text-sm font-semibold leading-4 text-white",
                         ),
                         H3(
                             title,
-                            cls="m-0 text-center text-[30px] font-medium tracking-wide text-white",
+                            cls="m-0 text-center text-[24px] font-medium tracking-wide text-white",
                         ),
                         Button(
                             _close_circle_icon(),
@@ -439,7 +505,10 @@ def _dialog_modal(title: str, body: Any, *, modal_id: str) -> Any:
                         cls="grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-[#d00000] px-5 py-4",
                     ),
                     Div(body, cls="bg-[#f7f7f7]"),
-                    cls="inline-block w-full max-w-4xl overflow-hidden rounded-xl bg-white text-left align-middle shadow-2xl",
+                    cls=(
+                        "inline-block w-full max-w-[640px] overflow-hidden rounded-xl bg-white "
+                        "text-left align-middle shadow-2xl"
+                    ),
                 ),
                 cls="flex min-h-full items-center justify-center p-4 text-center",
             ),
@@ -470,6 +539,7 @@ def _modal_stock_input(asset_query: str, *, readonly: bool = False) -> Any:
         "type": "text",
         "value": asset_query,
         "placeholder": "请输入股票代码、拼音或者名称",
+        "id": "lightning-asset-query",
         "cls": (
             "w-full border-0 bg-transparent px-4 py-3 pr-11 text-base text-gray-900 "
             "placeholder:text-gray-500 focus:outline-none"
@@ -477,15 +547,26 @@ def _modal_stock_input(asset_query: str, *, readonly: bool = False) -> Any:
     }
     if readonly:
         input_attrs["readonly"] = True
+        search_dropdown = ""
     else:
         input_attrs["name"] = "asset_query"
+        input_attrs["autocomplete"] = "off"
+        input_attrs["hx_get"] = "/trade/lightning/search"
+        input_attrs["hx_target"] = "#lightning-asset-search-dropdown"
+        input_attrs["hx_trigger"] = "focus, input changed delay:200ms"
+        search_dropdown = Div(id="lightning-asset-search-dropdown", cls="hidden")
     return Div(
-        Input(**input_attrs),
-        Span(
-            _search_icon(),
-            cls="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400",
+        Div(
+            Input(**input_attrs),
+            Span(
+                _search_icon(),
+                cls="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400",
+            ),
+            cls="relative bg-white",
         ),
-        cls="relative bg-white",
+        search_dropdown,
+        id="lightning-asset-search-wrapper",
+        cls="relative",
     )
 
 
@@ -530,22 +611,6 @@ def _modal_price_ref_select(price_ref: str) -> Any:
         cls=(
             "w-full border-0 bg-white px-4 py-3 text-base text-gray-900 focus:outline-none "
             "focus:ring-0"
-        ),
-    )
-
-
-def _modal_illustration() -> Any:
-    """渲染弹窗左侧的装饰插画区。"""
-    blocks = [
-        "h-24 rounded-2xl bg-white/80",
-        "h-32 rounded-2xl bg-white/60 ml-10",
-        "h-40 rounded-2xl bg-white/75 mr-8",
-    ]
-    return Div(
-        *[Div(cls=f"{block} shadow-sm") for block in blocks],
-        cls=(
-            "hidden min-h-full flex-col justify-center gap-4 bg-[linear-gradient(180deg,#efefef,#f9f9f9)] "
-            "px-6 py-8 md:flex"
         ),
     )
 
@@ -608,17 +673,14 @@ def _upsert_modal(
                 ),
                 cls="flex justify-center pt-2",
             ),
-            cls="space-y-8 px-8 py-10",
+            _lightning_asset_search_script(),
+            cls="space-y-8 px-8 py-8",
         ),
         hx_post=submit_path,
         hx_target="#trade-lightning-modal-container",
-        cls="h-full",
+        cls="min-h-[404px]",
     )
-    body = Div(
-        _modal_illustration(),
-        Div(form, cls="min-h-full bg-[#f7f7f7]"),
-        cls="grid md:grid-cols-[260px_1fr]",
-    )
+    body = Div(form, cls="bg-[#f7f7f7]")
     return _dialog_modal(title, body, modal_id=modal_id)
 
 
@@ -739,6 +801,63 @@ def _panel_with_toast(
         portfolio_id,
         hx_swap_oob=hx_swap_oob,
         extra_fragments=(_lightning_toast(message, level, hx_swap_oob=True),),
+    )
+
+
+async def trade_lightning_search(req):
+    """搜索闪电买入单中的股票候选项。"""
+    query = req.query_params.get("asset_query", "").strip()
+    if not query:
+        return HTMLResponse(to_xml(Div(id="lightning-asset-search-dropdown", cls="hidden")))
+
+    try:
+        result_df = stock_list.fuzzy_search(query, id_only=False)
+    except Exception:
+        return HTMLResponse(to_xml(Div(id="lightning-asset-search-dropdown", cls="hidden")))
+
+    if result_df is None or len(result_df) == 0:
+        return HTMLResponse(
+            to_xml(
+                Div(
+                    Div("无匹配结果", cls="px-3 py-2 text-sm text-gray-500"),
+                    id="lightning-asset-search-dropdown",
+                    cls=(
+                        "absolute z-50 mt-1 w-full rounded-lg border border-gray-300 bg-white "
+                        "shadow-lg max-h-48 overflow-y-auto"
+                    ),
+                )
+            )
+        )
+
+    items = []
+    for _, row in result_df.iterrows():
+        asset = row.get("asset", "")
+        name = row.get("name", "")
+        pinyin = row.get("pinyin", "")
+        display = f"{name}（{asset}）"
+        items.append(
+            Div(
+                Div(name, cls="text-sm font-medium text-gray-900"),
+                Div(f"{asset} · {pinyin}", cls="text-xs text-gray-500"),
+                cls="lightning-asset-search-item cursor-pointer px-3 py-2 hover:bg-gray-100",
+                data_asset=asset,
+                data_display=display,
+                tabindex="0",
+                role="button",
+            )
+        )
+
+    return HTMLResponse(
+        to_xml(
+            Div(
+                *items,
+                id="lightning-asset-search-dropdown",
+                cls=(
+                    "absolute z-50 mt-1 w-full rounded-lg border border-gray-300 bg-white "
+                    "shadow-lg max-h-48 overflow-y-auto"
+                ),
+            )
+        )
     )
 
 

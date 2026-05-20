@@ -63,6 +63,7 @@ from quantide.web.pages.trade_lightning import (
     trade_lightning_delete,
     trade_lightning_delete_modal,
     trade_lightning_edit_modal,
+    trade_lightning_search,
     trade_lightning_update,
 )
 from quantide.web.pages.trade_main import (
@@ -317,6 +318,7 @@ def create_app(
             Route("/trade", trade_main_page),
             Route("/trade/", trade_main_page),
             Route("/trade/search", search_trade_assets, methods=["GET"]),
+            Route("/trade/lightning/search", trade_lightning_search, methods=["GET"]),
             Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
             Route("/trade/live-quote", trade_live_quote, methods=["GET"]),
             Route("/trade/order", place_order_trade, methods=["POST"]),
