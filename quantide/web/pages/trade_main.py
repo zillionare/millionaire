@@ -15,12 +15,14 @@ from fasthtml.common import Select as _Select
 from monsterui.all import *
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from quantide.config.settings import get_settings
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
 from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.stocks import stock_list
 from quantide.data.sqlite import Order, Position
+from quantide.service.livequote import live_quote
 from quantide.service.registry import BrokerRegistry
 from quantide.web.layouts.main import MainLayout
 
@@ -183,9 +185,10 @@ def _build_asset_stats(asset: str) -> dict[str, str | bool]:
     if not closes:
         return payload
 
+    current_price = _resolve_live_current_price(asset)
     payload["visible"] = True
     payload["close"] = _format_trade_metric(closes[-1])
-    payload["current"] = _format_trade_metric(closes[-1])
+    payload["current"] = _format_trade_metric(current_price or closes[-1])
     for period in (5, 10, 20, 30, 60):
         if len(closes) >= period:
             payload[f"ma{period}"] = _format_trade_metric(sum(closes[-period:]) / period)
@@ -227,6 +230,27 @@ def _load_trade_reference_bars(
     return fallback.with_columns(pl.col("date").cast(pl.Date)).sort("date")
 
 
+def _resolve_trade_reference_close(asset: str) -> float:
+    """Resolve the latest reference close price for a trade symbol.
+
+    Args:
+        asset: Stock code.
+
+    Returns:
+        Latest close price when available, otherwise ``0.0``.
+    """
+    if not asset:
+        return 0.0
+    bars = _load_trade_reference_bars(asset, datetime.date.today(), 1)
+    if bars.is_empty():
+        return 0.0
+    try:
+        close_value = float(bars.sort("date").row(-1, named=True).get("close") or 0)
+    except Exception:
+        return 0.0
+    return close_value if close_value > 0 else 0.0
+
+
 def _trade_result_has_order(result) -> bool:
     """Return whether a broker call produced an actual order.
 
@@ -242,6 +266,62 @@ def _trade_result_has_order(result) -> bool:
         return True
     trades = getattr(result, "trades", None) or []
     return len(trades) > 0
+
+
+def _maybe_start_live_quote() -> None:
+    """Start live quote streaming on demand when runtime settings allow it."""
+    settings = get_settings()
+    livequote_mode = str(getattr(settings, "livequote_mode", "") or "").strip().lower()
+    if not getattr(settings, "gateway_enabled", False) and livequote_mode == "none":
+        return
+    if live_quote.is_running:
+        return
+    try:
+        live_quote.start()
+    except Exception:
+        return
+
+
+def _resolve_live_current_price(asset: str) -> float:
+    """Resolve the latest current price for the trade panel.
+
+    Args:
+        asset: Stock code.
+
+    Returns:
+        Current quote price when available, otherwise ``0.0``.
+    """
+    if not asset:
+        return 0.0
+    _maybe_start_live_quote()
+    quote = live_quote.get_quote(asset)
+    if not quote:
+        return 0.0
+    for key in ("price", "lastPrice", "close"):
+        try:
+            value = float(quote.get(key) or 0)
+        except Exception:
+            value = 0.0
+        if value > 0:
+            return value
+    return 0.0
+
+
+def _build_live_quote_payload(asset: str) -> dict[str, str | bool]:
+    """Build a lightweight live quote payload for UI polling.
+
+    Args:
+        asset: Stock code.
+
+    Returns:
+        Quote payload for the trade page.
+    """
+    current_price = _resolve_live_current_price(asset) or _resolve_trade_reference_close(asset)
+    return {
+        "asset": asset,
+        "current": _format_trade_metric(current_price),
+        "visible": current_price > 0,
+    }
 
 
 def AssetInfoBar(total: float = 0, cash: float = 0, market_value: float = 0):
@@ -496,10 +576,12 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                 cls=(
                                     "quick-price-btn aspect-square w-full flex flex-col items-center justify-center "
                                     "bg-[#f9fafb] dark:bg-gray-800 rounded-lg shadow-sm transition-transform active:scale-[0.98] "
+                                    "disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 "
                                     + ("text-[#b71c1c]" if pct > 0 else "text-[#388e3c]")
                                 ),
                                 data_pct=str(pct),
                                 data_market_order="true" if abs(pct) == 0.10 else "false",
+                                disabled=True,
                             )
                             for row in [
                                 [("涨停", 0.10), ("5", 0.05), ("-1", -0.01), ("-6", -0.06)],
@@ -519,10 +601,17 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     # Stats row
                     Div(
                         *[
-                            Div(
+                            Button(
                                 Div(label, cls="text-[11px] text-gray-500 dark:text-gray-400 mb-1"),
                                 Div("", cls="text-xs font-medium text-gray-700 dark:text-gray-300 min-h-4", id=f"ref-{key}"),
-                                cls="bg-[#f9fafb] dark:bg-gray-700 rounded-md py-1.5 px-1 text-center flex-1 min-w-0",
+                                type="button",
+                                cls=(
+                                    "reference-price-btn bg-[#f9fafb] dark:bg-gray-700 rounded-md py-1.5 px-1 "
+                                    "text-center flex flex-col items-center justify-center gap-1 flex-1 min-w-0 "
+                                    "disabled:opacity-40 disabled:cursor-not-allowed"
+                                ),
+                                data_ref_key=key,
+                                disabled=True,
                             )
                             for label, key in [
                                 ("昨收", "close"),
@@ -619,6 +708,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     let limitPlaceholderPrice = '';
                     let lastQuickPricePct = null;
                     let lastQuickPriceValue = '';
+                    let currentQuotePollId = null;
 
                     function refreshSearchDropdown() {
                         searchDropdown = document.getElementById('asset-search-dropdown');
@@ -661,21 +751,18 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         selectedAssetStats = null;
                         limitPlaceholderPrice = '';
                         clearQuickPriceSelection();
+                        stopLiveQuotePolling();
                         Object.values(referenceValues).forEach(function(node) {
                             node.textContent = '';
                         });
                         updateLimitPricePlaceholder();
                         updatePriceChangeHint();
+                        updateQuickPriceAvailability();
                     }
 
                     function updateCurrentReferencePrice() {
                         if (!selectedAssetStats) {
                             referenceValues.current.textContent = '';
-                            return;
-                        }
-                        const currentPrice = parseFloat(priceInput.value);
-                        if (!isNaN(currentPrice) && currentPrice > 0) {
-                            referenceValues.current.textContent = currentPrice.toFixed(2);
                             return;
                         }
                         referenceValues.current.textContent = selectedAssetStats.current || '';
@@ -695,6 +782,14 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         }
                         const placeholderPrice = parseFloat(limitPlaceholderPrice || '');
                         return !isNaN(placeholderPrice) && placeholderPrice > 0 ? placeholderPrice : 0;
+                    }
+
+                    function getCurrentQuotePrice() {
+                        if (!selectedAssetStats) {
+                            return 0;
+                        }
+                        const currentPrice = parseFloat(selectedAssetStats.current || '');
+                        return !isNaN(currentPrice) && currentPrice > 0 ? currentPrice : 0;
                     }
 
                     function setLimitPlaceholderPrice(value) {
@@ -737,6 +832,69 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         priceChangeHint.textContent = sign + deltaPct.toFixed(2) + '%';
                     }
 
+                    function setQuickPriceButtonsEnabled(enabled) {
+                        document.querySelectorAll('.quick-price-btn').forEach(function(btn) {
+                            btn.disabled = !enabled;
+                        });
+                    }
+
+                    function setReferencePriceButtonsEnabled(enabled) {
+                        document.querySelectorAll('.reference-price-btn').forEach(function(btn) {
+                            const valueNode = btn.querySelector('[id^="ref-"]');
+                            const hasValue = !!(valueNode && valueNode.textContent.trim() !== '');
+                            btn.disabled = !(enabled && hasValue);
+                        });
+                    }
+
+                    function updateQuickPriceAvailability() {
+                        const hasAsset = !!assetCode.value;
+                        const hasCurrentPrice = getCurrentQuotePrice() > 0;
+                        setQuickPriceButtonsEnabled(hasAsset && hasCurrentPrice);
+                        setReferencePriceButtonsEnabled(hasAsset);
+                    }
+
+                    async function refreshLiveQuote(asset) {
+                        if (!asset) {
+                            return;
+                        }
+                        try {
+                            const response = await fetch('/trade/live-quote?asset=' + encodeURIComponent(asset), {
+                                headers: {'X-Requested-With': 'fetch'}
+                            });
+                            if (!response.ok || assetCode.value !== asset) {
+                                return;
+                            }
+                            const payload = await response.json();
+                            if (!selectedAssetStats) {
+                                selectedAssetStats = {};
+                            }
+                            selectedAssetStats.current = payload.current || '';
+                            updateCurrentReferencePrice();
+                            updateQuickPriceAvailability();
+                            updateQuickPrices();
+                        } catch (error) {
+                            updateQuickPriceAvailability();
+                        }
+                    }
+
+                    function stopLiveQuotePolling() {
+                        if (currentQuotePollId !== null) {
+                            clearInterval(currentQuotePollId);
+                            currentQuotePollId = null;
+                        }
+                    }
+
+                    function startLiveQuotePolling(asset) {
+                        stopLiveQuotePolling();
+                        if (!asset) {
+                            return;
+                        }
+                        refreshLiveQuote(asset);
+                        currentQuotePollId = setInterval(function() {
+                            refreshLiveQuote(asset);
+                        }, 3000);
+                    }
+
                     function applyReferencePrices(stats) {
                         if (!stats || !stats.visible) {
                             clearReferencePrices();
@@ -751,6 +909,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         referenceValues.ma30.textContent = stats.ma30 || '';
                         referenceValues.ma60.textContent = stats.ma60 || '';
                         updateCurrentReferencePrice();
+                        updateQuickPriceAvailability();
                     }
 
                     async function fetchAssetStats(asset) {
@@ -879,7 +1038,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     }
 
                     function getQuickPriceBase() {
-                        return getReferenceClosePrice();
+                        return getCurrentQuotePrice();
                     }
 
                     function setPosition(fraction) {
@@ -929,6 +1088,27 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         });
                     });
 
+                    document.querySelectorAll('.reference-price-btn').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            if (this.disabled || !selectedAssetStats) {
+                                return;
+                            }
+                            const refKey = this.dataset.refKey;
+                            const nextPrice = selectedAssetStats[refKey] || '';
+                            const parsed = parseFloat(nextPrice);
+                            if (isNaN(parsed) || parsed <= 0) {
+                                return;
+                            }
+                            clearQuickPriceSelection();
+                            priceMode.value = 'LIMIT';
+                            updatePriceMode();
+                            priceInput.value = parsed.toFixed(2);
+                            updateEstShares();
+                            updatePriceChangeHint();
+                            updateQuickPrices();
+                        });
+                    });
+
                     // --- Asset search dropdown handlers ---
                     function selectAsset(item) {
                         assetDisplay.value = item.dataset.display;
@@ -945,6 +1125,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         updateEstShares();
                         updateQuickPrices();
                         fetchAssetStats(item.dataset.asset);
+                        startLiveQuotePolling(item.dataset.asset);
                     }
 
                     function hydrateTradeFromPosition(row) {
@@ -977,10 +1158,16 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         updateCurrentReferencePrice();
                         updateQuickPrices();
                         fetchAssetStats(asset);
+                        startLiveQuotePolling(asset);
                     }
 
                     document.body.addEventListener('htmx:afterSwap', function(evt) {
                         if (evt.detail.target.id === 'asset-search-dropdown') {
+                            const items = getSearchItems();
+                            if (items.length === 1) {
+                                selectAsset(items[0]);
+                                return;
+                            }
                             const dropdown = refreshSearchDropdown();
                             if (dropdown && dropdown.innerText.trim() !== '') {
                                 dropdown.classList.remove('hidden');
@@ -1046,6 +1233,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         if (assetDisplay.value.trim() === '') {
                             hideSearchDropdown();
                         }
+                        updateQuickPrices();
                     });
 
                     assetDisplay.addEventListener('keydown', function(evt) {
@@ -1098,6 +1286,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     // Click quick price button to set price
                     document.querySelectorAll('.quick-price-btn').forEach(function(btn) {
                         btn.addEventListener('click', function() {
+                            if (this.disabled) {
+                                return;
+                            }
                             const basePrice = getQuickPriceBase();
                             const pct = parseFloat(this.dataset.pct);
                             if (this.dataset.marketOrder === 'true') {
@@ -1144,6 +1335,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
 
                     // Initial state
                     clearReferencePrices();
+                    setQuickPriceButtonsEnabled(false);
                     updateActiveSide();
                     updateLabel();
                     updateEstShares();
@@ -1663,6 +1855,19 @@ async def trade_asset_stats(req):
     """
     asset = req.query_params.get("asset", "").strip()
     return JSONResponse(_build_asset_stats(asset) if asset else _build_asset_stats(""))
+
+
+async def trade_live_quote(req):
+    """Return a lightweight live quote payload for trade-page polling.
+
+    Args:
+        req: HTTP request carrying the asset query parameter.
+
+    Returns:
+        JSONResponse: Current quote payload for the selected asset.
+    """
+    asset = req.query_params.get("asset", "").strip()
+    return JSONResponse(_build_live_quote_payload(asset) if asset else _build_live_quote_payload(""))
 
 
 async def set_active_account(req, session):

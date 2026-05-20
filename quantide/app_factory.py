@@ -60,6 +60,7 @@ from quantide.web.pages.trade_main import (
     search_trade_assets,
     set_active_account,
     trade_asset_stats,
+    trade_live_quote,
     trade_main_page,
 )
 from quantide.web.theme import AppTheme
@@ -307,6 +308,7 @@ def create_app(
             Route("/trade/", trade_main_page),
             Route("/trade/search", search_trade_assets, methods=["GET"]),
             Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
+            Route("/trade/live-quote", trade_live_quote, methods=["GET"]),
             Route("/trade/order", place_order_trade, methods=["POST"]),
             Route("/system/accounts", accounts_list, methods=["GET"]),
             Route("/system/accounts/", accounts_list, methods=["GET"]),

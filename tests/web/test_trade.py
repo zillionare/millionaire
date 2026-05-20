@@ -59,6 +59,7 @@ def test_app():
             place_order_trade,
             search_trade_assets,
             trade_asset_stats,
+            trade_live_quote,
             trade_main_page,
         )
 
@@ -84,6 +85,7 @@ def test_app():
                 Route("/trade/", trade_main_page),
                 Route("/trade/search", search_trade_assets, methods=["GET"]),
                 Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
+                Route("/trade/live-quote", trade_live_quote, methods=["GET"]),
                 Route("/trade/order", place_order_trade, methods=["POST"]),
                 Mount("/trade/live", live_app),
                 Mount("/broker", broker_api_app),
@@ -554,6 +556,10 @@ class TestLoginRoutes:
         text = response.text
 
         assert response.status_code == 200
+        assert "reference-price-btn" in text
+        assert 'data-ref-key="close"' in text
+        assert "flex flex-col items-center justify-center gap-1" in text
+        assert "disabled:opacity-40 disabled:cursor-not-allowed" in text
         assert "quick-price-btn aspect-square" in text
         assert 'grid h-full w-[196px] grid-cols-4 gap-1' in text
         assert ">涨停<" in text
@@ -573,6 +579,73 @@ class TestLoginRoutes:
         assert "display.textContent = '';" in text
         assert "priceMode.value = 'MARKET';" in text
         assert "priceMode.value = 'LIMIT';" in text
+
+    def test_trade_panel_polls_live_quote_and_gates_speed_dial(self, test_client):
+        """验证现价轮询与 speed dial 可点击状态由选股控制。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert "function refreshLiveQuote(asset)" in text
+        assert "/trade/live-quote?asset=" in text
+        assert "function startLiveQuotePolling(asset)" in text
+        assert "function stopLiveQuotePolling()" in text
+        assert "currentQuotePollId = setInterval(function()" in text
+        assert "}, 3000);" in text
+        assert "function setQuickPriceButtonsEnabled(enabled)" in text
+        assert "function setReferencePriceButtonsEnabled(enabled)" in text
+        assert "btn.disabled = !enabled;" in text
+        assert "function updateQuickPriceAvailability()" in text
+        assert "return getCurrentQuotePrice();" in text
+        assert "referenceValues.current.textContent = selectedAssetStats.current || '';" in text
+        assert "if (items.length === 1) {" in text
+        assert "selectAsset(items[0]);" in text
+
+    def test_trade_panel_allows_reference_price_buttons_to_fill_limit_price(self, test_client):
+        """验证昨收/MA/现价按钮可回填限价输入框。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert "document.querySelectorAll('.reference-price-btn').forEach(function(btn)" in text
+        assert "const refKey = this.dataset.refKey;" in text
+        assert "const nextPrice = selectedAssetStats[refKey] || '';" in text
+        assert "priceMode.value = 'LIMIT';" in text
+        assert "priceInput.value = parsed.toFixed(2);" in text
+
+    def test_trade_live_quote_returns_cached_live_price(self, test_client, monkeypatch):
+        """验证 trade live quote 接口优先返回 live quote 当前价。"""
+        from quantide.web.pages import trade_main as trade_page
+
+        monkeypatch.setattr(trade_page, "_maybe_start_live_quote", lambda: None)
+        monkeypatch.setattr(
+            trade_page.live_quote,
+            "get_quote",
+            lambda asset: {"price": 12.41} if asset == "000001.SZ" else None,
+        )
+
+        response = test_client.get("/trade/live-quote?asset=000001.SZ")
+        payload = response.json()
+
+        assert response.status_code == 200
+        assert payload["asset"] == "000001.SZ"
+        assert payload["current"] == "12.41"
+        assert payload["visible"] is True
+
+    def test_trade_live_quote_falls_back_to_reference_close(self, test_client, monkeypatch):
+        """验证 live quote 缺失时仍返回稳定的参考现价。"""
+        from quantide.web.pages import trade_main as trade_page
+
+        monkeypatch.setattr(trade_page, "_maybe_start_live_quote", lambda: None)
+        monkeypatch.setattr(trade_page.live_quote, "get_quote", lambda asset: None)
+        monkeypatch.setattr(trade_page, "_resolve_trade_reference_close", lambda asset: 11.23)
+
+        response = test_client.get("/trade/live-quote?asset=000001.SZ")
+        payload = response.json()
+
+        assert response.status_code == 200
+        assert payload["current"] == "11.23"
+        assert payload["visible"] is True
 
     def test_trade_panel_supports_enter_to_select_search_result(self, test_client):
         """验证股票搜索支持回车确认首个结果。"""
