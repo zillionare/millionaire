@@ -121,7 +121,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
     search_svg = NotStr(
         '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" '
         'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
-        'stroke-linejoin="round" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">'
+        'stroke-linejoin="round">'
         '<circle cx="11" cy="11" r="8"></circle>'
         '<line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>'
     )
@@ -131,32 +131,33 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
             Div(
                 # 左边：下单输入区（2/5）
                 Div(
-                    # Row 1: Code input with fuzzy search dropdown
+                    # Row 1: Code input with search button
                     Div(
-                        Div(
-                            Input(
-                                type="text",
-                                name="asset_display",
-                                placeholder="请输入股票名、拼音或者代码",
-                                cls=f"{input_cls} pr-10",
-                                id="asset-display",
-                                autocomplete="off",
-                                hx_get="/trade/search",
-                                hx_trigger="keyup changed delay:200ms",
-                                hx_target="#asset-search-dropdown",
-                                hx_swap="outerHTML",
-                                hx_vals='js:{"q": document.getElementById("asset-display").value}',
-                            ),
-                            Input(
-                                type="hidden",
-                                name="asset",
-                                id="asset-code",
-                            ),
-                            search_svg,
-                            Div(id="asset-search-dropdown", cls="hidden"),
-                            cls="relative flex-1",
+                        Input(
+                            type="text",
+                            name="asset_display",
+                            placeholder="请输入股票名、拼音或者代码",
+                            cls=f"{input_cls} rounded-r-none",
+                            id="asset-display",
+                            autocomplete="off",
+                            hx_get="/trade/search",
+                            hx_trigger="keyup changed delay:200ms",
+                            hx_target="#asset-search-dropdown",
+                            hx_swap="outerHTML",
+                            hx_vals='js:{"q": document.getElementById("asset-display").value}',
                         ),
-                        cls="flex items-center mb-3",
+                        Button(
+                            search_svg,
+                            type="button",
+                            cls="px-3 h-10 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 flex items-center justify-center",
+                        ),
+                        Input(
+                            type="hidden",
+                            name="asset",
+                            id="asset-code",
+                        ),
+                        Div(id="asset-search-dropdown", cls="hidden absolute top-full left-0 right-0 z-50"),
+                        cls="flex items-center mb-3 relative",
                     ),
                     # Row 2: Price mode + Price (use _Select to avoid MonsterUI Uk_select)
                     Div(
@@ -164,7 +165,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             Option("限价", value="LIMIT", selected=True),
                             Option("市价", value="MARKET"),
                             name="price_mode",
-                            cls=f"{select_cls} w-24",
+                            cls=f"{select_cls} w-24 rounded-r-none",
                             id="price-mode-select",
                         ),
                         Input(
@@ -172,10 +173,10 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             name="price",
                             placeholder="价格",
                             value="0.00",
-                            cls=f"{input_cls} text-right text-lg font-medium",
+                            cls=f"{input_cls} text-right text-lg font-medium rounded-l-none",
                             id="price-input",
                         ),
-                        cls="flex items-center gap-2 mb-3",
+                        cls="flex items-center mb-3",
                     ),
                     # Row 3: Order mode radio buttons (raw ft_hx to avoid MonsterUI uk-input/uk-label borders)
                     Div(
@@ -226,7 +227,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     ),
                     # Row 5: Estimated shares
                     Div(
-                        Span("预估数量", cls="text-sm font-medium text-gray-700 dark:text-gray-300"),
+                        Span("预估数量 (股)", cls="text-sm font-medium text-gray-700 dark:text-gray-300"),
                         Span(
                             "--",
                             cls="text-sm font-medium text-gray-900 dark:text-white ml-auto",
@@ -288,87 +289,96 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     ),
                     # Hidden submit for HTMX
                     Input(type="submit", cls="hidden", id="form-submit"),
-                    cls="col-span-5 space-y-3",
+                    cls="w-[280px] flex-shrink-0 space-y-3",
                 ),
                 # 中间：价格快捷输入区
                 Div(
-                    # 顶部标题行：快捷价格 + 参考价格按钮 + 实时价格
-                    Div(
-                        Span("快捷价格", cls="text-sm font-medium text-gray-700 dark:text-gray-300"),
-                        Div(
-                            *[
-                                Button(
-                                    label,
-                                    type="button",
-                                    cls="ref-price-btn px-1.5 py-0.5 text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 font-medium",
-                                )
-                                for label in ["昨收", "MA5", "MA10", "MA20", "MA30", "MA60", "现价"]
-                            ],
-                            cls="flex gap-1",
-                        ),
-                        Span("实时: 0.00", cls="text-xs text-gray-500 dark:text-gray-400"),
-                        cls="flex items-center justify-between mb-2 gap-2",
-                    ),
-                    # 中间主体：4x5 涨跌百分比按钮网格
+                    # 4x5 价格快捷按钮网格
                     Div(
                         *[
                             Button(
-                                Div(label, cls="text-xs font-medium leading-tight"),
-                                Div("--", cls="quick-price-display text-[10px] text-gray-400 leading-tight mt-0.5"),
+                                Div(label, cls="text-lg font-medium leading-tight"),
+                                Div("--", cls="quick-price-display text-xs text-gray-400 leading-tight mt-1"),
                                 type="button",
                                 cls=(
-                                    "quick-price-btn w-full px-1 py-1 rounded font-medium text-center "
-                                    + ("bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200" if label == "涨停" else
-                                       "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200" if label == "跌停" else
-                                       "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200")
+                                    "quick-price-btn w-full h-[70px] flex flex-col items-center justify-center "
+                                    "bg-[#f9fafb] dark:bg-gray-800 rounded-lg shadow-sm transition-transform active:scale-[0.98] "
+                                    + ("text-[#b71c1c]" if pct > 0 else "text-[#388e3c]")
                                 ),
                                 data_pct=str(pct),
                             )
                             for row in [
-                                [("涨停", 0.10), ("9", 0.09), ("8", 0.08), ("7", 0.07)],
-                                [("6", 0.06), ("5", 0.05), ("4", 0.04), ("3", 0.03)],
-                                [("2", 0.02), ("1", 0.01), ("-1", -0.01), ("-2", -0.02)],
-                                [("-3", -0.03), ("-4", -0.04), ("-5", -0.05), ("-6", -0.06)],
-                                [("-7", -0.07), ("-8", -0.08), ("-9", -0.09), ("跌停", -0.10)],
+                                [("10", 0.10), ("5", 0.05), ("-1", -0.01), ("-6", -0.06)],
+                                [("9", 0.09), ("4", 0.04), ("-2", -0.02), ("-7", -0.07)],
+                                [("8", 0.08), ("3", 0.03), ("-3", -0.03), ("-8", -0.08)],
+                                [("7", 0.07), ("2", 0.02), ("-4", -0.04), ("-9", -0.09)],
+                                [("6", 0.06), ("1", 0.01), ("-5", -0.05), ("-10", -0.10)],
                             ]
                             for label, pct in row
                         ],
-                        cls="grid grid-cols-4 gap-1",
+                        cls="grid grid-cols-4 gap-2",
                     ),
-                    cls="space-y-2",
+                    cls="flex-[0.6] space-y-2",
                 ),
-                # 右边：候选股票池（2/5）
+                # 右边：闪电单
                 Div(
+                    # Stats row
                     Div(
-                        H3("候选票池", cls="text-base font-semibold text-gray-900 dark:text-white"),
-                        Input(type="text", placeholder="搜索股票...", cls="w-32 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-600 dark:text-white"),
-                        cls="flex items-center justify-between mb-3",
+                        *[
+                            Div(
+                                Div(label, cls="text-xs text-gray-500 dark:text-gray-400 mb-1"),
+                                Div("1678.23", cls="text-xs text-gray-700 dark:text-gray-300"),
+                                cls="bg-[#f9fafb] dark:bg-gray-700 rounded-md py-2 px-1 text-center flex-1",
+                            )
+                            for label in ["昨收", "MA5", "MA10", "MA20", "MA30", "MA60", "现价"]
+                        ],
+                        cls="flex gap-1 mb-3",
                     ),
-                    # 候选股票列表
+                    # List header
                     Div(
+                        H3("闪电单", cls="text-base font-semibold text-gray-900 dark:text-white m-0"),
                         Div(
-                            Div(
-                                Div("平安银行", cls="text-sm font-medium text-gray-900 dark:text-white"),
-                                Div("000001.SZ", cls="text-xs text-gray-500 dark:text-gray-400"),
-                                cls="",
+                            Button(
+                                NotStr('<svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>'),
+                                type="button",
+                                cls="w-6 h-6 flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100",
                             ),
-                            Div("13.80", cls="text-sm font-medium text-red-600"),
-                            cls="p-2 bg-white dark:bg-gray-800 rounded-lg cursor-pointer hover:ring-2 hover:ring-red-500 transition-all flex items-center justify-between",
-                        ),
-                        Div(
-                            Div(
-                                Div("贵州茅台", cls="text-sm font-medium text-gray-900 dark:text-white"),
-                                Div("600519.SH", cls="text-xs text-gray-500 dark:text-gray-400"),
-                                cls="",
+                            Button(
+                                NotStr('<svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><line x1="5" y1="12" x2="19" y2="12"></line></svg>'),
+                                type="button",
+                                cls="w-6 h-6 flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100",
                             ),
-                            Div("1688.00", cls="text-sm font-medium text-green-600"),
-                            cls="p-2 bg-white dark:bg-gray-800 rounded-lg cursor-pointer hover:ring-2 hover:ring-red-500 transition-all flex items-center justify-between",
+                            cls="flex gap-1",
                         ),
-                        cls="space-y-2",
+                        cls="flex items-center justify-between bg-[#e0e0e0] dark:bg-gray-600 px-4 py-3 rounded-t-lg",
                     ),
-                    cls="col-span-3 bg-gray-50 dark:bg-gray-700 rounded-lg p-4",
+                    # Stock list
+                    Div(
+                        *[
+                            Div(
+                                Span(code, cls="text-sm font-bold text-gray-900 dark:text-white w-20"),
+                                Div(Span(name, cls="text-sm text-gray-600 dark:text-gray-400"), cls="flex items-center"),
+                                Span(tags, cls="text-xs text-gray-400 dark:text-gray-500 mr-2") if tags else Span("", cls="text-xs mr-2"),
+                                Div(
+                                    NotStr('<svg class="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l15-15Z"></path></svg>'),
+                                    NotStr('<svg class="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>'),
+                                    cls="flex items-center",
+                                ),
+                                cls="grid grid-cols-[80px_1fr_auto_auto] items-center py-3 px-4 border-b border-gray-100 dark:border-gray-700 last:border-b-0 even:bg-[#f9fafb] dark:even:bg-gray-700/50",
+                            )
+                            for code, name, tags in [
+                                ("600777", "新潮能源", "天然气、白酒、地产"),
+                                ("000001", "新潮能源", ""),
+                                ("000002", "新潮能源", ""),
+                                ("000004", "新潮能源", ""),
+                                ("000004", "新潮能源", ""),
+                            ]
+                        ],
+                        cls="bg-white dark:bg-gray-800 rounded-b-lg",
+                    ),
+                    cls="flex-[1.2] space-y-0",
                 ),
-                cls="grid grid-cols-12 gap-4",
+                cls="flex gap-4",
             ),
             Script(
                 """
