@@ -227,6 +227,23 @@ def _load_trade_reference_bars(
     return fallback.with_columns(pl.col("date").cast(pl.Date)).sort("date")
 
 
+def _trade_result_has_order(result) -> bool:
+    """Return whether a broker call produced an actual order.
+
+    Args:
+        result: Broker trade result object.
+
+    Returns:
+        True when an order id or trade rows are present.
+    """
+    if result is None:
+        return False
+    if getattr(result, "qt_oid", None):
+        return True
+    trades = getattr(result, "trades", None) or []
+    return len(trades) > 0
+
+
 def AssetInfoBar(total: float = 0, cash: float = 0, market_value: float = 0):
     """资产信息条"""
     cash_ratio = (cash / total * 100) if total > 0 else 0
@@ -427,12 +444,13 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     Div(
                         Input(type="hidden", name="side", value="BUY", id="side-input"),
                         Button(
-                            Span("*", cls="absolute top-0 left-2 text-xs"),
+                            Span("*", cls="absolute top-0 left-2 text-xs", id="buy-star"),
                             "买入",
                             type="button",
                             cls="relative bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-lg text-base w-full",
                             id="btn-buy",
                             data_side="BUY",
+                            aria_pressed="true",
                         ),
                         Button(
                             Span("*", cls="absolute top-0 left-2 text-xs hidden", id="sell-star"),
@@ -441,6 +459,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             cls="relative bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg text-base w-full opacity-60",
                             id="btn-sell",
                             data_side="SELL",
+                            aria_pressed="false",
                         ),
                         cls="grid grid-cols-2 gap-2 pt-1",
                     ),
@@ -568,7 +587,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     const sideInput = document.getElementById('side-input');
                     const btnBuy = document.getElementById('btn-buy');
                     const btnSell = document.getElementById('btn-sell');
+                    const buyStar = document.getElementById('buy-star');
                     const sellStar = document.getElementById('sell-star');
+                    const formSubmit = document.getElementById('form-submit');
                     const cash = parseFloat(form.dataset.cash) || 0;
                     const assetDisplay = document.getElementById('asset-display');
                     const assetCode = document.getElementById('asset-code');
@@ -710,14 +731,58 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     function updateActiveSide() {
                         const side = sideInput.value;
                         if (side === 'BUY') {
+                            buyStar.classList.remove('hidden');
                             btnBuy.classList.remove('opacity-60');
+                            btnBuy.setAttribute('aria-pressed', 'true');
                             btnSell.classList.add('opacity-60');
+                            btnSell.setAttribute('aria-pressed', 'false');
                             sellStar.classList.add('hidden');
                         } else {
+                            buyStar.classList.add('hidden');
                             btnSell.classList.remove('opacity-60');
+                            btnSell.setAttribute('aria-pressed', 'true');
                             btnBuy.classList.add('opacity-60');
+                            btnBuy.setAttribute('aria-pressed', 'false');
                             sellStar.classList.remove('hidden');
                         }
+                    }
+
+                    function setOrderMode(mode) {
+                        const useQuantity = mode === 'QUANTITY';
+                        orderModeAmount.checked = !useQuantity;
+                        orderModeQuantity.checked = useQuantity;
+                    }
+
+                    function resetTradeDraftForSideSwitch() {
+                        setOrderMode('AMOUNT');
+                        priceMode.value = 'LIMIT';
+                        updatePriceMode();
+                        valueInput.value = '';
+                        priceInput.value = selectedAssetStats && selectedAssetStats.current
+                            ? selectedAssetStats.current
+                            : '0.00';
+                        updateLabel();
+                        updateEstShares();
+                        updateCurrentReferencePrice();
+                        updateQuickPrices();
+                    }
+
+                    function activateTradeSide(nextSide, resetDraft) {
+                        const changed = sideInput.value !== nextSide;
+                        sideInput.value = nextSide;
+                        updateActiveSide();
+                        updateLabel();
+                        if (changed && resetDraft) {
+                            resetTradeDraftForSideSwitch();
+                        }
+                    }
+
+                    function handleTradeSubmitIntent(nextSide) {
+                        if (sideInput.value !== nextSide) {
+                            activateTradeSide(nextSide, true);
+                            return;
+                        }
+                        formSubmit.click();
                     }
 
                     function updateEstShares() {
@@ -789,17 +854,11 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     priceInput.addEventListener('input', updateEstShares);
 
                     btnBuy.addEventListener('click', function() {
-                        sideInput.value = 'BUY';
-                        updateActiveSide();
-                        updateLabel();
-                        document.getElementById('form-submit').click();
+                        handleTradeSubmitIntent('BUY');
                     });
 
                     btnSell.addEventListener('click', function() {
-                        sideInput.value = 'SELL';
-                        updateActiveSide();
-                        updateLabel();
-                        document.getElementById('form-submit').click();
+                        handleTradeSubmitIntent('SELL');
                     });
 
                     document.querySelectorAll('.pos-btn').forEach(function(btn) {
@@ -823,6 +882,36 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         fetchAssetStats(item.dataset.asset);
                     }
 
+                    function hydrateTradeFromPosition(row) {
+                        const asset = row.dataset.asset || '';
+                        if (!asset) {
+                            return;
+                        }
+                        assetDisplay.value = row.dataset.display || asset;
+                        assetCode.value = asset;
+                        hideSearchDropdown();
+                        priceMode.value = 'LIMIT';
+                        updatePriceMode();
+                        const rowPrice = parseFloat(row.dataset.price || '');
+                        priceInput.value = !isNaN(rowPrice) && rowPrice > 0
+                            ? rowPrice.toFixed(2)
+                            : '0.00';
+                        const availLots = parseFloat(row.dataset.availLots || '');
+                        if (!isNaN(availLots) && availLots > 0) {
+                            setOrderMode('QUANTITY');
+                            valueInput.value = String(availLots);
+                        } else {
+                            setOrderMode('AMOUNT');
+                            valueInput.value = '';
+                        }
+                        activateTradeSide('SELL', false);
+                        updateLabel();
+                        updateEstShares();
+                        updateCurrentReferencePrice();
+                        updateQuickPrices();
+                        fetchAssetStats(asset);
+                    }
+
                     document.body.addEventListener('htmx:afterSwap', function(evt) {
                         if (evt.detail.target.id === 'asset-search-dropdown') {
                             const dropdown = refreshSearchDropdown();
@@ -834,12 +923,31 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     });
 
                     document.body.addEventListener('click', function(evt) {
+                        const sellTrigger = evt.target.closest('.position-sell-btn');
+                        if (sellTrigger) {
+                            evt.preventDefault();
+                            evt.stopPropagation();
+                            const positionRow = sellTrigger.closest('.trade-position-row');
+                            if (positionRow) {
+                                hydrateTradeFromPosition(positionRow);
+                            }
+                            return;
+                        }
                         const item = evt.target.closest('.asset-search-item');
                         if (!item) {
                             return;
                         }
                         evt.preventDefault();
                         selectAsset(item);
+                    });
+
+                    document.body.addEventListener('dblclick', function(evt) {
+                        const positionRow = evt.target.closest('.trade-position-row');
+                        if (!positionRow) {
+                            return;
+                        }
+                        evt.preventDefault();
+                        hydrateTradeFromPosition(positionRow);
                     });
 
                     document.body.addEventListener('keydown', function(evt) {
@@ -987,6 +1095,7 @@ def PositionTable(positions: list[Position]):
             pnl_pct = (p.profit / (p.mv - p.profit) * 100) if (p.mv - p.profit) != 0 else 0
             current_price = p.mv / p.shares if p.shares > 0 else 0
             color_cls = "text-red-600" if p.profit > 0 else ("text-green-600" if p.profit < 0 else "")
+            avail_lots = int(p.avail / 100) if p.avail >= 100 and p.avail % 100 == 0 else ""
 
             rows.append(
                 Tr(
@@ -1000,8 +1109,17 @@ def PositionTable(positions: list[Position]):
                     Td(f"{p.profit:,.2f}", cls=color_cls),
                     Td(f"{pnl_pct:.2f}%", cls=color_cls),
                     Td(
-                        Button("卖出", cls="uk-button uk-button-small bg-green-600 text-white hover:bg-green-700"),
+                        Button(
+                            "卖出",
+                            type="button",
+                            cls="position-sell-btn uk-button uk-button-small bg-green-600 text-white hover:bg-green-700",
+                        ),
                     ),
+                    cls="trade-position-row cursor-pointer",
+                    data_asset=p.asset,
+                    data_display=p.asset,
+                    data_price=f"{current_price:.2f}" if current_price > 0 else "",
+                    data_avail_lots=str(avail_lots),
                 )
             )
     else:
@@ -1352,28 +1470,37 @@ async def place_order_trade(req):
         return _render(Div("金额/数量必须大于0", cls="text-red-500 p-4 bg-red-100 rounded"))
 
     try:
+        result = None
         if side == "BUY":
             if order_mode == "AMOUNT":
                 amount = value * 10000
                 if hasattr(broker, "buy_amount"):
-                    await broker.buy_amount(asset, amount, price if price > 0 else None)
+                    result = await broker.buy_amount(asset, amount, price if price > 0 else 0)
                 else:
                     shares = int(value * 10000 / price) if price > 0 else int(value)
-                    await broker.buy(asset, shares, price)
+                    result = await broker.buy(asset, shares, price)
             else:
                 shares = int(value) * 100
-                await broker.buy(asset, shares, price)
+                result = await broker.buy(asset, shares, price)
         else:
             if order_mode == "AMOUNT":
                 amount = value * 10000
                 if hasattr(broker, "sell_amount"):
-                    await broker.sell_amount(asset, amount, price if price > 0 else None)
+                    result = await broker.sell_amount(asset, amount, price if price > 0 else 0)
                 else:
                     shares = int(value * 10000 / price) if price > 0 else int(value)
-                    await broker.sell(asset, shares, price)
+                    result = await broker.sell(asset, shares, price)
             else:
                 shares = int(value) * 100
-                await broker.sell(asset, shares, price)
+                result = await broker.sell(asset, shares, price)
+
+        if not _trade_result_has_order(result):
+            return _render(
+                Div(
+                    "未生成有效委托，请检查价格、数量和持仓后重试",
+                    cls="text-red-500 p-4 bg-red-100 rounded",
+                )
+            )
 
         side_text = "买入" if side == "BUY" else "卖出"
         return _render(Div(

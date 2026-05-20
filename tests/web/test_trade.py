@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 import polars as pl
 import pytest
-from fasthtml.common import Mount, fast_app
+from fasthtml.common import Mount, fast_app, to_xml
 from monsterui.all import Theme
 from starlette.middleware import Middleware
 from starlette.responses import RedirectResponse
@@ -413,6 +413,8 @@ class TestLoginRoutes:
         assert 'id="btn-buy"' in text
         assert 'id="btn-sell"' in text
         assert 'id="side-input"' in text
+        assert 'id="buy-star"' in text
+        assert 'id="sell-star"' in text
         assert 'value="BUY"' in text  # 默认买入
         assert "*" in text  # 激活状态的星号标记
 
@@ -437,6 +439,48 @@ class TestLoginRoutes:
         assert "updateActiveSide" in text
         assert "updateEstShares" in text
         assert "setPosition" in text
+
+    def test_trade_panel_switches_side_before_submitting_order(self, test_client):
+        """验证未激活方向按钮先切状态，再由当前激活按钮提交。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert "function handleTradeSubmitIntent(nextSide)" in text
+        assert "if (sideInput.value !== nextSide)" in text
+        assert "activateTradeSide(nextSide, true);" in text
+        assert "formSubmit.click();" in text
+        assert "buyStar.classList.add('hidden');" in text
+        assert "sellStar.classList.add('hidden');" in text
+
+    def test_trade_panel_supports_position_sell_prefill_markup(self):
+        """验证持仓行暴露卖出预填所需的 DOM 标记。"""
+        from quantide.data.sqlite import Position
+        from quantide.web.pages.trade_main import PositionTable
+
+        table = PositionTable(
+            [
+                Position(
+                    portfolio_id="sim_demo",
+                    dt=datetime.date(2026, 5, 20),
+                    asset="000001.SZ",
+                    shares=500,
+                    avail=500,
+                    price=10.0,
+                    profit=500.0,
+                    mv=5500.0,
+                )
+            ]
+        )
+        html = to_xml(table)
+
+        assert 'class="trade-position-row cursor-pointer"' in html
+        assert 'position-sell-btn' in html
+        assert 'bg-green-600 text-white hover:bg-green-700' in html
+        assert 'type="button"' in html
+        assert 'data-asset="000001.SZ"' in html
+        assert 'data-price="11.00"' in html
+        assert 'data-avail-lots="5"' in html
 
     def test_trade_panel_has_asset_search(self, test_client):
         """验证股票代码输入框带有搜索下拉功能 (issue #9)."""
@@ -740,6 +784,30 @@ class TestTradeOrderRoute:
             },
         )
         assert response.status_code == 200
+
+    def test_order_route_rejects_empty_trade_result(self, test_client, monkeypatch):
+        """Broker 未生成真实委托时应返回失败提示。"""
+        from quantide.service.base_broker import TradeResult
+
+        async def _empty_trade_result(self, asset, amount, price=0, order_time=None, timeout=0.5):
+            return TradeResult.empty()
+
+        monkeypatch.setattr(SimulationBroker, "sell_amount", _empty_trade_result)
+
+        response = test_client.post(
+            "/trade/order",
+            data={
+                "side": "SELL",
+                "asset": "000001.SZ",
+                "price_mode": "LIMIT",
+                "price": "10.00",
+                "order_mode": "AMOUNT",
+                "value": "1",
+            },
+        )
+
+        assert response.status_code == 200
+        assert "未生成有效委托" in response.text
 
 
 class TestLiveTrade:
