@@ -352,10 +352,13 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             ),
                             Div(
                                 "",
-                                cls="min-h-4 pr-1 pt-1 text-right text-[80%] italic text-gray-500 dark:text-gray-400",
+                                cls=(
+                                    "pointer-events-none absolute right-1 top-full pt-1 text-right "
+                                    "text-[80%] italic text-gray-500 dark:text-gray-400"
+                                ),
                                 id="price-change-hint",
                             ),
-                            cls="flex-1",
+                            cls="relative flex-1 pb-4",
                         ),
                         cls="flex items-center mb-2",
                     ),

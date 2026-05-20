@@ -438,6 +438,8 @@ class TestLoginRoutes:
         assert 'placeholder="价格"' in text
         assert 'value="0.00"' not in text
         assert 'id="price-change-hint"' in text
+        assert 'class="relative flex-1 pb-4"' in text
+        assert "pointer-events-none absolute right-1 top-full pt-1 text-right" in text
         assert "function updatePriceChangeHint()" in text
         assert "function setLimitPlaceholderPrice(value)" in text
         assert "priceInput.placeholder = limitPlaceholderPrice || '价格';" in text
