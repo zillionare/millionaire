@@ -342,13 +342,20 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             cls=f"{select_cls} w-24 rounded-r-none",
                             id="price-mode-select",
                         ),
-                        Input(
-                            type="text",
-                            name="price",
-                            placeholder="价格",
-                            value="0.00",
-                            cls=f"{input_cls} text-right text-base font-medium rounded-l-none",
-                            id="price-input",
+                        Div(
+                            Input(
+                                type="text",
+                                name="price",
+                                placeholder="价格",
+                                cls=f"{input_cls} text-right text-base font-medium rounded-l-none",
+                                id="price-input",
+                            ),
+                            Div(
+                                "",
+                                cls="min-h-4 pr-1 pt-1 text-right text-[80%] italic text-gray-500 dark:text-gray-400",
+                                id="price-change-hint",
+                            ),
+                            cls="flex-1",
                         ),
                         cls="flex items-center mb-2",
                     ),
@@ -589,6 +596,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     const btnSell = document.getElementById('btn-sell');
                     const buyStar = document.getElementById('buy-star');
                     const sellStar = document.getElementById('sell-star');
+                    const priceChangeHint = document.getElementById('price-change-hint');
                     const formSubmit = document.getElementById('form-submit');
                     const cash = parseFloat(form.dataset.cash) || 0;
                     const assetDisplay = document.getElementById('asset-display');
@@ -605,6 +613,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     };
                     let selectedAssetStats = null;
                     let activeSearchIndex = -1;
+                    let limitPlaceholderPrice = '';
 
                     function refreshSearchDropdown() {
                         searchDropdown = document.getElementById('asset-search-dropdown');
@@ -645,9 +654,12 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
 
                     function clearReferencePrices() {
                         selectedAssetStats = null;
+                        limitPlaceholderPrice = '';
                         Object.values(referenceValues).forEach(function(node) {
                             node.textContent = '';
                         });
+                        updateLimitPricePlaceholder();
+                        updatePriceChangeHint();
                     }
 
                     function updateCurrentReferencePrice() {
@@ -663,12 +675,47 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         referenceValues.current.textContent = selectedAssetStats.current || '';
                     }
 
+                    function setLimitPlaceholderPrice(value) {
+                        const parsed = parseFloat(value || '');
+                        if (isNaN(parsed) || parsed <= 0) {
+                            limitPlaceholderPrice = '';
+                        } else {
+                            limitPlaceholderPrice = parsed.toFixed(2);
+                        }
+                        updateLimitPricePlaceholder();
+                    }
+
+                    function updateLimitPricePlaceholder() {
+                        if (priceMode.value === 'MARKET') {
+                            priceInput.placeholder = '市价';
+                            return;
+                        }
+                        priceInput.placeholder = limitPlaceholderPrice || '价格';
+                    }
+
+                    function updatePriceChangeHint() {
+                        if (priceMode.value !== 'LIMIT') {
+                            priceChangeHint.textContent = '';
+                            return;
+                        }
+                        const closePrice = parseFloat(selectedAssetStats && selectedAssetStats.close || '');
+                        const limitPrice = parseFloat(priceInput.value);
+                        if (isNaN(closePrice) || closePrice <= 0 || isNaN(limitPrice) || limitPrice <= 0) {
+                            priceChangeHint.textContent = '';
+                            return;
+                        }
+                        const deltaPct = ((limitPrice - closePrice) / closePrice) * 100;
+                        const sign = deltaPct > 0 ? '+' : '';
+                        priceChangeHint.textContent = sign + deltaPct.toFixed(2) + '%';
+                    }
+
                     function applyReferencePrices(stats) {
                         if (!stats || !stats.visible) {
                             clearReferencePrices();
                             return;
                         }
                         selectedAssetStats = stats;
+                        setLimitPlaceholderPrice(stats.current || stats.close || '');
                         referenceValues.close.textContent = stats.close || '';
                         referenceValues.ma5.textContent = stats.ma5 || '';
                         referenceValues.ma10.textContent = stats.ma10 || '';
@@ -705,16 +752,13 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         if (priceMode.value === 'MARKET') {
                             priceInput.disabled = true;
                             priceInput.value = '';
-                            priceInput.placeholder = '市价';
                             priceInput.classList.add('bg-gray-100');
                         } else {
                             priceInput.disabled = false;
-                            if (priceInput.placeholder === '市价') {
-                                priceInput.value = '0.00';
-                            }
-                            priceInput.placeholder = '价格';
                             priceInput.classList.remove('bg-gray-100');
                         }
+                        updateLimitPricePlaceholder();
+                        updatePriceChangeHint();
                         updateEstShares();
                     }
 
@@ -756,11 +800,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     function resetTradeDraftForSideSwitch() {
                         setOrderMode('AMOUNT');
                         priceMode.value = 'LIMIT';
+                        priceInput.value = '';
                         updatePriceMode();
                         valueInput.value = '';
-                        priceInput.value = selectedAssetStats && selectedAssetStats.current
-                            ? selectedAssetStats.current
-                            : '0.00';
                         updateLabel();
                         updateEstShares();
                         updateCurrentReferencePrice();
@@ -875,10 +917,12 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         // Auto-fill price if available
                         const price = item.dataset.price;
                         if (price && price !== '') {
-                            priceInput.value = price;
-                            updateEstShares();
-                            updateQuickPrices();
+                            setLimitPlaceholderPrice(price);
                         }
+                        priceInput.value = '';
+                        updatePriceChangeHint();
+                        updateEstShares();
+                        updateQuickPrices();
                         fetchAssetStats(item.dataset.asset);
                     }
 
@@ -891,11 +935,12 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         assetCode.value = asset;
                         hideSearchDropdown();
                         priceMode.value = 'LIMIT';
+                        priceInput.value = '';
                         updatePriceMode();
                         const rowPrice = parseFloat(row.dataset.price || '');
-                        priceInput.value = !isNaN(rowPrice) && rowPrice > 0
-                            ? rowPrice.toFixed(2)
-                            : '0.00';
+                        setLimitPlaceholderPrice(
+                            !isNaN(rowPrice) && rowPrice > 0 ? rowPrice.toFixed(2) : ''
+                        );
                         const availLots = parseFloat(row.dataset.availLots || '');
                         if (!isNaN(availLots) && availLots > 0) {
                             setOrderMode('QUANTITY');
@@ -975,6 +1020,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     assetDisplay.addEventListener('input', function() {
                         assetCode.value = '';
                         clearReferencePrices();
+                        priceInput.value = '';
                         if (assetDisplay.value.trim() === '') {
                             hideSearchDropdown();
                         }
@@ -1045,6 +1091,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                 priceInput.value = (basePrice * (1 + pct)).toFixed(2);
                                 updateEstShares();
                                 updateCurrentReferencePrice();
+                                updatePriceChangeHint();
                                 updateQuickPrices();
                             }
                         });
@@ -1063,6 +1110,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     priceInput.addEventListener('input', function() {
                         updateQuickPrices();
                         updateCurrentReferencePrice();
+                        updatePriceChangeHint();
                     });
 
                     // Initial state

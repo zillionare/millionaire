@@ -428,6 +428,21 @@ class TestLoginRoutes:
         assert 'id="order-mode-amount"' in text
         assert 'id="order-mode-quantity"' in text
 
+    def test_trade_panel_uses_limit_price_placeholder_and_change_hint(self, test_client):
+        """验证限价输入框使用 placeholder，并提供涨跌幅提示区域。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert 'id="price-input"' in text
+        assert 'placeholder="价格"' in text
+        assert 'value="0.00"' not in text
+        assert 'id="price-change-hint"' in text
+        assert "function updatePriceChangeHint()" in text
+        assert "function setLimitPlaceholderPrice(value)" in text
+        assert "priceInput.placeholder = limitPlaceholderPrice || '价格';" in text
+        assert "priceChangeHint.textContent = sign + deltaPct.toFixed(2) + '%';" in text
+
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""
         response = test_client.get("/trade")
