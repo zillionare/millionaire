@@ -150,3 +150,5 @@ def test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub():
         assert "1678.23" not in response.text
         assert ">--<" not in response.text
         assert "reference-price-panel" in response.text
+        assert "grid-cols-[88px_minmax(0,1fr)]" in response.text
+        assert "quick-price-btn aspect-square" in response.text

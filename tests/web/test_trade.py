@@ -468,6 +468,25 @@ class TestLoginRoutes:
         assert "1678.23" not in text
         assert ">--<" not in text
 
+    def test_trade_panel_keeps_estimated_shares_width_aligned_with_value_input(self, test_client):
+        """验证预估数量展示框与买入金额输入框使用同一宽度布局。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert 'grid-cols-[88px_minmax(0,1fr)]' in text
+        assert 'id="value-input"' in text
+        assert 'id="est-shares"' in text
+
+    def test_trade_panel_uses_square_speed_dial_buttons(self, test_client):
+        """验证 speed dial 按钮使用正方形布局。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert "quick-price-btn aspect-square" in text
+        assert 'grid h-full w-[196px] grid-cols-4 gap-1' in text
+
     def test_trade_asset_stats_returns_real_metrics_without_fake_fallbacks(
         self, test_client, monkeypatch
     ):

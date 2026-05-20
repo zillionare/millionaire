@@ -171,6 +171,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
     # 收紧输入区尺寸，并把更多宽度让给中间 speed dial 键盘。
     input_cls = "flex-1 px-3 h-9 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white text-sm"
     select_cls = "px-2 h-9 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white text-sm"
+    metric_row_cls = "grid grid-cols-[88px_minmax(0,1fr)] items-center gap-2 mb-2"
     # radio button 使用原生样式，避免 MonsterUI 的 uk-input 边框
     radio_cls = "w-4 h-4 text-red-600 focus:ring-red-500 cursor-pointer"
 
@@ -280,17 +281,17 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             cls=f"{input_cls} text-right text-base font-medium",
                             id="value-input",
                         ),
-                        cls="flex items-center gap-2 mb-2",
+                        cls=metric_row_cls,
                     ),
                     # Row 5: Estimated shares
                     Div(
                         Span("预估数量 (股)", cls="text-xs font-medium text-gray-700 dark:text-gray-300"),
                         Div(
                             "",
-                            cls="ml-auto min-w-[112px] px-3 h-9 flex items-center justify-end text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700",
+                            cls="px-3 h-9 flex w-full items-center justify-end text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700",
                             id="est-shares",
                         ),
-                        cls="flex items-center gap-2 mb-2",
+                        cls=metric_row_cls,
                     ),
                     # Row 6: Position fraction buttons (ordered: 1/4, 1/3, 1/2, 全仓)
                     Div(
@@ -358,7 +359,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                 Div("", cls="quick-price-display text-[11px] text-gray-400 leading-tight mt-0.5 min-h-4"),
                                 type="button",
                                 cls=(
-                                    "quick-price-btn w-full h-[46px] flex flex-col items-center justify-center "
+                                    "quick-price-btn aspect-square w-full flex flex-col items-center justify-center "
                                     "bg-[#f9fafb] dark:bg-gray-800 rounded-lg shadow-sm transition-transform active:scale-[0.98] "
                                     + ("text-[#b71c1c]" if pct > 0 else "text-[#388e3c]")
                                 ),
@@ -373,9 +374,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             ]
                             for label, pct in row
                         ],
-                        cls="grid grid-cols-4 gap-1",
+                        cls="grid h-full w-[196px] grid-cols-4 gap-1",
                     ),
-                    cls="flex-[0.8] space-y-1.5",
+                    cls="flex shrink-0 items-stretch",
                 ),
                 # 右边：闪电单
                 Div(
