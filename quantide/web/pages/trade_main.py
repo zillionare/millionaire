@@ -463,13 +463,14 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                     + ("text-[#b71c1c]" if pct > 0 else "text-[#388e3c]")
                                 ),
                                 data_pct=str(pct),
+                                data_market_order="true" if abs(pct) == 0.10 else "false",
                             )
                             for row in [
-                                [("10", 0.10), ("5", 0.05), ("-1", -0.01), ("-6", -0.06)],
+                                [("涨停", 0.10), ("5", 0.05), ("-1", -0.01), ("-6", -0.06)],
                                 [("9", 0.09), ("4", 0.04), ("-2", -0.02), ("-7", -0.07)],
                                 [("8", 0.08), ("3", 0.03), ("-3", -0.03), ("-8", -0.08)],
                                 [("7", 0.07), ("2", 0.02), ("-4", -0.04), ("-9", -0.09)],
-                                [("6", 0.06), ("1", 0.01), ("-5", -0.05), ("-10", -0.10)],
+                                [("6", 0.06), ("1", 0.01), ("-5", -0.05), ("跌停", -0.10)],
                             ]
                             for label, pct in row
                         ],
@@ -735,6 +736,18 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         estShares.textContent = shares > 0 ? (shares + ' 股') : '';
                     }
 
+                    function getQuickPriceBase() {
+                        const inputPrice = parseFloat(priceInput.value);
+                        if (!isNaN(inputPrice) && inputPrice > 0) {
+                            return inputPrice;
+                        }
+                        if (!selectedAssetStats) {
+                            return 0;
+                        }
+                        const closePrice = parseFloat(selectedAssetStats.close || '');
+                        return !isNaN(closePrice) && closePrice > 0 ? closePrice : 0;
+                    }
+
                     function setPosition(fraction) {
                         const price = parseFloat(priceInput.value) || 0;
                         const mode = document.querySelector('input[name="order_mode"]:checked').value;
@@ -886,7 +899,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
 
                     // --- Quick price button handlers ---
                     function updateQuickPrices() {
-                        const basePrice = parseFloat(priceInput.value) || 0;
+                        const basePrice = getQuickPriceBase();
                         document.querySelectorAll('.quick-price-btn').forEach(function(btn) {
                             const display = btn.querySelector('.quick-price-display');
                             const pct = parseFloat(btn.dataset.pct);
@@ -902,11 +915,22 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     // Click quick price button to set price
                     document.querySelectorAll('.quick-price-btn').forEach(function(btn) {
                         btn.addEventListener('click', function() {
-                            const basePrice = parseFloat(priceInput.value) || 0;
+                            const basePrice = getQuickPriceBase();
                             const pct = parseFloat(this.dataset.pct);
+                            if (this.dataset.marketOrder === 'true') {
+                                priceMode.value = 'MARKET';
+                                updatePriceMode();
+                                updateCurrentReferencePrice();
+                                updateQuickPrices();
+                                return;
+                            }
                             if (basePrice > 0 && !isNaN(pct)) {
+                                priceMode.value = 'LIMIT';
+                                updatePriceMode();
                                 priceInput.value = (basePrice * (1 + pct)).toFixed(2);
                                 updateEstShares();
+                                updateCurrentReferencePrice();
+                                updateQuickPrices();
                             }
                         });
                     });

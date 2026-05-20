@@ -152,6 +152,8 @@ def test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub():
         assert "reference-price-panel" in response.text
         assert "grid-cols-[88px_minmax(0,1fr)]" in response.text
         assert "quick-price-btn aspect-square" in response.text
+        assert "涨停" in response.text
+        assert "跌停" in response.text
         assert 'hx-trigger="input changed delay:200ms"' in response.text
         assert "setActiveSearchIndex(0);" in response.text
 
@@ -182,4 +184,3 @@ def test_system_stock_list_uses_real_name_and_pinyin_in_stub_mode():
         assert response.status_code == 200
         assert "平安银行" in response.text
         assert "PAYH" in response.text
-
