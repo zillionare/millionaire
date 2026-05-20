@@ -13,9 +13,10 @@ import pandas as pd
 from quantide.core.ports import DataFetcherPort
 from quantide.data.fetchers.registry import fetcher_registry, register_builtin_fetchers
 
-
 TESTS_ROOT = Path(__file__).resolve().parents[2]
 ASSETS_ROOT = TESTS_ROOT / "assets"
+REPO_ROOT = TESTS_ROOT.parent
+DEFAULT_STOCK_LIST_PATH = REPO_ROOT / "data" / "stock_list.parquet"
 
 
 @dataclass(slots=True)
@@ -76,6 +77,35 @@ class FixtureBackedTushareFetcher(DataFetcherPort):
         self._adjust = pd.read_parquet(ASSETS_ROOT / "2024_adjust_factor.parquet")
         self._limit = pd.read_parquet(ASSETS_ROOT / "2024_limit_price.parquet")
         self._st = pd.read_parquet(ASSETS_ROOT / "2024_st_info.parquet")
+        self._stock_list = self._load_stock_list()
+
+    def _load_stock_list(self) -> pd.DataFrame:
+        """Load a realistic stock list for dev-stub search flows.
+
+        Returns:
+            A stock list frame filtered to the fixture asset universe when possible.
+        """
+        assets = sorted(self._bars["asset"].drop_duplicates().tolist())
+        columns = ["asset", "name", "pinyin", "list_date", "delist_date"]
+
+        if DEFAULT_STOCK_LIST_PATH.exists():
+            frame = pd.read_parquet(DEFAULT_STOCK_LIST_PATH)
+            available_columns = [column for column in columns if column in frame.columns]
+            filtered = frame.loc[frame["asset"].isin(assets), available_columns].copy()
+            if not filtered.empty:
+                for missing_column in set(columns) - set(filtered.columns):
+                    filtered[missing_column] = pd.NaT if "date" in missing_column else ""
+                return filtered[columns]
+
+        return pd.DataFrame(
+            {
+                "asset": assets,
+                "name": assets,
+                "pinyin": [asset.split(".")[0] for asset in assets],
+                "list_date": [datetime.date(1990, 1, 1)] * len(assets),
+                "delist_date": [pd.NaT] * len(assets),
+            }
+        )
 
     def _maybe_raise(self, endpoint: str) -> None:
         if endpoint in self._config.rate_limited_endpoints:
@@ -97,17 +127,7 @@ class FixtureBackedTushareFetcher(DataFetcherPort):
         columns = ["asset", "name", "pinyin", "list_date", "delist_date"]
         if "stock_basic" in self._config.empty_endpoints:
             return pd.DataFrame(columns=columns)
-
-        assets = sorted(self._bars["asset"].drop_duplicates().tolist())
-        frame = pd.DataFrame(
-            {
-                "asset": assets,
-                "name": assets,
-                "pinyin": [asset.split(".")[0] for asset in assets],
-                "list_date": [datetime.date(1990, 1, 1)] * len(assets),
-                "delist_date": [pd.NaT] * len(assets),
-            }
-        )
+        frame = self._stock_list.copy()
         return _drop_missing_fields(frame, "stock_basic", self._config)
 
     def fetch_adjust_factor(
@@ -188,7 +208,6 @@ def patched_tushare_fetcher(
     config: TushareStubConfig | None = None,
 ) -> Iterator[FixtureBackedTushareFetcher]:
     """Temporarily replace the default `tushare` fetcher with fixture data."""
-
     register_builtin_fetchers()
     previous_fetcher = fetcher_registry.get("tushare") if fetcher_registry.has("tushare") else None
     previous_default = fetcher_registry.default_name

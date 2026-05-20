@@ -152,3 +152,18 @@ def test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub():
         assert "reference-price-panel" in response.text
         assert "grid-cols-[88px_minmax(0,1fr)]" in response.text
         assert "quick-price-btn aspect-square" in response.text
+
+
+@pytest.mark.e2e
+def test_trade_search_supports_name_and_pinyin_in_stub_mode():
+    with system_settings_e2e_session() as session, patched_tushare_fetcher():
+        with open_system_settings_client(session.app_config_dir, session.market_home) as reopened_client:
+            pinyin_response = reopened_client.get("/trade/search?q=payh", follow_redirects=False)
+            name_response = reopened_client.get("/trade/search?q=%E5%B9%B3%E5%AE%89", follow_redirects=False)
+
+        assert pinyin_response.status_code == 200
+        assert "平安银行" in pinyin_response.text
+        assert 'data-display="平安银行（000001.SZ）"' in pinyin_response.text
+
+        assert name_response.status_code == 200
+        assert "平安银行" in name_response.text

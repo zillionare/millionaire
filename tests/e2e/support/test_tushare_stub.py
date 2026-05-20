@@ -19,6 +19,9 @@ def test_tushare_stub_serves_fixture_backed_market_data() -> None:
     assert len(calendar) > 200
     assert stocks is not None
     assert len(stocks) > 5000
+    pingan = stocks.loc[stocks["asset"] == "000001.SZ"].iloc[0]
+    assert pingan["name"] == "平安银行"
+    assert pingan["pinyin"] == "PAYH"
     assert set(bars.columns) == {
         "date",
         "asset",

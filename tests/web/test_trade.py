@@ -4,6 +4,7 @@ import tempfile
 import urllib.error
 from email.message import Message
 from pathlib import Path
+from urllib.parse import quote
 
 import polars as pl
 import pytest
@@ -486,6 +487,44 @@ class TestLoginRoutes:
         assert response.status_code == 200
         assert "quick-price-btn aspect-square" in text
         assert 'grid h-full w-[196px] grid-cols-4 gap-1' in text
+
+    def test_trade_panel_supports_enter_to_select_search_result(self, test_client):
+        """验证股票搜索支持回车确认首个结果。"""
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        assert "assetDisplay.addEventListener('keydown'" in text
+        assert "selectAsset(firstItem);" in text
+        assert "hideSearchDropdown();" in text
+
+    def test_trade_search_returns_formatted_display_value(self, test_client, monkeypatch):
+        """验证搜索结果包含名称加代码的显示值。"""
+        from quantide.web.pages import trade_main as trade_page
+
+        result_df = pl.DataFrame(
+            {
+                "asset": ["000001.SZ"],
+                "name": ["平安银行"],
+                "pinyin": ["PAYH"],
+            }
+        ).to_pandas()
+
+        monkeypatch.setattr(trade_page.stock_list, "fuzzy_search", lambda *args, **kwargs: result_df)
+        monkeypatch.setattr(
+            trade_page.daily_bars,
+            "get_price",
+            lambda *args, **kwargs: (10.0, 11.0, 9.0),
+        )
+
+        response = test_client.get(f"/trade/search?q={quote('平安')}")
+        text = response.text
+
+        assert response.status_code == 200
+        assert "平安银行" in text
+        assert "PAYH" in text
+        assert 'data-display="平安银行（000001.SZ）"' in text
+        assert 'tabindex="0"' in text
 
     def test_trade_asset_stats_returns_real_metrics_without_fake_fallbacks(
         self, test_client, monkeypatch

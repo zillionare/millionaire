@@ -477,6 +477,15 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     };
                     let selectedAssetStats = null;
 
+                    function getSearchItems() {
+                        return Array.from(searchDropdown.querySelectorAll('.asset-search-item'));
+                    }
+
+                    function hideSearchDropdown() {
+                        searchDropdown.classList.add('hidden');
+                        searchDropdown.innerHTML = '';
+                    }
+
                     function clearReferencePrices() {
                         selectedAssetStats = null;
                         Object.values(referenceValues).forEach(function(node) {
@@ -655,7 +664,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     function selectAsset(item) {
                         assetDisplay.value = item.dataset.display;
                         assetCode.value = item.dataset.asset;
-                        searchDropdown.classList.add('hidden');
+                        hideSearchDropdown();
                         // Auto-fill price if available
                         const price = item.dataset.price;
                         if (price && price !== '') {
@@ -667,9 +676,15 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     }
 
                     function attachSearchItemListeners() {
-                        document.querySelectorAll('.asset-search-item').forEach(function(item) {
+                        getSearchItems().forEach(function(item) {
                             item.addEventListener('click', function() {
                                 selectAsset(this);
+                            });
+                            item.addEventListener('keydown', function(evt) {
+                                if (evt.key === 'Enter' || evt.key === ' ') {
+                                    evt.preventDefault();
+                                    selectAsset(this);
+                                }
                             });
                         });
                     }
@@ -678,7 +693,9 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     document.body.addEventListener('htmx:afterSwap', function(evt) {
                         if (evt.detail.target.id === 'asset-search-dropdown') {
                             attachSearchItemListeners();
-                            searchDropdown.classList.remove('hidden');
+                            if (searchDropdown.innerText.trim() !== '') {
+                                searchDropdown.classList.remove('hidden');
+                            }
                         }
                     });
 
@@ -693,6 +710,25 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     assetDisplay.addEventListener('input', function() {
                         assetCode.value = '';
                         clearReferencePrices();
+                        if (assetDisplay.value.trim() === '') {
+                            hideSearchDropdown();
+                        }
+                    });
+
+                    assetDisplay.addEventListener('keydown', function(evt) {
+                        if (evt.key === 'Escape') {
+                            hideSearchDropdown();
+                            return;
+                        }
+                        if (evt.key !== 'Enter') {
+                            return;
+                        }
+                        const firstItem = getSearchItems()[0];
+                        if (!firstItem || searchDropdown.classList.contains('hidden')) {
+                            return;
+                        }
+                        evt.preventDefault();
+                        selectAsset(firstItem);
                     });
 
                     // --- Quick price button handlers ---
@@ -1214,6 +1250,8 @@ async def search_trade_assets(req):
                 data_name=name,
                 data_display=display,
                 data_price=price,
+                tabindex="0",
+                role="button",
             )
         )
 
