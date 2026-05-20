@@ -199,7 +199,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                             id="asset-display",
                             autocomplete="off",
                             hx_get="/trade/search",
-                            hx_trigger="keyup changed delay:200ms",
+                            hx_trigger="input changed delay:120ms",
                             hx_target="#asset-search-dropdown",
                             hx_swap="outerHTML",
                             hx_vals='js:{"q": document.getElementById("asset-display").value}',
@@ -476,14 +476,30 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         current: document.getElementById('ref-current'),
                     };
                     let selectedAssetStats = null;
+                    let activeSearchIndex = -1;
 
                     function getSearchItems() {
                         return Array.from(searchDropdown.querySelectorAll('.asset-search-item'));
                     }
 
                     function hideSearchDropdown() {
+                        activeSearchIndex = -1;
                         searchDropdown.classList.add('hidden');
                         searchDropdown.innerHTML = '';
+                    }
+
+                    function setActiveSearchIndex(index) {
+                        const items = getSearchItems();
+                        if (!items.length) {
+                            activeSearchIndex = -1;
+                            return;
+                        }
+                        const normalizedIndex = Math.max(0, Math.min(index, items.length - 1));
+                        activeSearchIndex = normalizedIndex;
+                        items.forEach(function(item, itemIndex) {
+                            item.classList.toggle('bg-gray-100', itemIndex === normalizedIndex);
+                            item.classList.toggle('dark:bg-gray-700', itemIndex === normalizedIndex);
+                        });
                     }
 
                     function clearReferencePrices() {
@@ -687,6 +703,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                                 }
                             });
                         });
+                        setActiveSearchIndex(0);
                     }
 
                     // Re-attach listeners after HTMX swaps in new dropdown content
@@ -716,19 +733,35 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     });
 
                     assetDisplay.addEventListener('keydown', function(evt) {
+                        const items = getSearchItems();
+                        const dropdownVisible = !searchDropdown.classList.contains('hidden') && items.length > 0;
                         if (evt.key === 'Escape') {
+                            evt.preventDefault();
                             hideSearchDropdown();
+                            return;
+                        }
+                        if (evt.key === 'ArrowDown' && dropdownVisible) {
+                            evt.preventDefault();
+                            setActiveSearchIndex(activeSearchIndex + 1);
+                            return;
+                        }
+                        if (evt.key === 'ArrowUp' && dropdownVisible) {
+                            evt.preventDefault();
+                            setActiveSearchIndex(activeSearchIndex - 1);
                             return;
                         }
                         if (evt.key !== 'Enter') {
                             return;
                         }
-                        const firstItem = getSearchItems()[0];
-                        if (!firstItem || searchDropdown.classList.contains('hidden')) {
+                        evt.preventDefault();
+                        evt.stopPropagation();
+                        if (!dropdownVisible) {
                             return;
                         }
-                        evt.preventDefault();
-                        selectAsset(firstItem);
+                        const selectedItem = items[Math.max(activeSearchIndex, 0)];
+                        if (selectedItem) {
+                            selectAsset(selectedItem);
+                        }
                     });
 
                     // --- Quick price button handlers ---
