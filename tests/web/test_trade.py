@@ -498,6 +498,9 @@ class TestLoginRoutes:
         assert "evt.stopPropagation();" in text
         assert "setActiveSearchIndex(0);" in text
         assert "const selectedItem = items[Math.max(activeSearchIndex, 0)];" in text
+        assert "let searchDropdown = document.getElementById('asset-search-dropdown');" in text
+        assert "refreshSearchDropdown()" in text
+        assert "evt.target.closest('.asset-search-item')" in text
         assert "hideSearchDropdown();" in text
 
     def test_trade_panel_uses_faster_asset_search_trigger(self, test_client):

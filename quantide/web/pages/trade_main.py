@@ -465,7 +465,7 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     const cash = parseFloat(form.dataset.cash) || 0;
                     const assetDisplay = document.getElementById('asset-display');
                     const assetCode = document.getElementById('asset-code');
-                    const searchDropdown = document.getElementById('asset-search-dropdown');
+                    let searchDropdown = document.getElementById('asset-search-dropdown');
                     const referenceValues = {
                         close: document.getElementById('ref-close'),
                         ma5: document.getElementById('ref-ma5'),
@@ -478,14 +478,27 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                     let selectedAssetStats = null;
                     let activeSearchIndex = -1;
 
+                    function refreshSearchDropdown() {
+                        searchDropdown = document.getElementById('asset-search-dropdown');
+                        return searchDropdown;
+                    }
+
                     function getSearchItems() {
-                        return Array.from(searchDropdown.querySelectorAll('.asset-search-item'));
+                        const dropdown = refreshSearchDropdown();
+                        if (!dropdown) {
+                            return [];
+                        }
+                        return Array.from(dropdown.querySelectorAll('.asset-search-item'));
                     }
 
                     function hideSearchDropdown() {
                         activeSearchIndex = -1;
-                        searchDropdown.classList.add('hidden');
-                        searchDropdown.innerHTML = '';
+                        const dropdown = refreshSearchDropdown();
+                        if (!dropdown) {
+                            return;
+                        }
+                        dropdown.classList.add('hidden');
+                        dropdown.innerHTML = '';
                     }
 
                     function setActiveSearchIndex(index) {
@@ -691,34 +704,42 @@ def LightningTradePanel(portfolio_id: str, kind: str, cash: float = 0, total: fl
                         fetchAssetStats(item.dataset.asset);
                     }
 
-                    function attachSearchItemListeners() {
-                        getSearchItems().forEach(function(item) {
-                            item.addEventListener('click', function() {
-                                selectAsset(this);
-                            });
-                            item.addEventListener('keydown', function(evt) {
-                                if (evt.key === 'Enter' || evt.key === ' ') {
-                                    evt.preventDefault();
-                                    selectAsset(this);
-                                }
-                            });
-                        });
-                        setActiveSearchIndex(0);
-                    }
-
-                    // Re-attach listeners after HTMX swaps in new dropdown content
                     document.body.addEventListener('htmx:afterSwap', function(evt) {
                         if (evt.detail.target.id === 'asset-search-dropdown') {
-                            attachSearchItemListeners();
-                            if (searchDropdown.innerText.trim() !== '') {
-                                searchDropdown.classList.remove('hidden');
+                            const dropdown = refreshSearchDropdown();
+                            if (dropdown && dropdown.innerText.trim() !== '') {
+                                dropdown.classList.remove('hidden');
+                                setActiveSearchIndex(0);
                             }
                         }
                     });
 
+                    document.body.addEventListener('click', function(evt) {
+                        const item = evt.target.closest('.asset-search-item');
+                        if (!item) {
+                            return;
+                        }
+                        evt.preventDefault();
+                        selectAsset(item);
+                    });
+
+                    document.body.addEventListener('keydown', function(evt) {
+                        const item = evt.target.closest('.asset-search-item');
+                        if (!item || (evt.key !== 'Enter' && evt.key !== ' ')) {
+                            return;
+                        }
+                        evt.preventDefault();
+                        evt.stopPropagation();
+                        selectAsset(item);
+                    });
+
                     // Close dropdown when clicking outside
                     document.addEventListener('click', function(evt) {
-                        if (!assetDisplay.contains(evt.target) && !searchDropdown.contains(evt.target)) {
+                        const dropdown = refreshSearchDropdown();
+                        if (!dropdown) {
+                            return;
+                        }
+                        if (!assetDisplay.contains(evt.target) && !dropdown.contains(evt.target)) {
                             searchDropdown.classList.add('hidden');
                         }
                     });
