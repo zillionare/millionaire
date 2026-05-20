@@ -9,12 +9,15 @@
 
 import datetime
 
+import polars as pl
 from fasthtml.common import *
 from fasthtml.common import Select as _Select
 from monsterui.all import *
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
+from quantide.data.fetchers.registry import get_data_fetcher
+from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.stocks import stock_list
 from quantide.data.sqlite import Order, Position
@@ -88,6 +91,70 @@ def _format_trade_metric(value: float | None) -> str:
     return f"{value:.2f}"
 
 
+def _extract_recent_trade_dates(
+    calendar_frame, end: datetime.date, periods: int
+) -> list[datetime.date]:
+    """Extract recent open trade dates from a fetcher calendar response.
+
+    Args:
+        calendar_frame: Calendar data returned by the data fetcher.
+        end: Preferred end date for the lookup window.
+        periods: Number of dates to keep.
+
+    Returns:
+        A sorted list of recent trade dates.
+    """
+    if calendar_frame is None or calendar_frame.empty:
+        return []
+
+    dates: list[datetime.date] = []
+    for index, row in calendar_frame.iterrows():
+        if not bool(row.get("is_open", 1)):
+            continue
+        raw_date = row.get("date", index)
+        if hasattr(raw_date, "date"):
+            raw_date = raw_date.date()
+        dates.append(raw_date)
+
+    if not dates:
+        return []
+
+    dates = sorted(set(dates))
+    eligible_dates = [trade_date for trade_date in dates if trade_date <= end]
+    return (eligible_dates or dates)[-periods:]
+
+
+def _resolve_trade_reference_dates(
+    fetcher, end: datetime.date, periods: int
+) -> list[datetime.date]:
+    """Resolve fallback trade dates for the trade panel.
+
+    Args:
+        fetcher: Active market data fetcher.
+        end: Preferred end date.
+        periods: Number of trade dates to retrieve.
+
+    Returns:
+        A list of trade dates for fetcher fallback queries.
+    """
+    start = end - datetime.timedelta(days=periods * 3)
+    try:
+        trade_dates = calendar.get_trade_dates(start, end)[-periods:]
+    except Exception:
+        trade_dates = []
+    if trade_dates:
+        return trade_dates
+
+    lookback_start = end - datetime.timedelta(days=max(periods * 30, 365 * 3))
+    try:
+        calendar_frame = fetcher.fetch_calendar(lookback_start)
+    except Exception:
+        return [end]
+
+    resolved_dates = _extract_recent_trade_dates(calendar_frame, end, periods)
+    return resolved_dates or [end]
+
+
 def _build_asset_stats(asset: str) -> dict[str, str | bool]:
     """Build reference price stats for the selected asset.
 
@@ -107,10 +174,7 @@ def _build_asset_stats(asset: str) -> dict[str, str | bool]:
         "ma60": "",
         "current": "",
     }
-    try:
-        bars = daily_bars.get_bars(60, end=datetime.date.today(), assets=[asset], eager_mode=True)
-    except Exception:
-        return payload
+    bars = _load_trade_reference_bars(asset, datetime.date.today(), 60)
     if bars.is_empty():
         return payload
 
@@ -126,6 +190,41 @@ def _build_asset_stats(asset: str) -> dict[str, str | bool]:
         if len(closes) >= period:
             payload[f"ma{period}"] = _format_trade_metric(sum(closes[-period:]) / period)
     return payload
+
+
+def _load_trade_reference_bars(
+    asset: str, end: datetime.date, periods: int
+) -> pl.DataFrame:
+    """Load recent bars for the trade panel from local storage or fetcher fallback.
+
+    Args:
+        asset: Stock code.
+        end: End date.
+        periods: Number of trade dates to retrieve.
+
+    Returns:
+        A date-sorted Polars DataFrame.
+    """
+    try:
+        bars = daily_bars.get_bars(periods, end=end, assets=[asset], eager_mode=True, adjust=None)
+    except Exception:
+        bars = pl.DataFrame()
+    if not bars.is_empty():
+        return bars.sort("date")
+
+    try:
+        fetcher = get_data_fetcher()
+        trade_dates = _resolve_trade_reference_dates(fetcher, end, periods)
+        fallback_frame, _ = fetcher.fetch_bars_ext(trade_dates)
+    except Exception:
+        return pl.DataFrame()
+    if fallback_frame is None or fallback_frame.empty:
+        return pl.DataFrame()
+
+    fallback = pl.from_pandas(fallback_frame).filter(pl.col("asset") == asset)
+    if fallback.is_empty():
+        return fallback
+    return fallback.with_columns(pl.col("date").cast(pl.Date)).sort("date")
 
 
 def AssetInfoBar(total: float = 0, cash: float = 0, market_value: float = 0):
@@ -1294,7 +1393,9 @@ async def search_trade_assets(req):
             if close and close > 0:
                 price = str(close)
         except Exception:
-            pass
+            fallback_bars = _load_trade_reference_bars(asset, today, 1)
+            if not fallback_bars.is_empty():
+                price = str(fallback_bars.row(0, named=True).get("close", ""))
         items.append(
             Div(
                 Div(name, cls="text-sm font-medium text-gray-900 dark:text-white"),

@@ -166,6 +166,8 @@ def test_trade_search_supports_name_and_pinyin_in_stub_mode():
         assert pinyin_response.status_code == 200
         assert "平安银行" in pinyin_response.text
         assert 'data-display="平安银行（000001.SZ）"' in pinyin_response.text
+        assert 'data-price="' in pinyin_response.text
+        assert 'data-price=""' not in pinyin_response.text
 
         assert name_response.status_code == 200
         assert "平安银行" in name_response.text
@@ -180,3 +182,4 @@ def test_system_stock_list_uses_real_name_and_pinyin_in_stub_mode():
         assert response.status_code == 200
         assert "平安银行" in response.text
         assert "PAYH" in response.text
+

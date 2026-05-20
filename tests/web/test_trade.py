@@ -1,4 +1,5 @@
 """测试交易模块页面"""
+import datetime
 import re
 import tempfile
 import urllib.error
@@ -455,7 +456,8 @@ class TestLoginRoutes:
         assert 'id="asset-search-dropdown"' in text
         # JS 搜索处理函数
         assert "selectAsset" in text
-        assert "attachSearchItemListeners" in text
+        assert "document.body.addEventListener('click'" in text
+        assert "document.body.addEventListener('keydown'" in text
 
     def test_trade_panel_hides_placeholder_values_before_asset_selection(self, test_client):
         """验证选股前不显示静态占位数值。"""
@@ -570,6 +572,106 @@ class TestLoginRoutes:
         assert payload["ma5"] == "12.00"
         assert payload["ma10"] == ""
         assert payload["ma60"] == ""
+
+    def test_trade_asset_stats_falls_back_to_fetcher_when_local_bars_missing(
+        self, test_client, monkeypatch
+    ):
+        """验证本地行情缺失时会回退到 fetcher 数据。"""
+        import pandas as pd
+
+        from quantide.web.pages import trade_main as trade_page
+
+        monkeypatch.setattr(
+            trade_page.daily_bars,
+            "get_bars",
+            lambda *args, **kwargs: pl.DataFrame(),
+        )
+        monkeypatch.setattr(
+            trade_page.calendar,
+            "get_trade_dates",
+            lambda start, end: [datetime.date(2026, 5, 19), datetime.date(2026, 5, 20)],
+        )
+
+        class _Fetcher:
+            def fetch_bars_ext(self, dates):
+                frame = pd.DataFrame(
+                    {
+                        "date": [datetime.date(2026, 5, 19), datetime.date(2026, 5, 20)],
+                        "asset": ["000001.SZ", "000001.SZ"],
+                        "close": [10.0, 11.0],
+                        "up_limit": [11.0, 12.1],
+                        "down_limit": [9.0, 9.9],
+                    }
+                )
+                return frame, []
+
+        monkeypatch.setattr(trade_page, "get_data_fetcher", lambda: _Fetcher())
+
+        response = test_client.get("/trade/asset-stats?asset=000001.SZ")
+        payload = response.json()
+
+        assert response.status_code == 200
+        assert payload["visible"] is True
+        assert payload["close"] == "11.00"
+        assert payload["current"] == "11.00"
+        assert payload["ma5"] == ""
+
+    def test_trade_search_uses_latest_fetcher_price_when_today_has_no_local_bars(
+        self, test_client, monkeypatch
+    ):
+        """验证搜索结果会回退到 fetcher 最近可用交易日的收盘价。"""
+        import pandas as pd
+
+        from quantide.web.pages import trade_main as trade_page
+
+        result_df = pl.DataFrame(
+            {
+                "asset": ["000002.SZ"],
+                "name": ["万科A"],
+                "pinyin": ["WKA"],
+            }
+        ).to_pandas()
+
+        monkeypatch.setattr(trade_page.stock_list, "fuzzy_search", lambda *args, **kwargs: result_df)
+        monkeypatch.setattr(
+            trade_page.daily_bars,
+            "get_price",
+            lambda *args, **kwargs: (_ for _ in ()).throw(IndexError("missing")),
+        )
+        monkeypatch.setattr(
+            trade_page.daily_bars,
+            "get_bars",
+            lambda *args, **kwargs: pl.DataFrame(),
+        )
+
+        class _Fetcher:
+            def fetch_calendar(self, epoch):
+                return pd.DataFrame(
+                    {
+                        "date": [datetime.date(2024, 12, 30), datetime.date(2024, 12, 31)],
+                        "is_open": [1, 1],
+                    }
+                )
+
+            def fetch_bars_ext(self, dates):
+                frame = pd.DataFrame(
+                    {
+                        "date": [datetime.date(2024, 12, 31)],
+                        "asset": ["000002.SZ"],
+                        "close": [23.45],
+                        "up_limit": [25.8],
+                        "down_limit": [21.11],
+                    }
+                )
+                return frame, []
+
+        monkeypatch.setattr(trade_page, "get_data_fetcher", lambda: _Fetcher())
+
+        response = test_client.get("/trade/search?q=%E4%B8%87%E7%A7%91")
+
+        assert response.status_code == 200
+        assert "万科A" in response.text
+        assert 'data-price="23.45"' in response.text
 
 
 class TestTradeOrderRoute:

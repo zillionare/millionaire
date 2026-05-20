@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import shutil
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,16 +11,18 @@ from tempfile import TemporaryDirectory
 
 from starlette.testclient import TestClient
 
-from quantide.app_factory import create_app
+from quantide.app_factory import _attach_runtime_to_app_states, create_app
 from quantide.config.paths import clear_app_config_dir_override
 from quantide.core.init_wizard_steps import WIZARD_FINAL_STEP
 from quantide.core.runtime.modes import RuntimeBootstrap
 from quantide.data.models.app_state import AppState
-from quantide.app_factory import _attach_runtime_to_app_states
 from quantide.service.init_wizard import init_wizard
 from quantide.service.strategy_runtime import strategy_runtime_manager
 from quantide.web.auth.manager import AuthManager
 from quantide.web.pages import init_wizard as init_wizard_page
+
+TESTS_ROOT = Path(__file__).resolve().parents[2]
+ASSETS_ROOT = TESTS_ROOT / "assets"
 
 
 _SYNC_STATUS_TEMPLATE = {
@@ -66,7 +69,8 @@ def _login_as_admin(client: TestClient) -> None:
 @contextmanager
 def open_system_settings_client(app_config_dir: Path, market_home: Path | None = None):
     """Open an authenticated client against an existing app config dir."""
-
+    if market_home is not None:
+        _seed_market_data(market_home)
     app = create_app(
         app_config_dir=app_config_dir,
         enforce_single_instance=False,
@@ -97,10 +101,23 @@ def _seed_initialized_state(market_home: Path) -> None:
     init_wizard.save_state(state)
 
 
+def _seed_market_data(market_home: Path) -> None:
+    """Seed the minimal market files required by reopened e2e app instances.
+
+    Args:
+        market_home: Temporary market-data home used by the reopened app.
+    """
+    data_dir = market_home / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    calendar_path = data_dir / "calendar.parquet"
+    if not calendar_path.exists():
+        shutil.copy2(ASSETS_ROOT / "baseline_calendar.parquet", calendar_path)
+
+
 @contextmanager
 def system_settings_e2e_session():
     """Create an initialized and authenticated session for system pages."""
-
     with TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
         app_config_dir = tmp_path / "config-home"
