@@ -117,3 +117,6 @@ tests/assets/DailyBars-dates.pq
 
 **/.DS_Store
 .DS_Store
+quantide.db-wal
+quantide.db
+quantide.db-shm
