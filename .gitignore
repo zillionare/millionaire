@@ -113,7 +113,9 @@ tests/assets/DailyBars-dates.pq
 .omc/**
 .playwright-mcp
 .sisyphus
-
+.cc-connect/
+.trae/
+.sesskey
 
 **/.DS_Store
 .DS_Store

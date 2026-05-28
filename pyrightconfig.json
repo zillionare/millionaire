@@ -1,5 +1,5 @@
 {
-  "comments": "This is for pylance extension of vscode. Remove me if you're not intented to use vscode.",
+  "comments": "This is for pylance extension of vscode. Remove me if you're not intended to use vscode.",
   "exclude": [
     ".git",
     ".eggs",
