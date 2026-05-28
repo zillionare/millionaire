@@ -34,7 +34,11 @@ __all__ = [
 
 def __getattr__(name: str):
     if name in {"RuntimeMode", "RuntimeContext", "RuntimeBootstrap"}:
-        from quantide.core.runtime.modes import RuntimeBootstrap, RuntimeContext, RuntimeMode
+        from quantide.core.runtime.modes import (
+            RuntimeBootstrap,
+            RuntimeContext,
+            RuntimeMode,
+        )
 
         mapping = {
             "RuntimeMode": RuntimeMode,

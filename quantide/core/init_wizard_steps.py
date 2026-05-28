@@ -6,7 +6,6 @@ through a single source of truth.
 
 from __future__ import annotations
 
-
 WIZARD_STEP_DEFINITIONS: tuple[tuple[int, str], ...] = (
     (1, "欢迎"),
     (2, "运行环境"),

@@ -3,22 +3,19 @@
 本模块实现了 PaperBroker（兼容别名 SimulationBroker），用于仿真交易。
 """
 
-import asyncio
 import datetime
-import threading
 import time
 from collections import defaultdict
-from typing import Any, List
+from typing import Any
 
-from loguru import logger
 import polars as pl
+from loguru import logger
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus, Topics
 from quantide.core.errors import (
     InsufficientCash,
     InsufficientPosition,
     NonMultipleOfLotSize,
-    TradeError,
 )
 from quantide.core.message import msg_hub
 from quantide.core.ports import MarketDataPort
@@ -36,6 +33,7 @@ class PaperBroker(AbstractBroker):
     PaperBroker 模拟真实的交易环境，订阅实时行情，并在本地进行撮合。
     它维护自己的账户状态（现金、持仓），并将交易记录保存到数据库。
     """
+
     def __init__(
         self,
         portfolio_id: str,
@@ -311,7 +309,6 @@ class PaperBroker(AbstractBroker):
         如果在数据库中找不到对应的 portfolio，则创建新的。
         如果存在，则从数据库加载资产和持仓信息。
         """
-
         # 数据一致性检查
         self._validate_data_consistency()
 
@@ -370,7 +367,7 @@ class PaperBroker(AbstractBroker):
         return self._cash + market_value
 
     @property
-    def positions(self) -> List[Position]:
+    def positions(self) -> list[Position]:
         """获取当前持仓列表。"""
         return list(self._positions.values())
 

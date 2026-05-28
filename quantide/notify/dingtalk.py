@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import asyncio
 import base64
 import hashlib
@@ -7,7 +6,7 @@ import json
 import logging
 import time
 import urllib.parse
-from typing import Awaitable, Union
+from collections.abc import Awaitable
 
 import httpx
 from loguru import logger
@@ -69,7 +68,7 @@ class DingTalkMessage:
         """获取签名发送给钉钉机器人"""
         timestamp = str(round(time.time() * 1000))
         secret_enc = secret.encode("utf-8")
-        string_to_sign = "{}\n{}".format(timestamp, secret)
+        string_to_sign = f"{timestamp}\n{secret}"
         string_to_sign_enc = string_to_sign.encode("utf-8")
         hmac_code = hmac.new(
             secret_enc, string_to_sign_enc, digestmod=hashlib.sha256
@@ -114,7 +113,7 @@ class DingTalkMessage:
 
 
 def ding(
-    msg: Union[str, dict], sync: bool = False, at_all: bool = False
+    msg: str | dict, sync: bool = False, at_all: bool = False
 ) -> Awaitable | str | None:
     """发送消息到钉钉机器人
 

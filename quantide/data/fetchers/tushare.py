@@ -4,8 +4,7 @@
 """
 
 import datetime
-import itertools
-from typing import Callable, Iterable, Iterator, Optional
+from collections.abc import Callable, Iterable
 
 import pandas as pd
 import tushare as ts

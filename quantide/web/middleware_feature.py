@@ -9,7 +9,6 @@ from starlette.responses import HTMLResponse, JSONResponse
 
 from quantide.service.init_wizard import init_wizard
 
-
 FEATURE_ROUTE_PREFIXES = {
     "/trade/simulation": "simulation",
     "/trade/live": "live_trading",

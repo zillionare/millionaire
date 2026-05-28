@@ -9,6 +9,10 @@ import json
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import Input as _Input
+
+# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
+from fasthtml.common import Label as _Label
 from loguru import logger
 from monsterui.all import *
 from starlette.responses import StreamingResponse
@@ -27,11 +31,7 @@ from quantide.data.models.stocks import stock_list
 from quantide.data.services import StockSyncService
 from quantide.service.init_wizard import init_wizard
 from quantide.web.layouts.base import BaseLayout
-
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
-
-# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
-from fasthtml.common import Label as _Label, Input as _Input
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 init_wizard_app, rt = fast_app(hdrs=AppTheme.headers())
 

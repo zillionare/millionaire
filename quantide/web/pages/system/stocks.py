@@ -1,7 +1,6 @@
 """系统维护 - 股票列表模块"""
 
 import asyncio
-import datetime
 
 from fasthtml.common import *
 from loguru import logger
@@ -9,7 +8,7 @@ from monsterui.all import *
 
 from quantide.data.models.stocks import stock_list
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 system_stocks_app, rt = fast_app(hdrs=AppTheme.headers())

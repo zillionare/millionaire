@@ -7,8 +7,10 @@ from quantide.config.settings import get_settings
 from quantide.core.enums import BrokerKind
 from quantide.core.ports import MarketDataPort
 from quantide.core.runtime.adapter_registry import AdapterRegistry
-from quantide.core.runtime.broker_bridge import LegacyBrokerPortAdapter
-from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter, GatewayBrokerWrapper
+from quantide.core.runtime.gateway_broker import (
+    GatewayBrokerAdapter,
+    GatewayBrokerWrapper,
+)
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.core.runtime.gateway_market import GatewayMarketDataAdapter
 from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter

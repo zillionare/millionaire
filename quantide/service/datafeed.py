@@ -15,8 +15,9 @@ from loguru import logger
 from quantide.core.enums import FrameType
 
 if TYPE_CHECKING:
-    from quantide.data.models.daily_bars import DailyBars
     from quantide.data.models.live_quote import LiveQuote
+
+    from quantide.data.models.daily_bars import DailyBars
 
 
 Frame = datetime.date | datetime.datetime
@@ -136,8 +137,8 @@ class BarsFeedImpl:
 
     def __init__(
         self,
-        daily_bars: "DailyBars" | None = None,
-        live_quote: "LiveQuote" | None = None,
+        daily_bars: DailyBars | None = None,
+        live_quote: LiveQuote | None = None,
     ):
         """初始化 BarsFeedImpl
 

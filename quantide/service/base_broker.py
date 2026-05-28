@@ -6,9 +6,7 @@
 import datetime
 from abc import ABCMeta, abstractmethod
 
-import polars as pl
-
-from quantide.core.enums import BidType, OrderSide
+from quantide.core.enums import OrderSide
 from quantide.data.sqlite import Position, Trade
 
 

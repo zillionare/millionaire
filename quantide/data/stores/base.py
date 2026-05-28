@@ -6,9 +6,9 @@
 import datetime
 import glob
 import inspect
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from collections.abc import Callable
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 import pandas as pd
 import polars as pl
@@ -737,7 +737,6 @@ class ParquetStorage:
 
     def _group_dates(self, dates: list[datetime.date]) -> list[list[datetime.date]]:
         """根据分区策略对缺失日期进行分组
-
 
         - None/月分区：按月分组，避免批次过大
         - 年分区：按年分片

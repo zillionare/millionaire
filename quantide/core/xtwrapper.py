@@ -6,7 +6,6 @@ access. Live trading and quotes must go through qmt-gateway.
 
 from typing import Any
 
-
 _REMOVED_MESSAGE = (
     "本地 QMT/行情能力已从 quantide 主体移除。"
     "请改用 qmt-gateway 或其它远程数据源。"

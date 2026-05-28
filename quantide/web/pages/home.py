@@ -2,21 +2,20 @@ import datetime
 from typing import Any
 
 from fasthtml.common import *
+
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
 from loguru import logger
 from monsterui.all import *
 from starlette.responses import RedirectResponse
 
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
 from quantide.data.sqlite import Position, db
-from quantide.service.registry import BrokerRegistry
 from quantide.service.init_wizard import init_wizard
+from quantide.service.registry import BrokerRegistry
 from quantide.web.apis.broker import build_asset_overview
 from quantide.web.layouts.main import MainLayout
-
 from quantide.web.theme import AppTheme
-
-# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
-from fasthtml.common import Label as _Label
 
 home_app, rt = fast_app(hdrs=AppTheme.headers())
 

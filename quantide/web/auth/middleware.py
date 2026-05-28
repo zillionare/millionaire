@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, List, Optional
+from typing import Any
 
 from fasthtml.common import *
 
@@ -79,7 +79,6 @@ class AuthBeforeware:
 
     def _build_skip_patterns(self, additional_paths=None) -> list:
         """Build list of paths to skip auth check"""
-
         skip = []
 
         # Static files

@@ -1,4 +1,3 @@
-from typing import Optional
 
 from .models import User
 
@@ -26,7 +25,7 @@ class UserRepository:
             active=user_dict.get("active", True),
         )
 
-    def get_by_username(self, username: str) -> Optional[User]:
+    def get_by_username(self, username: str) -> User | None:
         """Get user by username using parameterized query"""
         try:
             user_found = self.users("username=?", (username,))
@@ -44,7 +43,7 @@ class UserRepository:
             print(f"Error in get_by_username: {e}")
             return None
 
-    def get_by_id(self, user_id: int) -> Optional[User]:
+    def get_by_id(self, user_id: int) -> User | None:
         """Get user by ID"""
         try:
             user_dict = self.users[user_id]
@@ -74,7 +73,7 @@ class UserRepository:
         else:
             return inserted_user
 
-    def authenticate(self, username: str, password: str) -> Optional[User]:
+    def authenticate(self, username: str, password: str) -> User | None:
         """Authenticate user and update last_login"""
         user = self.get_by_username(username)
         print(f"User: {user}")
@@ -165,7 +164,7 @@ class UserRepository:
             return {"user": 0, "manager": 0, "admin": 0}
 
     def search_users(
-        self, query: str, role: Optional[str] = None, active: Optional[bool] = None
+        self, query: str, role: str | None = None, active: bool | None = None
     ) -> list:
         """Search users with optional filters"""
         try:

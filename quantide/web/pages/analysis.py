@@ -4,7 +4,7 @@ The subject application no longer exposes sector or index analysis management
 as a published feature.
 """
 
-from fasthtml.common import Div, H2, P, Title, to_xml
+from fasthtml.common import H2, Div, P, Title, to_xml
 from starlette.requests import Request
 from starlette.responses import HTMLResponse
 

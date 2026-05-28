@@ -13,7 +13,6 @@ from quantide.data.sqlite import db
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
 from quantide.web.layouts.main import MainLayout
-
 from quantide.web.theme import AppTheme
 
 accounts_app, rt = fast_app(hdrs=AppTheme.headers())

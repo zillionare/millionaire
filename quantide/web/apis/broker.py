@@ -91,7 +91,6 @@ async def start_backtest(req):
             - end,回测结束日期，格式为YYYY-MM-DD
 
     Returns:
-
         json: 包含以下字段的json对象
 
         - account_name, str
@@ -254,7 +253,6 @@ async def account_info(req, asset: str, date: datetime.date | None = None):
             - date: 日期，格式为YYYY-MM-DD,待获取账户信息的日期，如果为空，则意味着取当前日期的账户信息
 
     Returns:
-
         Response: 结果以binary方式返回。结果为一个dict，其中包含以下字段：
 
         - name: str, 账户名
@@ -269,7 +267,6 @@ async def account_info(req, asset: str, date: datetime.date | None = None):
         - ppnl: 盈亏(百分比)，即pnl/principal
         - positions: 当前持仓，dtype为[backtest.trade.datatypes.position_dtype][]的numpy structured array
     """
-
     broker = _require_broker(req)
     return broker.get_account_info(asset, date)
 
@@ -286,7 +283,6 @@ async def metrics(request):
             - baseline: str, 用来做对比的证券代码，默认为空，即不做对比
 
     Returns:
-
         Response: 结果以binary方式返回,参考[backtest.trade.broker.Broker.metrics][]
 
     """
@@ -356,7 +352,6 @@ async def get_assets(request):
             - end: 日期，格式为YYYY-MM-DD,待获取账户信息的日期，如果为空，则取最后交易日
 
     Returns:
-
         Response: 从`start`到`end`期间的账户资产信息，结果以binary方式返回,参考[backtest.trade.datatypes.rich_assets_dtype][]
 
     """
@@ -407,7 +402,6 @@ async def save_backtest(request):
             - baseline: 计算参照用。如不传入，将使用沪深300
 
     Returns:
-
         Response: 成功时，通过response.text返回名字。此后可以此名字来存取状态。
     """
     params = request.json or {}

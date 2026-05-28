@@ -10,8 +10,8 @@
 import datetime
 
 import polars as pl
-from fasthtml.common import Select as _Select
 from fasthtml.common import *
+from fasthtml.common import Select as _Select
 from monsterui.all import *
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 

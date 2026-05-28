@@ -6,7 +6,6 @@
 from fasthtml.common import *
 from monsterui.all import Theme
 
-
 # 主色调
 PRIMARY_COLOR = "#e41815"
 SECONDARY_COLOR = "#f3f4f6"
@@ -22,7 +21,7 @@ class AppTheme:
         """获取主题 headers（CSS 和脚本）"""
         # 使用 monsterui 的 Theme 获取基础 headers（包含 Tailwind, FrankenUI, DaisyUI）
         base_headers = Theme.red.headers()
-        
+
         # 添加自定义主题 CSS
         custom_css = Style(f"""
             :root {{
@@ -53,8 +52,8 @@ class AppTheme:
                 box-shadow: 0 18px 45px rgba(44, 48, 48, 0.08);
             }}
         """)
-        
+
         # 添加 HTMX
         htmx_script = Script(src="https://unpkg.com/htmx.org@1.9.12")
-        
+
         return list(base_headers) + [custom_css, htmx_script]

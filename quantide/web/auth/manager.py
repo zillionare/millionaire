@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from pathlib import Path
 
 from fasthtml.common import *
@@ -8,7 +7,6 @@ from quantide.config.paths import get_app_db_path
 
 from .database import AuthDatabase
 from .middleware import AuthBeforeware
-from .models import User
 from .repository import UserRepository
 from .routes import AuthRoutes
 
@@ -31,7 +29,7 @@ class AuthManager:
 
     def __new__(cls, db_path: str | Path | None = None, config=None):
         if cls._instance is None:
-            cls._instance = super(AuthManager, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance.__initialized = False
         return cls._instance
 

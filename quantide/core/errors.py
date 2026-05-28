@@ -1,8 +1,5 @@
 import datetime
 from enum import IntEnum
-from typing import Optional, Protocol
-
-import bidict
 
 
 class WebErrors(IntEnum):
@@ -76,18 +73,18 @@ class NoDataForMatch(TradeError):
     ):
         super().__init__(
             TradeErrors.ERROR_BAD_PARAMS,
-            f"failed to match %s, no data at %s",
+            "failed to match %s, no data at %s",
             security,
             dt,
         )
 
 class InsufficientCash(TradeError):
-    """ 委托时，现金不足 """
+    """委托时，现金不足"""
 
     def __init__(self, security: str, amount: float, cash: float):
         super().__init__(
             TradeErrors.ERROR_INSUF_CASH,
-            f"Insufficient cash for %s, required: %s, got cash: %s",
+            "Insufficient cash for %s, required: %s, got cash: %s",
             security,
             amount,
             cash
@@ -98,7 +95,7 @@ class InsufficientAmount(TradeError):
     def __init__(self, security: str, amount: float):
         super().__init__(
             TradeErrors.ERROR_INSUF_AMOUNT,
-            f"Insufficient amount for %s at %s",
+            "Insufficient amount for %s at %s",
             security,
             amount,
         )
@@ -109,7 +106,7 @@ class LimitPrice(TradeError):
     def __init__(self, security: str, price: float):
         super().__init__(
             TradeErrors.ERROR_LIMIT_PRICE,
-            f"Limit price reached for %s at %s",
+            "Limit price reached for %s at %s",
             security,
             price
         )
@@ -120,7 +117,7 @@ class PriceNotMeet(TradeError):
     def __init__(self, security: str, price: float, required_price: float):
         super().__init__(
             TradeErrors.ERROR_PRICE_NOT_MET,
-            f"Price not meet for %s, required: %s, got: %s",
+            "Price not meet for %s, required: %s, got: %s",
             security,
             required_price,
             price
@@ -132,7 +129,7 @@ class DupPortfolio(TradeError):
     def __init__(self, portfolio_id: str):
         super().__init__(
             TradeErrors.ERROR_DUP_PORTFOLIO,
-            f"Duplicate portfolio id: %s",
+            "Duplicate portfolio id: %s",
             portfolio_id
         )
 
@@ -142,7 +139,7 @@ class ClockRewind(TradeError):
     def __init__(self, dt: datetime.datetime, clock: datetime.datetime):
         super().__init__(
             TradeErrors.ERROR_CLOCK_REWIND,
-            f"Clock rewind to %s, current is %s",
+            "Clock rewind to %s, current is %s",
             dt,
             clock
         )
@@ -153,7 +150,7 @@ class ClockBeforeStart(TradeError):
     def __init__(self, dt: datetime.datetime, bt_start: datetime.datetime):
         super().__init__(
             TradeErrors.ERROR_CLOCK_BEFORE_START,
-            f"Clock %s is before bt_start %s",
+            "Clock %s is before bt_start %s",
             dt,
             bt_start
         )
@@ -164,7 +161,7 @@ class ClockAfterEnd(TradeError):
     def __init__(self, dt: datetime.datetime, bt_end: datetime.datetime):
         super().__init__(
             TradeErrors.ERROR_CLOCK_AFTER_END,
-            f"Clock %s is after bt_end %s",
+            "Clock %s is after bt_end %s",
             dt,
             bt_end
         )
@@ -175,7 +172,7 @@ class NonMultipleOfLotSize(TradeError):
     def __init__(self, security: str, shares: float):
         super().__init__(
             TradeErrors.ERROR_NONMULTIPLEOFLOTSIZE,
-            f"Non multiple of lot size for %s at %s",
+            "Non multiple of lot size for %s at %s",
             security,
             shares
         )
@@ -186,7 +183,7 @@ class BadPercent(TradeError):
     def __init__(self, percent: float):
         super().__init__(
             TradeErrors.ERROR_BAD_PERCENT,
-            f"Percent %s is not in (0, 1]",
+            "Percent %s is not in (0, 1]",
             percent
         )
 
@@ -196,7 +193,7 @@ class InsufficientPosition(TradeError):
     def __init__(self, security: str, amount: float):
         super().__init__(
             TradeErrors.ERROR_INSUF_POSITION,
-            f"Insufficient position for %s at %s",
+            "Insufficient position for %s at %s",
             security,
             amount
         )

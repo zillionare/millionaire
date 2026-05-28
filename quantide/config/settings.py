@@ -21,7 +21,6 @@ from quantide.config.dev_stubs import (
 )
 from quantide.config.paths import normalize_data_home
 
-
 DEFAULT_TIMEZONE = pytz.timezone("Asia/Shanghai")
 _LAST_APP_STATE_LOAD_ERROR: tuple[type[BaseException], str] | None = None
 
@@ -113,7 +112,7 @@ def _build_gateway_base_url(state: Any) -> str:
     return f"{base}{prefix}"
 
 
-def _apply_dev_stub_overrides(settings: "Settings") -> "Settings":
+def _apply_dev_stub_overrides(settings: Settings) -> Settings:
     """Overlay development stub settings when the switch is enabled."""
     runtime = ensure_dev_stubs_started()
     if runtime is None:
@@ -168,7 +167,7 @@ class Settings:
         state: Any | None,
         *,
         timezone: datetime.tzinfo = DEFAULT_TIMEZONE,
-    ) -> "Settings":
+    ) -> Settings:
         state = state or _default_state()
         gateway_base_url = _build_gateway_base_url(state)
         parsed = urllib.parse.urlparse(gateway_base_url)

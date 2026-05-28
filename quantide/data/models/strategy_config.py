@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import ClassVar, List
 
 from quantide.data.models.base import Entity, new_uuid_id
 

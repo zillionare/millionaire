@@ -7,16 +7,10 @@ import datetime
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
-from quantide.core.init_wizard_steps import (
-    WIZARD_FINAL_STEP,
-    WIZARD_TOTAL_STEPS,
-    build_wizard_steps,
-)
 from quantide.config.dev_stubs import dev_stubs_enabled, ensure_dev_stubs_started
 from quantide.config.paths import get_app_db_path, normalize_data_home
 from quantide.config.settings import (
@@ -29,6 +23,11 @@ from quantide.config.settings import (
     get_mail_server,
     get_settings,
     get_tushare_token,
+)
+from quantide.core.init_wizard_steps import (
+    WIZARD_FINAL_STEP,
+    WIZARD_TOTAL_STEPS,
+    build_wizard_steps,
 )
 from quantide.data.fetchers.registry import register_builtin_fetchers
 from quantide.data.models.app_state import AppState

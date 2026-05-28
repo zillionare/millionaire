@@ -1,18 +1,20 @@
-from typing import Any, Dict, List, Tuple
+import builtins
+from typing import Any
 
 from quantide.core.enums import BrokerKind
 from quantide.core.singleton import singleton
 
+
 @singleton
 class BrokerRegistry:
     def __init__(self):
-        self._brokers: Dict[str, Any] = {}
-        self._default: Tuple[str, str] | None = None
+        self._brokers: dict[str, Any] = {}
+        self._default: tuple[str, str] | None = None
 
     def register(self, kind: BrokerKind | str, portfolio_id: str, broker: Any):
         if isinstance(kind, BrokerKind):
             kind = kind.value
-            
+
         key = f"{kind}:{portfolio_id}"
         self._brokers[key] = broker
         if self._default is None:
@@ -24,7 +26,7 @@ class BrokerRegistry:
         key = f"{kind}:{portfolio_id}"
         if key in self._brokers:
             del self._brokers[key]
-            
+
         if self._default == (kind, portfolio_id):
             if self._brokers:
                 first_key = next(iter(self._brokers))
@@ -38,11 +40,11 @@ class BrokerRegistry:
             kind = kind.value
         key = f"{kind}:{portfolio_id}"
         return self._brokers.get(key)
-    
-    def list(self) -> List[Dict]:
+
+    def list(self) -> list[dict]:
         return [{"kind": k.split(":")[0], "id": k.split(":")[1]} for k in self._brokers.keys()]
 
-    def list_by_kind(self, kind: BrokerKind | str) -> List[Dict]:
+    def list_by_kind(self, kind: BrokerKind | str) -> builtins.list[dict]:
         if isinstance(kind, BrokerKind):
             kind = kind.value
         result = []
@@ -62,5 +64,5 @@ class BrokerRegistry:
                 })
         return result
 
-    def get_default(self) -> Tuple[str, str] | None:
+    def get_default(self) -> tuple[str, str] | None:
         return self._default

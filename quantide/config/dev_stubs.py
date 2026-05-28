@@ -20,7 +20,6 @@ from urllib.parse import urlparse
 
 from loguru import logger
 
-
 DEV_STUBS_ENV_VAR = "QUANTIDE_ENABLE_DEV_STUBS"
 DEV_STUB_TUSHARE_TOKEN = "stub-token"
 DEV_STUB_GATEWAY_API_KEY = "stub-api-key"

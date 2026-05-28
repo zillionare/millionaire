@@ -11,8 +11,7 @@ from loguru import logger
 from quantide.config.settings import get_epoch
 from quantide.core.ports import DataFetcherPort
 from quantide.data.fetchers.registry import get_data_fetcher
-from quantide.data.models.calendar import calendar
-from quantide.data.models.calendar import Calendar
+from quantide.data.models.calendar import Calendar, calendar
 from quantide.data.models.stocks import StockList
 from quantide.data.stores.bars import DailyBarsStore
 

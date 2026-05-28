@@ -6,7 +6,6 @@ from fasthtml.common import *
 from monsterui.all import *
 from starlette.responses import HTMLResponse
 
-from quantide.core.enums import BrokerKind
 from quantide.data.sqlite import db
 from quantide.web.layouts.main import MainLayout
 

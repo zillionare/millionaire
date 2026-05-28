@@ -1,19 +1,16 @@
 """股票列表管理页面"""
 
 import asyncio
-import datetime
 import json
+
 from fasthtml.common import *
+from loguru import logger
 from monsterui.all import *
 from starlette.responses import StreamingResponse
-from quantide.core.message import msg_hub
+
 from quantide.data.models.stocks import stock_list
-from quantide.data.models.calendar import calendar
-from quantide.data.models.daily_bars import daily_bars
-from quantide.data.services import StockSyncService
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
-from loguru import logger
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 data_stocks_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -36,7 +33,7 @@ def _TabNav(active_tab: str):
         ("search", "查询"),
         ("update", "手动更新"),
     ]
-    
+
     tab_items = []
     for tab_id, label in tabs:
         is_active = active_tab == tab_id
@@ -45,9 +42,9 @@ def _TabNav(active_tab: str):
             cls = f"{base_cls} text-red-600 border-b-2 border-red-600"
         else:
             cls = f"{base_cls} text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300"
-        
+
         tab_items.append(A(label, href=f"/data/stocks?tab={tab_id}", cls=cls))
-        
+
     return Div(
         Div(*tab_items, cls="flex space-x-2"),
         cls="border-b border-gray-200 mb-6"
@@ -76,9 +73,9 @@ def _OverviewTab():
 def _SearchTab(req):
     """查询 Tab 内容"""
     q = req.query_params.get("q", "").strip()
-    
+
     table_content = P("输入关键词开始搜索 (支持代码、名称、拼音)...", cls="text-gray-400 text-center py-12")
-    
+
     if q:
         try:
             # 使用 fuzzy_search 获取结果
@@ -86,7 +83,7 @@ def _SearchTab(req):
             if not df.empty:
                 headers = ["股票代码", "公司名称", "拼音", "上市日期", "退市日期"]
                 header_row = Tr(*[Th(h) for h in headers])
-                
+
                 rows = []
                 # 限制显示前 100 条
                 for _, row in df.head(100).iterrows():
@@ -108,10 +105,10 @@ def _SearchTab(req):
         H3("股票查询", cls="text-xl font-semibold mb-4"),
         Form(
             Div(
-                Input(name="q", value=q, placeholder="输入关键词，停顿后自动搜索...", 
-                      cls="input flex-1", 
-                      hx_get="/data/stocks?tab=search", 
-                      hx_trigger="keyup changed delay:500ms", 
+                Input(name="q", value=q, placeholder="输入关键词，停顿后自动搜索...",
+                      cls="input flex-1",
+                      hx_get="/data/stocks?tab=search",
+                      hx_trigger="keyup changed delay:500ms",
                       hx_target="#search-results-container",
                       hx_select="#search-results-container"),
                 Button(UkIcon("search"), type="submit", cls="btn btn-primary"),
@@ -147,17 +144,17 @@ def _UpdateTab():
 @rt("/")
 async def index(req):
     active_tab = _get_active_tab(req)
-    
+
     if active_tab == "search":
         content = _SearchTab(req)
     elif active_tab == "update":
         content = _UpdateTab()
     else:
         content = _OverviewTab()
-        
+
     layout = MainLayout()
     layout.set_sidebar_active("/data/stocks")
-    
+
     page_content = Div(
         Div(
             Div(
@@ -171,7 +168,7 @@ async def index(req):
         content,
         cls="p-8"
     )
-    
+
     layout.main_block = page_content
     return layout.render()
 
@@ -200,7 +197,7 @@ async def _run_stocks_sync():
 @rt("/do-update", methods="post")
 async def do_update():
     asyncio.create_task(_run_stocks_sync())
-    
+
     return Div(
         Div(
             Div(

@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Dict
+from typing import Any
 
 from quantide.core.enums import FrameType
 from quantide.core.strategy import BaseStrategy
@@ -25,7 +25,7 @@ class DualMAStrategy(BaseStrategy):
         pass
 
     async def on_bar(
-        self, tm: datetime.datetime, quote: Dict[str, Any], frame_type: FrameType
+        self, tm: datetime.datetime, quote: dict[str, Any], frame_type: FrameType
     ):
         # 仅在日线级别运行
         if frame_type != FrameType.DAY:

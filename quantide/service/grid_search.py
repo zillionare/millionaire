@@ -2,7 +2,7 @@ import asyncio
 import itertools
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import date
-from typing import Any, Dict, List, Type
+from typing import Any
 
 import pandas as pd
 from loguru import logger
@@ -15,15 +15,15 @@ from quantide.service.runner import BacktestRunner
 
 
 def _run_task(
-    strategy_cls: Type[BaseStrategy],
-    config: Dict[str, Any],
+    strategy_cls: type[BaseStrategy],
+    config: dict[str, Any],
     start_date: date,
     end_date: date,
     interval: str,
     initial_cash: float,
     db_path: str = ":memory:",
     home_dir: str | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Worker function for running backtest in a separate process."""
     # Initialize config and data for this process
     # Use provided home_dir or default from config
@@ -88,9 +88,9 @@ def _run_task(
 class GridSearch:
     def __init__(
         self,
-        strategy_cls: Type[BaseStrategy],
-        base_config: Dict[str, Any],
-        param_grid: Dict[str, List[Any]],
+        strategy_cls: type[BaseStrategy],
+        base_config: dict[str, Any],
+        param_grid: dict[str, list[Any]],
         start_date: date,
         end_date: date,
         interval: str = "1d",
@@ -128,7 +128,14 @@ class GridSearch:
         logger.info(f"Starting grid search with {len(configs)} combinations...")
 
         results = []
-        from quantide.data.sqlite import Asset, Portfolio, Position, StrategyLog, Trade, db
+        from quantide.data.sqlite import (
+            Asset,
+            Portfolio,
+            Position,
+            StrategyLog,
+            Trade,
+            db,
+        )
 
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_config = {

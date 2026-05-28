@@ -1,5 +1,5 @@
 import datetime
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 import polars as pl
 

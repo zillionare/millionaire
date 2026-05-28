@@ -4,14 +4,13 @@
 """
 
 import datetime
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import polars as pl
 
 from quantide.data.models.calendar import Calendar
-from quantide.data.stores.base import ParquetStorage, _as_date_bound, _as_datetime_bound
-
+from quantide.data.stores.base import ParquetStorage, _as_datetime_bound
 
 _REMOVED_MESSAGE = "指数抓取功能已从 quantide 主体移除。"
 

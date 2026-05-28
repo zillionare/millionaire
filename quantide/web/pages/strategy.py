@@ -31,7 +31,6 @@ from quantide.service.metrics import metrics
 from quantide.service.runner import BacktestRunner
 from quantide.service.strategy_runtime import strategy_runtime_manager
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme
 
 strategy_app, rt = fast_app()
 

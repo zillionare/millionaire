@@ -4,15 +4,15 @@ import calendar as cal_lib
 import datetime
 
 from fasthtml.common import *
+
+# Use FastHTML's plain Select to avoid MonsterUI's custom uk-select component
+from fasthtml.common import Select as _Select
 from loguru import logger
 from monsterui.all import *
 
 from quantide.data.models.calendar import calendar as trade_calendar
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
-
-# Use FastHTML's plain Select to avoid MonsterUI's custom uk-select component
-from fasthtml.common import Select as _Select
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 system_calendar_app, rt = fast_app(hdrs=AppTheme.headers())

@@ -34,7 +34,7 @@ def sidebar_component(
 
         icon_path = item.get("icon_path")
         icon_name = item.get("icon", "folder" if has_children else "file")
-        
+
         if icon_path:
             # 使用自定义 SVG path
             icon_cmp = Svg(
@@ -53,11 +53,11 @@ def sidebar_component(
                     c_cls += f"bg-[#fcfcfc] {active_cls}"
                 else:
                     c_cls += f"{base_text_cls} {hover_cls}"
-                
+
                 # 支持子菜单项的 icon_path
                 child_icon_path = child.get("icon_path")
                 child_icon_name = child.get("icon", "file")
-                
+
                 if child_icon_path:
                     child_icon = Svg(
                         SvgPath(d=child_icon_path, stroke="currentColor", fill="none", stroke_width="2", stroke_linecap="round", stroke_linejoin="round"),

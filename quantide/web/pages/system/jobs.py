@@ -10,7 +10,6 @@ import datetime
 import uuid
 from dataclasses import dataclass, field
 
-from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, SchedulerEvent
 from apscheduler.triggers.cron import CronTrigger
 from fasthtml.common import *
 from loguru import logger
@@ -19,7 +18,7 @@ from monsterui.all import *
 from quantide.core.scheduler import scheduler
 from quantide.data.sqlite import db
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 system_jobs_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -69,6 +68,7 @@ JOB_SETTINGS_TABLE = "job_settings"
 @dataclass
 class JobHistoryRecord:
     """任务执行记录"""
+
     __table_name__ = "job_history"
     __pk__ = "id"
     __indexes__ = (["job_id", "executed_at"], False)
@@ -82,7 +82,7 @@ class JobHistoryRecord:
     duration_ms: int = 0
 
     @classmethod
-    def from_dict(cls, data: dict) -> "JobHistoryRecord":
+    def from_dict(cls, data: dict) -> JobHistoryRecord:
         """从字典创建实例"""
         executed_at = data.get("executed_at", datetime.datetime.now())
         if isinstance(executed_at, str):
@@ -224,6 +224,7 @@ def _run_daily_bars_sync():
 def _run_stock_list_sync():
     """股票列表同步任务"""
     import asyncio
+
     from quantide.data.models.stocks import stock_list
 
     logger.info("Running stock list sync job")
@@ -238,6 +239,7 @@ def _run_stock_list_sync():
 def _run_calendar_sync():
     """交易日历同步任务"""
     import asyncio
+
     from quantide.data.models.calendar import calendar as trade_calendar
 
     logger.info("Running calendar sync job")
@@ -518,7 +520,7 @@ def _build_detail_panel(job_id: str) -> Div:
         Div(
             P(f"调度时间: {_format_cron(job['cron'])}", cls="text-sm text-gray-600 mb-1"),
             P(f"描述: {job['description']}", cls="text-sm text-gray-600 mb-1"),
-            P(f"状态: ", cls="text-sm text-gray-600 mb-3"),
+            P("状态: ", cls="text-sm text-gray-600 mb-3"),
             cls="mb-4",
         ),
         Div(

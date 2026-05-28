@@ -10,6 +10,10 @@ import datetime
 from typing import Any
 
 from fasthtml.common import *
+
+# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
+from fasthtml.common import Label as _Label
+from fasthtml.common import Select as _Select
 from loguru import logger
 from monsterui.all import *
 
@@ -18,10 +22,7 @@ from quantide.data.models.app_state import AppState
 from quantide.data.sqlite import db
 from quantide.service.init_wizard import init_wizard
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
-
-# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
-from fasthtml.common import Label as _Label, Input as _Input, Select as _Select
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 system_datasource_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -386,9 +387,9 @@ async def save_config(req):
 @rt("/sync")
 async def sync_data(req):
     """触发数据同步"""
+    from quantide.data.models.calendar import calendar as trade_calendar
     from quantide.data.models.daily_bars import daily_bars
     from quantide.data.models.stocks import stock_list
-    from quantide.data.models.calendar import calendar as trade_calendar
 
     results = []
     results.append("开始同步数据...")

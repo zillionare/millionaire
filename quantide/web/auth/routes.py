@@ -1,9 +1,9 @@
 # auth/routes.py
 from fasthtml.common import *
-from monsterui.all import *
 
 # Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
 from fasthtml.common import Label as _Label
+from monsterui.all import *
 
 from .forms import (
     create_forgot_password_form,

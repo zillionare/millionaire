@@ -1,13 +1,12 @@
 import datetime
 from pathlib import Path
-from typing import Literal
 
 import polars as pl
 
 from quantide.core.ports import DataFetcherPort
 from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.models.calendar import Calendar
-from quantide.data.stores.base import ParquetStorage, _as_date_bound
+from quantide.data.stores.base import ParquetStorage
 
 
 class DailyBarsStore(ParquetStorage):

@@ -4,15 +4,15 @@ import asyncio
 import datetime
 
 from fasthtml.common import *
+
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
 from loguru import logger
 from monsterui.all import *
 
 from quantide.data.models.daily_bars import daily_bars
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
-
-# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
-from fasthtml.common import Label as _Label
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 system_market_app, rt = fast_app(hdrs=AppTheme.headers())

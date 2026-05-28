@@ -54,8 +54,9 @@ MessageHub 模块：进程内异步消息中心
 
 import datetime
 import threading
+from collections.abc import Callable
 from queue import Empty, Full, Queue
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -68,8 +69,8 @@ class MessageHub:
 
     def __init__(self, queue_size: int = 10000):
         self._lock = threading.Lock()
-        self._subscribers: Dict[str, List[Callable]] = {}
-        self._queues: Dict[str, Queue] = {}
+        self._subscribers: dict[str, list[Callable]] = {}
+        self._queues: dict[str, Queue] = {}
 
         # 异步分发队列
         self._dispatch_queue: Queue = Queue(maxsize=queue_size)
@@ -80,7 +81,7 @@ class MessageHub:
         self._worker.start()
 
         # 日志速率限制：记录每个 topic 上次日志时间
-        self._last_log_time: Dict[str, datetime.datetime] = {}
+        self._last_log_time: dict[str, datetime.datetime] = {}
         self._log_interval = datetime.timedelta(seconds=60)  # 每分钟最多记录一次
 
     def subscribe(self, topic: str, callback: Callable) -> None:
@@ -185,7 +186,7 @@ class MessageHub:
 
         raise ValueError(f"消息主题 {topic} 不存在")
 
-    def get(self, topic: str, timeout: Optional[float] = None) -> Any:
+    def get(self, topic: str, timeout: float | None = None) -> Any:
         """阻塞获取消息"""
         with self._lock:
             if topic not in self._queues:

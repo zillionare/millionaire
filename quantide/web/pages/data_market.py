@@ -3,20 +3,22 @@
 import asyncio
 import datetime
 import json
+
 from fasthtml.common import *
-from monsterui.all import *
-from starlette.responses import StreamingResponse
-from quantide.core.message import msg_hub
-from quantide.data.models.daily_bars import daily_bars
-from quantide.data.models.calendar import calendar
-from quantide.data.models.stocks import stock_list
-from quantide.data.services import StockSyncService
-from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
-from loguru import logger
 
 # Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
 from fasthtml.common import Label as _Label
+from loguru import logger
+from monsterui.all import *
+from starlette.responses import StreamingResponse
+
+from quantide.core.message import msg_hub
+from quantide.data.models.calendar import calendar
+from quantide.data.models.daily_bars import daily_bars
+from quantide.data.models.stocks import stock_list
+from quantide.data.services import StockSyncService
+from quantide.web.layouts.main import MainLayout
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 data_market_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -379,23 +381,23 @@ async def do_update(req):
             ),
             cls="fixed inset-0 bg-black/50 flex items-center justify-center z-50",
         ),
-        Script(f"""
-            (function() {{
+        Script("""
+            (function() {
                 const bar = document.getElementById('market-progress-bar');
                 const status = document.getElementById('market-status');
                 const btn = document.getElementById('close-btn');
                 const es = new EventSource('/data/market/sync-progress');
-                es.onmessage = function(e) {{
+                es.onmessage = function(e) {
                     const data = JSON.parse(e.data);
                     bar.style.width = data.progress + '%';
                     status.textContent = data.message;
-                    if (data.completed || data.error) {{
+                    if (data.completed || data.error) {
                         if (data.error) status.textContent = '错误: ' + data.error;
                         btn.disabled = false;
                         es.close();
-                    }}
-                }};
-            }})();
+                    }
+                };
+            })();
         """)
     )
 

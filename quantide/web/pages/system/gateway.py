@@ -5,12 +5,15 @@
 
 from __future__ import annotations
 
-import datetime
 import time
 import urllib.request
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import Input as _Input
+
+# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
+from fasthtml.common import Label as _Label
 from loguru import logger
 from monsterui.all import *
 
@@ -20,10 +23,7 @@ from quantide.data.models.app_state import AppState
 from quantide.data.sqlite import db
 from quantide.service.init_wizard import init_wizard
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
-
-# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
-from fasthtml.common import Label as _Label, Input as _Input
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 system_gateway_app, rt = fast_app(hdrs=AppTheme.headers())

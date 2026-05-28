@@ -1,12 +1,12 @@
 # auth/admin_routes.py
 import math  # For pagination calculations
-from typing import Optional
 
 from fasthtml.common import *
-from monsterui.all import *
+from fasthtml.common import Input as _Input
 
 # Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
-from fasthtml.common import Label as _Label, Input as _Input
+from fasthtml.common import Label as _Label
+from monsterui.all import *
 
 from .forms import create_message_alert
 
@@ -717,7 +717,7 @@ class AdminRoutes:
                 Alert(
                     Div(
                         P(Strong("Warning:"), " This action cannot be undone."),
-                        P(f"You are about to delete user: ", Strong(user.username)),
+                        P("You are about to delete user: ", Strong(user.username)),
                         P(f"Email: {user.email}"),
                         P(f"Role: {user.role.title()}"),
                         cls="space-y-2",

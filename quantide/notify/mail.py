@@ -1,12 +1,11 @@
 import asyncio
 import mimetypes
 import os
+from collections.abc import Awaitable
 from email.message import EmailMessage
-from typing import Awaitable, List
 
 import aiosmtplib
 import aiosmtplib.errors
-from loguru import logger
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -89,13 +88,13 @@ def mail_notify(
 )
 def send_mail(
     sender: str,
-    receivers: List[str],
+    receivers: list[str],
     password: str,
     msg: EmailMessage | None = None,
     host: str | None = None,
     port: int = 25,
-    cc: List[str] | None = None,
-    bcc: List[str] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
     subject: str | None = None,
     body: str | None = None,
     username: str | None = None,
