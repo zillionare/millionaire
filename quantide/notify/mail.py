@@ -22,11 +22,11 @@ from quantide.config.settings import (
 
 
 def mail_notify(
-    subject: str = f"{get_branding().product_name} 交易通知",
+    subject: str | None = None,
     body: str | None = None,
     msg: EmailMessage | None = None,
-    html=False,
-    receivers=None,
+    html: bool = False,
+    receivers: list[str] | None = None,
 ) -> Awaitable:
     """发送邮件通知。
 
@@ -64,6 +64,8 @@ def mail_notify(
 
     if msg is None:
         assert body is not None
+        if subject is None:
+            subject = f"{get_branding().product_name} 交易通知"
         if html:
             msg = compose(subject, html=body)
         else:
