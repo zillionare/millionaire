@@ -30,7 +30,7 @@ def _parse_sync_progress_payload(response_text: str) -> dict:
 def _advance_to_gateway_step(client, market_home) -> None:
     response = client.get("/init-wizard/", follow_redirects=False)
     assert response.status_code == 200
-    assert "欢迎使用 Quant IDE!" in response.text
+    assert "欢迎使用 Millionaire!" in response.text
 
     response = _next_step(client, 2, 1)
     assert response.status_code == 200

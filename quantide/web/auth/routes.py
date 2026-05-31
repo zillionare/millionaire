@@ -5,6 +5,8 @@ from fasthtml.common import *
 from fasthtml.common import Label as _Label
 from monsterui.all import *
 
+from quantide.config.branding import get_branding
+
 from .forms import (
     create_forgot_password_form,
     create_login_form,
@@ -214,7 +216,7 @@ class AuthRoutes:
             error = req.query_params.get("error")
             # Get redirect destination from query params
             redirect_to = req.query_params.get("redirect_to", "/")
-            return Title("匡醍量化登录"), (
+            return Title(f"{get_branding().product_name} 登录"), (
                 create_login_form(
                     error=error, action=f"{prefix}/login", redirect_to=redirect_to
                 )

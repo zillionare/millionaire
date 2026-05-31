@@ -10,7 +10,7 @@ def test_header_alert_center_renders_badge_and_shortcuts():
     html = to_xml(
         header_component(
             logo="/static/logo.png",
-            brand="匡醍量化",
+            brand="Millionaire",
             nav_items=[("策略", "/strategy")],
             user="admin",
             unread_count=2,
@@ -43,7 +43,7 @@ def test_header_alert_center_shows_empty_state_without_open_events():
     html = to_xml(
         header_component(
             logo="/static/logo.png",
-            brand="匡醍量化",
+            brand="Millionaire",
             nav_items=[("策略", "/strategy")],
             user="admin",
         )

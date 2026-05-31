@@ -7,6 +7,7 @@ from functools import wraps
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import HTMLResponse, JSONResponse
 
+from quantide.config.branding import get_branding
 from quantide.service.init_wizard import init_wizard
 
 FEATURE_ROUTE_PREFIXES = {
@@ -39,11 +40,12 @@ def _disabled_fragment_html(feature_name: str) -> str:
 
 def _disabled_page_html(feature_name: str) -> str:
     fragment = _disabled_fragment_html(feature_name)
+    product_name = get_branding().product_name
     return f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>功能禁用 - Quantide</title>
+        <title>功能禁用 - {product_name}</title>
         <style>
             body {{
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

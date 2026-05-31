@@ -1,5 +1,5 @@
 #!/bin/bash
-# 启动 Quantide 应用。
+# 启动 Millionaire 应用。
 
 set -e
 
@@ -44,7 +44,7 @@ cd "$PROJECT_DIR"
 mkdir -p "$(dirname "$LOG_FILE")"
 
 # 写入启动标记
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] 启动 quantide..." >> "$LOG_FILE"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] 启动 Millionaire..." >> "$LOG_FILE"
 if [ -n "$STUB_MODE" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] stub 模式已启用" >> "$LOG_FILE"
 fi

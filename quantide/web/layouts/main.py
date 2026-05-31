@@ -4,6 +4,7 @@ import inspect
 from fasthtml.common import *
 from monsterui.all import *
 
+from quantide.config.branding import get_branding
 from quantide.core.enums import BrokerKind
 from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
@@ -133,9 +134,11 @@ def _is_htmx_request(req: object | None) -> bool:
 class MainLayout(BaseLayout):
     """主页面布局，包含 header 和 sidebar。"""
 
-    def __init__(self, title: str = "Quantide系统", user: str | None = None):
-        super().__init__(page_title=title)
-        self.title = title
+    def __init__(self, title: str | None = None, user: str | None = None):
+        branding = get_branding()
+        resolved_title = title or f"{branding.product_name} 系统"
+        super().__init__(page_title=resolved_title)
+        self.title = resolved_title
         self.user = user
         self.header_accounts: list[dict] = []
         self.active_account: dict | None = None
@@ -301,7 +304,7 @@ class MainLayout(BaseLayout):
             Div(
                 header_component(
                     logo="/static/logo.png",
-                    brand="匡醍量化",
+                    brand=get_branding().product_name,
                     nav_items=build_header_menu(self._trade_entries_enabled()),
                     user=self.user,
                     accounts=accounts,

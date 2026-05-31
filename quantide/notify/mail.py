@@ -13,6 +13,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from quantide.config.branding import get_branding
 from quantide.config.settings import (
     get_mail_receivers,
     get_mail_sender,
@@ -21,7 +22,7 @@ from quantide.config.settings import (
 
 
 def mail_notify(
-    subject: str = "Quantide 交易通知",
+    subject: str = f"{get_branding().product_name} 交易通知",
     body: str | None = None,
     msg: EmailMessage | None = None,
     html=False,

@@ -12,6 +12,7 @@ from fasthtml.common import *
 from monsterui.all import *
 from starlette.responses import HTMLResponse
 
+from quantide.config.branding import get_branding
 from quantide.data.models.stocks import stock_list
 from quantide.service.trade_lightning import (
     TradeLightningEntry,
@@ -473,6 +474,7 @@ def _close_modal_button() -> str:
 
 def _dialog_modal(title: str, body: Any, *, modal_id: str) -> Any:
     """渲染带红色标题栏的闪电单弹窗。"""
+    branding = get_branding()
     return Div(
         Div(
             cls="fixed inset-0 bg-black/50 transition-opacity",
@@ -483,7 +485,7 @@ def _dialog_modal(title: str, body: Any, *, modal_id: str) -> Any:
                 Div(
                     Div(
                         Div(
-                            "匡醍\n量化",
+                            branding.product_name,
                             cls="whitespace-pre-line text-left text-sm font-semibold leading-4 text-white",
                         ),
                         H3(

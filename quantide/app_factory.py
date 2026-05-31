@@ -14,6 +14,7 @@ from starlette.middleware import Middleware
 from starlette.responses import RedirectResponse
 from starlette.staticfiles import StaticFiles
 
+from quantide.config.branding import get_branding
 from quantide.config.dev_stubs import ensure_dev_stubs_started
 from quantide.config.paths import (
     get_app_config_dir,
@@ -80,6 +81,7 @@ from quantide.web.theme import AppTheme
 def _check_single_instance() -> None:
     """检查是否已有实例在运行，防止多实例启动。"""
     pid_file = get_pid_file_path()
+    product_name = get_branding().product_name
 
     if pid_file.exists():
         try:
@@ -94,13 +96,13 @@ def _check_single_instance() -> None:
                 if handle != 0:
                     kernel32.CloseHandle(handle)
                     raise RuntimeError(
-                        f"Quantide 已经在运行 (PID: {pid})。"
+                        f"{product_name} 已经在运行 (PID: {pid})。"
                         f"请先停止现有实例，或删除 {pid_file} 后重试。"
                     )
             else:
                 os.kill(pid, 0)
                 raise RuntimeError(
-                    f"Quantide 已经在运行 (PID: {pid})。"
+                    f"{product_name} 已经在运行 (PID: {pid})。"
                     f"请先停止现有实例，或删除 {pid_file} 后重试。"
                 )
         except (ValueError, OSError, ProcessLookupError):

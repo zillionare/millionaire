@@ -1,10 +1,10 @@
 [tool]
 
 [tool.poetry]
-name = "quantide"
+name = "quantide-millionaire"
 version = "0.1.0"
 homepage = "https://github.com/zillionare/quantide"
-description = "Skeleton project created by Python Project Wizard (ppw)."
+description = "Millionaire, the free and open-source edition built on the shared quantide runtime."
 authors = ["aaron yang <aaron_yang@jieyu.ai>"]
 readme = "README.md"
 license =  "MIT"

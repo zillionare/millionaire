@@ -3,6 +3,7 @@ import datetime
 from fasthtml.common import fast_app
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 
+from quantide.config.branding import get_runtime_version
 from quantide.config.settings import get_settings
 from quantide.core.enums import FrameType
 from quantide.core.errors import TradeError, TradeErrors
@@ -14,15 +15,11 @@ from quantide.service.runner import BacktestRunner
 app, rt = fast_app()
 
 import pickle
-from importlib.metadata import PackageNotFoundError, version
 
 import arrow
 import numpy as np
 
-try:
-    ver = version("quantide")
-except PackageNotFoundError:
-    ver = "0.0.0"
+ver = get_runtime_version()
 
 
 def build_asset_overview(asset: Asset) -> dict:

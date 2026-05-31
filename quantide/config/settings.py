@@ -14,6 +14,7 @@ from typing import Any
 import pytz
 from loguru import logger
 
+from quantide.config.branding import get_branding
 from quantide.config.dev_stubs import (
     DEV_STUB_TUSHARE_TOKEN,
     dev_stubs_enabled,
@@ -140,6 +141,10 @@ def _apply_dev_stub_overrides(settings: Settings) -> Settings:
 class Settings:
     """Effective application settings for runtime reads."""
 
+    edition: str
+    runtime_name: str
+    product_name: str
+    release_package: str
     app_home: str
     app_host: str
     app_port: int
@@ -169,6 +174,7 @@ class Settings:
         timezone: datetime.tzinfo = DEFAULT_TIMEZONE,
     ) -> Settings:
         state = state or _default_state()
+        branding = get_branding()
         gateway_base_url = _build_gateway_base_url(state)
         parsed = urllib.parse.urlparse(gateway_base_url)
         gateway_scheme = str(
@@ -181,6 +187,10 @@ class Settings:
         )
 
         return cls(
+            edition=branding.edition,
+            runtime_name=branding.runtime_name,
+            product_name=branding.product_name,
+            release_package=branding.release_package,
             app_home=normalize_data_home(getattr(state, "app_home", "")),
             app_host=str(getattr(state, "app_host", "") or "0.0.0.0"),
             app_port=_as_int(getattr(state, "app_port", 8130), 8130),

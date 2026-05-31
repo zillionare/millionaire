@@ -9,6 +9,7 @@ from loguru import logger
 from monsterui.all import *
 from starlette.responses import RedirectResponse
 
+from quantide.config.branding import get_branding
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
 from quantide.data.sqlite import Position, db
 from quantide.service.init_wizard import init_wizard
@@ -641,6 +642,7 @@ def OrderTable(orders: list[dict] | None = None):
 
 def NoAccountDialog():
     """无账户提示对话框"""
+    branding = get_branding()
     return Div(
         Div(
             Div(
@@ -650,7 +652,10 @@ def NoAccountDialog():
                     cls="flex justify-center mb-4",
                 ),
                 # 标题
-                H3("欢迎使用匡醍", cls="text-xl font-semibold text-gray-900 text-center mb-2"),
+                H3(
+                    f"欢迎使用 {branding.product_name}",
+                    cls="text-xl font-semibold text-gray-900 text-center mb-2",
+                ),
                 # 说明
                 P("您还没有配置任何交易账号。请创建至少一个模拟交易账户或配置实盘账户，才能开始使用系统。",
                   cls="text-gray-600 text-center mb-6"),

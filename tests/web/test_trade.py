@@ -225,7 +225,7 @@ class TestLoginRoutes:
         response = test_client.get("/auth/login", follow_redirects=False)
 
         assert response.status_code == 200
-        assert "匡醍量化" in response.text
+        assert "Millionaire" in response.text
         assert "business@quantide.cn" in response.text
 
     def test_auth_login_post_succeeds(self, test_client):
@@ -293,7 +293,7 @@ class TestLoginRoutes:
             response = client.get("/", follow_redirects=False)
 
         assert response.status_code == 200
-        assert "匡醍量化" in response.text
+        assert "Millionaire" in response.text
         assert "策略" in response.text
         assert "系统维护" in response.text
         assert "实盘" in response.text

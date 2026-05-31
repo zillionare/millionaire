@@ -1,4 +1,10 @@
-# quantide
+# Millionaire
+
+Millionaire is the free and open-source edition built on the shared `quantide` runtime.
+
+The published package name for this edition is `quantide-millionaire`. Internal technical
+identifiers such as the Python import namespace, runtime paths, and local state directories
+remain `quantide` by design.
 
 This repository is in active architectural refactoring.
 
@@ -18,7 +24,7 @@ For local startup guidance and minimum developer-side acceptance, see `docs/deve
 ## Development Stub Mode
 
 When you want to demo the real UI and runtime flow without connecting a real gateway or real Tushare,
-start QuantIDE with the environment variable `QUANTIDE_ENABLE_DEV_STUBS=1`.
+start Millionaire with the environment variable `QUANTIDE_ENABLE_DEV_STUBS=1`.
 
 Example:
 

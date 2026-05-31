@@ -2,6 +2,8 @@
 from fasthtml.common import *
 from monsterui.all import *
 
+from quantide.config.branding import get_branding
+
 
 def _login_error_message(error):
     messages = {
@@ -33,10 +35,11 @@ def _login_field(label_cn, label_en, field_id, name, placeholder, field_type="te
 
 
 def _brand_emblem():
+    branding = get_branding()
     return Div(
         Div(
-            Span("匡", cls="qt-emblem-char qt-emblem-char-top"),
-            Span("醍", cls="qt-emblem-char qt-emblem-char-bottom"),
+            Span(branding.product_name[:1], cls="qt-emblem-char qt-emblem-char-top"),
+            Span(branding.product_name[-1], cls="qt-emblem-char qt-emblem-char-bottom"),
             cls="qt-emblem-text",
         ),
         Div(cls="qt-emblem-eye-top"),
@@ -48,6 +51,7 @@ def _brand_emblem():
 def create_login_form(error=None, action="/auth/login", redirect_to="/"):
     """Create branded login form while preserving auth behavior."""
     error_message = _login_error_message(error)
+    branding = get_branding()
 
     return Div(
         Style(
@@ -342,21 +346,24 @@ def create_login_form(error=None, action="/auth/login", redirect_to="/"):
             Div(
                 Div(
                     Div(
-                        Div("匡醍量化", cls="qt-brand-logo-text"),
+                        Div(branding.product_name, cls="qt-brand-logo-text"),
                         Div(cls="qt-brand-divider"),
                         Div("开启财富之门", cls="qt-brand-tagline"),
                         cls="qt-brand-mark",
                     ),
-                    Div("量化软件 · 策略 · 课程", cls="qt-brand-slogan"),
+                    Div("量化软件 · 策略 · 交易", cls="qt-brand-slogan"),
                     Div(
-                        Div("匡醍（武汉）信息技术有限责任公司"),
-                        Div("商务洽谈: business@quantide.cn", cls="qt-brand-contact"),
+                        Div(branding.company_name),
+                        Div(
+                            f"商务洽谈: {branding.support_email}",
+                            cls="qt-brand-contact",
+                        ),
                         cls="qt-brand-footer",
                     ),
                     cls="qt-login-brand",
                 ),
                 Div(
-                    H2("大富翁智能交易", cls="qt-login-title"),
+                    H2(f"{branding.product_name} 智能交易", cls="qt-login-title"),
                     Form(
                         Input(type="hidden", name="redirect_to", value=redirect_to),
                         Alert(error_message, cls="qt-login-error") if error_message else None,

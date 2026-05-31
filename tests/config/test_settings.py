@@ -2,6 +2,7 @@ import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+from quantide.config.branding import DEFAULT_EDITION, get_branding
 import quantide.config.dev_stubs as dev_stubs_module
 import quantide.config.settings as settings_module
 from quantide.config.settings import (
@@ -54,6 +55,9 @@ def test_get_settings_uses_defaults_when_db_is_unavailable(monkeypatch):
 
     settings = get_settings()
 
+    assert settings.edition == DEFAULT_EDITION
+    assert settings.product_name == get_branding().product_name
+    assert settings.release_package == get_branding().release_package
     assert settings.app_home == str(Path("~/.quantide").expanduser())
     assert settings.app_host == "0.0.0.0"
     assert settings.app_port == 8130
@@ -88,6 +92,7 @@ def test_get_settings_prefers_app_state(db, tmp_path: Path):
     )
 
     settings = get_settings()
+    assert settings.edition == DEFAULT_EDITION
     assert settings.app_home == str(tmp_path)
     assert settings.app_prefix == "/db-prefix"
     assert settings.gateway_base_url == "https://gateway.internal:8443/qmt"

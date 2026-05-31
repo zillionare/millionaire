@@ -17,6 +17,7 @@ from loguru import logger
 from monsterui.all import *
 from starlette.responses import StreamingResponse
 
+from quantide.config.branding import get_branding
 from quantide.config.dev_stubs import (
     DEV_STUB_TUSHARE_TOKEN,
     dev_stubs_enabled,
@@ -390,36 +391,40 @@ def SectionDescription(text: str):
     return P(text, style=FONT_STYLES["description"], cls="mb-4")
 
 
-WIZARD_STEP_META = {
-    1: {
-        "title": "欢迎使用 Quant IDE!",
-        "description": "QuantIDE 是为量化人打造的集成开发环境 -- 数据、研究、回测、实盘。",
-    },
-    2: {
-        "title": "运行环境",
-        "description": "配置行情数据存储位置、访问控制、监听端口和路径前缀。配置数据库固定保存在系统配置目录。",
-    },
-    3: {
-        "title": "设置管理员密码",
-        "description": "首次初始化时必须设置管理员密码。当前版本固定使用 admin 作为管理员账号。",
-    },
-    4: {
-        "title": "配置交易/实时行情网关",
-        "description": "配置 gateway 连接信息，用于获取实时行情和执行交易。",
-    },
-    5: {
-        "title": "数据源设置及下载",
-        "description": "配置数据源，触发首次下载。首次下载可以仅下载少量数据，后续系统会以后台任务继续下载，直到数据补齐到您设定的数据起始日。将下载以下数据：证券日历、全A证券列表、历史日线行情（含复权因子与涨跌停价格）、ST数据。",
-    },
-    6: {
-        "title": "初始化完成",
-        "description": "恭喜！您的系统已经初始化完成。点击下方按钮，立即进入系统。",
-    },
-}
+def _wizard_step_meta() -> dict[int, dict[str, str]]:
+    """Build step metadata using the active product brand."""
+    product_name = get_branding().product_name
+    return {
+        1: {
+            "title": f"欢迎使用 {product_name}!",
+            "description": f"{product_name} 是为量化人打造的集成开发环境 -- 数据、研究、回测、实盘。",
+        },
+        2: {
+            "title": "运行环境",
+            "description": "配置行情数据存储位置、访问控制、监听端口和路径前缀。配置数据库固定保存在系统配置目录。",
+        },
+        3: {
+            "title": "设置管理员密码",
+            "description": "首次初始化时必须设置管理员密码。当前版本固定使用 admin 作为管理员账号。",
+        },
+        4: {
+            "title": "配置交易/实时行情网关",
+            "description": "配置 gateway 连接信息，用于获取实时行情和执行交易。",
+        },
+        5: {
+            "title": "数据源设置及下载",
+            "description": "配置数据源，触发首次下载。首次下载可以仅下载少量数据，后续系统会以后台任务继续下载，直到数据补齐到您设定的数据起始日。将下载以下数据：证券日历、全A证券列表、历史日线行情（含复权因子与涨跌停价格）、ST数据。",
+        },
+        6: {
+            "title": "初始化完成",
+            "description": "恭喜！您的系统已经初始化完成。点击下方按钮，立即进入系统。",
+        },
+    }
 
 
 def _get_step_meta(step: int) -> dict[str, str]:
-    meta = dict(WIZARD_STEP_META.get(step, WIZARD_STEP_META[1]))
+    step_meta = _wizard_step_meta()
+    meta = dict(step_meta.get(step, step_meta[1]))
     if not dev_stubs_enabled():
         return meta
     if step == 4:
@@ -1294,7 +1299,7 @@ def InitWizardPage(step: int = 1, form_data: dict | None = None):
             ),
             Div(_render_wizard_main_content(step, state_dict), id="wizard-main-container"),
         ),
-        page_title="系统初始化 - Quantide",
+        page_title=f"系统初始化 - {get_branding().product_name}",
     )
 
 
