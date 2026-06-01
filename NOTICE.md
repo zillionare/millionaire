@@ -1,8 +1,8 @@
 # Third-Party Notices
 
-This software includes or depends on third-party components, each of which
-is governed by its own license. Nothing in the project's main license
-([Quantide Source-Available License v2.0](LICENSE)) replaces, limits, or
+This software includes or depends on third-party components, each of
+which is governed by its own license. Nothing in the project's main license
+([Millionaire Source-Available License v2.0](LICENSE)) replaces, limits, or
 supersedes the rights and obligations you have under those third-party
 licenses.
 

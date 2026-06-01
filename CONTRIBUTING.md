@@ -1,18 +1,17 @@
 # Contributing
 
-Contributions are welcome, and they are greatly appreciated! Every little bit
-helps, and credit will always be given.
+Contributions of all sizes are welcome, and the maintainers are grateful
+for your time and effort. You can contribute in many ways — reporting
+bugs, fixing issues, implementing features, improving documentation,
+reviewing pull requests, and more.
 
-You can contribute in many ways:
+Before you send a pull request, please take a moment to read the notes
+below — they describe what happens to your contribution and what it does
+and does not grant you.
 
 ## Your Contribution
 
-Contributions of all sizes are welcome, and the maintainers are grateful
-for your time and effort. Before you send a pull request, please take a
-moment to read the notes below — they describe what happens to your
-contribution and what it does and does not grant you.
-
-This project is released under the [Quantide Source-Available License v2.0](LICENSE).
+This project is released under the [Millionaire Source-Available License v2.0](LICENSE).
 
 - By submitting a contribution (whether as a pull request, patch, file,
   or any other form), you confirm that the project may use, modify, and
@@ -45,81 +44,86 @@ saves time on both sides.
 
 ### Report Bugs
 
-Report bugs at https://github.com/zillionare/quantide/issues.
+Report bugs at https://github.com/zillionare/millionaire/issues.
 
 If you are reporting a bug, please include:
 
-* Your operating system name and version.
-* Any details about your local setup that might be helpful in troubleshooting.
-* Detailed steps to reproduce the bug.
+- Your operating system name and version.
+- Any details about your local setup that might be helpful in troubleshooting.
+- Detailed steps to reproduce the bug.
 
 ### Fix Bugs
 
-Look through the GitHub issues for bugs. Anything tagged with "bug" and "help
-wanted" is open to whoever wants to implement it.
+Look through the GitHub issues for bugs. Anything tagged with "bug" and
+"help wanted" is open to whoever wants to implement it.
 
 ### Implement Features
 
-Look through the GitHub issues for features. Anything tagged with "enhancement"
-and "help wanted" is open to whoever wants to implement it.
+Look through the GitHub issues for features. Anything tagged with
+"enhancement" and "help wanted" is open to whoever wants to implement it.
 
 ### Write Documentation
 
-quantide could always use more documentation, whether as part of the
-official quantide docs, in docstrings, or even on the web in blog posts,
-articles, and such.
+Millionaire could always use more documentation, whether as part of the
+official docs, in docstrings, or even on the web in blog posts,
+articles, and similar write-ups.
 
 ### Submit Feedback
 
-The best way to send feedback is to file an issue at https://github.com/zillionare/quantide/issues.
+The best way to send feedback is to file an issue at
+https://github.com/zillionare/millionaire/issues.
 
 If you are proposing a feature:
 
-* Explain in detail how it would work.
-* Keep the scope as narrow as possible, to make it easier to implement.
-* Remember that this is a volunteer-driven project, and that contributions
-  are welcome :)
+- Explain in detail how it would work.
+- Keep the scope as narrow as possible, to make it easier to implement.
+- Remember that this is a volunteer-driven project, and that
+  contributions are welcome.
 
 ## Get Started!
 
-Ready to contribute? Here's how to set up `quantide` for local development.
+Ready to contribute? Here's how to set up `millionaire` for local development.
 
-1. Fork the `quantide` repo on GitHub.
-2. Clone your fork locally
+1. Fork the `millionaire` repo on GitHub.
+2. Clone your fork locally:
 
-```
-    $ git clone git@github.com:your_name_here/quantide.git
-```
+   ```bash
+   git clone git@github.com:your_name_here/millionaire.git
+   ```
 
-3. Ensure [poetry](https://python-poetry.org/docs/) is installed.
-4. Install dependencies and start your virtualenv:
+3. Ensure Python 3.13 is available, and that [Poetry](https://python-poetry.org/docs/) is installed.
+4. Create a virtual environment and install dependencies:
 
-```
-    $ poetry install -E test -E doc -E dev
-```
+   ```bash
+   python3.13 -m venv .venv --prompt=millionaire-py3.13
+   source .venv/bin/activate
+   poetry install
+   ```
 
 5. Create a branch for local development:
 
-```
-    $ git checkout -b name-of-your-bugfix-or-feature
-```
+   ```bash
+   git checkout -b name-of-your-bugfix-or-feature
+   ```
 
    Now you can make your changes locally.
 
-6. When you're done making changes, check that your changes pass the
-   tests, including testing other Python versions, with tox:
+6. When you're done making changes, run the relevant tests:
 
-```
-    $ tox
-```
+   ```bash
+   pytest tests
+   ```
+
+   The release-gate evidence suite and the minimum pre-commit checks are
+   documented in `docs/developer-acceptance.md`.
 
 7. Commit your changes and push your branch to GitHub:
 
-```
-    $ git add .
-    $ git commit -m "Your detailed description of your changes."
-    $ git push origin name-of-your-bugfix-or-feature
-```
+   ```bash
+   git add .
+   git commit -m "Your detailed description of your changes."
+   git push origin name-of-your-bugfix-or-feature
+   ```
 
 8. Submit a pull request through the GitHub website.
 
@@ -128,32 +132,9 @@ Ready to contribute? Here's how to set up `quantide` for local development.
 Before you submit a pull request, check that it meets these guidelines:
 
 1. The pull request should include tests.
-2. If the pull request adds functionality, the docs should be updated. Put
-   your new functionality into a function with a docstring, and add the
-   feature to the list in README.md.
-3. The pull request should work for Python 3.6, 3.7, 3.8, 3.9 and for PyPy. Check
-   https://github.com/zillionare/quantide/actions
-   and make sure that the tests pass for all supported Python versions.
-
-## Tips
-
-```
-    $ pytest tests
-```
-
-To run a subset of tests.
-
-
-## Deploying
-
-A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed (including an entry in HISTORY.md).
-Then run:
-
-```
-$ poetry patch # possible: major / minor / patch
-$ git push
-$ git push --tags
-```
-
-Github Actions will then deploy to PyPI if tests pass.
+2. If the pull request adds functionality, the docs should be updated.
+   Put your new functionality into a function with a docstring, and add
+   the feature to the list in `README.md` if it is user-facing.
+3. The pull request should work on the supported Python version. Check
+   https://github.com/zillionare/millionaire/actions and make sure that
+   the tests pass for the supported version.

@@ -44,7 +44,7 @@ baselines:
   live: tests/assets/baselines/dual_ma_2024.live.json
 
 oracle:
-  command: conda run -n quantide poetry run python scripts/demo_e2e_accuracy_contract.py
+  command: .venv/bin/python scripts/demo_e2e_accuracy_contract.py
   source: scripts/demo_e2e_accuracy_contract.py
 
 acceptance:

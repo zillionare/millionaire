@@ -1,10 +1,10 @@
 # Millionaire
 
-Millionaire is the free and open-source edition built on the shared `quantide` runtime.
+Millionaire is Zillionare's flagship quantitative trading platform.
 
-The published package name for this edition is `quantide-millionaire`. Internal technical
-identifiers such as the Python import namespace, runtime paths, and local state directories
-remain `quantide` by design.
+The published package name is `millionaire`. The Python import namespace
+is `quantide` — this is an internal name, not a brand; if you fork and
+rename, you can rename the import namespace to match.
 
 This repository is in active architectural refactoring.
 
@@ -21,6 +21,31 @@ Until the refactor settles, treat `.dev/` as draft engineering notes rather than
 
 For local startup guidance and minimum developer-side acceptance, see `docs/developer-acceptance.md`.
 
+## Local Setup
+
+This project uses a standard Python virtual environment (not conda).
+
+```bash
+# 1. Create the virtual environment (one-time)
+python3.13 -m venv .venv --prompt=millionaire-py3.13
+
+# 2. Activate it
+source .venv/bin/activate
+
+# 3. Install dependencies (Poetry is configured as the build backend)
+pip install poetry
+poetry install
+
+# 4. Run the app
+uvicorn quantide.app:app --reload
+```
+
+Or use the bundled helper script (creates the venv on first run if needed):
+
+```bash
+./start.sh
+```
+
 ## Development Stub Mode
 
 When you want to demo the real UI and runtime flow without connecting a real gateway or real Tushare,
@@ -32,11 +57,10 @@ Example:
 QUANTIDE_ENABLE_DEV_STUBS=1 uvicorn quantide.app:app --reload
 ```
 
-If you prefer starting from a shell that has not activated the `quantide` environment,
-the equivalent command is:
+Or, with the helper script:
 
 ```bash
-QUANTIDE_ENABLE_DEV_STUBS=1 conda run -n quantide uvicorn quantide.app:app --reload
+./start.sh --stub
 ```
 
 With this switch enabled, the process will automatically:
@@ -60,7 +84,7 @@ Runtime edition identity is resolved from the installed release package, or from
 For development-only branding checks, you can explicitly opt into an override for a single process:
 
 ```bash
-QUANTIDE_ENABLE_EDITION_OVERRIDE=1 QUANTIDE_EDITION=zillionaire conda run -n quantide uvicorn quantide.app:app --reload
+QUANTIDE_ENABLE_EDITION_OVERRIDE=1 QUANTIDE_EDITION=zillionaire uvicorn quantide.app:app --reload
 ```
 
 Use this only for local development. It deliberately overrides edition-specific branding and release-package diagnostics for that process.

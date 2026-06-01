@@ -1,13 +1,13 @@
 [tool]
 
 [tool.poetry]
-name = "quantide-millionaire"
+name = "millionaire"
 version = "0.1.0"
 homepage = "https://github.com/zillionare/millionaire"
-description = "Millionaire — the free and open-source edition built on the shared quantide runtime."
+description = "Millionaire — Zillionare's flagship quantitative trading platform."
 authors = ["aaron yang <aaron_yang@jieyu.ai>"]
 readme = "README.md"
-license = "MIT"
+license = { text = "Millionaire Source-Available License v2.0" }
 classifiers=[
     'Development Status :: 2 - Pre-Alpha',
     'Intended Audience :: Developers',
