@@ -9,15 +9,20 @@ LOG_FILE="/tmp/millionaire.log"
 
 # 解析参数
 STUB_MODE=""
+RELOAD_MODE=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --stub)
             STUB_MODE=1
             shift
             ;;
+        --reload)
+            RELOAD_MODE=1
+            shift
+            ;;
         *)
             echo "未知参数: $1"
-            echo "用法: $0 [--stub]"
+            echo "用法: $0 [--stub] [--reload]"
             exit 1
             ;;
     esac
@@ -48,10 +53,17 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] 启动 Millionaire..." >> "$LOG_FILE"
 if [ -n "$STUB_MODE" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] stub 模式已启用" >> "$LOG_FILE"
 fi
+if [ -n "$RELOAD_MODE" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 自动重载已启用 (uvicorn --reload)" >> "$LOG_FILE"
+fi
 
 # 同时输出到控制台和日志文件
 exec > >(tee -a "$LOG_FILE")
 exec 2>&1
 
 # 启动应用（监听所有接口）
-uvicorn quantide.app:app --host 0.0.0.0 --port 8000
+UVICORN_ARGS=("quantide.app:app" "--host" "0.0.0.0" "--port" "8000")
+if [ -n "$RELOAD_MODE" ]; then
+    UVICORN_ARGS+=("--reload")
+fi
+uvicorn "${UVICORN_ARGS[@]}"
