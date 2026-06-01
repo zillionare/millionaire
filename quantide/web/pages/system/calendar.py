@@ -19,7 +19,7 @@ system_calendar_app, rt = fast_app(hdrs=AppTheme.headers())
 
 
 def _get_calendar_data(year: int, month: int) -> list[dict]:
-    """获取指定年月的日历数据"""
+    """获取指定年月的日历数据。交易日历表里没有的日期，按"周一到周五默认交易、周末默认休市"兜底。"""
     days_in_month = cal_lib.monthrange(year, month)[1]
 
     trade_cal_map = {}
@@ -36,7 +36,10 @@ def _get_calendar_data(year: int, month: int) -> list[dict]:
     data = []
     for day in range(1, days_in_month + 1):
         current_date = datetime.date(year, month, day)
-        is_trading = trade_cal_map.get(current_date, False)
+        if current_date in trade_cal_map:
+            is_trading = trade_cal_map[current_date]
+        else:
+            is_trading = current_date.weekday() < 5
 
         data.append({
             "date": current_date,
@@ -45,6 +48,16 @@ def _get_calendar_data(year: int, month: int) -> list[dict]:
         })
 
     return data
+
+
+def _is_calendar_data_stale(year: int, month: int) -> bool:
+    """返回 True 表示所请求月份里至少有一天超出了已加载的日历表末尾。"""
+    table = trade_calendar._data
+    if table is None or len(table) == 0:
+        return True
+    last_date = table.column("date")[-1].as_py()
+    last_day_of_month = datetime.date(year, month, cal_lib.monthrange(year, month)[1])
+    return last_day_of_month > last_date
 
 
 def _build_calendar_grid(year: int, month: int) -> Div:
@@ -142,6 +155,14 @@ async def index(req, year: int = None, month: int = None):
     layout = MainLayout(title="交易日历")
     layout.set_sidebar_active("/system/calendar")
 
+    stale = _is_calendar_data_stale(year, month)
+    if trade_calendar._data is not None and len(trade_calendar._data) > 0:
+        first_date = trade_calendar._data.column("date")[0].as_py()
+        last_date = trade_calendar._data.column("date")[-1].as_py()
+        data_range_text = f"{first_date} ~ {last_date}"
+    else:
+        data_range_text = "尚未加载"
+
     page_content = Div(
         Div(
             Div(
@@ -151,6 +172,17 @@ async def index(req, year: int = None, month: int = None):
             ),
             cls="mb-6"
         ),
+        Div(
+            UkIcon("alert-triangle", cls="text-amber-500 mr-2"),
+            Span(
+                f"当前交易日历数据范围 {data_range_text}，"
+                "未覆盖所选月份；节假日与周末均按周末默认规则显示，"
+                "请点击右上角「立即更新」拉取最新数据以获得准确的节假日标红。",
+                cls="text-sm text-amber-700",
+            ),
+            cls=("flex items-center p-3 mb-4 bg-amber-50 border border-amber-200 "
+                 "rounded-lg")
+        ) if stale else None,
         Div(
             Button(
                 "立即更新",
