@@ -5,7 +5,7 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV="$PROJECT_DIR/.venv"
-LOG_FILE="/tmp/quantide.log"
+LOG_FILE="/tmp/millionaire.log"
 
 # 解析参数
 STUB_MODE=""

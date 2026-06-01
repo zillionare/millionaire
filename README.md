@@ -1,6 +1,6 @@
 # Millionaire
 
-Millionaire is the Quantide edition, built on the shared `quantide` runtime.
+Millionaire is the free and open-source edition built on the shared `quantide` runtime.
 
 The published package name for this edition is `quantide-millionaire`. Internal technical
 identifiers such as the Python import namespace, runtime paths, and local state directories
