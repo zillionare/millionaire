@@ -4,14 +4,14 @@
 name = "quantide-millionaire"
 version = "0.1.0"
 homepage = "https://github.com/zillionare/quantide"
-description = "Millionaire, the free and open-source edition built on the shared quantide runtime."
+description = "Millionaire, the Quantide edition, built on the shared quantide runtime."
 authors = ["aaron yang <aaron_yang@jieyu.ai>"]
 readme = "README.md"
-license =  "MIT"
+license = { text = "Quantide Source-Available License v2.0" }
 classifiers=[
     'Development Status :: 2 - Pre-Alpha',
     'Intended Audience :: Developers',
-    'License :: OSI Approved :: MIT License',
+    'License :: Other/Proprietary License',
     'Natural Language :: English',
     'Programming Language :: Python :: 3',
     'Programming Language :: Python :: 3.13'

@@ -5,6 +5,42 @@ helps, and credit will always be given.
 
 You can contribute in many ways:
 
+## Your Contribution
+
+Contributions of all sizes are welcome, and the maintainers are grateful
+for your time and effort. Before you send a pull request, please take a
+moment to read the notes below — they describe what happens to your
+contribution and what it does and does not grant you.
+
+This project is released under the [Quantide Source-Available License v2.0](LICENSE).
+
+- By submitting a contribution (whether as a pull request, patch, file,
+  or any other form), you confirm that the project may use, modify, and
+  redistribute it as part of the project, in accordance with that
+  license and any future license the maintainers may adopt for the
+  project as a whole.
+
+- You retain copyright to your contribution. Submitting a contribution
+  does not transfer, and is not intended to transfer, any ownership of,
+  equity in, or commercial interest in the project, its name, its
+  branding, or its future releases. The project name, branding, and
+  trademarks are not granted to contributors by virtue of their
+  contribution.
+
+- If you are contributing on behalf of an employer or other organization,
+  please make sure you have the right to do so, and that you have the
+  authority to make the confirmations above on its behalf.
+
+- The maintainers may, at their sole discretion, accept, reject, modify,
+  or remove contributions, including after they have been merged, without
+  obligation to provide a reason or notice.
+
+If anything in this section is unclear, or if you would like to discuss
+the terms under which you would like to contribute, please open an issue
+before submitting your pull request, or contact the maintainers directly.
+The maintainers are happy to talk — a short conversation up front usually
+saves time on both sides.
+
 ## Types of Contributions
 
 ### Report Bugs
