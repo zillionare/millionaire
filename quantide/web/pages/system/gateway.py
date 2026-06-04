@@ -87,21 +87,49 @@ def _load_gateway_config() -> dict[str, Any]:
     return config
 
 
-def _test_gateway_connection(base_url: str, timeout: int = 10) -> dict[str, Any]:
+def _test_gateway_connection(
+    base_url: str,
+    api_key: str = "",
+    timeout: int = 10,
+) -> dict[str, Any]:
     """测试网关连接
 
-    Returns:
-        包含 success, latency_ms, error 的字典
+    真实 qmt-gateway 不暴露 ``/ping``，所有业务端点位于 ``/api/...`` 且要求
+    ``X-API-Key`` 请求头或登录会话；这里改用 ``GET /api/ping``，由网关
+    实现一个轻量的鉴权体检端点（见 qmt-gateway 的 ``apis/ping.py``）。
     """
-    ping_url = f"{base_url}/ping"
+    ping_url = f"{base_url.rstrip('/')}/api/ping"
     start = time.time()
+    headers: dict[str, str] = {"Accept": "application/json"}
+    if api_key:
+        headers["X-API-Key"] = api_key
     try:
-        req = urllib.request.Request(ping_url, method="GET")
+        req = urllib.request.Request(ping_url, method="GET", headers=headers)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             latency_ms = int((time.time() - start) * 1000)
             if resp.getcode() == 200:
                 return {"success": True, "latency_ms": latency_ms}
-            return {"success": False, "latency_ms": latency_ms, "error": f"HTTP {resp.getcode()}"}
+            return {
+                "success": False,
+                "latency_ms": latency_ms,
+                "error": f"HTTP {resp.getcode()}",
+            }
+    except urllib.error.HTTPError as e:
+        latency_ms = int((time.time() - start) * 1000)
+        if e.code in (401, 403):
+            detail = "鉴权失败：API key 无效或缺失"
+            if not api_key:
+                detail = "鉴权失败：尚未配置 API key"
+            return {
+                "success": False,
+                "latency_ms": latency_ms,
+                "error": detail,
+            }
+        return {
+            "success": False,
+            "latency_ms": latency_ms,
+            "error": f"HTTP {e.code}",
+        }
     except urllib.request.URLError as e:
         latency_ms = int((time.time() - start) * 1000)
         return {"success": False, "latency_ms": latency_ms, "error": str(e.reason)}
@@ -440,6 +468,7 @@ async def test_connection(req):
 
     test_result = _test_gateway_connection(
         config["base_url"],
+        api_key=config.get("api_key", ""),
         timeout=config["timeout"],
     )
     message = "连通性测试通过" if test_result["success"] else "连通性测试失败"

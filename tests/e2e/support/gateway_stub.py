@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import hashlib
+import hmac
 import json
 import socket
 import threading
@@ -197,6 +198,7 @@ def _scenario_from_mapping(data: Mapping[str, Any]) -> GatewayScenario:
 class GatewayStubState:
     prefix: str
     scenario: GatewayScenario
+    api_key: str = "stub-api-key"
     lock: threading.RLock = field(default_factory=threading.RLock)
 
     def submit_order(self, side: str, form: Mapping[str, Any]) -> dict[str, Any]:
@@ -494,6 +496,13 @@ class GatewayStubState:
         self.scenario.positions = list(positions.values())
 
 
+def _constant_time_equals(a: str, b: str) -> bool:
+    """Constant-time string comparison to avoid leaking key length via timing."""
+    a_bytes = a.encode("utf-8")
+    b_bytes = b.encode("utf-8")
+    return hmac.compare_digest(a_bytes, b_bytes)
+
+
 def _json_bytes(payload: Any) -> bytes:
     return json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
@@ -584,6 +593,19 @@ def _build_gateway_handler(state: GatewayStubState) -> type[BaseHTTPRequestHandl
                 return
             if path == _prefix_path(state.prefix, "/ping"):
                 self._send_json({"ok": True})
+                return
+            if path == _prefix_path(state.prefix, "/api/ping"):
+                if state.api_key:
+                    presented = self.headers.get("X-API-Key", "")
+                    if not _constant_time_equals(presented, state.api_key):
+                        self._send_json(
+                            {"code": 401, "message": "API key 无效或已吊销"},
+                            status=HTTPStatus.UNAUTHORIZED,
+                        )
+                        return
+                self._send_json(
+                    {"code": 0, "message": "ok", "data": {"ok": True}}
+                )
                 return
             if path == _prefix_path(state.prefix, "/api/trade/asset"):
                 with state.lock:
@@ -721,6 +743,7 @@ def start_gateway_stub(
     host: str = "127.0.0.1",
     prefix: str = "/",
     scenario: GatewayScenario | Mapping[str, Any] | None = None,
+    api_key: str = "stub-api-key",
 ) -> GatewayStub:
     """Start a local gateway stub with auth, trade, query, cancel and quote paths."""
     normalized_prefix = _normalize_prefix(prefix)
@@ -730,7 +753,11 @@ def start_gateway_stub(
         scenario_obj = _normalize_scenario_obj(scenario)
     else:
         scenario_obj = _scenario_from_mapping(scenario)
-    state = GatewayStubState(prefix=normalized_prefix, scenario=scenario_obj)
+    state = GatewayStubState(
+        prefix=normalized_prefix,
+        scenario=scenario_obj,
+        api_key=api_key,
+    )
     server = ThreadingHTTPServer((host, 0), _build_gateway_handler(state))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -749,9 +776,12 @@ def running_gateway_stub(
     host: str = "127.0.0.1",
     prefix: str = "/",
     scenario: GatewayScenario | Mapping[str, Any] | None = None,
+    api_key: str = "stub-api-key",
 ) -> Iterator[GatewayStub]:
     """Yield a running scriptable gateway stub and stop it automatically."""
-    stub = start_gateway_stub(host=host, prefix=prefix, scenario=scenario)
+    stub = start_gateway_stub(
+        host=host, prefix=prefix, scenario=scenario, api_key=api_key
+    )
     try:
         yield stub
     finally:
