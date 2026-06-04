@@ -3,10 +3,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import quantide.service.init_wizard as init_wizard_module
 
-from quantide.core.init_wizard_steps import WIZARD_FINAL_STEP, WIZARD_TOTAL_STEPS
+import quantide.service.init_wizard as init_wizard_module
 from quantide.config.paths import DEFAULT_DATA_HOME
+from quantide.core.init_wizard_steps import WIZARD_FINAL_STEP, WIZARD_TOTAL_STEPS
 from quantide.data.models.app_state import AppState
 from quantide.service.init_wizard import InitWizardService
 
@@ -338,3 +338,111 @@ def test_save_data_init_config_rejects_unknown_data_source(db):
             tushare_token="token",
             history_years=3,
         )
+
+
+class TestTestGatewayConnectionAgainstDevStub:
+    """针对 ``InitWizardService.test_gateway_connection`` 的回归测试 (issue #28).
+
+    之前的实现直接访问 ``/ping``，真实 qmt-gateway 不暴露该路径，
+    而所有 ``/api/...`` 端点又要求 ``X-API-Key`` 请求头，因此
+    ``GET /ping`` 在生产环境恒为 404。这条调用链是布局层
+    ``get_feature_status`` 在每次渲染时都会跑的探测，正是它把
+    「实盘」/「仿真」菜单锁住的原因。这里验证修复后的契约：
+    走 ``/api/ping``，带 ``X-API-Key`` 头；错 key / 无 key 给出
+    明确的鉴权错误；空 server 仍然安全短路。
+    """
+
+    def _service(self) -> InitWizardService:
+        return InitWizardService()
+
+    def test_returns_success_when_api_key_matches(self) -> None:
+        from urllib.parse import urlparse
+
+        from tests.e2e.support.gateway_stub import running_gateway_stub
+
+        with running_gateway_stub(prefix="/qmt", api_key="good-key") as stub:
+            host = urlparse(stub.base_url).hostname
+            port = urlparse(stub.base_url).port
+            ok, msg = self._service().test_gateway_connection(
+                server=host, port=port, prefix="/qmt", api_key="good-key"
+            )
+        assert ok is True
+        assert "通过" in msg
+
+    def test_returns_auth_error_when_api_key_missing(self) -> None:
+        from urllib.parse import urlparse
+
+        from tests.e2e.support.gateway_stub import running_gateway_stub
+
+        with running_gateway_stub(prefix="/qmt", api_key="good-key") as stub:
+            host = urlparse(stub.base_url).hostname
+            port = urlparse(stub.base_url).port
+            ok, msg = self._service().test_gateway_connection(
+                server=host, port=port, prefix="/qmt", api_key=""
+            )
+        assert ok is False
+        assert "鉴权" in msg
+
+    def test_returns_auth_error_when_api_key_wrong(self) -> None:
+        from urllib.parse import urlparse
+
+        from tests.e2e.support.gateway_stub import running_gateway_stub
+
+        with running_gateway_stub(prefix="/qmt", api_key="good-key") as stub:
+            host = urlparse(stub.base_url).hostname
+            port = urlparse(stub.base_url).port
+            ok, msg = self._service().test_gateway_connection(
+                server=host, port=port, prefix="/qmt", api_key="bad-key"
+            )
+        assert ok is False
+        assert "鉴权" in msg
+
+    def test_rejects_blank_server_without_network_call(self) -> None:
+        ok, msg = self._service().test_gateway_connection(
+            server="", port=8130, prefix="/", api_key="x"
+        )
+        assert ok is False
+        assert "server" in msg
+
+
+class TestFeatureStatusWithRealReachableGateway:
+    """端到端验证 issue #28：保存网关配置后, 菜单应可用.
+
+    不打 monkeypatch，让 ``test_gateway_connection`` 走真实端点
+    （dev stub 上的 ``/qmt/api/ping``），确保 fix 之后
+    ``get_feature_status()`` 不再因 404 误判为「网关不可用」。
+    """
+
+    def test_live_trading_flips_true_when_gateway_reachable(self) -> None:
+        from urllib.parse import urlparse
+
+        from tests.e2e.support.gateway_stub import running_gateway_stub
+
+        service = InitWizardService()
+        service.save_state(
+            AppState(
+                init_completed=True,
+                init_step=WIZARD_FINAL_STEP,
+                app_home="/tmp/market-home",
+                tushare_token="ts-token",
+                gateway_enabled=True,
+                gateway_base_url="/qmt",
+                gateway_api_key="good-key",
+                gateway_server="127.0.0.1",
+                gateway_port=0,  # filled in below
+                gateway_timeout=3,
+            )
+        )
+
+        with running_gateway_stub(prefix="/qmt", api_key="good-key") as stub:
+            parsed = urlparse(stub.base_url)
+            state = service.get_state()
+            state.gateway_server = parsed.hostname or "127.0.0.1"
+            state.gateway_port = int(parsed.port or 80)
+            service.save_state(state)
+
+            status = service.get_feature_status()
+
+        assert status["backtest"] is True
+        assert status["simulation"] is True
+        assert status["live_trading"] is True

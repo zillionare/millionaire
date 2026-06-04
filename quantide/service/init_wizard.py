@@ -220,6 +220,7 @@ class InitWizardService:
             server=state.gateway_server,
             port=state.gateway_port,
             prefix=state.gateway_base_url or "/",
+            api_key=str(state.gateway_api_key or ""),
             timeout=min(float(state.gateway_timeout or 3), 1.0),
         )
         return ok
@@ -396,16 +397,25 @@ class InitWizardService:
         logger.info("数据初始化配置已保存")
 
     def test_gateway_connection(
-        self, server: str, port: int, prefix: str = "/", timeout: float = 3.0
+        self,
+        server: str,
+        port: int,
+        prefix: str = "/",
+        api_key: str = "",
+        timeout: float = 3.0,
     ) -> tuple[bool, str]:
         """测试网关连通性.
 
-        调用 http://gateway:port/prefix/ping 检查是否能返回200.
+        真实 qmt-gateway 不暴露 ``/ping``，所有业务端点位于 ``/api/...`` 且要求
+        ``X-API-Key`` 请求头或登录会话；这里改用 ``GET /api/ping``，由网关
+        实现一个轻量的鉴权体检端点（见 qmt-gateway 的 ``apis/ping.py``）。
 
         Args:
             server: 网关地址。
             port: 网关端口。
             prefix: 网关路径前缀。
+            api_key: 网关 API key；为 ``""`` 时不发送 ``X-API-Key`` 头（连接真实
+                网关会因为 401/403 而失败，这是预期行为）。
             timeout: 超时秒数。
 
         Returns:
@@ -420,12 +430,17 @@ class InitWizardService:
         p = str(prefix or "/").strip() or "/"
         if not p.startswith("/"):
             p = "/" + p
-        if not p.endswith("/"):
-            p = p + "/"
-        url = f"http://{host}:{int(port)}{p}ping"
+        if p == "/":
+            url = f"http://{host}:{int(port)}/api/ping"
+        else:
+            url = f"http://{host}:{int(port)}{p.rstrip('/')}/api/ping"
+
+        headers: dict[str, str] = {"Accept": "application/json"}
+        if api_key:
+            headers["X-API-Key"] = api_key
 
         try:
-            req = urllib.request.Request(url, method="GET")
+            req = urllib.request.Request(url, method="GET", headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 code = resp.getcode()
                 if code == 200:
@@ -434,6 +449,8 @@ class InitWizardService:
                     return False, f"网关返回非200状态码: {code}"
         except urllib.error.HTTPError as e:
             logger.warning(f"网关连通性测试失败: {url}, HTTP {e.code}")
+            if e.code in (401, 403):
+                return False, "网关鉴权失败，请检查 API key"
             return False, f"无法连接 gateway（HTTP {e.code}），请检查配置或暂时不勾选启用"
         except Exception as e:
             logger.warning(f"网关连通性测试失败: {url}, {e}")

@@ -1473,7 +1473,9 @@ async def handle_step(request: Request, step: int):
                     )
 
                 if enabled:
-                    ok, msg = init_wizard.test_gateway_connection(server=server, port=port, prefix=prefix)
+                    ok, msg = init_wizard.test_gateway_connection(
+                        server=server, port=port, prefix=prefix, api_key=api_key
+                    )
                     if not ok:
                         state_dict[GATEWAY_FORM_FIELDS["enabled"]] = enabled
                         state_dict[GATEWAY_FORM_FIELDS["server"]] = server
@@ -1619,7 +1621,12 @@ async def gateway_test(request: Request):
             Span(str(e)),
             cls="text-sm text-red-600 mt-2 flex items-center",
         )
-    ok, msg = init_wizard.test_gateway_connection(server=server, port=port, prefix=prefix)
+    ok, msg = init_wizard.test_gateway_connection(
+        server=server,
+        port=port,
+        prefix=prefix,
+        api_key=str(values.get(GATEWAY_FORM_FIELDS["api_key"], "") or ""),
+    )
     if ok:
         return Div(
             Span("✅", cls="mr-2"),
