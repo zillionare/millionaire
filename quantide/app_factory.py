@@ -74,8 +74,8 @@ from quantide.web.pages.trade_main import (
     trade_asset_stats,
     trade_live_quote,
     trade_main_page,
-    trade_positions_refresh,
     trade_orders_refresh,
+    trade_positions_refresh,
 )
 from quantide.web.theme import AppTheme
 
@@ -286,12 +286,12 @@ def create_app(
             ),
             Route(
                 "/live",
-                lambda req: RedirectResponse("/trade/live/", status_code=303),
+                lambda req: RedirectResponse("/trade", status_code=303),
                 methods=["GET"],
             ),
             Route(
                 "/live/",
-                lambda req: RedirectResponse("/trade/live/", status_code=303),
+                lambda req: RedirectResponse("/trade", status_code=303),
                 methods=["GET"],
             ),
             Route(
@@ -309,9 +309,23 @@ def create_app(
                 lambda req: RedirectResponse("/trade/simulation/", status_code=303),
                 methods=["GET"],
             ),
+            # /trade/live* 家族：用户提出三个入口 (/、/trade/、/trade/live/) 指向
+            # 类似功能要去重；这里把 /trade/live 精确路径切到 /trade 这个 canonical
+            # 交易页。live.py Mount 还在下面挂着用于向后兼容（任何已有 bookmark），
+            # 但 sidebar / 旧链接都先撞到这三个 redirect。
             Route(
                 "/trade/live",
-                lambda req: RedirectResponse("/trade/live/", status_code=303),
+                lambda req: RedirectResponse("/trade", status_code=303),
+                methods=["GET"],
+            ),
+            Route(
+                "/trade/live/",
+                lambda req: RedirectResponse("/trade", status_code=303),
+                methods=["GET"],
+            ),
+            Route(
+                "/trade/live/{path:path}",
+                lambda req: RedirectResponse("/trade", status_code=303),
                 methods=["GET"],
             ),
             Mount("/home", home_app),
@@ -374,12 +388,12 @@ def create_app(
             Route("/strategy", lambda req: RedirectResponse("/strategy/")),
             Route(
                 "/strategy/live",
-                lambda req: RedirectResponse("/trade/live/", status_code=303),
+                lambda req: RedirectResponse("/trade", status_code=303),
                 methods=["GET"],
             ),
             Route(
                 "/strategy/live/",
-                lambda req: RedirectResponse("/trade/live/", status_code=303),
+                lambda req: RedirectResponse("/trade", status_code=303),
                 methods=["GET"],
             ),
             Mount("/strategy", strategy_app),

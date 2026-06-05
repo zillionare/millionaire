@@ -27,14 +27,18 @@ def test_dev_stub_switch_starts_gateway_and_tushare(monkeypatch) -> None:
         with system_settings_e2e_session() as session:
             response = session.client.get("/strategy/live", follow_redirects=False)
             assert response.status_code == 303
-            assert response.headers["location"] == "/trade/live/"
+            # /strategy/live 已合并到 /trade（Issue #31 dedup）
+            assert response.headers["location"] == "/trade"
 
             response = session.client.get("/papertrade", follow_redirects=False)
             assert response.status_code == 303
             assert response.headers["location"] == "/trade/simulation/"
 
             response = session.client.get("/trade/live/", follow_redirects=False)
-            assert response.status_code != 403
+            # /trade/live/ 重定向到 /trade——redirect 本身是 303，恰好
+            # 不是 403（feature disabled），原断言 ``!= 403`` 仍然成立。
+            assert response.status_code == 303
+            assert response.headers["location"] == "/trade"
 
             response = session.client.get("/trade/simulation/", follow_redirects=False)
             assert response.status_code != 404

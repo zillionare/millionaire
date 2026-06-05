@@ -95,6 +95,11 @@ def test_app():
                 Route("/login/", lambda req: RedirectResponse("/auth/login", status_code=303), methods=["GET"]),
                 Mount("/home", home_app),
                 Mount("/strategy", strategy_app),
+                # /trade/live* 入口合并到 /trade（用户提出三个入口去重）——
+                # 这几个 redirect 必须在 /trade route 前面注册，否则 live Mount 会先匹到。
+                Route("/trade/live", lambda req: RedirectResponse("/trade", status_code=303), methods=["GET"]),
+                Route("/trade/live/", lambda req: RedirectResponse("/trade", status_code=303), methods=["GET"]),
+                Route("/trade/live/{path:path}", lambda req: RedirectResponse("/trade", status_code=303), methods=["GET"]),
                 Route("/trade", trade_main_page),
                 Route("/trade/", trade_main_page),
                 Route("/trade/positions", trade_positions_refresh, methods=["GET"]),
@@ -1528,7 +1533,45 @@ class TestGatewayFirstNavigation:
         menu = build_header_menu(True)
         urls = {item["title"]: item["url"] for item in menu}
 
-        assert urls["实盘"] == "/trade/live/"
+        # /trade/live 已合并到 /trade（三个入口去重）；/trade/simulation/
+        # 保留——仿真与实盘走不同的 broker 抽象，#30 之后再统一。
+        assert urls["实盘"] == "/trade"
+        assert urls["仿真"] == "/trade/simulation/"
+
+
+class TestTradeLiveRedirects:
+    """``/trade/live*`` 入口全部合并到 ``/trade``（用户提出三个入口去重）.
+
+    旧 live.py 的 Mount 还在 app_factory.py 挂着（任何已有 bookmark 仍可访问），
+    但主入口——sidebar / 旧 /strategy/live 跳转——都先撞到这几个 redirect。
+    """
+
+    def test_trade_live_redirects_to_trade(self, test_client):
+        response = test_client.get("/trade/live", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/trade"
+
+    def test_trade_live_trailing_slash_redirects_to_trade(self, test_client):
+        response = test_client.get("/trade/live/", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/trade"
+
+    def test_trade_live_subpath_redirects_to_trade(self, test_client):
+        # /trade/live/{portfolio_id} 也被合并——有 portfolio_id 的旧链接
+        # 会跳到 canonical 交易页，用户在那里重新选账号即可
+        response = test_client.get(
+            "/trade/live/some_portfolio_123", follow_redirects=False
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == "/trade"
+
+    def test_trade_live_nested_subpath_redirects_to_trade(self, test_client):
+        # /trade/live/{portfolio_id}/positions 等深层路径也合并
+        response = test_client.get(
+            "/trade/live/some_portfolio/positions", follow_redirects=False
+        )
+        assert response.status_code == 303
+        assert response.headers["location"] == "/trade"
 
     def test_home_defaults_to_live_nav_when_gateway_ready(self, monkeypatch):
         from quantide.web.layouts.main import MainLayout
