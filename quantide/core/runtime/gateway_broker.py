@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import polars as pl
 
-from quantide.core.enums import BrokerKind, OrderSide
+from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
 from quantide.core.ports import (
     AssetView,
     BrokerPort,
@@ -21,12 +21,56 @@ from quantide.core.ports import (
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
-from quantide.data.sqlite import Asset, Position, Trade
+from quantide.data.sqlite import Asset, Order, Position, Trade
 from quantide.service.base_broker import Broker, TradeResult
 
 
 class GatewayTradeStateConsistencyError(RuntimeError):
     """Raised when gateway payloads break qtoid/external-id consistency."""
+
+
+def _coerce_order_side(value: str) -> OrderSide:
+    """把网关归一化后的委托方向字符串转回 ``OrderSide`` 枚举.
+
+    网关 ``_normalize_order_status`` 不会触碰 ``side``，但客户端代码
+    历史上既见过 ``"buy"`` / ``"sell"``，也见过 ``"BUY"`` / ``"SELL"``，
+    甚至下单回报里可能带 ``OrderSide`` 整数值。统一在这里收敛。
+    """
+    text = str(value or "").strip().lower()
+    if text in {"buy", "b", "1"}:
+        return OrderSide.BUY
+    if text in {"sell", "s", "-1"}:
+        return OrderSide.SELL
+    return OrderSide.UNKNOWN
+
+
+def _coerce_order_status(value: str) -> OrderStatus:
+    """把网关 ``_normalize_order_status`` 归一化后的字符串映射回 ``OrderStatus`` 枚举.
+
+    网关归一化结果（参考 ``qmt_gateway/apis/trade.py::`` ``_normalize_order_status``）：
+
+    ``"unreported"`` / ``"pending"`` / ``"reported"`` / ``"canceling"`` /
+    ``"partial_canceling"`` / ``"partial_cancelled"`` / ``"cancelled"`` /
+    ``"partial"`` / ``"filled"`` / ``"rejected"`` / ``"unknown"``
+
+    下游 ``TodayOrdersTable`` 的 ``status_map`` 直接用 ``OrderStatus`` 枚举查找，
+    所以必须返回枚举成员本身；任何未识别的字符串都映射成 ``OrderStatus.UNKNOWN``。
+    """
+    text = str(value or "").strip().lower()
+    mapping: dict[str, OrderStatus] = {
+        "unreported": OrderStatus.UNREPORTED,
+        "pending": OrderStatus.WAIT_REPORTING,
+        "reported": OrderStatus.REPORTED,
+        "canceling": OrderStatus.REPORTED_CANCEL,
+        "partial_canceling": OrderStatus.PARTSUCC_CANCEL,
+        "partial_cancelled": OrderStatus.PART_CANCEL,
+        "cancelled": OrderStatus.CANCELED,
+        "canceled": OrderStatus.CANCELED,
+        "partial": OrderStatus.PART_SUCC,
+        "filled": OrderStatus.SUCCEEDED,
+        "rejected": OrderStatus.JUNK,
+    }
+    return mapping.get(text, OrderStatus.UNKNOWN)
 
 
 class GatewayBrokerWrapper(Broker):
@@ -177,6 +221,41 @@ class GatewayBrokerWrapper(Broker):
                 profit=0,
                 mv=v.mv,
             )
+        return res
+
+    @property
+    def orders(self) -> dict[str, Order]:
+        """返回当前委托.
+
+        Issue #29 复盘：原先此属性缺失，导致 ``/trade/`` 页面里的
+        ``hasattr(broker, "orders")`` 判定为 ``False``，委托表永远空。
+        补齐后页面才能拿到网关的委托数据。
+
+        网关返回的 ``OrderView.side`` / ``OrderView.status`` 是字符串
+        （来自 ``_normalize_order_status`` 的归一化结果），这里要映射
+        回 ``OrderSide`` / ``OrderStatus`` 枚举，否则 ``Order.__post_init__``
+        在 ``isinstance(..., int)`` 检查后保留原值，导致下游的
+        ``OrderStatus.PENDING`` 之类的查找全部失败。
+        """
+        views = self._adapter.query_orders()
+        res: dict[str, Order] = {}
+        for v in views:
+            side = _coerce_order_side(v.side)
+            status = _coerce_order_status(v.status)
+            order = Order(
+                portfolio_id=self._portfolio_id,
+                asset=v.asset,
+                side=side,
+                shares=v.shares,
+                bid_type=BidType.FIXED,
+                tm=v.tm or self._today(),
+                price=v.price,
+                filled=v.filled,
+                foid=v.order_id or None,
+                status=status,
+                error=v.error or "",
+            )
+            res[order.qtoid] = order
         return res
 
     def record(

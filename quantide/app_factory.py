@@ -74,6 +74,8 @@ from quantide.web.pages.trade_main import (
     trade_asset_stats,
     trade_live_quote,
     trade_main_page,
+    trade_positions_refresh,
+    trade_orders_refresh,
 )
 from quantide.web.theme import AppTheme
 
@@ -319,6 +321,8 @@ def create_app(
             Route("/trade/records/history", history_trades_list, methods=["GET"]),
             Route("/trade", trade_main_page),
             Route("/trade/", trade_main_page),
+            Route("/trade/positions", trade_positions_refresh, methods=["GET"]),
+            Route("/trade/orders", trade_orders_refresh, methods=["GET"]),
             Route("/trade/search", search_trade_assets, methods=["GET"]),
             Route("/trade/lightning/search", trade_lightning_search, methods=["GET"]),
             Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),

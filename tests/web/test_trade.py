@@ -72,6 +72,8 @@ def test_app():
             trade_asset_stats,
             trade_live_quote,
             trade_main_page,
+            trade_orders_refresh,
+            trade_positions_refresh,
         )
 
         auth = AuthManager(db_path=test_db_path, config={"login_path": "/auth/login"})
@@ -94,6 +96,8 @@ def test_app():
                 Mount("/strategy", strategy_app),
                 Route("/trade", trade_main_page),
                 Route("/trade/", trade_main_page),
+                Route("/trade/positions", trade_positions_refresh, methods=["GET"]),
+                Route("/trade/orders", trade_orders_refresh, methods=["GET"]),
                 Route("/trade/search", search_trade_assets, methods=["GET"]),
                 Route("/trade/lightning/search", trade_lightning_search, methods=["GET"]),
                 Route("/trade/asset-stats", trade_asset_stats, methods=["GET"]),
@@ -204,6 +208,19 @@ class TestTradeMain:
     def test_trade_main_page(self, test_client):
         response = test_client.get("/trade", follow_redirects=False)
         assert response.status_code in [200, 302, 303]
+
+    def test_positions_refresh_route_returns_200(self, test_client):
+        """Issue #29 复盘：原 ``hx_get="/trade/positions"`` 按钮没有对应路由。
+
+        现在补齐 ``trade_positions_refresh``，点击按钮应直接 200。
+        """
+        response = test_client.get("/trade/positions", follow_redirects=False)
+        assert response.status_code in (200, 303)
+
+    def test_orders_refresh_route_returns_200(self, test_client):
+        """``hx_get="/trade/orders"`` 按钮对应路由 (Issue #29)."""
+        response = test_client.get("/trade/orders", follow_redirects=False)
+        assert response.status_code in (200, 303)
 
 
 class TestLoginRoutes:

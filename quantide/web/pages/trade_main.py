@@ -12,6 +12,7 @@ import datetime
 import polars as pl
 from fasthtml.common import *
 from fasthtml.common import Select as _Select
+from loguru import logger
 from monsterui.all import *
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -1415,15 +1416,29 @@ def TodayOrdersTable(orders: list[Order]):
     rows = []
     if orders:
         for o in orders:
-            side_color = "text-red-600" if o.side == OrderSide.BUY else "text-green-600"
-            side_text = "买入" if o.side == OrderSide.BUY else "卖出"
+            if o.side == OrderSide.BUY:
+                side_color = "text-red-600"
+                side_text = "买入"
+            elif o.side == OrderSide.SELL:
+                side_color = "text-green-600"
+                side_text = "卖出"
+            else:
+                side_color = "text-gray-500"
+                side_text = "未知"
 
+            # 与 ``gateway_broker._coerce_order_status`` 一一对应；只有真实存在的
+            # ``OrderStatus`` 成员才会命中，否则一律显示 "未知"。
             status_map = {
-                OrderStatus.PENDING: ("待成交", "text-yellow-600"),
-                OrderStatus.PARTIAL: ("部分成交", "text-blue-600"),
-                OrderStatus.FILLED: ("已成交", "text-green-600"),
-                OrderStatus.CANCELLED: ("已撤单", "text-gray-500"),
-                OrderStatus.REJECTED: ("已拒绝", "text-red-600"),
+                OrderStatus.UNREPORTED: ("未报", "text-gray-500"),
+                OrderStatus.WAIT_REPORTING: ("待报", "text-yellow-600"),
+                OrderStatus.REPORTED: ("已报", "text-yellow-600"),
+                OrderStatus.REPORTED_CANCEL: ("已报待撤", "text-gray-500"),
+                OrderStatus.PARTSUCC_CANCEL: ("部成待撤", "text-gray-500"),
+                OrderStatus.PART_CANCEL: ("部成已撤", "text-gray-500"),
+                OrderStatus.CANCELED: ("已撤", "text-gray-500"),
+                OrderStatus.PART_SUCC: ("部分成交", "text-blue-600"),
+                OrderStatus.SUCCEEDED: ("已成交", "text-green-600"),
+                OrderStatus.JUNK: ("已拒绝", "text-red-600"),
             }
             status_text, status_color = status_map.get(o.status, ("未知", "text-gray-500"))
 
@@ -1626,19 +1641,41 @@ def trade_main_page(request):
     orders = []
 
     if broker:
-        if hasattr(broker, "asset") and broker.asset:
-            total = broker.asset.total
-            cash = broker.asset.cash
-            market_value = broker.asset.market_value
-        elif hasattr(broker, "total_assets"):
-            # SimulationBroker 等没有 asset 属性
-            total = broker.total_assets
-            cash = broker.cash if hasattr(broker, "cash") else 0
-            market_value = total - cash
-        if hasattr(broker, "positions"):
-            positions = list(broker.positions.values()) if isinstance(broker.positions, dict) else broker.positions
-        if hasattr(broker, "orders"):
-            orders = list(broker.orders.values()) if isinstance(broker.orders, dict) else broker.orders
+        # Issue #29 复盘：每条 gateway 调用都包 try/except，
+        # 避免网关 500 把整页渲染炸掉、留下空表让人摸不着头脑。
+        # 资产/持仓/委托里任何一条失败都不应影响其它两条的展示。
+        try:
+            if hasattr(broker, "asset") and broker.asset:
+                total = broker.asset.total
+                cash = broker.asset.cash
+                market_value = broker.asset.market_value
+            elif hasattr(broker, "total_assets"):
+                # SimulationBroker 等没有 asset 属性
+                total = broker.total_assets
+                cash = broker.cash if hasattr(broker, "cash") else 0
+                market_value = total - cash
+        except Exception as e:
+            logger.warning(f"获取资产信息失败: {e}")
+        try:
+            if hasattr(broker, "positions"):
+                positions_dict = broker.positions
+                positions = (
+                    list(positions_dict.values())
+                    if isinstance(positions_dict, dict)
+                    else positions_dict
+                )
+        except Exception as e:
+            logger.warning(f"获取持仓失败: {e}")
+        try:
+            if hasattr(broker, "orders"):
+                orders_dict = broker.orders
+                orders = (
+                    list(orders_dict.values())
+                    if isinstance(orders_dict, dict)
+                    else orders_dict
+                )
+        except Exception as e:
+            logger.warning(f"获取委托失败: {e}")
 
     def main_block():
         return Div(
@@ -1869,3 +1906,76 @@ async def set_active_account(req, session):
     session["active_account_id"] = account_id
 
     return RedirectResponse(url="/trade", status_code=303)
+
+
+def _resolve_broker_for_refresh(req):
+    """解析 htmx 刷新请求对应的活动 broker，失败时返回 ``None``.
+
+    与 ``trade_main_page`` 里取账号的逻辑一致，但只关心 broker 自身；
+    拿不到 broker 就返回 ``None``，让刷新 handler 渲染一张空表——比
+    抛 500 友好，比静默吞掉好调试。
+    """
+    reg = _get_registry(req)
+    if reg is None:
+        return None
+    session = req.scope.get("session", {}) or {}
+    active_kind = session.get("active_account_kind")
+    active_id = session.get("active_account_id")
+    if active_kind and active_id:
+        try:
+            return reg.get(BrokerKind(active_kind), active_id)
+        except Exception:
+            return None
+    default = reg.get_default()
+    if default:
+        try:
+            return reg.get(default[0], default[1])
+        except Exception:
+            return None
+    return None
+
+
+def _safe_orders(broker) -> list[Order]:
+    """Try to fetch today's orders, returning ``[]`` on any failure."""
+    if broker is None or not hasattr(broker, "orders"):
+        return []
+    try:
+        orders_dict = broker.orders
+    except Exception as e:
+        logger.warning(f"刷新委托失败: {e}")
+        return []
+    if isinstance(orders_dict, dict):
+        return list(orders_dict.values())
+    return list(orders_dict) if orders_dict else []
+
+
+def _safe_positions(broker) -> list[Position]:
+    """Try to fetch current positions, returning ``[]`` on any failure."""
+    if broker is None or not hasattr(broker, "positions"):
+        return []
+    try:
+        positions_dict = broker.positions
+    except Exception as e:
+        logger.warning(f"刷新持仓失败: {e}")
+        return []
+    if isinstance(positions_dict, dict):
+        return list(positions_dict.values())
+    return list(positions_dict) if positions_dict else []
+
+
+async def trade_positions_refresh(req):
+    """Htmx 刷新按钮的 handler：仅返回 ``PositionTable`` 片段.
+
+    Issue #29 复盘：原页面 ``hx_get="/trade/positions"`` 按钮没有对应路由，
+    点击会 404。现在补齐，返回与主页面里同一份 ``PositionTable`` 组件
+    以便 ``hx-swap="outerHTML"`` 替换 ``#position-table``。
+    """
+    return HTMLResponse(str(PositionTable(_safe_positions(_resolve_broker_for_refresh(req)))))
+
+
+async def trade_orders_refresh(req):
+    """Htmx 刷新按钮的 handler：仅返回 ``TodayOrdersTable`` 片段.
+
+    Issue #29 复盘：原页面 ``hx_get="/trade/orders"`` 按钮没有对应路由。
+    """
+    return HTMLResponse(str(TodayOrdersTable(_safe_orders(_resolve_broker_for_refresh(req)))))
