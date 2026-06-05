@@ -22,13 +22,12 @@ class FakePageRequest:
         self.query_params = query_params or {}
 
 
-def test_strategy_live_redirects_to_trade_with_create_app_client():
-    # /strategy/live 已合并到 /trade（Issue #31 dedup）
+def test_strategy_live_redirects_to_trade_live_with_create_app_client():
     with system_settings_e2e_session() as session:
         response = session.client.get("/strategy/live", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/trade"
+    assert response.headers["location"] == "/trade/live/"
 
 
 def test_papertrade_redirects_to_trade_simulation_with_create_app_client():

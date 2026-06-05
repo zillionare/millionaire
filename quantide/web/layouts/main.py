@@ -102,9 +102,7 @@ SIDEBAR_MENUS = {
 HEADER_MENU = [
     {"title": "策略", "url": "/strategy"},
     {"title": "系统维护", "url": "/system"},
-    # /trade/live 入口已合并到 /trade（用户提出三个入口去重）。
-    # /trade/simulation/ 保留原样——仿真与实盘走不同的 broker 抽象，#30 之后再统一。
-    {"title": "实盘", "url": "/trade"},
+    {"title": "实盘", "url": "/trade/live/"},
     {"title": "仿真", "url": "/trade/simulation/"},
 ]
 
