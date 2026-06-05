@@ -8,16 +8,24 @@
 """
 
 import datetime
+import json
+import urllib.error
+import urllib.request
 
 import polars as pl
 from fasthtml.common import *
 from fasthtml.common import Select as _Select
+from fasthtml.common import to_xml as _to_xml
 from loguru import logger
 from monsterui.all import *
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from quantide.config.settings import get_settings
-from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
+from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
+from quantide.core.runtime.gateway_broker import (
+    _coerce_order_side,
+    _coerce_order_status,
+)
 from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
@@ -1458,7 +1466,19 @@ def TodayOrdersTable(orders: list[Order]):
                             cls="uk-button uk-button-small uk-button-default",
                             hx_post=f"/trade/cancel/{o.qtoid}",
                             hx_confirm="确定要撤单吗？",
-                        ) if o.status in [OrderStatus.PENDING, OrderStatus.PARTIAL] else "",
+                        )
+                        # 撤单按钮对所有可撤单状态可见。
+                        # 可撤单集合与 qmt-gateway 的 ``_is_order_cancellable`` 保持一致
+                        # （\`:31\` 复盘：之前用的 ``OrderStatus.PENDING`` / ``OrderStatus.PARTIAL``
+                        # 在 ``OrderStatus`` 枚举里压根不存在，attrs 引用就 500）。
+                        if o.status
+                        in {
+                            OrderStatus.UNREPORTED,
+                            OrderStatus.WAIT_REPORTING,
+                            OrderStatus.REPORTED,
+                            OrderStatus.PART_SUCC,
+                        }
+                        else "",
                     ),
                 )
             )
@@ -1637,8 +1657,8 @@ def trade_main_page(request):
 
     # 获取资产信息
     total = cash = market_value = 0
-    positions = []
-    orders = []
+    positions: list[Position] = []
+    orders: list[Order] = []
 
     if broker:
         # Issue #29 复盘：每条 gateway 调用都包 try/except，
@@ -1656,26 +1676,13 @@ def trade_main_page(request):
                 market_value = total - cash
         except Exception as e:
             logger.warning(f"获取资产信息失败: {e}")
-        try:
-            if hasattr(broker, "positions"):
-                positions_dict = broker.positions
-                positions = (
-                    list(positions_dict.values())
-                    if isinstance(positions_dict, dict)
-                    else positions_dict
-                )
-        except Exception as e:
-            logger.warning(f"获取持仓失败: {e}")
-        try:
-            if hasattr(broker, "orders"):
-                orders_dict = broker.orders
-                orders = (
-                    list(orders_dict.values())
-                    if isinstance(orders_dict, dict)
-                    else orders_dict
-                )
-        except Exception as e:
-            logger.warning(f"获取委托失败: {e}")
+
+    # 持仓 / 委托：直接走 gateway JSON API（Issue #31 + 用户架构要求），
+    # 不再走 broker 包装层。错误一律吞掉，留空表 + log warning。
+    try:
+        positions, orders = _resolve_positions_orders_from_settings()
+    except Exception as e:
+        logger.warning(f"从 gateway 拉取持仓/委托失败: {e}")
 
     def main_block():
         return Div(
@@ -1963,19 +1970,189 @@ def _safe_positions(broker) -> list[Position]:
     return list(positions_dict) if positions_dict else []
 
 
+def _fetch_positions_orders_via_gateway(
+    base_url: str = "",
+    api_key: str = "",
+    timeout: float = 5.0,
+) -> tuple[list[dict], list[dict]]:
+    """直接通过 gateway JSON API 拉取持仓和委托.
+
+    Issue #31 复盘 + 用户架构要求：让 /trade 页面成为「gateway htmx 渲染层」，
+    解耦 broker 抽象（broker 包装、OrderView/PositionView 中间表示）。
+
+    与 ``broker.positions`` / ``broker.orders`` 走的同一条数据通道（都是 GET
+    /api/trade/{positions,orders}），但本函数直接发 HTTP，绕开
+    ``GatewayClient`` 的 session-cookie 登录流程——带 ``X-API-Key`` 就够。
+
+    任何错误（500、超时、鉴权失败、空配置）都返回 ``([], [])`` 并 log
+    warning，绝不抛异常影响页面渲染。qmt-gateway#45 修好后，
+    ``/api/trade/{positions,orders}`` 会正常返回 JSON（不再 500），本函数
+    在 dev-stub / production 两种模式下表现完全一致。
+    """
+    empty: tuple[list[dict], list[dict]] = ([], [])
+    if not base_url or not api_key:
+        return empty
+
+    positions: list[dict] = []
+    orders: list[dict] = []
+
+    for path, sink in (
+        ("/api/trade/positions", "positions"),
+        ("/api/trade/orders", "orders"),
+    ):
+        url = base_url.rstrip("/") + path
+        req_obj = urllib.request.Request(
+            url=url,
+            method="GET",
+            headers={
+                "X-API-Key": api_key,
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req_obj, timeout=timeout) as resp:
+                body = resp.read().decode("utf-8")
+            if not body:
+                continue
+            data = json.loads(body)
+        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+            logger.warning(f"通过 gateway JSON API 拉取 {sink} 失败: {e}")
+            continue
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"通过 gateway JSON API 拉取 {sink} 解析失败: {e}")
+            continue
+        except Exception as e:  # noqa: BLE001  (defensive: 任何 IO 错误都不破页面)
+            logger.warning(f"通过 gateway JSON API 拉取 {sink} 出现未预期异常: {e}")
+            continue
+        if not isinstance(data, list):
+            continue
+        if sink == "positions":
+            positions = data
+        else:
+            orders = data
+
+    return positions, orders
+
+
+def _coerce_gateway_position(
+    payload: dict,
+    portfolio_id: str = "gateway",
+) -> Position:
+    """把 gateway 返回的持仓 dict 包装成 ``Position`` 数据类."""
+    today = datetime.date.today()
+    asset = str(payload.get("symbol") or "")
+    shares = float(payload.get("shares") or 0)
+    avail = float(payload.get("avail") or 0)
+    price = float(payload.get("price") or payload.get("cost") or 0)
+    mv = float(payload.get("market_value") or 0)
+    profit = float(payload.get("float_profit") or 0)
+    return Position(
+        portfolio_id=portfolio_id,
+        dt=today,
+        asset=asset,
+        shares=shares,
+        avail=avail,
+        price=price,
+        profit=profit,
+        mv=mv,
+    )
+
+
+def _coerce_gateway_order(
+    payload: dict,
+    portfolio_id: str = "gateway",
+) -> Order:
+    """把 gateway 返回的委托 dict 包装成 ``Order`` 数据类."""
+    asset = str(payload.get("symbol") or "")
+    side = _coerce_order_side(str(payload.get("side") or ""))
+    status = _coerce_order_status(str(payload.get("status") or ""))
+    shares = float(payload.get("shares") or 0)
+    price = float(payload.get("price") or 0)
+    filled = float(payload.get("filled") or 0)
+    time_text = str(payload.get("time") or "")
+    qtoid = str(
+        payload.get("qtoid")
+        or payload.get("order_id")
+        or payload.get("foid")
+        or ""
+    )
+    if not qtoid:
+        from uuid import uuid4
+
+        qtoid = f"gw-{uuid4()}"
+    tm = _parse_order_time_text(time_text)
+    return Order(
+        portfolio_id=portfolio_id,
+        asset=asset,
+        side=side,
+        shares=shares,
+        bid_type=BidType.FIXED,
+        tm=tm,
+        price=price,
+        filled=filled,
+        foid=qtoid,
+        status=status,
+    )
+
+
+def _parse_order_time_text(time_text: str) -> datetime.datetime:
+    """把 ``"HH:MM:SS"`` / ``"YYYY-MM-DD HH:MM:SS"`` / ISO 字符串解析成 datetime.
+
+    gateway 委托响应里的 ``time`` 字段是字符串，三种格式都可能。
+    解析失败时回退到 ``datetime.datetime.now()``，不让单条坏数据把整页炸掉。
+    """
+    text = (time_text or "").strip()
+    if not text:
+        return datetime.datetime.now()
+    # ISO 格式（带 T 或带 -）
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S.%f",
+        "%H:%M:%S",
+    ):
+        try:
+            return datetime.datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return datetime.datetime.now()
+
+
+def _resolve_positions_orders_from_settings() -> tuple[list[Position], list[Order]]:
+    """从持久化 settings 拉取 gateway base_url/api_key，调 helper 转 dataclass."""
+    settings = get_settings()
+    if not settings.gateway_enabled:
+        return [], []
+    raw_positions, raw_orders = _fetch_positions_orders_via_gateway(
+        base_url=settings.gateway_base_url,
+        api_key=settings.gateway_api_key,
+        timeout=float(settings.gateway_timeout or 5),
+    )
+    portfolio_id = "gateway"
+    positions = [_coerce_gateway_position(p, portfolio_id) for p in raw_positions]
+    orders = [_coerce_gateway_order(o, portfolio_id) for o in raw_orders]
+    return positions, orders
+
+
 async def trade_positions_refresh(req):
     """Htmx 刷新按钮的 handler：仅返回 ``PositionTable`` 片段.
 
     Issue #29 复盘：原页面 ``hx_get="/trade/positions"`` 按钮没有对应路由，
     点击会 404。现在补齐，返回与主页面里同一份 ``PositionTable`` 组件
     以便 ``hx-swap="outerHTML"`` 替换 ``#position-table``。
+
+    Issue #31 + 用户架构要求：数据从 broker 包装层切到直接 gateway JSON API。
     """
-    return HTMLResponse(str(PositionTable(_safe_positions(_resolve_broker_for_refresh(req)))))
+    positions, _ = _resolve_positions_orders_from_settings()
+    return HTMLResponse(_to_xml(PositionTable(positions)))
 
 
 async def trade_orders_refresh(req):
     """Htmx 刷新按钮的 handler：仅返回 ``TodayOrdersTable`` 片段.
 
     Issue #29 复盘：原页面 ``hx_get="/trade/orders"`` 按钮没有对应路由。
+
+    Issue #31 + 用户架构要求：数据从 broker 包装层切到直接 gateway JSON API。
     """
-    return HTMLResponse(str(TodayOrdersTable(_safe_orders(_resolve_broker_for_refresh(req)))))
+    _, orders = _resolve_positions_orders_from_settings()
+    return HTMLResponse(_to_xml(TodayOrdersTable(orders)))

@@ -18,7 +18,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.testclient import TestClient
 
 import quantide.web.middleware_feature as middleware_feature
-from quantide.core.enums import BrokerKind
+from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
+from quantide.data.sqlite import Order
 from quantide.data.sqlite import db as _db
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import SimulationBroker
@@ -206,8 +207,13 @@ def auth_headers():
 
 class TestTradeMain:
     def test_trade_main_page(self, test_client):
+        # Issue #31 复盘：原断言 ``in [200, 302, 303]`` 太宽松，把 500 也「放行」了；
+        # 收紧到具体状态码，500/503/404 等任何错误状态必须被显式断言失败。
         response = test_client.get("/trade", follow_redirects=False)
-        assert response.status_code in [200, 302, 303]
+        assert response.status_code in (200, 303), (
+            f"expected 200 or 303, got {response.status_code}; "
+            f"body[:500]={response.text[:500]!r}"
+        )
 
     def test_positions_refresh_route_returns_200(self, test_client):
         """Issue #29 复盘：原 ``hx_get="/trade/positions"`` 按钮没有对应路由。
@@ -221,6 +227,291 @@ class TestTradeMain:
         """``hx_get="/trade/orders"`` 按钮对应路由 (Issue #29)."""
         response = test_client.get("/trade/orders", follow_redirects=False)
         assert response.status_code in (200, 303)
+
+
+class TestTodayOrdersTableWithOrders:
+    """``TodayOrdersTable`` 在订单非空时也不能 500（Issue #31 复盘）.
+
+    原 #29 修复只改了 ``status_map`` 的 enum 查表，忘了第 1461 行的
+    ``o.status in [OrderStatus.PENDING, OrderStatus.PARTIAL]`` 撤单按钮判定。
+    走 ``if o.status in [...]`` 路径前需要先拿到 ``o.status``，所以当
+    orders 列表非空时，loop 第一次进入就会触发 ``AttributeError``。
+
+    dev-stub 默认场景 ``orders=[]``，循环根本不进入，所以这条 bug 一直被
+    隐藏；这条用例直接喂非空 orders 进去，绕开 dev-stub 的默认空列表。
+    """
+
+    def _build_order(self, status: OrderStatus) -> Order:
+        return Order(
+            portfolio_id="test",
+            asset="000001.SZ",
+            side=OrderSide.BUY,
+            shares=100,
+            bid_type=BidType.FIXED,
+            tm=datetime.datetime(2026, 6, 4, 9, 31, 0),
+            price=10.0,
+            filled=0.0,
+            foid=None,
+            status=status,
+        )
+
+    def _render(self, orders):
+        from fasthtml.common import to_xml
+
+        from quantide.web.pages.trade_main import TodayOrdersTable
+
+        # 注意：``str(FT_object)`` 只返回 id（fastcore 行为），
+        # 要拿渲染后的 HTML 必须走 ``to_xml``。
+        return to_xml(TodayOrdersTable(orders))
+
+    def test_empty_orders_still_renders(self) -> None:
+        # baseline: 空委托路径（默认 dev-stub 场景）应该能渲染
+        html = self._render([])
+        assert "暂无当日委托" in html
+
+    def test_cancellable_statuses_render_cancel_button(self) -> None:
+        # 这些状态对应网关的 _is_order_cancellable() 集合
+        for status in (
+            OrderStatus.UNREPORTED,
+            OrderStatus.WAIT_REPORTING,
+            OrderStatus.REPORTED,
+            OrderStatus.PART_SUCC,
+        ):
+            html = self._render([self._build_order(status)])
+            assert "撤单" in html, f"cancel button missing for {status!r}"
+
+    def test_non_cancellable_statuses_omit_cancel_button(self) -> None:
+        # 已成交 / 已撤 / 已拒绝 / 未知 不应再渲染撤单按钮
+        for status in (
+            OrderStatus.SUCCEEDED,
+            OrderStatus.CANCELED,
+            OrderStatus.JUNK,
+            OrderStatus.UNKNOWN,
+        ):
+            html = self._render([self._build_order(status)])
+            assert "撤单" not in html, f"cancel button wrongly shown for {status!r}"
+
+    def test_regression_issue_31_does_not_500(self) -> None:
+        """直接复现 #31：原代码 ``o.status in [OrderStatus.PENDING, ...]`` 在非空 orders 列表下会 ``AttributeError``。
+
+        这条用例就是为了在 CI 上立刻抓出「PENDING/PARTIAL 这两个属性不存在」这种回归。
+        """
+        try:
+            self._render([self._build_order(OrderStatus.REPORTED)])
+        except AttributeError as e:
+            pytest.fail(
+                f"TodayOrdersTable 500 回归 (Issue #31): AttributeError {e!r}. "
+                "检查是不是又把 OrderStatus.PENDING / OrderStatus.PARTIAL "
+                "（在 OrderStatus 枚举里不存在）当 attribute 引用了。"
+            )
+
+    def test_mixed_status_orders_all_render(self) -> None:
+        """混合状态下整个表能正常渲染."""
+        orders = [
+            self._build_order(OrderStatus.REPORTED),
+            self._build_order(OrderStatus.PART_SUCC),
+            self._build_order(OrderStatus.SUCCEEDED),
+            self._build_order(OrderStatus.CANCELED),
+        ]
+        html = self._render(orders)
+        # 4 行委托；每行在「代码」和「名称」两列里都出现资产代码（line 1434：
+        # ``Td(o.asset), Td(o.asset),  # TODO: 获取证券名称``），所以总数是 4*2=8。
+        assert html.count("000001.SZ") == 8
+        # 4 行里 2 行可撤单（REPORTED + PART_SUCC）；用 ``hx-post="/trade/cancel/"``
+        # 这个具体属性来精确匹配撤单按钮，避免被页面其它位置（侧栏、toast 等）的
+        # 「撤单」字样误伤。
+        assert html.count('hx-post="/trade/cancel/') == 2
+        # 各状态文本都出现
+        assert "已报" in html
+        assert "部分成交" in html
+        assert "已成交" in html
+        assert "已撤" in html
+
+
+class TestFetchPositionsOrdersViaGateway:
+    """``_fetch_positions_orders_via_gateway`` 的回归测试 (Issue #31 + 用户架构要求).
+
+    /trade 页面已切到直接调 gateway JSON API（``X-API-Key`` 鉴权），
+    不再走 broker 包装层。helper 必须：
+    1. 正确返回网关 JSON（成功路径）
+    2. 网关 500 / 鉴权失败 / 超时一律返回 ``([], [])``，永不抛异常
+       —— qmt-gateway#45 修了 500 后这条契约更不能破
+    3. 空 base_url / 空 api_key 立即短路返回空，不发请求
+    """
+
+    def _helper(self):
+        from quantide.web.pages.trade_main import (
+            _fetch_positions_orders_via_gateway,
+        )
+
+        return _fetch_positions_orders_via_gateway
+
+    def test_returns_empty_when_base_url_blank(self) -> None:
+        positions, orders = self._helper()(
+            base_url="", api_key="some-key", timeout=2
+        )
+        assert positions == []
+        assert orders == []
+
+    def test_returns_empty_when_api_key_blank(self) -> None:
+        positions, orders = self._helper()(
+            base_url="http://127.0.0.1:1", api_key="", timeout=2
+        )
+        assert positions == []
+        assert orders == []
+
+    def test_returns_parsed_json_from_real_dev_stub(self) -> None:
+        from urllib.parse import urlparse
+
+        from tests.e2e.support.gateway_stub import running_gateway_stub
+
+        with running_gateway_stub(prefix="/qmt", api_key="good-key") as stub:
+            host = urlparse(stub.base_url).hostname
+            port = urlparse(stub.base_url).port
+            base_url = f"http://{host}:{port}/qmt"
+            positions, orders = self._helper()(
+                base_url=base_url, api_key="good-key", timeout=2
+            )
+        assert isinstance(positions, list)
+        assert isinstance(orders, list)
+        # dev-stub 默认场景是空列表；只要返回了 list 类型就是成功的
+        assert positions == []
+        assert orders == []
+
+    def test_wrong_api_key_returns_empty(self) -> None:
+        from urllib.parse import urlparse
+
+        from tests.e2e.support.gateway_stub import running_gateway_stub
+
+        with running_gateway_stub(prefix="/qmt", api_key="good-key") as stub:
+            host = urlparse(stub.base_url).hostname
+            port = urlparse(stub.base_url).port
+            base_url = f"http://{host}:{port}/qmt"
+            # 错 key → 网关 401 → helper 必须返回空，不抛
+            positions, orders = self._helper()(
+                base_url=base_url, api_key="bad-key", timeout=2
+            )
+        assert positions == []
+        assert orders == []
+
+    def test_unreachable_server_returns_empty(self) -> None:
+        # 端口 1 在大多数系统上没有被占用，连接会被立即拒绝
+        positions, orders = self._helper()(
+            base_url="http://127.0.0.1:1", api_key="x", timeout=1
+        )
+        assert positions == []
+        assert orders == []
+
+
+class TestCoerceGatewayOrder:
+    """``_coerce_gateway_order`` 把 gateway 委托 dict 转 ``Order`` 数据类."""
+
+    def _helper(self):
+        from quantide.web.pages.trade_main import _coerce_gateway_order
+
+        return _coerce_gateway_order
+
+    def test_coerces_normalized_status_strings(self) -> None:
+        for raw, expected in [
+            ("filled", OrderStatus.SUCCEEDED),
+            ("partial", OrderStatus.PART_SUCC),
+            ("cancelled", OrderStatus.CANCELED),
+            ("reported", OrderStatus.REPORTED),
+            ("pending", OrderStatus.WAIT_REPORTING),
+        ]:
+            order = self._helper()(
+                {
+                    "qtoid": "qt-1",
+                    "symbol": "000001.SZ",
+                    "side": "buy",
+                    "shares": 100,
+                    "price": 10.0,
+                    "filled": 0.0,
+                    "status": raw,
+                    "time": "2026-06-04 09:31:00",
+                }
+            )
+            assert order.status is expected, f"status {raw!r} → {order.status!r}"
+
+    def test_falls_back_to_unknown_for_garbage_status(self) -> None:
+        order = self._helper()(
+            {
+                "qtoid": "qt-1",
+                "symbol": "000001.SZ",
+                "side": "buy",
+                "shares": 100,
+                "price": 10.0,
+                "filled": 0.0,
+                "status": "submitted",  # 不在映射里 → OrderStatus.UNKNOWN
+                "time": "2026-06-04 09:31:00",
+            }
+        )
+        assert order.status is OrderStatus.UNKNOWN
+
+    def test_resolves_qtoid_from_order_id_field(self) -> None:
+        order = self._helper()(
+            {
+                "order_id": "ext-abc",
+                "symbol": "000001.SZ",
+                "side": "buy",
+                "shares": 100,
+                "price": 10.0,
+                "filled": 0.0,
+                "status": "filled",
+                "time": "2026-06-04 09:31:00",
+            }
+        )
+        # 没有 qtoid 字段时 fallback 到 order_id——helper 把 order_id 当作
+        # ``foid``（gateway 外部 id，透传），不再额外包前缀。
+        assert order.foid == "ext-abc"
+
+    def test_falls_back_to_uuid_when_no_id_field(self) -> None:
+        order = self._helper()(
+            {
+                "symbol": "000001.SZ",
+                "side": "buy",
+                "shares": 100,
+                "price": 10.0,
+                "filled": 0.0,
+                "status": "filled",
+                "time": "2026-06-04 09:31:00",
+            }
+        )
+        # 没有 qtoid / order_id / foid → 生成 uuid-like 字符串
+        assert order.foid.startswith("gw-")
+        assert len(order.foid) > 10
+
+    def test_parses_iso_time_string(self) -> None:
+        order = self._helper()(
+            {
+                "qtoid": "qt-1",
+                "symbol": "000001.SZ",
+                "side": "buy",
+                "shares": 100,
+                "price": 10.0,
+                "filled": 0.0,
+                "status": "filled",
+                "time": "2026-06-04T09:31:00",
+            }
+        )
+        assert order.tm == datetime.datetime(2026, 6, 4, 9, 31, 0)
+
+    def test_garbage_time_falls_back_to_now(self) -> None:
+        """坏 time 字符串不应让 helper 抛异常."""
+        order = self._helper()(
+            {
+                "qtoid": "qt-1",
+                "symbol": "000001.SZ",
+                "side": "buy",
+                "shares": 100,
+                "price": 10.0,
+                "filled": 0.0,
+                "status": "filled",
+                "time": "this is not a date",
+            }
+        )
+        # tm 应该是 datetime.datetime 实例（不验证具体值，但应该是合理的）
+        assert isinstance(order.tm, datetime.datetime)
 
 
 class TestLoginRoutes:
