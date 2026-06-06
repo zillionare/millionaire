@@ -306,17 +306,17 @@ def create_app(
             ),
             Route(
                 "/papertrade",
-                lambda req: RedirectResponse("/trade/simulation/", status_code=303),
+                lambda req: RedirectResponse("/trade/paper/", status_code=303),
                 methods=["GET"],
             ),
             Route(
                 "/papertrade/",
-                lambda req: RedirectResponse("/trade/simulation/", status_code=303),
+                lambda req: RedirectResponse("/trade/paper/", status_code=303),
                 methods=["GET"],
             ),
             Route(
                 "/trade/simulation",
-                lambda req: RedirectResponse("/trade/simulation/", status_code=303),
+                lambda req: RedirectResponse("/trade/paper/", status_code=303),
                 methods=["GET"],
             ),
             Route(
@@ -324,8 +324,14 @@ def create_app(
                 lambda req: RedirectResponse("/trade/live/", status_code=303),
                 methods=["GET"],
             ),
+            Route(
+                "/trade/paper",
+                lambda req: RedirectResponse("/trade/paper/", status_code=303),
+                methods=["GET"],
+            ),
             Mount("/home", home_app),
             Mount("/trade/live", live_app),
+            Mount("/trade/paper", live_app),
             Route("/trade/positions/history", history_positions_list, methods=["GET"]),
             Route("/trade/orders/history", history_orders_list, methods=["GET"]),
             Route("/trade/records/history", history_trades_list, methods=["GET"]),

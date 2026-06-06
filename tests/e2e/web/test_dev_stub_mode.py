@@ -31,13 +31,10 @@ def test_dev_stub_switch_starts_gateway_and_tushare(monkeypatch) -> None:
 
             response = session.client.get("/papertrade", follow_redirects=False)
             assert response.status_code == 303
-            assert response.headers["location"] == "/trade/simulation/"
+            assert response.headers["location"] == "/trade/paper/"
 
             response = session.client.get("/trade/live/", follow_redirects=False)
             assert response.status_code != 403
-
-            response = session.client.get("/trade/simulation/", follow_redirects=False)
-            assert response.status_code != 404
 
             strategy_runtime_manager.create_backtest_runtime(
                 portfolio_id=portfolio_id,

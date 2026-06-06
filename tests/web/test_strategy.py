@@ -30,15 +30,15 @@ def test_strategy_live_redirects_to_trade_live_with_create_app_client():
     assert response.headers["location"] == "/trade/live/"
 
 
-def test_papertrade_redirects_to_trade_simulation_with_create_app_client():
+def test_papertrade_redirects_to_trade_paper_with_create_app_client():
     with system_settings_e2e_session() as session:
         response = session.client.get("/papertrade", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/trade/simulation/"
+    assert response.headers["location"] == "/trade/paper/"
 
 
-def test_trade_simulation_redirects_to_trailing_slash_with_create_app_client(monkeypatch):
+def test_trade_simulation_redirects_to_trade_paper_with_create_app_client(monkeypatch):
     monkeypatch.setattr(
         "quantide.web.middleware_feature.get_feature_status",
         lambda: {
@@ -51,7 +51,7 @@ def test_trade_simulation_redirects_to_trailing_slash_with_create_app_client(mon
         response = session.client.get("/trade/simulation", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/trade/simulation/"
+    assert response.headers["location"] == "/trade/paper/"
 
 
 def test_strategy_index_page_omits_runtime_and_risk_panels(monkeypatch, db):

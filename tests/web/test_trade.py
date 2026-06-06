@@ -23,6 +23,7 @@ from quantide.data.sqlite import Order
 from quantide.data.sqlite import db as _db
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import SimulationBroker
+from tests.e2e.support.system_settings_session import system_settings_e2e_session
 
 
 @pytest.fixture(scope="module")
@@ -547,34 +548,12 @@ class TestLoginRoutes:
         assert response.headers["location"] == "/"
 
     def test_home_tolerates_broker_asset_errors(self, test_client, monkeypatch):
-        headers = Message()
-
-        class BrokenBroker:
-            portfolio_id = "gateway"
-
-            @property
-            def asset(self):
-                raise urllib.error.HTTPError(
-                    url="http://localhost:8000/api/trade/asset",
-                    code=404,
-                    msg="Not Found",
-                    hdrs=headers,
-                    fp=None,
-                )
-
-            @property
-            def positions(self):
-                raise urllib.error.HTTPError(
-                    url="http://localhost:8000/api/trade/positions",
-                    code=404,
-                    msg="Not Found",
-                    hdrs=headers,
-                    fp=None,
-                )
-
         from quantide.web.pages import home as home_page
 
-        monkeypatch.setattr(home_page, "_get_broker", lambda req: BrokenBroker())
+        def _boom():
+            raise RuntimeError("broker lookup unavailable")
+
+        monkeypatch.setattr(home_page.init_wizard, "get_feature_status", _boom)
 
         with test_client as client:
             login = client.post(
@@ -586,8 +565,8 @@ class TestLoginRoutes:
 
             response = client.get("/", follow_redirects=False)
 
-        assert response.status_code == 200
-        assert "首页" in response.text
+        assert response.status_code == 303
+        assert response.headers["location"] == "/strategy/"
 
     def test_authenticated_header_shows_avatar_menu_actions(self, test_client):
         with test_client as client:
@@ -598,7 +577,7 @@ class TestLoginRoutes:
             )
             assert login.status_code == 303
 
-            response = client.get("/", follow_redirects=False)
+            response = client.get("/strategy/", follow_redirects=False)
 
         assert response.status_code == 200
         assert "Millionaire" in response.text
@@ -1591,6 +1570,79 @@ class TestGatewayFirstNavigation:
         child_titles = {child.get("title") for child in runtime_group.get("children", [])}
 
         assert {"风险事件中心", "运行时监控"}.issubset(child_titles)
+
+
+class TestDynamicHomeRedirect:
+
+    def test_redirects_to_strategy_when_gateway_disabled(self, monkeypatch):
+        monkeypatch.setattr(
+            "quantide.web.pages.home.init_wizard.get_feature_status",
+            lambda: {"backtest": True, "simulation": False, "live_trading": False},
+        )
+
+        with system_settings_e2e_session() as session:
+            response = session.client.get("/", follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/strategy/"
+
+    def test_redirects_to_trade_live_when_gateway_enabled(self, monkeypatch):
+        monkeypatch.setattr(
+            "quantide.web.pages.home.init_wizard.get_feature_status",
+            lambda: {"backtest": True, "simulation": True, "live_trading": True},
+        )
+
+        with system_settings_e2e_session() as session:
+            response = session.client.get("/", follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/trade/live/"
+
+    def test_redirects_to_strategy_when_feature_status_lookup_fails(self, monkeypatch):
+        def _boom():
+            raise RuntimeError("feature status unavailable")
+
+        monkeypatch.setattr(
+            "quantide.web.pages.home.init_wizard.get_feature_status",
+            _boom,
+        )
+
+        with system_settings_e2e_session() as session:
+            response = session.client.get("/", follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/strategy/"
+
+
+class TestSidebarLinks:
+
+    def test_simulation_link_points_to_trade_paper(self):
+        from quantide.web.layouts.main import HEADER_MENU
+
+        urls = {item["title"]: item["url"] for item in HEADER_MENU}
+
+        assert urls["仿真"] == "/trade/paper/"
+
+    def test_live_link_points_to_trade_live(self):
+        from quantide.web.layouts.main import HEADER_MENU
+
+        urls = {item["title"]: item["url"] for item in HEADER_MENU}
+
+        assert urls["实盘"] == "/trade/live/"
+
+    def test_papertrade_legacy_redirect_targets_trade_paper(self):
+        with system_settings_e2e_session() as session:
+            response = session.client.get("/papertrade", follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/trade/paper/"
+
+    def test_trade_simulation_legacy_redirect_targets_trade_paper(self):
+        with system_settings_e2e_session() as session:
+            response = session.client.get("/trade/simulation", follow_redirects=False)
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/trade/paper/"
 
 
 class TestBrokerRegistry:

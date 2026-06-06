@@ -1,4 +1,3 @@
-import datetime
 from typing import Any
 
 from fasthtml.common import *
@@ -11,11 +10,10 @@ from starlette.responses import RedirectResponse
 
 from quantide.config.branding import get_branding
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
-from quantide.data.sqlite import Position, db
+from quantide.data.sqlite import Position
 from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
 from quantide.web.apis.broker import build_asset_overview
-from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme
 
 home_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -691,12 +689,16 @@ def _should_show_no_account_dialog(accounts: list[dict]) -> bool:
 
 
 def _should_redirect_to_strategy() -> bool:
-    """当交易入口不可用时，根页面直接落到策略列表。"""
+    """首页是否应重定向到策略页。
+
+    等价于 `not live_trading_available`（即 `not gateway_enabled`）。
+    函数体保留以维持调用点语义清晰；`get_feature_status()["live_trading"]`
+    已封装 dev-stub 模式、gateway 配置与连接性测试为单一标志。
+    """
     try:
-        status = init_wizard.get_feature_status()
+        return not bool(init_wizard.get_feature_status().get("live_trading"))
     except Exception:
         return True
-    return not bool(status.get("simulation") and status.get("live_trading"))
 
 
 def main_block(
@@ -789,94 +791,8 @@ def _auto_select_account(reg: BrokerRegistry, session: dict) -> tuple[str, str] 
 def index(req, session):
     if _should_redirect_to_strategy():
         return RedirectResponse("/strategy/", status_code=303)
+    return RedirectResponse("/trade/live/", status_code=303)
 
-    layout = MainLayout(
-        title="首页",
-        user=session.get("auth"),
-    )
-
-    asset_overview = None
-    brokers = []
-    positions = []
-    orders = []
-    accounts = []
-    active_account = None
-    reg: BrokerRegistry | None = req.scope.get("registry")
-
-    if reg is not None:
-        # 获取所有账户
-        for kind in [BrokerKind.QMT, BrokerKind.SIMULATION]:
-            for info in reg.list_by_kind(kind):
-                account = {
-                    "id": info.get("id"),
-                    "name": info.get("name") or info.get("id"),
-                    "kind": kind.value,
-                    "label": "实盘" if kind == BrokerKind.QMT else "仿真",
-                    "status": info.get("status", False),
-                    "is_live": kind == BrokerKind.QMT,
-                    "switch_url": f"/home?kind={kind.value}&id={info.get('id')}",
-                }
-                accounts.append(account)
-
-        # 检查是否有任何账户
-        show_no_account_dialog = _should_show_no_account_dialog(accounts)
-
-        # 检查 session 中是否有活动账户
-        active_kind = session.get("active_account_kind")
-        active_id = session.get("active_account_id")
-
-        if active_kind and active_id:
-            # 验证活动账户是否仍然存在
-            broker = reg.get(BrokerKind(active_kind), active_id)
-            if broker is None:
-                # 活动账户已不存在，需要重新选择
-                selected = _auto_select_account(reg, session)
-                if selected:
-                    session["active_account_kind"] = selected[0]
-                    session["active_account_id"] = selected[1]
-                    active_kind, active_id = selected
-        else:
-            # 没有活动账户，自动选择
-            selected = _auto_select_account(reg, session)
-            if selected:
-                session["active_account_kind"] = selected[0]
-                session["active_account_id"] = selected[1]
-                active_kind, active_id = selected
-
-        # 获取当前活动账户信息
-        if active_kind and active_id:
-            for acc in accounts:
-                if acc["kind"] == active_kind and acc["id"] == active_id:
-                    active_account = acc
-                    break
-
-        # 获取经纪人数据
-        broker = _get_broker(req)
-        if broker is not None:
-            asset_overview = _build_broker_asset_overview(broker)
-            positions = _normalize_positions(_safe_broker_attr(broker, "positions", []))
-            portfolio_id = _safe_broker_attr(broker, "portfolio_id")
-            if portfolio_id:
-                orders_df = db.get_orders(datetime.date.today(), portfolio_id)
-                if orders_df is not None and not orders_df.is_empty():
-                    orders = [
-                        {
-                            "tm": str(row.get("tm", ""))[:19],
-                            "asset": row.get("asset", ""),
-                            "side": row.get("side", OrderSide.BUY),
-                            "price": row.get("price", 0.0),
-                            "shares": row.get("shares", 0),
-                            "filled": row.get("filled", 0),
-                            "status": row.get("status", OrderStatus.UNREPORTED),
-                        }
-                        for row in orders_df.iter_rows(named=True)
-                    ]
-
-    layout.header_accounts = accounts
-    layout.active_account = active_account
-    layout.main_block = lambda: main_block(asset_overview, brokers, positions, orders, show_no_account_dialog)
-
-    return layout.render()
 
 @rt("/positions")
 async def get_positions(req):
