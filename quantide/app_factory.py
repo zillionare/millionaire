@@ -57,6 +57,7 @@ from quantide.web.pages.history_trades import history_trades_list
 from quantide.web.pages.home import home_app
 from quantide.web.pages.init_wizard import init_wizard, init_wizard_app
 from quantide.web.pages.live import live_app
+from quantide.web.pages.paper import paper_app
 from quantide.web.pages.strategy import strategy_app
 from quantide.web.pages.system.calendar import system_calendar_app
 from quantide.web.pages.system.datasource import system_datasource_app
@@ -331,7 +332,7 @@ def create_app(
             ),
             Mount("/home", home_app),
             Mount("/trade/live", live_app),
-            Mount("/trade/paper", live_app),
+            Mount("/trade/paper", paper_app),
             Route("/trade/positions/history", history_positions_list, methods=["GET"]),
             Route("/trade/orders/history", history_orders_list, methods=["GET"]),
             Route("/trade/records/history", history_trades_list, methods=["GET"]),

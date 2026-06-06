@@ -369,7 +369,7 @@ def live_list(req, session):
         {
             "title": "交易",
             "children": [
-                {"title": "仿真", "url": "/trade/simulation"},
+                {"title": "仿真", "url": "/trade/paper"},
                 {"title": "实盘", "url": "/trade/live"},
             ],
         }
@@ -434,7 +434,7 @@ def portfolio_detail(req, session, portfolio_id: str):
         {
             "title": "交易",
             "children": [
-                {"title": "仿真", "url": "/trade/simulation"},
+                {"title": "仿真", "url": "/trade/paper"},
                 {"title": "实盘", "url": "/trade/live"},
             ],
         }

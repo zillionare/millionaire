@@ -5,6 +5,7 @@ import tempfile
 import urllib.error
 from email.message import Message
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import quote
 
 import polars as pl
@@ -1616,13 +1617,6 @@ class TestDynamicHomeRedirect:
 
 class TestSidebarLinks:
 
-    def test_simulation_link_points_to_trade_paper(self):
-        from quantide.web.layouts.main import HEADER_MENU
-
-        urls = {item["title"]: item["url"] for item in HEADER_MENU}
-
-        assert urls["仿真"] == "/trade/paper/"
-
     def test_live_link_points_to_trade_live(self):
         from quantide.web.layouts.main import HEADER_MENU
 
@@ -1643,6 +1637,167 @@ class TestSidebarLinks:
 
         assert response.status_code == 303
         assert response.headers["location"] == "/trade/paper/"
+
+
+class TestPaperEntry:
+
+    def _sim_registry(self, sims):
+        reg = SimpleNamespace()
+        reg.list_by_kind = lambda kind: sims if (str(kind) == "BrokerKind.SIMULATION" or getattr(kind, "value", kind) == "simulation") else []
+        return reg
+
+    def test_simulation_disabled_when_no_paper_accounts(self):
+        from quantide.web.layouts.main import build_header_menu
+
+        req = SimpleNamespace(scope={"registry": self._sim_registry([])})
+        menu = build_header_menu(trade_enabled=True, req=req)
+        paper = next(item for item in menu if item.get("title") == "仿真")
+
+        assert paper.get("disabled") is True
+        assert paper.get("label_override") == "未配置仿真账户"
+        assert paper.get("title_attr") == "请先在 init wizard 中添加仿真账户"
+        assert paper.get("children") in (None, [])
+
+    def test_simulation_jumps_directly_with_single_paper_account(self):
+        from quantide.web.layouts.main import build_header_menu
+
+        reg = self._sim_registry([{"id": "sim_a", "name": "仿真A", "status": True}])
+        req = SimpleNamespace(scope={"registry": reg})
+        menu = build_header_menu(trade_enabled=True, req=req)
+        paper = next(item for item in menu if item.get("title") == "仿真")
+
+        assert paper.get("url") == "/trade/paper?account_id=sim_a"
+        assert paper.get("disabled") in (None, False)
+        assert not paper.get("children")
+
+    def test_simulation_has_dropdown_with_multiple_paper_accounts(self):
+        from quantide.web.layouts.main import build_header_menu
+
+        reg = self._sim_registry([
+            {"id": "sim_a", "name": "仿真A", "status": True},
+            {"id": "sim_b", "name": "仿真B", "status": True},
+            {"id": "sim_c", "name": "仿真C", "status": True},
+        ])
+        req = SimpleNamespace(scope={"registry": reg})
+        menu = build_header_menu(trade_enabled=True, req=req)
+        paper = next(item for item in menu if item.get("title") == "仿真")
+
+        children = paper.get("children") or []
+        assert len(children) == 3
+        assert {c["url"] for c in children} == {
+            "/trade/paper?account_id=sim_a",
+            "/trade/paper?account_id=sim_b",
+            "/trade/paper?account_id=sim_c",
+        }
+        names = {c["title"] for c in children}
+        assert names == {"仿真A", "仿真B", "仿真C"}
+
+    def test_simulation_falls_back_to_disabled_when_registry_unavailable(self):
+        from quantide.web.layouts.main import build_header_menu
+
+        req = SimpleNamespace(scope={})
+        menu = build_header_menu(trade_enabled=True, req=req)
+        paper = next(item for item in menu if item.get("title") == "仿真")
+
+        assert paper.get("disabled") is True
+
+
+class TestPaperAccountPage:
+
+    def test_paper_route_returns_200(self):
+        with system_settings_e2e_session() as session:
+            response = session.client.get(
+                "/trade/paper/",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 200
+        assert "仿真交易" in response.text
+
+    def test_paper_with_unknown_account_id_renders_not_found(self):
+        with system_settings_e2e_session() as session:
+            response = session.client.get(
+                "/trade/paper/?account_id=missing_account_xyz_for_test",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 200
+        assert "未找到该仿真账户" in response.text
+
+    def test_paper_entry_handler_dispatches_by_account_count(self, monkeypatch):
+        from quantide.web.pages import paper as paper_page
+
+        def _build_req(sim_list, get_map=None, query_params=None):
+            reg = SimpleNamespace()
+            reg.list_by_kind = lambda kind: sim_list
+            reg.get = lambda kind, pid: (get_map or {}).get(pid)
+            return SimpleNamespace(
+                scope={"registry": reg},
+                query_params=query_params or {},
+            )
+
+        class _StubBroker:
+            def __init__(self, account_id, name):
+                self.portfolio_id = account_id
+                self.portfolio_name = name
+                self.positions = []
+                self.total_assets = 100000
+                self.cash = 100000
+                self.principal = 100000
+
+        monkeypatch.setattr(
+            paper_page, "_render_paper_account",
+            lambda layout, broker: f"<rendered {broker.portfolio_id}>",
+        )
+        monkeypatch.setattr(paper_page, "_render_empty_paper", lambda layout: "<empty>")
+        monkeypatch.setattr(
+            paper_page, "_render_paper_picker",
+            lambda layout, sims: f"<picker {len(sims)}>",
+        )
+
+        result0 = paper_page.paper_list(_build_req([]), {})
+        assert result0 == "<empty>"
+
+        result1 = paper_page.paper_list(
+            _build_req(
+                [{"id": "sim_a", "name": "A", "status": True}],
+                get_map={"sim_a": _StubBroker("sim_a", "A")},
+            ),
+            {},
+        )
+        assert result1 == "<rendered sim_a>"
+
+        result2 = paper_page.paper_list(
+            _build_req(
+                [
+                    {"id": "sim_a", "name": "A", "status": True},
+                    {"id": "sim_b", "name": "B", "status": True},
+                ],
+            ),
+            {},
+        )
+        assert result2 == "<picker 2>"
+
+        result3 = paper_page.paper_list(
+            _build_req(
+                [],
+                get_map={"sim_explicit": _StubBroker("sim_explicit", "E")},
+                query_params={"account_id": "sim_explicit"},
+            ),
+            {},
+        )
+        assert result3 == "<rendered sim_explicit>"
+
+        result4 = paper_page.paper_list(
+            _build_req(
+                [],
+                query_params={"account_id": "ghost"},
+            ),
+            {},
+        )
+        result4_str = str(result4)
+        assert "ghost" in result4_str
+        assert "p-6" in result4_str
 
 
 class TestBrokerRegistry:

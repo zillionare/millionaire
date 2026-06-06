@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fasthtml.common import A, Button, Div, Header, Nav, Script, Span
+from fasthtml.common import A, Button, Details, Div, Header, Nav, Script, Span, Summary
 from monsterui.all import UkIcon
 
 
@@ -24,22 +24,56 @@ def _build_nav_links(nav_items: list[tuple[str, str]] | list[dict[str, Any]], ac
         title = str(item.get("title", ""))
         url = str(item.get("url", "#"))
         requires_gateway = bool(item.get("requires_gateway", False))
+        disabled = bool(item.get("disabled", False)) or requires_gateway
+        children = item.get("children") or []
         is_active = title == active_title
         active_cls = "border-b-2 border-primary text-primary"
         inactive_cls = "text-gray-600 hover:text-gray-900 border-b-2 border-transparent"
-        attrs = {}
-        if requires_gateway:
+        attrs: dict[str, Any] = {}
+        label_override = item.get("label_override")
+        display_text = str(label_override) if label_override else title
+
+        if children:
+            nav_links.append(
+                Div(
+                    Details(
+                        Summary(
+                            Span(display_text, cls="inline-flex items-center text-sm font-medium"),
+                            Span(" ▾", cls="text-xs ml-1"),
+                            cls=active_cls if is_active else inactive_cls,
+                        ),
+                        Div(
+                            *[
+                                A(
+                                    str(c.get("title", "")),
+                                    href=str(c.get("url", "#")),
+                                    cls="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50",
+                                )
+                                for c in children
+                            ],
+                            cls="absolute z-50 mt-1 min-w-[160px] rounded-lg border border-gray-100 bg-white shadow-lg",
+                        ),
+                        cls="relative inline-block",
+                    ),
+                    cls="inline-flex items-center px-2",
+                )
+            )
+            continue
+
+        if disabled:
             attrs = {
-                "onclick": "showGatewayRequiredModal(event)",
                 "aria_disabled": "true",
-                "title": "请先配置交易网关",
+                "title": str(item.get("title_attr") or "请先配置交易网关"),
             }
         nav_links.append(
             A(
-                title,
+                display_text,
                 href=url,
-                cls="inline-flex items-center px-4 py-5 text-sm font-medium transition "
-                + (active_cls if is_active else inactive_cls),
+                cls=(
+                    "inline-flex items-center px-4 py-5 text-sm font-medium transition "
+                    + (active_cls if is_active else inactive_cls)
+                    + (" opacity-60 cursor-not-allowed" if disabled else "")
+                ),
                 **attrs,
             )
         )

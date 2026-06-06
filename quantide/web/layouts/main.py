@@ -99,23 +99,70 @@ SIDEBAR_MENUS = {
     "分析": ANALYSIS_MENU,
 }
 
-HEADER_MENU = [
+STATIC_HEADER_ITEMS: list[dict[str, object]] = [
     {"title": "策略", "url": "/strategy"},
     {"title": "系统维护", "url": "/system"},
     {"title": "实盘", "url": "/trade/live/"},
-    {"title": "仿真", "url": "/trade/paper/"},
 ]
 
 
-def build_header_menu(trade_enabled: bool) -> list[dict[str, object]]:
-    menu = copy.deepcopy(HEADER_MENU)
-    if trade_enabled:
-        return menu
+def _build_paper_entry(req: object | None = None) -> dict[str, object]:
+    """根据仿真账户数量生成 sidebar 仿真入口的菜单项。
 
-    for item in menu:
-        if item["title"] in {"实盘", "仿真"}:
-            item["requires_gateway"] = True
+    - 0 账户：`disabled`，文案 "未配置仿真账户"，`title` 提示
+    - 1 账户：单按钮，跳 `/trade/paper?account_id=<id>`
+    - 2+ 账户：带 `children` 列表，浏览器原生 `<details>` 渲染下拉
+    """
+    sims: list[dict] = []
+    if req is not None:
+        reg = getattr(req, "scope", {}).get("registry")
+        if reg is not None:
+            try:
+                sims = list(reg.list_by_kind(BrokerKind.SIMULATION) or [])
+            except Exception:
+                sims = []
+
+    if not sims:
+        return {
+            "title": "仿真",
+            "url": "#",
+            "disabled": True,
+            "title_attr": "请先在 init wizard 中添加仿真账户",
+            "label_override": "未配置仿真账户",
+        }
+
+    if len(sims) == 1:
+        only = sims[0]
+        return {
+            "title": "仿真",
+            "url": f"/trade/paper?account_id={only.get('id', '')}",
+        }
+
+    children = [
+        {
+            "title": s.get("name") or s.get("id", ""),
+            "url": f"/trade/paper?account_id={s.get('id', '')}",
+        }
+        for s in sims
+    ]
+    return {
+        "title": "仿真",
+        "url": "#",
+        "children": children,
+    }
+
+
+def build_header_menu(trade_enabled: bool, req: object | None = None) -> list[dict[str, object]]:
+    menu: list[dict[str, object]] = copy.deepcopy(STATIC_HEADER_ITEMS)
+    menu.append(_build_paper_entry(req))
+    if not trade_enabled:
+        for item in menu:
+            if item.get("title") in {"实盘", "仿真"}:
+                item["requires_gateway"] = True
     return menu
+
+
+HEADER_MENU = STATIC_HEADER_ITEMS
 
 
 def _menu_titles(menu_items: list[dict[str, object]]) -> set[str]:
@@ -305,7 +352,7 @@ class MainLayout(BaseLayout):
                 header_component(
                     logo="/static/logo.png",
                     brand=get_branding().product_name,
-                    nav_items=build_header_menu(self._trade_entries_enabled()),
+                    nav_items=build_header_menu(self._trade_entries_enabled(), req=req),
                     user=self.user,
                     accounts=accounts,
                     active_account=active_account,
