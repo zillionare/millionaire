@@ -314,6 +314,62 @@ class TestPositionsOrdersTabs:
             assert _normalize_positions_tab(bad) == DEFAULT_POSITIONS_TAB
 
 
+class TestPositionsOrdersTabsHtmx:
+    r"""Issue #41: tab 切换必须用 HTMX 局部刷新，URL 跟着变但不引起整页重载.
+
+    关键契约：
+    1. tab 链接带 hx_get / hx_target / hx_swap / hx_push_url / hx_select
+       让 HTMX 客户端只更新主区 DOM，不发起整页跳转
+    2. 容器整体带 id（positions-orders-tab-panel）作为 swap 目标
+    3. hx_select 让 HTMX 客户端过滤响应里只保留主区（其他上下文不动）
+    4. 普通 href 仍保留，刷新和分享链接仍可工作
+    """
+
+    def test_panel_root_has_swap_target_id(self):
+        from quantide.web.pages.trade_main import (
+            POSITIONS_TABS_PANEL_ID,
+            PositionsOrdersTabs,
+        )
+
+        html = to_xml(PositionsOrdersTabs([], [], "positions"))
+        assert f'id="{POSITIONS_TABS_PANEL_ID}"' in html
+
+    def test_tab_links_use_htmx_partial_refresh(self):
+        """每个 tab 链接必须带 HTMX 属性，避免整页重载."""
+        from quantide.web.pages.trade_main import (
+            POSITIONS_TABS_PANEL_ID,
+            PositionsOrdersTabs,
+        )
+
+        html = to_xml(PositionsOrdersTabs([], [], "positions"))
+        for tab_key in ("positions", "orders"):
+            assert f'hx-get="/trade?tab={tab_key}"' in html, (
+                f"tab {tab_key!r} 缺少 hx-get"
+            )
+            assert f'hx-target="#{POSITIONS_TABS_PANEL_ID}"' in html
+            assert 'hx-swap="outerHTML"' in html
+            assert 'hx-push-url="true"' in html
+            assert f'hx-select="#{POSITIONS_TABS_PANEL_ID}"' in html
+
+    def test_tab_links_preserve_href_for_refresh_and_share(self):
+        """普通 href 必须保留，让用户可以刷新/分享."""
+        from quantide.web.pages.trade_main import PositionsOrdersTabs
+
+        html = to_xml(PositionsOrdersTabs([], [], "positions"))
+        assert 'href="/trade?tab=positions"' in html
+        assert 'href="/trade?tab=orders"' in html
+
+    def test_full_page_render_still_has_panel_for_hx_select(self, test_client):
+        """整页响应里 panel 必须存在且有正确 id，否则 hx_select 找不到目标."""
+        response = test_client.get("/trade")
+        assert response.status_code == 200
+        from quantide.web.pages.trade_main import POSITIONS_TABS_PANEL_ID
+
+        assert f'id="{POSITIONS_TABS_PANEL_ID}"' in response.text
+        assert 'hx-get="/trade?tab=orders"' in response.text
+        assert 'hx-push-url="true"' in response.text
+
+
 class TestTodayOrdersTableWithOrders:
     """``TodayOrdersTable`` 在订单非空时也不能 500（Issue #31 复盘）.
 

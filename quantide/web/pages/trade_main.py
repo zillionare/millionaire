@@ -1516,14 +1516,16 @@ def TodayOrdersTable(orders: list[Order]):
     )
 
 
-# 持仓 / 委托 tab 配置 (Issue #30).
-# 与 09-backtest-report-tabs-and-logs.md 保持一致：服务端 query 参数驱动，
-# 默认 tab 是 ``positions``，非法值回退到默认。
+# 持仓 / 委托 tab 配置 (Issue #30, #41).
+# 与 09-backtest-report-tabs-and-logs.md 保持一致：tab 切换走 HTMX
+# 局部刷新 + query 参数同步 URL，不再整页重载。
 POSITIONS_TABS: dict[str, str] = {
     "positions": "持仓",
     "orders": "委托",
 }
 DEFAULT_POSITIONS_TAB = "positions"
+# HTMX 局部刷新的 swap 目标 id（同时用于 hx-select 过滤）
+POSITIONS_TABS_PANEL_ID = "positions-orders-tab-panel"
 
 
 def _normalize_positions_tab(value) -> str:
@@ -1543,10 +1545,12 @@ def _normalize_positions_tab(value) -> str:
 
 
 def PositionsOrdersTabs(positions: list[Position], orders: list[Order], active_tab: str):
-    """持仓/委托 tab 容器 (Issue #30).
+    """持仓/委托 tab 容器 (Issue #30, #41).
 
-    服务端只渲染当前 tab 对应内容；tab 链接用普通 ``<a>`` 跳 URL，刷新恢复
-    状态、分享链接都更稳定（参考 09-backtest 报告的 tab 模式）。
+    服务端只渲染当前 tab 对应内容；tab 链接走 HTMX 局部刷新（参
+    ``09-backtest-report-tabs-and-logs.md``）：点击 tab 只替换
+    ``#positions-orders-tab-panel`` DOM 片段，URL 通过
+    ``hx-push-url`` 同步更新，页面其他部分（资产条、闪电单、表单输入）保持不变。
 
     Args:
         positions: 持仓数据。
@@ -1554,7 +1558,7 @@ def PositionsOrdersTabs(positions: list[Position], orders: list[Order], active_t
         active_tab: 当前激活的 tab key（非法值会回退到默认）。
 
     Returns:
-        包含 tab 导航条 + 当前 tab 内容的 ``Div``。
+        包含 tab 导航条 + 当前 tab 内容的 ``Div``，整体带 id 供 HTMX swap。
     """
     active_tab = _normalize_positions_tab(active_tab)
 
@@ -1572,6 +1576,11 @@ def PositionsOrdersTabs(positions: list[Position], orders: list[Order], active_t
             ),
             aria_current=("page" if tab_key == active_tab else None),
             data_tab=tab_key,
+            hx_get=f"/trade?tab={tab_key}",
+            hx_target=f"#{POSITIONS_TABS_PANEL_ID}",
+            hx_swap="outerHTML",
+            hx_push_url="true",
+            hx_select=f"#{POSITIONS_TABS_PANEL_ID}",
         )
         for tab_key, title in POSITIONS_TABS.items()
     ]
@@ -1589,6 +1598,7 @@ def PositionsOrdersTabs(positions: list[Position], orders: list[Order], active_t
             cls="flex border-b border-gray-200 dark:border-gray-700 mb-4",
         ),
         Div(active_panel, role="tabpanel", data_active_tab=active_tab),
+        id=POSITIONS_TABS_PANEL_ID,
         cls="mb-6",
     )
 
