@@ -369,10 +369,14 @@ def _empty_lightning_state() -> Any:
 def _lightning_row(portfolio_id: str, entry: TradeLightningEntry) -> Any:
     """渲染单个闪电单条目。"""
     name, _ = _asset_profile(entry.asset)
-    summary = (
-        f"{_format_amount_wan(entry.amount_wan)} · "
-        f"{_price_reference_label(entry.price_ref)}"
-    )
+    label = _price_reference_label(entry.price_ref)
+    if entry.cached_price > 0 and entry.price_ref != "current":
+        summary = (
+            f"{_format_amount_wan(entry.amount_wan)} · "
+            f"{label}（{entry.cached_price:.2f}）"
+        )
+    else:
+        summary = f"{_format_amount_wan(entry.amount_wan)} · {label}"
     return Div(
         Span(
             _asset_symbol(entry.asset),
@@ -1190,7 +1194,12 @@ async def trade_lightning_execute(req):
             _lightning_toast("未找到可用的交易账号", hx_swap_oob=True),
         )
 
-    price = _resolve_lightning_price(asset, entry.price_ref)
+    # Issue #38 followup: 非 current 的 price_ref 一律用创建/更新时锁定的
+    # cached_price，确保「看到的数 = 下单的数」。current 系列走实时行情。
+    if entry.price_ref == "current":
+        price = _resolve_lightning_price(asset, entry.price_ref)
+    else:
+        price = entry.cached_price
     if price <= 0:
         return _render_response(
             _lightning_toast(

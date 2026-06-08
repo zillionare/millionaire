@@ -1380,7 +1380,10 @@ class TestLoginRoutes:
         from quantide.web.pages import trade_lightning as lightning_page
 
         portfolio_id = "sim_execute"
-        lightning_svc.add_trade_lightning_entry(portfolio_id, "000001.SZ", 10, "close")
+        entry, _ = lightning_svc.add_trade_lightning_entry(
+            portfolio_id, "000001.SZ", 10, "current"
+        )
+        entry.cached_price = 11.50
 
         monkeypatch.setattr(lightning_page, "_resolve_lightning_price", lambda *_: 11.50)
         monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
@@ -1428,7 +1431,10 @@ class TestLoginRoutes:
         from quantide.web.pages import trade_lightning as lightning_page
 
         portfolio_id = "sim_no_price"
-        lightning_svc.add_trade_lightning_entry(portfolio_id, "000001.SZ", 10, "close")
+        entry, _ = lightning_svc.add_trade_lightning_entry(
+            portfolio_id, "000001.SZ", 10, "current"
+        )
+        entry.cached_price = 0.0
         reg = BrokerRegistry()
         broker = SimpleNamespace()
         reg.register(BrokerKind.SIMULATION, portfolio_id, broker)
@@ -1442,6 +1448,90 @@ class TestLoginRoutes:
         response = test_client.post(f"/trade/lightning/{portfolio_id}/000001.SZ/execute")
         assert response.status_code == 200
         assert "无法解析" in response.text
+
+    def test_trade_lightning_uses_cached_price_for_non_current_refs(self, test_client, monkeypatch):
+        """Issue #38 followup: 非 current 的 price_ref 必须用 cached_price 下单.
+
+        这是「看到的数 = 下单的数」契约：用户看到 20日均线（8.87），
+        双击时也必须用 8.87 下单，不能因为盘中行情漂移而换价格。
+        """
+        from types import SimpleNamespace
+
+        from quantide.core.enums import BrokerKind
+        from quantide.service import trade_lightning as lightning_svc
+        from quantide.service.registry import BrokerRegistry
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        portfolio_id = "sim_cached_price"
+        monkeypatch.setattr(lightning_svc, "compute_cached_price", lambda *_: 8.87)
+        lightning_svc.add_trade_lightning_entry(portfolio_id, "000001.SZ", 10, "ma20")
+
+        used_prices: list[float] = []
+
+        class _Result:
+            qt_oid = "qt-cached-1"
+            trades = []
+
+        async def _buy_amount(asset, amount, price):
+            used_prices.append(price)
+            return _Result()
+
+        reg = BrokerRegistry()
+        broker = SimpleNamespace(buy_amount=_buy_amount)
+        reg.register(BrokerKind.SIMULATION, portfolio_id, broker)
+        monkeypatch.setattr(
+            lightning_page,
+            "_resolve_lightning_broker",
+            lambda req, pid: broker,
+        )
+
+        response = test_client.post(
+            f"/trade/lightning/{portfolio_id}/000001.SZ/execute"
+        )
+        assert response.status_code == 200
+        assert "闪电买入已提交" in response.text
+        assert used_prices == [8.87], f"应使用 cached_price=8.87，实为 {used_prices}"
+
+    def test_trade_lightning_row_displays_cached_price(self):
+        """Issue #38 followup: 行展示要带 cached_price，如 20日均线（8.87）."""
+        from types import SimpleNamespace
+
+        from fasthtml.common import to_xml
+
+        from quantide.web.pages.trade_lightning import _lightning_row
+
+        entry = SimpleNamespace(
+            portfolio_id="sim",
+            asset="000001.SZ",
+            amount_wan=0.1,
+            price_ref="ma20",
+            cached_price=8.87,
+        )
+        html = to_xml(_lightning_row("sim", entry))
+        assert "0.1万" in html
+        assert "20日均线" in html
+        assert "8.87" in html
+        assert "（8.87）" in html
+
+    def test_trade_lightning_row_skips_cached_price_for_current(self):
+        """current 不显示缓存价（实时价格无法预锁定，缓存必然是 0）."""
+        from types import SimpleNamespace
+
+        from fasthtml.common import to_xml
+
+        from quantide.web.pages.trade_lightning import _lightning_row
+
+        entry = SimpleNamespace(
+            portfolio_id="sim",
+            asset="000001.SZ",
+            amount_wan=10.0,
+            price_ref="current",
+            cached_price=0.0,
+        )
+        html = to_xml(_lightning_row("sim", entry))
+        assert "10万" in html
+        assert "最新价" in html
+        assert "（0.00）" not in html
 
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""
