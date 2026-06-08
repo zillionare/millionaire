@@ -231,6 +231,83 @@ class TestTradeMain:
         assert response.status_code in (200, 303)
 
 
+class TestPositionsOrdersTabs:
+    """持仓/委托 tab 容器 (Issue #30).
+
+    关键契约：
+    1. 默认 tab = ``positions``（不带 query 参数或非法值时回退）
+    2. ``?tab=orders`` 切换到委托 tab，只渲染委托表
+    3. tab 链接用 ``/trade?tab=<key>`` 形式，刷新可恢复
+    4. 非法 tab 字符串（XSS 尝试、错别字等）一律回退到默认
+    """
+
+    def test_default_tab_is_positions(self, test_client):
+        response = test_client.get("/trade")
+        assert response.status_code == 200
+        assert "持仓明细" in response.text
+        assert "当日委托" not in response.text
+        assert 'href="/trade?tab=positions"' in response.text
+        assert 'href="/trade?tab=orders"' in response.text
+        assert 'data-active-tab="positions"' in response.text
+
+    def test_orders_tab_hides_positions(self, test_client):
+        response = test_client.get("/trade?tab=orders")
+        assert response.status_code == 200
+        assert "当日委托" in response.text
+        assert "持仓明细" not in response.text
+        assert 'data-active-tab="orders"' in response.text
+
+    def test_explicit_positions_tab(self, test_client):
+        response = test_client.get("/trade?tab=positions")
+        assert response.status_code == 200
+        assert "持仓明细" in response.text
+        assert "当日委托" not in response.text
+        assert 'data-active-tab="positions"' in response.text
+
+    def test_invalid_tab_falls_back_to_positions(self, test_client):
+        for bad in ("garbage", "POSITIONS", "1", "../../etc"):
+            response = test_client.get(f"/trade?tab={bad}")
+            assert response.status_code == 200, f"status for tab={bad!r}"
+            assert "持仓明细" in response.text, f"positions table missing for tab={bad!r}"
+            assert "当日委托" not in response.text, (
+                f"orders table should not render for invalid tab={bad!r}"
+            )
+            assert 'data-active-tab="positions"' in response.text
+
+    def test_tab_aria_current_only_on_active(self):
+        """单个激活 tab 应带 aria-current，切换 tab 时跟着换."""
+        from quantide.web.pages.trade_main import (
+            DEFAULT_POSITIONS_TAB,
+            POSITIONS_TABS,
+            PositionsOrdersTabs,
+        )
+
+        for active in POSITIONS_TABS:
+            html = to_xml(PositionsOrdersTabs([], [], active))
+            assert html.count('aria-current="page"') == 1, (
+                f"exactly one aria-current expected for tab={active!r}"
+            )
+            assert f'data-active-tab="{active}"' in html
+
+        html = to_xml(PositionsOrdersTabs([], [], "invalid"))
+        assert f'data-active-tab="{DEFAULT_POSITIONS_TAB}"' in html
+        assert html.count('aria-current="page"') == 1
+
+    def test_normalize_positions_tab_handles_all_input_shapes(self):
+        """``_normalize_positions_tab`` 对各类输入都不能抛."""
+        from quantide.web.pages.trade_main import (
+            DEFAULT_POSITIONS_TAB,
+            _normalize_positions_tab,
+        )
+
+        assert _normalize_positions_tab("positions") == "positions"
+        assert _normalize_positions_tab("orders") == "orders"
+        assert _normalize_positions_tab("ORDERS") == "orders"
+        assert _normalize_positions_tab(" Positions ") == "positions"
+        for bad in (None, "", "garbage", "1", [], {}):
+            assert _normalize_positions_tab(bad) == DEFAULT_POSITIONS_TAB
+
+
 class TestTodayOrdersTableWithOrders:
     """``TodayOrdersTable`` 在订单非空时也不能 500（Issue #31 复盘）.
 

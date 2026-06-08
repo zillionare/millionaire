@@ -1513,6 +1513,83 @@ def TodayOrdersTable(orders: list[Order]):
     )
 
 
+# 持仓 / 委托 tab 配置 (Issue #30).
+# 与 09-backtest-report-tabs-and-logs.md 保持一致：服务端 query 参数驱动，
+# 默认 tab 是 ``positions``，非法值回退到默认。
+POSITIONS_TABS: dict[str, str] = {
+    "positions": "持仓",
+    "orders": "委托",
+}
+DEFAULT_POSITIONS_TAB = "positions"
+
+
+def _normalize_positions_tab(value) -> str:
+    """规范化持仓/委托 tab 参数.
+
+    Args:
+        value: 任意传入值（request.query_params、字典、字符串、None 均可）。
+
+    Returns:
+        合法的 tab key（``positions`` / ``orders``），非法值回退到 ``DEFAULT_POSITIONS_TAB``。
+    """
+    if isinstance(value, str):
+        key = value.strip().lower()
+    else:
+        key = str(value or "").strip().lower()
+    return key if key in POSITIONS_TABS else DEFAULT_POSITIONS_TAB
+
+
+def PositionsOrdersTabs(positions: list[Position], orders: list[Order], active_tab: str):
+    """持仓/委托 tab 容器 (Issue #30).
+
+    服务端只渲染当前 tab 对应内容；tab 链接用普通 ``<a>`` 跳 URL，刷新恢复
+    状态、分享链接都更稳定（参考 09-backtest 报告的 tab 模式）。
+
+    Args:
+        positions: 持仓数据。
+        orders: 当日委托数据。
+        active_tab: 当前激活的 tab key（非法值会回退到默认）。
+
+    Returns:
+        包含 tab 导航条 + 当前 tab 内容的 ``Div``。
+    """
+    active_tab = _normalize_positions_tab(active_tab)
+
+    nav_items = [
+        A(
+            title,
+            href=f"/trade?tab={tab_key}",
+            cls=(
+                "inline-flex items-center px-4 py-2 text-sm font-medium border-b-2 "
+                + (
+                    "border-red-600 text-red-600"
+                    if tab_key == active_tab
+                    else "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                )
+            ),
+            aria_current=("page" if tab_key == active_tab else None),
+            data_tab=tab_key,
+        )
+        for tab_key, title in POSITIONS_TABS.items()
+    ]
+
+    panels = {
+        "positions": PositionTable(positions),
+        "orders": TodayOrdersTable(orders),
+    }
+    active_panel = panels[active_tab]
+
+    return Div(
+        Div(
+            *nav_items,
+            role="tablist",
+            cls="flex border-b border-gray-200 dark:border-gray-700 mb-4",
+        ),
+        Div(active_panel, role="tabpanel", data_active_tab=active_tab),
+        cls="mb-6",
+    )
+
+
 def NoAccountView():
     """无账号视图"""
     return Div(
@@ -1630,6 +1707,10 @@ def trade_main_page(request):
 
     reg = _get_registry(request)
 
+    active_tab = _normalize_positions_tab(
+        getattr(request, "query_params", {}).get("tab")
+    )
+
     # 获取所有账号
     accounts = _get_all_accounts(reg) if reg else []
 
@@ -1707,10 +1788,7 @@ def trade_main_page(request):
             AssetInfoBar(total, cash, market_value),
             # 闪电交易面板
             LightningTradePanel(portfolio_id, kind, cash, total),
-            # 持仓明细
-            PositionTable(positions),
-            # 当日委托
-            TodayOrdersTable(orders),
+            PositionsOrdersTabs(positions, orders, active_tab),
             cls="relative p-6",
         )
 
