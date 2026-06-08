@@ -1232,12 +1232,39 @@ class TestLoginRoutes:
         assert "买入价格" in create_text
         assert "/trade/lightning/search" in create_text
         assert 'id="lightning-asset-search-dropdown"' in create_text
+        for option_value in ("current", "current_p1", "current_p2", "current_p3"):
+            assert f'value="{option_value}"' in create_text, (
+                f"price_ref 选项 {option_value!r} 缺失"
+            )
+        for option_label in ("现价+1%", "现价+2%", "现价+3%"):
+            assert option_label in create_text, f"label {option_label!r} 缺失"
+        assert "昨收价" not in create_text
+        assert 'value="close"' not in create_text
 
         clear_modal = test_client.get("/trade/lightning/sim_demo/clear-modal")
         clear_text = clear_modal.text
         assert clear_modal.status_code == 200
         assert "清空闪电买入单" in clear_text
         assert "确定清空当前账户下的全部闪电买入单吗？" in clear_text
+
+    def test_lightning_price_resolver_handles_current_premiums(self, monkeypatch):
+        """Issue #40: ``current_p1/p2/p3`` 解析 = 现价 × (1 + pct)."""
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        original = lightning_page._resolve_lightning_price
+
+        def _patched(asset, price_ref):
+            if price_ref == "current":
+                return 100.0
+            return original(asset, price_ref)
+
+        monkeypatch.setattr(lightning_page, "_resolve_lightning_price", _patched)
+
+        assert lightning_page._resolve_lightning_price("000001.SZ", "current_p1") == 101.0
+        assert lightning_page._resolve_lightning_price("000001.SZ", "current_p2") == 102.0
+        assert lightning_page._resolve_lightning_price("000001.SZ", "current_p3") == 103.0
+        monkeypatch.setattr(lightning_page, "_resolve_lightning_price", original)
+        assert lightning_page._resolve_lightning_price("000001.SZ", "current_p1") == 0.0
 
     def test_trade_lightning_search_supports_name_code_and_pinyin(self, test_client, monkeypatch):
         """验证闪电买入单搜索接口支持代码、名称和拼音。"""
@@ -1267,23 +1294,27 @@ class TestLoginRoutes:
 
     def test_trade_lightning_row_supports_double_click_execute(self, test_client, monkeypatch):
         """Issue #38: 双击闪电单行应触发 execute 接口."""
+        from fasthtml.common import to_xml
+
         from quantide.service import trade_lightning as lightning_svc
         from quantide.web.pages import trade_lightning as lightning_page
 
         monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
         monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
 
-        portfolio_id = "sim_demo"
-        lightning_svc.add_trade_lightning_entry(portfolio_id, "000001.SZ", 10, "close")
-        response = test_client.get("/trade")
-        text = response.text
+        portfolio_id = "sim_dblclick_test"
+        entry = lightning_svc.add_trade_lightning_entry(
+            portfolio_id, "000001.SZ", 10, "close"
+        )[0]
+        text = to_xml(lightning_page._lightning_row(portfolio_id, entry))
 
-        assert response.status_code == 200
         expected_hx_post = f'hx-post="/trade/lightning/{portfolio_id}/000001.SZ/execute"'
         assert expected_hx_post in text, f"缺少 {expected_hx_post!r}"
         assert 'hx-trigger="dblclick"' in text
         assert 'hx-target="#trade-toast-slot"' in text
         assert "双击立即按预置金额与价格提交买入委托" in text
+        assert "cursor-pointer" in text
+        assert "select-none" in text
 
     def test_trade_lightning_execute_submits_buy_order(self, test_client, monkeypatch):
         """Issue #38: execute 接口必须真正调用 broker.buy_amount 并返回 success toast."""

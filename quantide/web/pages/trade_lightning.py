@@ -30,7 +30,9 @@ from quantide.service.trade_lightning import (
 
 PRICE_REFERENCE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("最新价", "current"),
-    ("昨收价", "close"),
+    ("现价+1%", "current_p1"),
+    ("现价+2%", "current_p2"),
+    ("现价+3%", "current_p3"),
     ("5日均线", "ma5"),
     ("10日均线", "ma10"),
     ("20日均线", "ma20"),
@@ -38,6 +40,12 @@ PRICE_REFERENCE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("60日均线", "ma60"),
 )
 PRICE_REFERENCE_LABELS = {key: label for label, key in PRICE_REFERENCE_OPTIONS}
+# 现价+百分比 = 实际解析时按 ``current * (1 + pct)`` 计算。
+PRICE_REFERENCE_CURRENT_PREMIUMS: dict[str, float] = {
+    "current_p1": 0.01,
+    "current_p2": 0.02,
+    "current_p3": 0.03,
+}
 ASSET_CODE_PATTERN = re.compile(r"(\d{6}\.(?:SZ|SH|BJ))", re.IGNORECASE)
 
 
@@ -1064,14 +1072,22 @@ async def trade_lightning_delete(req):
 def _resolve_lightning_price(asset: str, price_ref: str) -> float:
     """把闪电单的 price_ref 解析为具体价格.
 
-    复用了 trade_main 的语义：``current`` 走实时行情，其余走本地日线。
+    复用了 trade_main 的语义：``current`` 走实时行情，其余走本地日线；
+    ``current_p1`` / ``p2`` / ``p3`` 表示「现价 + N%」，最终价格 = 现价 × (1 + pct)。
     Args:
         asset: 股票代码。
-        price_ref: 价格参考 key（``current`` / ``close`` / ``ma5`` 等）。
+        price_ref: 价格参考 key（``current`` / ``current_p1..p3`` / ``ma5`` 等）。
 
     Returns:
         解析到的价格。``current`` 拿不到时回退到昨收，``close`` 拿不到时回退 0。
     """
+    if price_ref in PRICE_REFERENCE_CURRENT_PREMIUMS:
+        pct = PRICE_REFERENCE_CURRENT_PREMIUMS[price_ref]
+        current = _resolve_lightning_price(asset, "current")
+        if current <= 0:
+            return 0.0
+        return round(current * (1 + pct), 2)
+
     if price_ref == "current":
         quote = live_quote.get_quote(asset) if live_quote.is_running else None
         if quote:
