@@ -66,6 +66,7 @@ def test_app():
             trade_lightning_delete,
             trade_lightning_delete_modal,
             trade_lightning_edit_modal,
+            trade_lightning_execute,
             trade_lightning_search,
             trade_lightning_update,
         )
@@ -144,6 +145,11 @@ def test_app():
                 Route(
                     "/trade/lightning/{portfolio_id:str}/{asset:str}/delete",
                     trade_lightning_delete,
+                    methods=["POST"],
+                ),
+                Route(
+                    "/trade/lightning/{portfolio_id:str}/{asset:str}/execute",
+                    trade_lightning_execute,
                     methods=["POST"],
                 ),
                 Mount("/trade/live", live_app),
@@ -1255,6 +1261,97 @@ class TestLoginRoutes:
         assert "000001.SZ · PAYH" in text
         assert 'data-display="平安银行（000001.SZ）"' in text
         assert "lightning-asset-search-item" in text
+
+    def test_trade_lightning_row_supports_double_click_execute(self, test_client, monkeypatch):
+        """Issue #38: 双击闪电单行应触发 execute 接口."""
+        from quantide.service import trade_lightning as lightning_svc
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
+        monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
+
+        portfolio_id = "sim_demo"
+        lightning_svc.add_trade_lightning_entry(portfolio_id, "000001.SZ", 10, "close")
+        response = test_client.get("/trade")
+        text = response.text
+
+        assert response.status_code == 200
+        expected_hx_post = f'hx-post="/trade/lightning/{portfolio_id}/000001.SZ/execute"'
+        assert expected_hx_post in text, f"缺少 {expected_hx_post!r}"
+        assert 'hx-trigger="dblclick"' in text
+        assert 'hx-target="#trade-toast-slot"' in text
+        assert "双击立即按预置金额与价格提交买入委托" in text
+
+    def test_trade_lightning_execute_submits_buy_order(self, test_client, monkeypatch):
+        """Issue #38: execute 接口必须真正调用 broker.buy_amount 并返回 success toast."""
+        from quantide.core.enums import BrokerKind
+        from quantide.service import trade_lightning as lightning_svc
+        from quantide.service.registry import BrokerRegistry
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        portfolio_id = "sim_execute"
+        lightning_svc.add_trade_lightning_entry(portfolio_id, "000001.SZ", 10, "close")
+
+        monkeypatch.setattr(lightning_page, "_resolve_lightning_price", lambda *_: 11.50)
+        monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
+        monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
+
+        from types import SimpleNamespace
+
+        class _Result:
+            qt_oid = "qt-exec-1"
+            trades = []
+
+        async def _buy_amount(asset, amount, price):
+            return _Result()
+
+        reg = BrokerRegistry()
+        broker = SimpleNamespace(buy_amount=_buy_amount)
+        reg.register(BrokerKind.SIMULATION, portfolio_id, broker)
+        monkeypatch.setattr(
+            lightning_page,
+            "_resolve_lightning_broker",
+            lambda req, pid: broker,
+        )
+
+        response = test_client.post(
+            f"/trade/lightning/{portfolio_id}/000001.SZ/execute"
+        )
+        text = response.text
+        assert response.status_code == 200
+        assert "闪电买入已提交" in text
+        assert "10万" in text
+
+    def test_trade_lightning_execute_missing_entry_returns_error(self, test_client):
+        """execute 接口对不存在的闪电单必须返回 error toast，不能 500."""
+        response = test_client.post("/trade/lightning/sim_demo/MISSING.SZ/execute")
+        assert response.status_code == 200
+        assert "该闪电买入单不存在" in response.text
+
+    def test_trade_lightning_execute_unresolvable_price_returns_error(self, test_client, monkeypatch):
+        """execute 接口在价格解析为 0 时必须返回 error toast."""
+        from types import SimpleNamespace
+
+        from quantide.core.enums import BrokerKind
+        from quantide.service import trade_lightning as lightning_svc
+        from quantide.service.registry import BrokerRegistry
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        portfolio_id = "sim_no_price"
+        lightning_svc.add_trade_lightning_entry(portfolio_id, "000001.SZ", 10, "close")
+        reg = BrokerRegistry()
+        broker = SimpleNamespace()
+        reg.register(BrokerKind.SIMULATION, portfolio_id, broker)
+        monkeypatch.setattr(
+            lightning_page,
+            "_resolve_lightning_broker",
+            lambda req, pid: broker,
+        )
+        monkeypatch.setattr(lightning_page, "_resolve_lightning_price", lambda *_: 0.0)
+
+        response = test_client.post(f"/trade/lightning/{portfolio_id}/000001.SZ/execute")
+        assert response.status_code == 200
+        assert "无法解析" in response.text
 
     def test_trade_panel_has_javascript_interactivity(self, test_client):
         """验证下单面板包含交互式 JavaScript."""

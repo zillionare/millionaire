@@ -75,6 +75,7 @@ from quantide.web.pages.trade_lightning import (
     trade_lightning_delete,
     trade_lightning_delete_modal,
     trade_lightning_edit_modal,
+    trade_lightning_execute,
     trade_lightning_search,
     trade_lightning_update,
 )
@@ -383,6 +384,11 @@ def create_app(
             Route(
                 "/trade/lightning/{portfolio_id:str}/{asset:str}/delete",
                 trade_lightning_delete,
+                methods=["POST"],
+            ),
+            Route(
+                "/trade/lightning/{portfolio_id:str}/{asset:str}/execute",
+                trade_lightning_execute,
                 methods=["POST"],
             ),
             Route("/system/accounts", accounts_list, methods=["GET"]),

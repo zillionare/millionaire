@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import datetime
 import re
 from typing import Any
 
@@ -13,7 +14,10 @@ from monsterui.all import *
 from starlette.responses import HTMLResponse
 
 from quantide.config.branding import get_branding
+from quantide.core.enums import BrokerKind
+from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.stocks import stock_list
+from quantide.service.livequote import live_quote
 from quantide.service.trade_lightning import (
     TradeLightningEntry,
     add_trade_lightning_entry,
@@ -405,9 +409,14 @@ def _lightning_row(portfolio_id: str, entry: TradeLightningEntry) -> Any:
         cls=(
             "grid grid-cols-[80px_1fr_auto_auto] items-center py-2.5 px-4 border-b "
             "border-gray-100 dark:border-gray-700 last:border-b-0 even:bg-[#f9fafb] "
-            "dark:even:bg-gray-700/50"
+            "dark:even:bg-gray-700/50 cursor-pointer select-none"
         ),
         data_lightning_asset=entry.asset,
+        title="双击立即按预置金额与价格提交买入委托",
+        hx_post=f"/trade/lightning/{portfolio_id}/{entry.asset}/execute",
+        hx_trigger="dblclick",
+        hx_target="#trade-toast-slot",
+        hx_swap="outerHTML",
     )
 
 
@@ -1046,4 +1055,160 @@ async def trade_lightning_delete(req):
     return _render_response(
         Div(id="trade-lightning-modal-container"),
         _panel_with_toast(portfolio_id, message, level=level, hx_swap_oob=True),
+    )
+
+
+def _resolve_lightning_price(asset: str, price_ref: str) -> float:
+    """把闪电单的 price_ref 解析为具体价格.
+
+    复用了 trade_main 的语义：``current`` 走实时行情，其余走本地日线。
+    Args:
+        asset: 股票代码。
+        price_ref: 价格参考 key（``current`` / ``close`` / ``ma5`` 等）。
+
+    Returns:
+        解析到的价格。``current`` 拿不到时回退到昨收，``close`` 拿不到时回退 0。
+    """
+    if price_ref == "current":
+        quote = live_quote.get_quote(asset) if live_quote.is_running else None
+        if quote:
+            for key in ("price", "lastPrice", "close"):
+                try:
+                    value = float(quote.get(key) or 0)
+                except (TypeError, ValueError):
+                    value = 0.0
+                if value > 0:
+                    return value
+        return _resolve_lightning_price(asset, "close")
+
+    if price_ref == "close":
+        try:
+            bars = daily_bars.get_bars(
+                1, end=datetime.date.today(), assets=[asset], eager_mode=True, adjust=None
+            )
+        except Exception:
+            return 0.0
+        if bars.is_empty():
+            return 0.0
+        try:
+            close_value = float(bars.sort("date").row(-1, named=True).get("close") or 0)
+        except Exception:
+            return 0.0
+        return close_value if close_value > 0 else 0.0
+
+    if price_ref.startswith("ma"):
+        try:
+            period = int(price_ref[2:])
+        except ValueError:
+            return 0.0
+        try:
+            bars = daily_bars.get_bars(
+                period, end=datetime.date.today(), assets=[asset], eager_mode=True, adjust=None
+            )
+        except Exception:
+            return 0.0
+        if bars.is_empty() or len(bars) < period:
+            return 0.0
+        closes = [float(value) for value in bars.sort("date").get_column("close").to_list()]
+        if len(closes) < period:
+            return 0.0
+        return sum(closes[-period:]) / period
+
+    return 0.0
+
+
+def _resolve_lightning_broker(req, portfolio_id: str):
+    """从 request scope 中拿到闪电单对应账号的 broker.
+
+    Args:
+        req: HTTP 请求。
+        portfolio_id: 闪电单账户 ID。
+
+    Returns:
+        broker 实例，找不到时返回 ``None``。
+    """
+    reg = req.scope.get("registry")
+    if reg is None:
+        return None
+    session = req.scope.get("session", {})
+    active_kind = session.get("active_account_kind")
+    active_id = session.get("active_account_id")
+    if active_kind and active_id and active_id == portfolio_id:
+        try:
+            return reg.get(BrokerKind(active_kind), active_id)
+        except Exception:
+            return None
+    try:
+        for kind in (BrokerKind.QMT, BrokerKind.SIMULATION):
+            for info in reg.list_by_kind(kind):
+                if info.get("id") == portfolio_id:
+                    return reg.get(kind, portfolio_id)
+    except Exception:
+        return None
+    return None
+
+
+async def trade_lightning_execute(req):
+    """双击闪电单：按预存的金额/价格立即提交买入委托（Issue #38）.
+
+    Args:
+        req: HTTP 请求，路径参数 ``portfolio_id`` 和 ``asset``。
+
+    Returns:
+        toast 片段响应，包含执行结果。
+    """
+    portfolio_id = req.path_params["portfolio_id"]
+    asset = req.path_params["asset"]
+    entry = get_trade_lightning_entry(portfolio_id, asset)
+    if entry is None:
+        return _render_response(
+            _lightning_toast("该闪电买入单不存在", hx_swap_oob=True),
+        )
+
+    broker = _resolve_lightning_broker(req, portfolio_id)
+    if broker is None:
+        return _render_response(
+            _lightning_toast("未找到可用的交易账号", hx_swap_oob=True),
+        )
+
+    price = _resolve_lightning_price(asset, entry.price_ref)
+    if price <= 0:
+        return _render_response(
+            _lightning_toast(
+                f"无法解析 {asset} 的价格参考 {_price_reference_label(entry.price_ref)}",
+                hx_swap_oob=True,
+            ),
+        )
+
+    try:
+        if hasattr(broker, "buy_amount"):
+            result = await broker.buy_amount(asset, entry.amount_wan * 10000, price)
+        else:
+            shares = int(entry.amount_wan * 10000 / price // 100 * 100)
+            if shares <= 0:
+                return _render_response(
+                    _lightning_toast(
+                        f"按当前价格 {price:.2f} 算出的可买股数为 0，请增加买入金额",
+                        hx_swap_oob=True,
+                    ),
+                )
+            result = await broker.buy(asset, shares, price)
+    except Exception as e:
+        return _render_response(
+            _lightning_toast(f"闪电买入失败: {e}", hx_swap_oob=True),
+        )
+
+    if result is None or not getattr(result, "qt_oid", None):
+        return _render_response(
+            _lightning_toast("闪电买入未生成有效委托，请检查账户和价格", hx_swap_oob=True),
+        )
+
+    name, _ = _asset_profile(asset)
+    label = name if name != asset else _asset_symbol(asset)
+    return _render_response(
+        _lightning_toast(
+            f"闪电买入已提交: {label} {_format_amount_wan(entry.amount_wan)}",
+            level="success",
+            hx_swap_oob=True,
+        ),
     )
