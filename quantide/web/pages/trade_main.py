@@ -33,6 +33,7 @@ from quantide.data.models.stocks import stock_list
 from quantide.data.sqlite import Order, Position
 from quantide.service.livequote import live_quote
 from quantide.service.registry import BrokerRegistry
+from quantide.web.components.asset_label import resolve_asset_name
 from quantide.web.layouts.main import MainLayout
 from quantide.web.pages.trade_lightning import TradeLightningSidebar
 
@@ -1365,7 +1366,7 @@ def PositionTable(positions: list[Position]):
             rows.append(
                 Tr(
                     Td(p.asset),
-                    Td(p.asset),  # TODO: 获取证券名称
+                    Td(resolve_asset_name(p.asset)),
                     Td(f"{p.shares:,}"),
                     Td(f"{p.avail:,}"),
                     Td(f"{p.mv:,.2f}"),
@@ -1454,7 +1455,7 @@ def TodayOrdersTable(orders: list[Order]):
                 Tr(
                     Td(o.tm.strftime("%H:%M:%S") if hasattr(o, 'tm') else "--"),
                     Td(o.asset),
-                    Td(o.asset),  # TODO: 获取证券名称
+                    Td(resolve_asset_name(o.asset)),
                     Td(side_text, cls=side_color),
                     Td(f"{o.price:,.2f}"),
                     Td(f"{o.shares:,}"),

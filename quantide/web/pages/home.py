@@ -14,6 +14,7 @@ from quantide.data.sqlite import Position
 from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
 from quantide.web.apis.broker import build_asset_overview
+from quantide.web.components.asset_label import resolve_asset_name
 from quantide.web.theme import AppTheme
 
 home_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -176,7 +177,7 @@ def PositionInfo(positions: list[Position] | None = None):
             rows.append(
                 Tr(
                     Td(p.asset),
-                    Td(p.asset),  # 暂无名称
+                    Td(resolve_asset_name(p.asset)),
                     Td(f"{p.shares:,}"),
                     Td(f"{p.avail:,}"),
                     Td(f"{p.shares - p.avail:,}"),

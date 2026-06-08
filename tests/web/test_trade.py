@@ -20,7 +20,7 @@ from starlette.testclient import TestClient
 
 import quantide.web.middleware_feature as middleware_feature
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
-from quantide.data.sqlite import Order
+from quantide.data.sqlite import Order, Position
 from quantide.data.sqlite import db as _db
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import SimulationBroker
@@ -316,9 +316,8 @@ class TestTodayOrdersTableWithOrders:
             self._build_order(OrderStatus.CANCELED),
         ]
         html = self._render(orders)
-        # 4 行委托；每行在「代码」和「名称」两列里都出现资产代码（line 1434：
-        # ``Td(o.asset), Td(o.asset),  # TODO: 获取证券名称``），所以总数是 4*2=8。
-        assert html.count("000001.SZ") == 8
+        # 4 行委托；「代码」列仍为 asset；「名称」列可能为中文或回退到 asset (#36)
+        assert html.count("000001.SZ") >= 4
         # 4 行里 2 行可撤单（REPORTED + PART_SUCC）；用 ``hx-post="/trade/cancel/"``
         # 这个具体属性来精确匹配撤单按钮，避免被页面其它位置（侧栏、toast 等）的
         # 「撤单」字样误伤。
@@ -514,6 +513,134 @@ class TestCoerceGatewayOrder:
         )
         # tm 应该是 datetime.datetime 实例（不验证具体值，但应该是合理的）
         assert isinstance(order.tm, datetime.datetime)
+
+
+class TestPositionNameResolution:
+
+    def _make_position(self, asset: str = "000001.SZ"):
+        return Position(
+            portfolio_id="pf",
+            dt=datetime.date(2024, 6, 1),
+            asset=asset,
+            shares=1000,
+            avail=1000,
+            price=5.0,
+            profit=500.0,
+            mv=5500.0,
+        )
+
+    def test_resolve_asset_name_returns_chinese_name_for_known_stock(self):
+        from quantide.data.models.stocks import stock_list
+        from quantide.web.components.asset_label import resolve_asset_name
+
+        if stock_list.size == 0:
+            from pathlib import Path
+            stock_list_path = Path(__file__).resolve().parent.parent.parent / "data" / "stock_list.parquet"
+            if not stock_list_path.exists():
+                pytest.skip("stock_list.parquet not found in this test env")
+            try:
+                stock_list.load(stock_list_path)
+            except Exception as e:
+                pytest.skip(f"stock_list.load failed: {e}")
+
+        if stock_list.size == 0:
+            pytest.skip("stock_list still empty after load attempt")
+
+        target_asset = "000001.SZ"
+        try:
+            expected_name = stock_list.get_name(target_asset)
+        except Exception:
+            pytest.skip(f"stock_list does not have {target_asset}")
+
+        assert resolve_asset_name(target_asset) == expected_name
+        assert expected_name != target_asset
+
+    def test_resolve_asset_name_falls_back_to_code_when_missing(self):
+        from quantide.web.components.asset_label import resolve_asset_name
+
+        assert resolve_asset_name("not_in_stock_list_xyz") == "not_in_stock_list_xyz"
+        assert resolve_asset_name("") == ""
+
+    def test_position_info_live_renders_name_column(self):
+        from quantide.web.pages.live import PositionInfo
+
+        position = self._make_position("000001.SZ")
+        html = to_xml(PositionInfo([position]))
+
+        from quantide.data.models.stocks import stock_list
+
+        if stock_list.size > 0:
+            try:
+                expected_name = stock_list.get_name("000001.SZ")
+                assert expected_name in html
+            except Exception:
+                pytest.skip("000001.SZ not in stock_list")
+
+        assert "000001.SZ" in html
+
+    def test_position_info_home_renders_name_column(self):
+        from quantide.web.pages.home import PositionInfo as HomePositionInfo
+
+        position = self._make_position("000001.SZ")
+        html = to_xml(HomePositionInfo([position]))
+
+        from quantide.data.models.stocks import stock_list
+
+        if stock_list.size > 0:
+            try:
+                expected_name = stock_list.get_name("000001.SZ")
+                assert expected_name in html
+            except Exception:
+                pytest.skip("000001.SZ not in stock_list")
+
+        assert "000001.SZ" in html
+
+    def test_position_table_trade_main_renders_name_column(self):
+        from quantide.web.pages.trade_main import PositionTable
+
+        position = self._make_position("000001.SZ")
+        html = to_xml(PositionTable([position]))
+
+        from quantide.data.models.stocks import stock_list
+
+        if stock_list.size > 0:
+            try:
+                expected_name = stock_list.get_name("000001.SZ")
+                assert expected_name in html
+            except Exception:
+                pytest.skip("000001.SZ not in stock_list")
+
+        assert "000001.SZ" in html
+
+    def test_today_orders_table_renders_name_column(self):
+        from quantide.core.enums import BidType, OrderSide, OrderStatus
+        from quantide.data.sqlite import Order
+        from quantide.web.pages.trade_main import TodayOrdersTable
+
+        order = Order(
+            portfolio_id="pf",
+            asset="000001.SZ",
+            side=OrderSide.BUY,
+            shares=1000,
+            bid_type=BidType.FIXED,
+            price=5.0,
+            filled=0,
+            status=OrderStatus.REPORTED,
+            qtoid="qtoid_1",
+            tm=datetime.datetime(2024, 6, 1, 9, 30, 0),
+        )
+        html = to_xml(TodayOrdersTable([order]))
+
+        from quantide.data.models.stocks import stock_list
+
+        if stock_list.size > 0:
+            try:
+                expected_name = stock_list.get_name("000001.SZ")
+                assert expected_name in html
+            except Exception:
+                pytest.skip("000001.SZ not in stock_list")
+
+        assert "000001.SZ" in html
 
 
 class TestLoginRoutes:

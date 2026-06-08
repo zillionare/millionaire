@@ -10,6 +10,7 @@ from monsterui.all import *
 
 from quantide.core.enums import BrokerKind
 from quantide.data.sqlite import Asset, Position
+from quantide.web.components.asset_label import resolve_asset_name
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme
 
@@ -136,7 +137,7 @@ def PositionInfo(positions: list[Position] | None = None, portfolio_id: str = ""
             rows.append(
                 Tr(
                     Td(p.asset),
-                    Td(p.asset),
+                    Td(resolve_asset_name(p.asset)),
                     Td(f"{p.shares:,}"),
                     Td(f"{p.avail:,}"),
                     Td(f"{p.shares - p.avail:,}"),
