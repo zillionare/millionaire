@@ -360,7 +360,10 @@ def _trade_toast(message: str, level: str = "error"):
             Button(
                 "x",
                 type="button",
-                cls="ml-auto text-base font-semibold leading-none opacity-70 hover:opacity-100",
+                cls=(
+                    "ml-auto text-base font-semibold leading-none opacity-70 hover:opacity-100 "
+                    "pointer-events-auto cursor-pointer"
+                ),
                 aria_label="关闭提示",
                 onclick=dismiss_js,
             ),

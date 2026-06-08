@@ -1025,6 +1025,72 @@ class TestLoginRoutes:
         assert 'aria-label="关闭提示"' in text
         assert "window.setTimeout(function()" in text
         assert "7000" in text
+
+    def test_trade_toast_close_button_is_clickable(self, test_client):
+        """Issue #37: 顶部 toast 的 × 按钮必须真正可点击。
+
+        之前 × 按钮的 onclick 永远拿不到 click 事件，根因是上层 slot 用了
+        ``pointer-events-none``、内层 toast 即便有 ``pointer-events-auto``，
+        也存在被父级吞掉点击的边界情况。修复：把 ``pointer-events-auto`` 和
+        ``cursor-pointer`` 直接钉在 × 按钮上，不再依赖继承。
+        """
+        response = test_client.post(
+            "/trade/order",
+            data={
+                "side": "BUY",
+                "asset": "",
+                "price_mode": "LIMIT",
+                "order_mode": "AMOUNT",
+                "price": "10.0",
+                "value": "1",
+            },
+        )
+        text = response.text
+
+        assert 'aria-label="关闭提示"' in text
+        import re
+
+        match = re.search(
+            r'<button[^>]*aria-label="关闭提示"[^>]*class="([^"]+)"',
+            text,
+        )
+        assert match, "× 关闭按钮未渲染"
+        btn_cls = match.group(1)
+        assert "pointer-events-auto" in btn_cls, (
+            f"Issue #37 回归: × 按钮 class 缺 pointer-events-auto ({btn_cls!r})"
+        )
+        assert "cursor-pointer" in btn_cls, (
+            f"Issue #37 回归: × 按钮缺光标提示 ({btn_cls!r})"
+        )
+        assert "slot.innerHTML=''" in text
+
+    def test_lightning_toast_close_button_is_clickable(self, test_client, monkeypatch):
+        """Issue #37: 闪电单接口返回的 toast × 按钮也要可点击."""
+        from quantide.web.pages import trade_lightning as lightning_page
+
+        portfolio_id = "sim_toast_close"
+        monkeypatch.setattr(lightning_page.stock_list, "get_name", lambda asset: "平安银行")
+        monkeypatch.setattr(lightning_page.stock_list, "get_pinyin", lambda asset: "PAYH")
+
+        response = test_client.post(
+            f"/trade/lightning/{portfolio_id}/create",
+            data={"asset_query": "not-exist", "amount_wan": "10", "price_ref": "current"},
+        )
+        text = response.text
+
+        assert response.status_code == 200
+        assert 'aria-label="关闭提示"' in text
+        import re
+
+        match = re.search(
+            r'<button[^>]*aria-label="关闭提示"[^>]*class="([^"]+)"',
+            text,
+        )
+        assert match
+        btn_cls = match.group(1)
+        assert "pointer-events-auto" in btn_cls, (
+            f"Issue #37: 闪电单 toast × 按钮 class 缺 pointer-events-auto ({btn_cls!r})"
+        )
         assert "bg-red-100 rounded" not in text
 
     def test_trade_panel_uses_independent_lightning_routes(self, test_client):
