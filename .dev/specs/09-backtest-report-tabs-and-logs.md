@@ -42,22 +42,37 @@
 
 ### 3.1 报告页切换方式
 
-采用 **query 参数驱动的服务端切换**，而不是前端 show/hide：
+采用 **HTMX 局部刷新**：tab 切换时浏览器只更新主内容区，**不**触发整页重载，URL 通过 `hx-push-url` 同步。
 
-1. 路由保持 `/strategy/backtest/{portfolio_id}`。
-2. 新增查询参数 `tab`，合法值：
-   - `overview`
-   - `trades`
-   - `positions`
-   - `logs`
-3. 未提供或非法时回退到 `overview`。
-4. 左侧子菜单 URL 统一改为 `/strategy/backtest/{portfolio_id}?tab=<tab>`。
+具体约定：
+
+1. 主路由保持 `/strategy/backtest/{portfolio_id}`，并支持 `?tab=<key>` query 参数。
+2. 主内容区元素带 `id="backtest-tab-panel"`，被 `hx_target` 指向。
+3. tab 链接使用 HTMX 而非普通 `<a>` 跳转：
+   - `hx_get="/strategy/backtest/{portfolio_id}?tab=<key>"`
+   - `hx_target="#backtest-tab-panel"`
+   - `hx_swap="outerHTML"`
+   - `hx_push_url="true"`
+   - `hx_select="#backtest-tab-panel"`（避免响应中无关 DOM 干扰 swap）
+4. 非法 / 缺失的 `tab` 值回退到 `overview`。
+5. 左侧子菜单、面包屑等同样使用 HTMX，避免全局刷新。
+
+不采用纯前端 show/hide 的原因：
+
+1. 日志面板需要服务端轮询、文件保存状态等动态内容，前端 show/hide 拿不到最新数据。
+2. 分享链接、刷新恢复仍由 query 参数承担。
+
+不采用「整页服务端切换」的原因（参 Issue #41）：
+
+1. 整页刷新会丢失页面其他上下文（资产条、闪电单面板、表单输入等）。
+2. HTMX partial 模式保留用户状态，仅替换目标 DOM 片段。
 
 采用该方案的原因：
 
-1. 不需要额外前端状态管理。
-2. active 高亮、刷新恢复、直接分享链接都更稳定。
-3. 更容易做 HTML 级测试断言。
+1. 与现有 11-backtest 报告布局对接成本最低：tab 链接与回测主区都已经是 HTMX 风格。
+2. 服务端仍然是 single source of truth（query 参数决定返回什么），但响应只回主区。
+3. active 高亮、刷新恢复、直接分享链接都稳定。
+4. 容易做 HTML 级测试断言。
 
 ### 3.2 回测日志数据模型
 
