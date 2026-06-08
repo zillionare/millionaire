@@ -716,7 +716,10 @@ def _edit_modal(
         amount_wan=amount_wan or f"{entry.amount_wan:g}",
         price_ref=price_ref or entry.price_ref,
         readonly_asset=True,
-        intro="请调整预先设置的买入金额和价格参考，保存后可直接用于闪电买入。",
+        intro=(
+            "请设置买入金额和价格以创建闪电单。保存后，在下单界面双击即可"
+            "立即发出委托，适合提前埋伏多支个股，在接近触发条件时快速下单。"
+        ),
     )
 
 

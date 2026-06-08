@@ -1213,6 +1213,9 @@ class TestLoginRoutes:
         assert "20日均线" in text
         assert 'value="ma20" selected="selected"' in text
         assert "000001" in text
+        assert "请设置买入金额和价格以创建闪电单" in text
+        assert "保存后，在下单界面双击即可立即发出委托" in text
+        assert "请调整预先设置的买入金额和价格参考" not in text
         assert "平安银行" in text
 
     def test_trade_lightning_create_and_clear_modals_render(self, test_client):
