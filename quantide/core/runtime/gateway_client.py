@@ -6,7 +6,39 @@ import urllib.request
 from http.cookiejar import CookieJar
 from typing import Any
 
+from loguru import logger
+
 from quantide.config.settings import get_settings
+
+
+class GatewayProtocolError(RuntimeError):
+    """与 qmt-gateway 通讯契约被违反时抛（见 .dev/specs/12-gateway-protocol-contract.md）。"""
+
+
+def _assert_json_content_type(url: str, content_type: str) -> None:
+    """校验响应 Content-Type 是 JSON 或 text/plain；htmx/text/html 一律拒绝。
+
+    Args:
+        url: 请求 URL，仅用于日志。
+        content_type: 响应头中的 Content-Type（可能为空）。
+
+    Raises:
+        GatewayProtocolError: 收到 text/html 等禁止的响应类型。
+    """
+    ct = (content_type or "").lower().split(";")[0].strip()
+    if not ct:
+        logger.warning("gateway response missing Content-Type: {}", url)
+        return
+    if ct in {"application/json", "text/plain", "text/json", "application/octet-stream"}:
+        return
+    if "html" in ct:
+        raise GatewayProtocolError(
+            f"qmt-gateway 端点返回了 htmx/text/html（违反 spec 12 协议契约）：{url} Content-Type={ct!r}。"
+            " quantide 端不应请求 htmx 端点；请改用对应的 JSON 端点。"
+        )
+    raise GatewayProtocolError(
+        f"qmt-gateway 返回了未预期的 Content-Type：{url} Content-Type={ct!r}"
+    )
 
 
 class GatewayClient:
@@ -74,32 +106,44 @@ class GatewayClient:
         self._logged_in = True
 
     def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        """调用 GET 接口."""
+        """调用 GET 接口.
+
+        校验 Content-Type 必须为 JSON 或 text/plain（spec 12）。htmx 响应抛 GatewayProtocolError。
+        """
         self.ensure_login()
         query = ""
         if params:
             query = "?" + urllib.parse.urlencode(params)
+        url = f"{self.base_url}{path}{query}"
         req = urllib.request.Request(
-            url=f"{self.base_url}{path}{query}",
+            url=url,
             method="GET",
         )
         with self._opener.open(req, timeout=self.timeout) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            _assert_json_content_type(url, content_type)
             body = resp.read().decode("utf-8")
             if not body:
                 return None
             return json.loads(body)
 
     def post_form(self, path: str, data: dict[str, Any]) -> Any:
-        """调用 POST 表单接口."""
+        """调用 POST 表单接口.
+
+        校验 Content-Type 必须为 JSON 或 text/plain（spec 12）。htmx 响应抛 GatewayProtocolError。
+        """
         self.ensure_login()
         form = urllib.parse.urlencode(data).encode("utf-8")
+        url = f"{self.base_url}{path}"
         req = urllib.request.Request(
-            url=f"{self.base_url}{path}",
+            url=url,
             data=form,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             method="POST",
         )
         with self._opener.open(req, timeout=self.timeout) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            _assert_json_content_type(url, content_type)
             body = resp.read().decode("utf-8")
             if not body:
                 return None

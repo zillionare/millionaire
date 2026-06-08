@@ -2012,6 +2012,14 @@ def _fetch_positions_orders_via_gateway(
         )
         try:
             with urllib.request.urlopen(req_obj, timeout=timeout) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                content_type_lower = content_type.lower().split(";")[0].strip()
+                if "html" in content_type_lower:
+                    logger.warning(
+                        f"通过 gateway 拉取 {sink} 收到 htmx 响应（违反 spec 12 协议契约）："
+                        f"url={url} Content-Type={content_type!r}。回退到 empty。"
+                    )
+                    continue
                 body = resp.read().decode("utf-8")
             if not body:
                 continue
