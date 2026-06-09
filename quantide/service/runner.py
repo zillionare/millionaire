@@ -4,6 +4,7 @@ from typing import Any
 
 from loguru import logger
 
+from quantide.config.settings import get_cheat_on_close_time
 from quantide.core.enums import FrameType
 from quantide.core.ports import ClockPort
 from quantide.core.runtime.clock_bridge import BacktestClockAdapter
@@ -26,6 +27,24 @@ class BacktestRunner:
             clock: 时钟端口实现。
         """
         self._clock = clock or BacktestClockAdapter()
+
+    @staticmethod
+    def _resolve_cheat_on_close(
+        strategy_cls: type[BaseStrategy], config: dict[str, Any]
+    ) -> bool:
+        """从 config / 类属性解析 cheat_on_close. config 优先."""
+        if "cheat_on_close" in config:
+            return bool(config["cheat_on_close"])
+        return bool(getattr(strategy_cls, "cheat_on_close", False))
+
+    @staticmethod
+    def _resolve_cheat_on_close_time(cheat: bool) -> tuple[int, int]:
+        """返回 (hour, minute) 触发时刻. cheat=True 走 settings.cheat_on_close_time, 否则 9:30."""
+        if not cheat:
+            return (9, 30)
+        time_str = get_cheat_on_close_time()
+        h, m = map(int, time_str.split(":"))
+        return (h, m)
 
     def _align_backtest_dates(
         self,
@@ -268,13 +287,15 @@ class BacktestRunner:
         last_trade_day = None
 
         try:
+            cheat = self._resolve_cheat_on_close(strategy_cls, config)
+            cheat_tm = self._resolve_cheat_on_close_time(cheat)
             for tm in frames:
                 if isinstance(tm, datetime.datetime):
                     current_date = tm.date()
                     bar_tm = tm
                 else:
                     current_date = tm
-                    bar_tm = calendar.replace_time(tm, 9, 30)
+                    bar_tm = calendar.replace_time(current_date, *cheat_tm)
 
                 last_trade_day = await self._handle_day_switch(
                     strategy, broker, current_date, last_trade_day

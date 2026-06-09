@@ -336,3 +336,31 @@ async def test_backtest_run_persists_text_logs_to_db_and_file(
         assert "Checking bar at" in content
     finally:
         clear_app_config_dir_override()
+
+
+# ============================================================
+# Issue #46: cheat_on_close 双触发框架 (helper-level tests)
+# ============================================================
+
+
+class _CheatStrategy(BaseStrategy):
+    cheat_on_close: bool = False
+
+
+def test_runner_resolve_cheat_on_close_from_config():
+    """#46: config 优先于类属性."""
+    assert BacktestRunner._resolve_cheat_on_close(_CheatStrategy, {"cheat_on_close": True}) is True
+    assert BacktestRunner._resolve_cheat_on_close(_CheatStrategy, {"cheat_on_close": False}) is False
+    assert BacktestRunner._resolve_cheat_on_close(_CheatStrategy, {}) is False
+    assert BacktestRunner._resolve_cheat_on_close(_CheatStrategy, {"cheat_on_close": 1}) is True
+
+
+def test_runner_resolve_cheat_on_close_time_default_is_9_30(monkeypatch):
+    """#46: cheat=False → (9, 30), cheat=True → settings."""
+    import quantide.service.runner as runner_module
+
+    assert BacktestRunner._resolve_cheat_on_close_time(False) == (9, 30)
+    monkeypatch.setattr(runner_module, "get_cheat_on_close_time", lambda: "14:57")
+    assert BacktestRunner._resolve_cheat_on_close_time(True) == (14, 57)
+    monkeypatch.setattr(runner_module, "get_cheat_on_close_time", lambda: "14:50")
+    assert BacktestRunner._resolve_cheat_on_close_time(True) == (14, 50)
