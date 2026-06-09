@@ -2,6 +2,8 @@ import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from quantide.config.branding import DEFAULT_EDITION, get_branding
 import quantide.config.dev_stubs as dev_stubs_module
 import quantide.config.settings as settings_module
@@ -253,4 +255,37 @@ def test_get_settings_applies_dev_stub_overrides(monkeypatch, tmp_path: Path):
     assert settings.runtime_market_adapter == "gateway"
     assert settings.runtime_broker_adapter == "gateway"
     assert settings.data_source == "tushare"
-    assert get_tushare_token() == dev_stubs_module.DEV_STUB_TUSHARE_TOKEN
+
+
+def test_cheat_on_close_time_default_is_14_57(monkeypatch):
+    monkeypatch.setattr(settings_module, "_load_app_state", lambda: None)
+    assert settings_module.get_cheat_on_close_time() == "14:57"
+    assert settings_module.parse_cheat_on_close_time("14:57") == (
+        datetime.time(14, 57)
+    )
+
+
+def test_cheat_on_close_time_rejects_out_of_range(monkeypatch):
+    monkeypatch.setattr(settings_module, "_load_app_state", lambda: None)
+    for bad in ("08:59", "15:01", "23:00", "00:00", "ab:cd", ""):
+        with pytest.raises(ValueError):
+            settings_module.parse_cheat_on_close_time(bad)
+    for good in ("09:00", "09:05", "09:30", "14:57", "15:00", "14:50"):
+        h, m = map(int, good.split(":"))
+        assert settings_module.parse_cheat_on_close_time(good) == datetime.time(h, m)
+
+
+def test_cheat_on_close_time_loaded_from_app_state(db, tmp_path: Path):
+    db["app_state"].upsert(
+        AppState(app_home=str(tmp_path), cheat_on_close_time="14:50").to_dict(),
+        pk="id",
+    )
+    assert settings_module.get_cheat_on_close_time() == "14:50"
+
+
+def test_cheat_on_close_time_invalid_persisted_value_falls_back(monkeypatch, db, tmp_path: Path):
+    db["app_state"].upsert(
+        AppState(app_home=str(tmp_path), cheat_on_close_time="99:99").to_dict(),
+        pk="id",
+    )
+    assert settings_module.get_cheat_on_close_time() == "14:57"

@@ -44,6 +44,28 @@ def _as_int(value: Any, default: int) -> int:
         return default
 
 
+def parse_cheat_on_close_time(value: Any) -> datetime.time:
+    """校验并解析 cheat_on_close_time（HH:MM 格式，09:00-15:00 范围内）.
+
+    失败抛 ValueError。调方在 AppState 持久化值非法时应当 fallback 到默认 14:57。
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"cheat_on_close_time must be string, got {type(value).__name__}")
+    text = value.strip()
+    parts = text.split(":")
+    if len(parts) != 2:
+        raise ValueError(f"cheat_on_close_time must be HH:MM, got {value!r}")
+    try:
+        h, m = int(parts[0]), int(parts[1])
+    except ValueError:
+        raise ValueError(f"cheat_on_close_time parts must be integers, got {value!r}")
+    if not (0 <= h <= 23 and 0 <= m <= 59):
+        raise ValueError(f"cheat_on_close_time out of clock range: {value!r}")
+    if not (9 <= h <= 15) or (h == 15 and m > 0):
+        raise ValueError(f"cheat_on_close_time must be in 09:00-15:00, got {value!r}")
+    return datetime.time(h, m)
+
+
 def _normalize_path_prefix(value: str, default: str = "/") -> str:
     text = str(value or "").strip()
     if not text:
@@ -165,6 +187,7 @@ class Settings:
     data_source: str
     epoch: datetime.date
     timezone: datetime.tzinfo
+    cheat_on_close_time: str
 
     @classmethod
     def from_state(
@@ -224,6 +247,9 @@ class Settings:
             or "tushare",
             epoch=_as_date(getattr(state, "epoch", None), datetime.date(2005, 1, 1)),
             timezone=timezone,
+            cheat_on_close_time=str(
+                getattr(state, "cheat_on_close_time", "") or "14:57"
+            ).strip() or "14:57",
         )
 
 
@@ -243,6 +269,19 @@ def get_data_home() -> str:
 def get_timezone() -> datetime.tzinfo:
     """Return the effective timezone."""
     return get_settings().timezone
+
+
+def get_cheat_on_close_time() -> str:
+    """Return the effective cheat_on_close_time（HH:MM 格式，09:00-15:00 范围内）.
+
+    非法持久化值（如 99:99）fallback 到默认 14:57。
+    """
+    raw = get_settings().cheat_on_close_time
+    try:
+        parse_cheat_on_close_time(raw)
+        return raw
+    except ValueError:
+        return "14:57"
 
 
 def get_epoch() -> datetime.date:

@@ -119,6 +119,9 @@ class AppState(Entity):
     data_source: str = "tushare"
     """当前标准数据源适配器名称"""
 
+    cheat_on_close_time: str = "14:57"
+    """cheat_on_close 模式下 bar_tm 的撮合时间（HH:MM 格式，09:00-15:00 范围内）"""
+
     tushare_token: str = ""
     """Tushare API Token"""
 
