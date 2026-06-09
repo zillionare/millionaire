@@ -560,3 +560,116 @@ def test_forming_bar_open_uses_today_open_not_yesterday_close(pin_today):
     # open 应该是今日 1d.open = 20.0，不是 yesterday_close
     assert float(last_row["open"]) == pytest.approx(20.0)
     assert float(last_row["open"]) != yesterday_close
+
+
+def test_concat_with_forming_applies_qfq_adjustment(pin_today):
+    """#43 adjust 复权：forming bar 行的 adjust 从 hist 今日取，合并后整体 qfq_adjustment.
+
+    场景：hist 全部 close=10.0，最后一行（今日）adjust=1.10；forming bar close=12.0。
+    合并后整体 qfq_adjustment，latest_adj_factor=1.10：
+    - hist 历史的 close 被 *1.0/1.10 调整 → 9.0909
+    - forming 行 close = 12.0 * 1.10/1.10 = 12.0（不变）
+    - adjust 列 = 1.0（应用后）
+    """
+    _reset_singletons()
+    trade_dates = _seed_daily_bars(days=3)
+    today = trade_dates[-1]
+
+    dates = [today - datetime.timedelta(days=i) for i in range(5, 0, -1)]
+    adj_factors = [1.0, 1.0, 1.0, 1.0, 1.10]
+    hist = pl.DataFrame(
+        {
+            "date": pl.Series(
+                [datetime.datetime.combine(d, datetime.time.min) for d in dates]
+            ),
+            "asset": [TEST_ASSET] * 5,
+            "open": [10.0] * 5,
+            "high": [10.0] * 5,
+            "low": [10.0] * 5,
+            "close": [10.0] * 5,
+            "volume": [0.0] * 5,
+            "amount": [0.0] * 5,
+            "adjust": adj_factors,
+            "is_st": [False] * 5,
+            "up_limit": [11.0] * 5,
+            "down_limit": [9.0] * 5,
+        }
+    )
+
+    forming = {
+        "dt": today,
+        "asset": TEST_ASSET,
+        "open": 12.0,
+        "high": 12.0,
+        "low": 12.0,
+        "close": 12.0,
+        "volume": 0.0,
+        "amount": 0.0,
+    }
+
+    result = PaperBroker._concat_with_forming(hist, forming, count=5)
+
+    expected_hist_close = 10.0 / 1.10
+    for i in range(4):
+        actual = float(result["close"][i])
+        assert abs(actual - expected_hist_close) < 0.01, (
+            f"row {i}: close={actual}, expected={expected_hist_close}"
+        )
+
+    assert abs(float(result["close"][4]) - 12.0) < 0.01
+
+    assert all(a == 1.0 for a in result["adjust"].to_list()), (
+        f"adjust values: {result['adjust'].to_list()}"
+    )
+
+
+def test_concat_with_forming_fills_up_down_limit_is_st(pin_today):
+    """#43 4 字段补齐：forming 行 up_limit / down_limit / is_st 来自 hist 今日 + live_quote._limits.
+
+    场景：hist 今日 is_st=True, up_limit=11.0, down_limit=9.0；
+          live_quote._limits[asset] = {"up_limit": 11.5, "down_limit": 8.5}
+    forming bar 不带这 3 字段。
+    合并后：
+    - up_limit / down_limit 来自 live_quote._limits（优先级最高）
+    - is_st 来自 hist 今日行（broker fallback）
+    """
+    _reset_singletons()
+    trade_dates = _seed_daily_bars(days=3)
+    today = trade_dates[-1]
+
+    hist = pl.DataFrame(
+        {
+            "date": pl.Series([datetime.datetime.combine(today, datetime.time.min)]),
+            "asset": [TEST_ASSET],
+            "open": [10.0],
+            "high": [10.0],
+            "low": [10.0],
+            "close": [10.0],
+            "volume": [0.0],
+            "amount": [0.0],
+            "adjust": [1.0],
+            "is_st": [True],
+            "up_limit": [11.0],
+            "down_limit": [9.0],
+        }
+    )
+
+    live_quote._limits[TEST_ASSET] = {"up_limit": 11.5, "down_limit": 8.5}
+
+    forming = {
+        "dt": today,
+        "asset": TEST_ASSET,
+        "open": 12.0,
+        "high": 12.0,
+        "low": 12.0,
+        "close": 12.0,
+        "volume": 0.0,
+        "amount": 0.0,
+    }
+
+    result = PaperBroker._concat_with_forming(hist, forming, count=1)
+
+    assert float(result["up_limit"][0]) == pytest.approx(11.5)
+    assert float(result["down_limit"][0]) == pytest.approx(8.5)
+    assert result["is_st"][0] == True
+    live_quote._limits.pop(TEST_ASSET, None)
