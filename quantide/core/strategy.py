@@ -64,19 +64,25 @@ class BaseStrategy:
         count: int,
         end_dt: datetime.datetime | None = None,
         frame_type: str = "1d",
+        include_forming_bar: bool = True,
     ) -> pl.DataFrame:
-        """获取历史数据
+        """获取历史数据。
 
         Args:
             asset: 资产代码
             count: 数量
             end_dt: 截止时间 (包含)，默认为当前回测/实盘时间
             frame_type: 周期
+            include_forming_bar: 是否合并今日 forming bar（默认 True，
+                Issue #20）。live/paper 模式下默认会拿到今日 forming bar；
+                backtest 模式下回放历史 tick 也会得到对应时刻的 forming bar。
 
         Returns:
-            pl.DataFrame: 历史数据
+            pl.DataFrame: 历史数据（含或不含今日 forming bar）。
         """
-        return self.broker.get_history(asset, count, end_dt, frame_type)
+        return self.broker.get_history(
+            asset, count, end_dt, frame_type, include_forming_bar=include_forming_bar
+        )
 
     def log(
         self,

@@ -238,7 +238,36 @@ class Broker(metaclass=ABCMeta):
         取消所有未成交订单。如果所有订单已成交，不做任何操作。
 
         Args:
-            side: 订单方向，默认为 None，取消所有订单
+            side: 订单方向，默认为 None，取消所有未成交订单
+        """
+        ...
+
+    @abstractmethod
+    def get_history(
+        self,
+        asset: str,
+        count: int,
+        end_dt: datetime.datetime | None = None,
+        frame_type: str = "1d",
+        skip_suspended: bool = True,
+        fill_value: bool = True,
+        include_forming_bar: bool = True,
+    ):
+        """获取历史行情。
+
+        Args:
+            asset: 资产代码。
+            count: 历史 bar 数量。
+            end_dt: 截止时间，包含边界。
+            frame_type: 周期类型，目前仅支持 ``1d``。
+            skip_suspended: 是否跳过停牌日。
+            fill_value: 是否填补停牌日。
+            include_forming_bar: 当 ``end_dt`` 落在今日时，是否将今日的实时
+                forming bar (累积自首个 tick) 拼接到历史窗口末尾。默认为 True。
+                设为 False 则只返回昨日及更早的数据。
+
+        Returns:
+            历史行情 DataFrame。
         """
         ...
 

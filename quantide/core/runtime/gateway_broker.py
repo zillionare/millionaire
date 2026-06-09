@@ -23,6 +23,7 @@ from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Order, Position, Trade
 from quantide.service.base_broker import Broker, TradeResult
+from quantide.service.livequote import live_quote
 
 
 class GatewayTradeStateConsistencyError(RuntimeError):
@@ -99,8 +100,14 @@ class GatewayBrokerWrapper(Broker):
         count: int,
         end_dt: datetime.datetime | None = None,
         frame_type: str = "1d",
+        include_forming_bar: bool = True,
     ) -> pl.DataFrame:
-        """获取 live 策略所需的历史日线数据。"""
+        """获取 live 策略所需的历史日线数据。
+
+        Issue #20：默认 ``include_forming_bar=True``，当 ``end_dt`` 落在今日且
+        LiveQuote 已收到今日 tick 时，合并今日 forming bar 在末尾；close/high/low
+        反映盘中最新状态。
+        """
         if frame_type != "1d":
             raise NotImplementedError("GatewayBrokerWrapper currently only supports 1d history")
 
@@ -111,6 +118,22 @@ class GatewayBrokerWrapper(Broker):
             return self._empty_history_frame()
 
         end_date = self._resolve_history_end_date(end_dt)
+        if (
+            not include_forming_bar
+            and end_date == self._today()
+        ):
+            end_date = self._previous_trade_date(end_date)
+            hist = self._provider_get_bars(provider, asset, count, end_date, frame_type)
+        else:
+            hist = self._provider_get_bars(provider, asset, count, end_date, frame_type)
+
+        if include_forming_bar:
+            hist = self._maybe_attach_forming_bar(asset, hist, end_date, end_dt, count)
+        return hist
+
+    def _provider_get_bars(
+        self, provider, asset, count, end_date, frame_type
+    ) -> pl.DataFrame:
         if hasattr(provider, "get_history"):
             return provider.get_history(asset, count, end_date, frame_type)
         if hasattr(provider, "get_bars"):
@@ -122,6 +145,54 @@ class GatewayBrokerWrapper(Broker):
                 eager_mode=True,
             )
         return self._empty_history_frame()
+
+    def _maybe_attach_forming_bar(
+        self,
+        asset: str,
+        hist: pl.DataFrame,
+        end_date: datetime.date,
+        end_dt: datetime.datetime | None,
+        count: int,
+    ) -> pl.DataFrame:
+        """end_date==今日且 end_dt.time()>9:30 时，合并 LiveQuote 的 forming bar.
+
+        若 LiveQuote 还没收到今日 tick（bar 为 None）— 今日的 close 还没固定，
+        退回只看昨日及更早。
+        """
+        if end_date != self._today():
+            return hist
+        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
+            return hist
+        bar = live_quote.get_daily_bar(asset)
+        if bar is None:
+            return self._provider_get_bars(
+                self._history_provider or daily_bars,
+                asset,
+                count,
+                self._previous_trade_date(end_date),
+                "1d",
+            )
+        bar_dt = bar.get("dt")
+        if hasattr(bar_dt, "date"):
+            bar_dt = bar_dt.date()
+        if bar_dt != end_date:
+            return hist
+        return self._concat_forming_with_history(hist, bar, count)
+
+    @staticmethod
+    def _concat_forming_with_history(
+        hist: pl.DataFrame, forming: dict, count: int
+    ) -> pl.DataFrame:
+        """共用 _concat_with_forming 逻辑（与 sim_broker 一致）。"""
+        from quantide.service.sim_broker import PaperBroker
+
+        return PaperBroker._concat_with_forming(hist, forming, count)
+
+    def _previous_trade_date(self, today: datetime.date) -> datetime.date:
+        try:
+            return calendar.day_shift(today, -1)
+        except Exception:
+            return today - datetime.timedelta(days=1)
 
     def _resolve_history_end_date(
         self,

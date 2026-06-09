@@ -98,38 +98,93 @@ class LiveQuote:
         d1_raw = data.get("1d")
         m1: dict[str, Any] = m1_raw if isinstance(m1_raw, dict) else {}
         d1: dict[str, Any] = d1_raw if isinstance(d1_raw, dict) else {}
-        close_value = self._to_float(m1.get("close"), self._to_float(d1.get("close"), 0.0))
+
+        # Issue #20：forming daily bar 从首个 tick 起累积。后续 tick 缺字段时
+        # 不可被 0/默认值覆盖；open 锁首日开盘、high/low 取 max/min、close 跟最新价、
+        # volume/amount 跨 tick 累加。
+        with self._lock:
+            prev_raw = self._daily_bars.get(symbol) or {}
+            new_dt = datetime.datetime.fromtimestamp(ts_ms / 1000).date()
+            prev_dt = prev_raw.get("dt")
+            # 跨日切换：丢掉旧日缓存，按新 tick 重建（LiveQuote 只跟踪当前交易
+            # 日的 forming bar；旧日应该是已结算的 fixed bar，不应再被"累积"）。
+            is_new_day = prev_dt is not None and prev_dt != new_dt
+            prev = {} if is_new_day else prev_raw
+            prev_open = self._to_float(prev.get("open"), 0.0)
+            prev_high = self._to_float(prev.get("high"), 0.0)
+            prev_low = self._to_float(prev.get("low"), 0.0)
+            prev_close = self._to_float(prev.get("close"), 0.0)
+            prev_volume = self._to_float(prev.get("volume"), 0.0)
+            prev_amount = self._to_float(prev.get("amount"), 0.0)
+
+        new_close = self._to_float(m1.get("close"), self._to_float(d1.get("close"), 0.0))
+        new_open_d1 = self._to_float(d1.get("open"), 0.0)
+        new_open_m1 = self._to_float(m1.get("open"), 0.0)
+        new_high_m1 = self._to_float(m1.get("high"), 0.0)
+        new_low_m1 = self._to_float(m1.get("low"), 0.0)
+        new_high_d1 = self._to_float(d1.get("high"), 0.0)
+        new_low_d1 = self._to_float(d1.get("low"), 0.0)
+        # volume/amount 必须有 1d 字段才累加（1d 是日内累计；m1 是单分钟，
+        # 不可与日内累计相加，否则一分钟一次推送会让成交量膨胀 240 倍）。
+        if d1:
+            new_volume = self._to_float(d1.get("vol"), 0.0)
+            new_amount = self._to_float(d1.get("amount"), 0.0)
+            has_d1_volume = True
+        else:
+            new_volume = 0.0
+            new_amount = 0.0
+            has_d1_volume = False
+
+        if new_close <= 0:
+            new_close = prev_close
+        daily_open = new_open_d1 if new_open_d1 > 0 else (prev_open if prev_open > 0 else new_open_m1)
+        # 1d 字段本身就是日内 running high/low（gateway 已聚合），
+        # 直接用最新；只有当 1d 缺字段时才退化到与 m1 联合 max/min。
+        if new_high_d1 > 0:
+            daily_high = new_high_d1
+        else:
+            candidate_highs = [v for v in (prev_high, new_high_m1) if v > 0]
+            daily_high = max(candidate_highs) if candidate_highs else new_close
+        if new_low_d1 > 0:
+            daily_low = new_low_d1
+        else:
+            candidate_lows = [v for v in (prev_low, new_low_m1) if v > 0]
+            daily_low = min(candidate_lows) if candidate_lows else new_close
+        daily_volume = prev_volume + new_volume if has_d1_volume else prev_volume
+        daily_amount = prev_amount + new_amount if has_d1_volume else prev_amount
+        daily_dt = new_dt
+
         quote = {
-            "price": close_value,
-            "lastPrice": close_value,
-            "open": self._to_float(m1.get("open"), self._to_float(d1.get("open"), close_value)),
-            "high": self._to_float(m1.get("high"), self._to_float(d1.get("high"), close_value)),
-            "low": self._to_float(m1.get("low"), self._to_float(d1.get("low"), close_value)),
-            "volume": self._to_float(m1.get("vol"), self._to_float(d1.get("vol"), 0.0)),
-            "amount": self._to_float(m1.get("amount"), self._to_float(d1.get("amount"), 0.0)),
+            "price": new_close,
+            "lastPrice": new_close,
+            "open": new_open_m1 if new_open_m1 > 0 else daily_open,
+            "high": new_high_m1 if new_high_m1 > 0 else daily_high,
+            "low": new_low_m1 if new_low_m1 > 0 else daily_low,
+            "volume": daily_volume,
+            "amount": daily_amount,
             "time": ts_ms,
         }
         minute_bar = {
             "asset": symbol,
             "frame": "1m",
             "dt": datetime.datetime.fromtimestamp(ts_ms / 1000),
-            "open": quote["open"],
-            "high": quote["high"],
-            "low": quote["low"],
-            "close": quote["price"],
-            "volume": quote["volume"],
-            "amount": quote["amount"],
+            "open": new_open_m1 if new_open_m1 > 0 else daily_open,
+            "high": new_high_m1 if new_high_m1 > 0 else daily_high,
+            "low": new_low_m1 if new_low_m1 > 0 else daily_low,
+            "close": new_close,
+            "volume": self._to_float(m1.get("vol"), 0.0),
+            "amount": self._to_float(m1.get("amount"), 0.0),
         }
         daily_bar = {
             "asset": symbol,
             "frame": "1d",
-            "dt": datetime.datetime.fromtimestamp(ts_ms / 1000).date(),
-            "open": self._to_float(d1.get("open"), quote["open"]),
-            "high": self._to_float(d1.get("high"), quote["high"]),
-            "low": self._to_float(d1.get("low"), quote["low"]),
-            "close": self._to_float(d1.get("close"), quote["price"]),
-            "volume": self._to_float(d1.get("vol"), quote["volume"]),
-            "amount": self._to_float(d1.get("amount"), quote["amount"]),
+            "dt": daily_dt,
+            "open": daily_open,
+            "high": daily_high,
+            "low": daily_low,
+            "close": new_close,
+            "volume": daily_volume,
+            "amount": daily_amount,
         }
         with self._lock:
             self._minute_bars[symbol].append(minute_bar)

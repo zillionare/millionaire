@@ -196,13 +196,64 @@ class PaperBroker(AbstractBroker):
         count: int,
         end_dt: datetime.datetime | None = None,
         frame_type: str = "1d",
+        include_forming_bar: bool = True,
     ) -> pl.DataFrame:
-        """获取 paper 模式策略所需的历史日线数据。"""
+        """获取 paper 模式策略所需的历史日线数据。
+
+        Issue #20：默认 ``include_forming_bar=True``，当 ``end_dt`` 落在今日且
+        LiveQuote 已收到今日 tick 时，合并今日 forming bar 在末尾；close/high/low
+        反映盘中最新状态。
+
+        Args:
+            asset: 资产代码。
+            count: 历史 bar 数量。
+            end_dt: 截止时间，包含边界。
+            frame_type: 周期类型，目前仅支持 ``1d``。
+            include_forming_bar: 是否合并今日 forming bar（默认 True）。
+                end_dt 早于今日时此参数无效。
+        """
         if frame_type != "1d":
             raise NotImplementedError("PaperBroker currently only supports 1d history")
 
         end_date = self._resolve_history_end_date(end_dt)
+        # 当 include_forming_bar=False 且 end_date 落在今日时，强制只看昨日及更早。
+        if (
+            not include_forming_bar
+            and end_date == self._get_today()
+        ):
+            end_date = self._previous_trade_date(end_date)
+            hist = self._get_history_bars(asset, count, end_date, frame_type)
+        else:
+            hist = self._get_history_bars(asset, count, end_date, frame_type)
 
+        if include_forming_bar and self._should_attach_forming_bar(end_date, end_dt):
+            forming = self._extract_forming_bar(asset, end_date)
+            if forming is not None:
+                hist = self._concat_with_forming(hist, forming, count)
+            elif end_date == self._get_today():
+                # include_forming_bar=True 但 LiveQuote 还没收到今日 tick — 今日的
+                # 历史 close 还没固定，按"看昨日及更早"回退。
+                hist = self._get_history_bars(
+                    asset, count, self._previous_trade_date(end_date), frame_type
+                )
+
+        return hist
+
+    def _previous_trade_date(self, today: datetime.date) -> datetime.date:
+        """返回 today 的前一个交易日（基于 calendar 优先，fallback 自然日 -1）。"""
+        try:
+            return calendar.day_shift(today, -1)
+        except Exception:
+            return today - datetime.timedelta(days=1)
+
+    def _get_history_bars(
+        self,
+        asset: str,
+        count: int,
+        end_date: datetime.date,
+        frame_type: str,
+    ) -> pl.DataFrame:
+        """统一的 history 数据源获取（market_data 优先，回落 daily_bars）。"""
         if self._market_data is not None and hasattr(self._market_data, "get_history"):
             return self._market_data.get_history(asset, count, end_date, frame_type)
 
@@ -225,6 +276,84 @@ class PaperBroker(AbstractBroker):
             )
 
         return self._empty_history_frame()
+
+    def _should_attach_forming_bar(
+        self,
+        end_date: datetime.date,
+        end_dt: datetime.datetime | None,
+    ) -> bool:
+        """end_date 落在今日且不是凌晨 9:30 之前才挂 forming bar。"""
+        if end_date != self._get_today():
+            return False
+        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
+            return False
+        return True
+
+    def _extract_forming_bar(
+        self, asset: str, end_date: datetime.date
+    ) -> dict[str, Any] | None:
+        """从 LiveQuote 拿今日 forming bar（若没有则返回 None）。"""
+        bar = live_quote.get_daily_bar(asset)
+        if bar is None:
+            return None
+        bar_dt = bar.get("dt")
+        if hasattr(bar_dt, "date"):
+            bar_dt = bar_dt.date()
+        if bar_dt != end_date:
+            return None
+        return bar
+
+    @staticmethod
+    def _concat_with_forming(
+        hist: pl.DataFrame, forming: dict[str, Any], count: int
+    ) -> pl.DataFrame:
+        """把 forming bar（dict）拼到 history 末尾，裁剪到 count 行。"""
+        forming_clean: dict[str, Any] = dict(forming)
+        # 丢掉 forming 里的 ``frame`` 字符串（LiveQuote 的 frame 字段是 "1d" 标签，
+        # 不是日期；真正的日期在 ``dt`` 里）。
+        if "frame" in forming_clean and not isinstance(
+            forming_clean["frame"], (datetime.date, datetime.datetime)
+        ):
+            forming_clean.pop("frame")
+        # LiveQuote 的 ``dt``（date）要重命名成 hist 用的日期列名（``frame`` 或 ``date``）
+        hist_date_col = "frame" if "frame" in hist.columns else (
+            "date" if "date" in hist.columns else None
+        )
+        if hist_date_col is None:
+            return hist
+        if "dt" in forming_clean and "dt" != hist_date_col:
+            dt_value = forming_clean.pop("dt")
+            if isinstance(dt_value, datetime.date) and not isinstance(
+                dt_value, datetime.datetime
+            ):
+                dt_value = datetime.datetime.combine(dt_value, datetime.time.min)
+            forming_clean[hist_date_col] = dt_value
+        # 补齐 hist 有的列，缺则置 null（让 concat 对齐）
+        for col in hist.columns:
+            if col not in forming_clean:
+                forming_clean[col] = None
+        # 丢掉 forming 有但 hist 没有的列（如 amount/volume 已存在则保留）
+        forming_clean = {k: v for k, v in forming_clean.items() if k in hist.columns}
+        forming_df = pl.DataFrame([forming_clean])
+        # 类型对齐
+        for col in hist.columns:
+            if col in forming_df.columns and hist.schema[col] != forming_df.schema[col]:
+                try:
+                    forming_df = forming_df.with_columns(
+                        pl.col(col).cast(hist.schema[col]).alias(col)
+                    )
+                except Exception:
+                    forming_df = forming_df.drop(col)
+        merged = pl.concat([hist, forming_df.select(hist.columns)], how="vertical")
+        # 同一天的 forming 覆盖历史行（keep="last"）
+        if "asset" in merged.columns:
+            merged = merged.unique(subset=[hist_date_col, "asset"], keep="last")
+        else:
+            merged = merged.unique(subset=[hist_date_col], keep="last")
+        merged = merged.sort(hist_date_col)
+        if len(merged) > count:
+            merged = merged.tail(count)
+        return merged
 
     def _resolve_history_end_date(
         self,

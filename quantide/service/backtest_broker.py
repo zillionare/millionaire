@@ -1066,6 +1066,7 @@ class BacktestBroker(AbstractBroker):
         frame_type: str = "1d",
         skip_suspended: bool = True,
         fill_value: bool = True,
+        include_forming_bar: bool = True,
     ) -> pl.DataFrame:
         """获取回测历史行情。
 
@@ -1079,12 +1080,15 @@ class BacktestBroker(AbstractBroker):
             frame_type: 周期类型，目前仅支持 ``1d``。
             skip_suspended: 预留参数，当前未使用。
             fill_value: 预留参数，当前未使用。
+            include_forming_bar: 回测模式下不适用（无实时 tick 注入），保留参数以
+                与 sim/gateway broker 接口一致。
 
         Returns:
             历史日线数据。
         """
         _ = skip_suspended
         _ = fill_value
+        _ = include_forming_bar
         if frame_type != "1d":
             # 目前只支持日线，后续可扩展
             raise NotImplementedError("BacktestBroker currently only supports 1d history")
