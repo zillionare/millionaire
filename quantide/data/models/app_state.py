@@ -87,9 +87,6 @@ class AppState(Entity):
     runtime_mode: str = "live"
     """运行模式"""
 
-    runtime_market_adapter: str = ""
-    """运行时行情适配器"""
-
     runtime_broker_adapter: str = ""
     """运行时交易适配器"""
 

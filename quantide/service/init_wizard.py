@@ -85,7 +85,6 @@ class InitWizardService:
         state.gateway_timeout = int(settings.gateway_timeout)
         state.livequote_mode = settings.livequote_mode
         state.runtime_mode = settings.runtime_mode
-        state.runtime_market_adapter = settings.runtime_market_adapter
         state.runtime_broker_adapter = settings.runtime_broker_adapter
         state.gateway_api_key = settings.gateway_api_key
         state.data_source = settings.data_source

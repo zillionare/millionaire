@@ -165,8 +165,8 @@ def _build_gateway_port(
     market_data: Any,
 ) -> tuple[GatewayBrokerAdapter, GatewayBrokerWrapper, StrategyBrokerProxy]:
     client = GatewayClient(stub_base_url, username="u", password="p", timeout=2)
-    adapter = GatewayBrokerAdapter(client, market_data=market_data)
-    wrapper = GatewayBrokerWrapper(adapter, history_provider=market_data)
+    adapter = GatewayBrokerAdapter(client)
+    wrapper = GatewayBrokerWrapper(adapter)
     handle = register_port_backed_broker(
         registry=BrokerRegistry(),
         adapters=AdapterRegistry(),
@@ -179,7 +179,7 @@ def _build_gateway_port(
 
 
 @pytest.mark.asyncio  # type: ignore[untyped-decorator]
-async def test_dual_ma_live_strategy_path_preserves_qtoid_and_updates_state() -> None:
+async def test_dual_ma_live_strategy_path_preserves_qtoid_and_updates_state(monkeypatch) -> None:
     baseline = _load_live_baseline()["strategy_full_fill"]
     trade_date = datetime.date.fromisoformat(baseline["trade_date"])
     bars = _load_bars(trade_date)
@@ -223,6 +223,13 @@ async def test_dual_ma_live_strategy_path_preserves_qtoid_and_updates_state() ->
     )
 
     db.init(":memory:")
+    from quantide.core.runtime import gateway_broker as _gb_mod
+    monkeypatch.setattr(_gb_mod, "daily_bars", market_data)
+    from quantide.service.livequote import live_quote
+    live_quote._limits[SYMBOL] = {
+        "up_limit": float(row["up_limit"]),
+        "down_limit": float(row["down_limit"]),
+    }
     with running_gateway_stub(prefix="/qmt", scenario=scenario) as stub:
         adapter, _, broker = _build_gateway_port(stub.base_url, market_data)
         strategy = DualMAStrategy(
@@ -316,7 +323,7 @@ async def test_live_gateway_partial_fill_then_cancel_keeps_state_single_applied(
     with running_gateway_stub(prefix="/qmt", scenario=scenario) as stub:
         market_data = StaticMarketData(price=baseline["price"], up_limit=baseline["price"])
         client = GatewayClient(stub.base_url, username="u", password="p", timeout=2)
-        adapter = GatewayBrokerAdapter(client, market_data=market_data)
+        adapter = GatewayBrokerAdapter(client)
         ack = await adapter.submit(
             OrderRequest(
                 asset=SYMBOL,
@@ -352,7 +359,7 @@ async def test_live_gateway_reject_leaves_queries_unchanged() -> None:
     with running_gateway_stub(prefix="/qmt", scenario=scenario) as stub:
         market_data = StaticMarketData(price=10.0, up_limit=10.0)
         client = GatewayClient(stub.base_url, username="u", password="p", timeout=2)
-        adapter = GatewayBrokerAdapter(client, market_data=market_data)
+        adapter = GatewayBrokerAdapter(client)
         ack = await adapter.submit(
             OrderRequest(
                 asset=SYMBOL,
@@ -420,7 +427,6 @@ async def test_live_gateway_out_of_order_replay_recovers_qtoid_after_reconnect()
         market_data = StaticMarketData(price=baseline["price"], up_limit=baseline["price"])
         first = GatewayBrokerAdapter(
             GatewayClient(stub.base_url, username="u", password="p", timeout=2),
-            market_data=market_data,
         )
         ack = await first.submit(
             OrderRequest(
@@ -433,7 +439,6 @@ async def test_live_gateway_out_of_order_replay_recovers_qtoid_after_reconnect()
         )
         second = GatewayBrokerAdapter(
             GatewayClient(stub.base_url, username="u", password="p", timeout=2),
-            market_data=market_data,
         )
         trades = second.query_trades(order_id=ack.order_id)
         orders = second.query_orders()

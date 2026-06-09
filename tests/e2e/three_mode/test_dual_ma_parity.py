@@ -436,7 +436,9 @@ async def _run_paper_mode(baseline: dict[str, Any], bars: pl.DataFrame) -> dict[
     }
 
 
-async def _run_live_mode(baseline: dict[str, Any], bars: pl.DataFrame) -> dict[str, Any]:
+async def _run_live_mode(
+    baseline: dict[str, Any], bars: pl.DataFrame, monkeypatch
+) -> dict[str, Any]:
     db.init(":memory:")
     calendar_model.load(ASSETS_ROOT / "baseline_calendar.parquet")
     market_data = ScenarioFeed(bars)
@@ -456,8 +458,17 @@ async def _run_live_mode(baseline: dict[str, Any], bars: pl.DataFrame) -> dict[s
 
     with running_gateway_stub(prefix="/qmt", scenario=scenario) as stub:
         client = GatewayClient(stub.base_url, username="u", password="p", timeout=2)
-        adapter = GatewayBrokerAdapter(client, market_data=market_data)
-        wrapper = GatewayBrokerWrapper(adapter, history_provider=market_data)
+        adapter = GatewayBrokerAdapter(client)
+        wrapper = GatewayBrokerWrapper(adapter)
+        from quantide.core.runtime import gateway_broker as _gb_mod
+        monkeypatch.setattr(_gb_mod, "daily_bars", market_data)
+        from quantide.service.livequote import live_quote
+        for row in bars.iter_rows(named=True):
+            live_quote._limits[SYMBOL] = {
+                "up_limit": float(row["up_limit"]),
+                "down_limit": float(row["down_limit"]),
+            }
+            break
         handle = register_port_backed_broker(
             registry=BrokerRegistry(),
             adapters=AdapterRegistry(),
@@ -474,6 +485,10 @@ async def _run_live_mode(baseline: dict[str, Any], bars: pl.DataFrame) -> dict[s
         for row in bars.iter_rows(named=True):
             session_open = datetime.datetime.combine(row["date"], datetime.time(9, 30))
             market_data.set_bar(row)
+            live_quote._limits[SYMBOL] = {
+                "up_limit": float(row["up_limit"]),
+                "down_limit": float(row["down_limit"]),
+            }
             wrapper.set_clock(session_open)
             await strategy.on_bar(
                 session_open,
@@ -525,7 +540,7 @@ async def _run_live_mode(baseline: dict[str, Any], bars: pl.DataFrame) -> dict[s
 @pytest.mark.asyncio
 @pytest.mark.e2e
 @pytest.mark.release_gate
-async def test_dual_ma_parity_across_backtest_paper_and_live(calendar):
+async def test_dual_ma_parity_across_backtest_paper_and_live(calendar, monkeypatch):
     _ = calendar
     baseline = _load_baseline()
     bars = _load_scenario_bars(baseline)
@@ -535,7 +550,7 @@ async def test_dual_ma_parity_across_backtest_paper_and_live(calendar):
 
     backtest_result = await _run_backtest_mode(baseline, ScenarioFeed(bars))
     paper_result = await _run_paper_mode(baseline, bars)
-    live_result = await _run_live_mode(baseline, bars)
+    live_result = await _run_live_mode(baseline, bars, monkeypatch)
 
     assert backtest_result["trades"] == expected_trades
     assert paper_result["trades"] == expected_trades

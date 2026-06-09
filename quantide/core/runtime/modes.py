@@ -12,7 +12,6 @@ from quantide.core.runtime.gateway_broker import (
     GatewayBrokerWrapper,
 )
 from quantide.core.runtime.gateway_client import GatewayClient
-from quantide.core.runtime.gateway_market import GatewayMarketDataAdapter
 from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter
 from quantide.core.runtime.registration import (
     register_legacy_broker,
@@ -124,19 +123,11 @@ class RuntimeBootstrap:
         return "live"
 
     def _build_market_data(self, adapters: AdapterRegistry) -> MarketDataPort:
-        """构建行情适配器."""
-        runtime = get_settings()
-        adapter_name = runtime.runtime_market_adapter
-        mode_name = runtime.livequote_mode
-        use_gateway = runtime.gateway_enabled and (
-            adapter_name == "gateway" or mode_name == "gateway"
-        )
-        if use_gateway:
-            client = GatewayClient.from_config()
-            market_data = GatewayMarketDataAdapter(client)
-            market_data.start()
-            adapters.register("market_data", "gateway", market_data)
-            return market_data
+        """构建行情适配器.
+
+        数据源统一策略 (#48): 不再根据 runtime_market_adapter 分流 gateway / live_quote,
+        一律走 LiveQuote。gateway 行情接入点保留在 service 层 (`live_quote` 的实现里)。
+        """
         live_quote.start()
         market_data = LiveQuoteMarketDataAdapter(live_quote)
         adapters.register("market_data", "live_quote", market_data)
@@ -201,7 +192,7 @@ class RuntimeBootstrap:
         if not use_gateway:
             return
         client = GatewayClient.from_config()
-        adapter = GatewayBrokerAdapter(client, market_data=market_data)
+        adapter = GatewayBrokerAdapter(client)
         legacy = GatewayBrokerWrapper(adapter)
         registry = getattr(self, "_registry_ref", None)
         if registry:

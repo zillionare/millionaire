@@ -537,6 +537,7 @@ async def test_gateway_broker_no_double_qfq_adjustment_on_forming_merge(monkeypa
 
     from quantide.core.enums import OrderSide
     from quantide.core.ports import OrderRequest
+    from quantide.core.runtime import gateway_broker as _gb_mod
     from quantide.service.livequote import live_quote
 
     dates = [datetime.date(2026, 1, i) for i in range(1, 6)]
@@ -563,9 +564,11 @@ async def test_gateway_broker_no_double_qfq_adjustment_on_forming_merge(monkeypa
         def get_bars(self, n, end, assets, adjust, eager_mode):
             return hist
 
+    monkeypatch.setattr(_gb_mod, "daily_bars", _RawProvider())
+
     client = DummyGatewayClient()
     adapter = GatewayBrokerAdapter(client)
-    wrapper = GatewayBrokerWrapper(adapter, history_provider=_RawProvider())
+    wrapper = GatewayBrokerWrapper(adapter)
     wrapper.set_clock(datetime.datetime(2026, 1, 5, 15, 0))
     live_quote._daily_bars["000001.SZ"] = {
         "asset": "000001.SZ",

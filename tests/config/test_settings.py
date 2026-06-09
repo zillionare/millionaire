@@ -224,7 +224,6 @@ def test_get_settings_applies_dev_stub_overrides(monkeypatch, tmp_path: Path):
             gateway_base_url="/real",
             livequote_mode="none",
             runtime_mode="backtest",
-            runtime_market_adapter="",
             runtime_broker_adapter="",
             data_source="csv",
             tushare_token="real-token",
@@ -252,7 +251,6 @@ def test_get_settings_applies_dev_stub_overrides(monkeypatch, tmp_path: Path):
     assert settings.gateway_password == "stub-password"
     assert settings.livequote_mode == "gateway"
     assert settings.runtime_mode == "live"
-    assert settings.runtime_market_adapter == "gateway"
     assert settings.runtime_broker_adapter == "gateway"
     assert settings.data_source == "tushare"
 

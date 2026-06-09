@@ -360,7 +360,7 @@ def test_sim_broker_get_history_past_end_date_excludes_forming(pin_today):
     assert last_date == yesterday
 
 
-def test_gateway_broker_get_history_includes_forming_bar(pin_today):
+def test_gateway_broker_get_history_includes_forming_bar(pin_today, monkeypatch):
     """Live 模式 get_history 默认含 forming bar。"""
     _reset_singletons()
     trade_dates = _seed_daily_bars(days=5)
@@ -380,12 +380,13 @@ def test_gateway_broker_get_history_includes_forming_bar(pin_today):
         d1={"open": 10, "high": 13, "low": 9, "close": 12.34, "vol": 500, "amount": 6000},
     )
 
+    from quantide.core.runtime import gateway_broker as _gb_mod
     from tests.core.test_gateway_broker_adapter import DummyGatewayClient
 
+    monkeypatch.setattr(_gb_mod, "daily_bars", MockHistoryProvider())
+
     adapter = GatewayBrokerAdapter(DummyGatewayClient())
-    broker = GatewayBrokerWrapper(
-        adapter=adapter, portfolio_id="gw_forming", history_provider=MockHistoryProvider()
-    )
+    broker = GatewayBrokerWrapper(adapter=adapter, portfolio_id="gw_forming")
     df_hist = broker.get_history(
         TEST_ASSET,
         count=5,
@@ -400,7 +401,7 @@ def test_gateway_broker_get_history_includes_forming_bar(pin_today):
     assert float(last_row["close"]) != yesterday_close
 
 
-def test_gateway_broker_get_history_disabled_excludes_forming(pin_today):
+def test_gateway_broker_get_history_disabled_excludes_forming(pin_today, monkeypatch):
     """Live 模式 include_forming_bar=False → 历史不漂移到今日。"""
     _reset_singletons()
     trade_dates = _seed_daily_bars(days=5)
@@ -415,12 +416,13 @@ def test_gateway_broker_get_history_disabled_excludes_forming(pin_today):
         d1={"close": 99.99},
     )
 
+    from quantide.core.runtime import gateway_broker as _gb_mod
     from tests.core.test_gateway_broker_adapter import DummyGatewayClient
 
+    monkeypatch.setattr(_gb_mod, "daily_bars", MockHistoryProvider())
+
     adapter = GatewayBrokerAdapter(DummyGatewayClient())
-    broker = GatewayBrokerWrapper(
-        adapter=adapter, portfolio_id="gw_no_forming", history_provider=MockHistoryProvider()
-    )
+    broker = GatewayBrokerWrapper(adapter=adapter, portfolio_id="gw_no_forming")
     df_hist = broker.get_history(
         TEST_ASSET,
         count=5,

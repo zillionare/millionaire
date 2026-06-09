@@ -82,13 +82,11 @@ class GatewayBrokerWrapper(Broker):
         self,
         adapter: "GatewayBrokerAdapter",
         portfolio_id: str = "gateway",
-        history_provider: Any | None = None,
     ):
         self._adapter = adapter
         self._portfolio_id = portfolio_id
         self._portfolio_name = "实盘网关"
         self._kind = BrokerKind.QMT
-        self._history_provider = history_provider
         self._clock: datetime.datetime | None = None
         self._strategy_cheat_on_close: bool = True
         self._live_execution_window: str = "auction"
@@ -130,21 +128,17 @@ class GatewayBrokerWrapper(Broker):
         if frame_type != "1d":
             raise NotImplementedError("GatewayBrokerWrapper currently only supports 1d history")
 
-        provider = self._history_provider
-        if provider is None and getattr(daily_bars, "_store", None) is not None:
-            provider = daily_bars
-        if provider is None:
+        if not hasattr(daily_bars, "get_bars") and not hasattr(daily_bars, "get_history"):
             return self._empty_history_frame()
-
         end_date = self._resolve_history_end_date(end_dt)
         if (
             not include_forming_bar
             and end_date == self._today()
         ):
             end_date = self._previous_trade_date(end_date)
-            hist = self._provider_get_bars(provider, asset, count, end_date, frame_type)
+            hist = self._provider_get_bars(daily_bars, asset, count, end_date, frame_type)
         else:
-            hist = self._provider_get_bars(provider, asset, count, end_date, frame_type)
+            hist = self._provider_get_bars(daily_bars, asset, count, end_date, frame_type)
 
         forming_applied = False
         if include_forming_bar:
@@ -680,14 +674,13 @@ class GatewayBrokerWrapper(Broker):
 class GatewayBrokerAdapter(BrokerPort):
     """基于 qmt-gateway REST 的交易适配器."""
 
-    def __init__(self, client: GatewayClient, market_data: Any | None = None):
+    def __init__(self, client: GatewayClient):
         """初始化适配器.
 
         Args:
             client: gateway 客户端。
         """
         self._client = client
-        self._market_data = market_data
         self._qtoid_to_external_order_id: dict[str, str] = {}
         self._external_order_id_to_qtoid: dict[str, str] = {}
 
@@ -1039,32 +1032,25 @@ class GatewayBrokerAdapter(BrokerPort):
         return result
 
     def _resolve_price(self, request: OrderRequest) -> float:
-        """解析正式下单价格，优先使用显式价格，其次回退到行情快照。"""
+        """解析正式下单价格，优先使用显式价格，其次回退到 live_quote 行情。"""
         if request.price > 0:
             return float(request.price)
-        if self._market_data is None:
-            return 0.0
         try:
-            snapshots = self._market_data.snapshot([request.asset])
+            quote = live_quote.get_quote(request.asset)
         except Exception:
             return 0.0
-        snapshot = snapshots.get(request.asset)
-        if snapshot is None:
+        if not quote:
             return 0.0
-        for value in (snapshot.price, snapshot.open, snapshot.high, snapshot.low):
+        for key in ("price", "open", "high", "low"):
+            value = quote.get(key)
             if value and value > 0:
                 return float(value)
         return 0.0
 
     def _resolve_sizing_price(self, request: OrderRequest, execution_price: float) -> float:
         """解析金额类下单的数量估算价格，优先使用涨跌停保护价。"""
-        if self._market_data is None:
-            return execution_price
-        get_price_limits = getattr(self._market_data, "get_price_limits", None)
-        if not callable(get_price_limits):
-            return execution_price
         try:
-            down_limit, up_limit = get_price_limits(request.asset)
+            down_limit, up_limit = live_quote.get_price_limits(request.asset)
         except Exception:
             return execution_price
         if request.side == OrderSide.BUY and up_limit and up_limit > 0:

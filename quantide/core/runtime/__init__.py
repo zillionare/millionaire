@@ -5,7 +5,6 @@ from quantide.core.runtime.broker_bridge import LegacyBrokerPortAdapter
 from quantide.core.runtime.clock_bridge import BacktestClockAdapter, SystemClockAdapter
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.gateway_client import GatewayClient
-from quantide.core.runtime.gateway_market import GatewayMarketDataAdapter
 from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter
 from quantide.core.runtime.port_broker import PortBackedBroker
 from quantide.core.runtime.registration import (
@@ -22,7 +21,6 @@ __all__ = [
     "BacktestClockAdapter",
     "GatewayClient",
     "GatewayBrokerAdapter",
-    "GatewayMarketDataAdapter",
     "LiveQuoteMarketDataAdapter",
     "register_legacy_broker",
     "register_port_backed_broker",

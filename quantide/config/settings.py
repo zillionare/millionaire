@@ -164,7 +164,6 @@ def _apply_dev_stub_overrides(settings: Settings) -> Settings:
         gateway_server=runtime.gateway_server,
         gateway_port=runtime.gateway_port,
         runtime_mode="live",
-        runtime_market_adapter="gateway",
         runtime_broker_adapter="gateway",
         livequote_mode="gateway",
         data_source="tushare",
@@ -193,7 +192,6 @@ class Settings:
     gateway_server: str
     gateway_port: int
     runtime_mode: str
-    runtime_market_adapter: str
     runtime_broker_adapter: str
     livequote_mode: str
     data_source: str
@@ -244,9 +242,6 @@ class Settings:
             ),
             gateway_port=gateway_port,
             runtime_mode=str(getattr(state, "runtime_mode", "") or "").strip().lower(),
-            runtime_market_adapter=str(
-                getattr(state, "runtime_market_adapter", "") or ""
-            ).strip().lower(),
             runtime_broker_adapter=str(
                 getattr(state, "runtime_broker_adapter", "") or ""
             ).strip().lower(),

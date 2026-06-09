@@ -38,7 +38,6 @@ def test_get_state_loads_defaults_from_config(db, monkeypatch):
         gateway_port=8000,
         livequote_mode="gateway",
         runtime_mode="live",
-        runtime_market_adapter="demo-market",
         runtime_broker_adapter="demo-broker",
         data_source="tushare",
         epoch=datetime.date(2015, 1, 1),
@@ -73,7 +72,6 @@ def test_get_state_loads_defaults_from_config(db, monkeypatch):
     assert state.gateway_timeout == 15
     assert state.livequote_mode == "gateway"
     assert state.runtime_mode == "live"
-    assert state.runtime_market_adapter == "demo-market"
     assert state.runtime_broker_adapter == "demo-broker"
     assert state.data_source == "tushare"
     assert state.tushare_token == "ts-cfg-token"

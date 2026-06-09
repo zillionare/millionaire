@@ -136,7 +136,7 @@ def test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub():
         state.gateway_base_url = gateway_stub.prefix
         state.gateway_api_key = "gateway-key"
         state.runtime_mode = "live"
-        state.runtime_market_adapter = "gateway"
+        
         state.runtime_broker_adapter = "gateway"
         state.livequote_mode = "gateway"
         init_wizard.save_state(state)
@@ -172,7 +172,7 @@ def test_trade_main_keeps_side_controls_mutually_exclusive_with_gateway_stub():
         state.gateway_base_url = gateway_stub.prefix
         state.gateway_api_key = "gateway-key"
         state.runtime_mode = "live"
-        state.runtime_market_adapter = "gateway"
+        
         state.runtime_broker_adapter = "gateway"
         state.livequote_mode = "gateway"
         init_wizard.save_state(state)
@@ -203,7 +203,7 @@ def test_trade_main_shows_limit_placeholder_and_price_hint_markup_with_gateway_s
         state.gateway_base_url = gateway_stub.prefix
         state.gateway_api_key = "gateway-key"
         state.runtime_mode = "live"
-        state.runtime_market_adapter = "gateway"
+        
         state.runtime_broker_adapter = "gateway"
         state.livequote_mode = "gateway"
         init_wizard.save_state(state)
@@ -233,7 +233,7 @@ def test_trade_main_polls_live_quote_and_gates_speed_dial_with_gateway_stub():
         state.gateway_base_url = gateway_stub.prefix
         state.gateway_api_key = "gateway-key"
         state.runtime_mode = "live"
-        state.runtime_market_adapter = "gateway"
+        
         state.runtime_broker_adapter = "gateway"
         state.livequote_mode = "gateway"
         init_wizard.save_state(state)
@@ -268,7 +268,7 @@ def test_trade_main_uses_top_toast_placeholder_with_gateway_stub():
         state.gateway_base_url = gateway_stub.prefix
         state.gateway_api_key = "gateway-key"
         state.runtime_mode = "live"
-        state.runtime_market_adapter = "gateway"
+        
         state.runtime_broker_adapter = "gateway"
         state.livequote_mode = "gateway"
         init_wizard.save_state(state)
@@ -297,7 +297,7 @@ def test_trade_main_renders_lightning_controls_with_gateway_stub():
         state.gateway_base_url = gateway_stub.prefix
         state.gateway_api_key = "gateway-key"
         state.runtime_mode = "live"
-        state.runtime_market_adapter = "gateway"
+        
         state.runtime_broker_adapter = "gateway"
         state.livequote_mode = "gateway"
         init_wizard.save_state(state)
@@ -330,7 +330,7 @@ def test_trade_lightning_create_modal_matches_buy_order_markup_with_gateway_stub
         state.gateway_base_url = gateway_stub.prefix
         state.gateway_api_key = "gateway-key"
         state.runtime_mode = "live"
-        state.runtime_market_adapter = "gateway"
+        
         state.runtime_broker_adapter = "gateway"
         state.livequote_mode = "gateway"
         init_wizard.save_state(state)

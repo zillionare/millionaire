@@ -107,6 +107,7 @@ async def test_run_daily():
         # Mock strategy_cls
         MockStrategyCls = MagicMock(return_value=strategy)
         MockStrategyCls.__name__ = "SimpleStrategy"
+        MockStrategyCls.cheat_on_close = False  # 默认非 cheat 模式, 9:30 触发
 
         await runner.run(MockStrategyCls, {}, start_date, end_date, frame_type=FrameType.DAY)
 

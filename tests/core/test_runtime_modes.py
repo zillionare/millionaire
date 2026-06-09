@@ -44,7 +44,8 @@ class DummyGatewayMarketData:
         }
 
 
-def test_runtime_bootstrap_paper_uses_mock_gateway_market_data(monkeypatch):
+def test_runtime_bootstrap_paper_uses_live_quote_market_data(monkeypatch):
+    """#48: 数据源统一后, 任意配置 (gateway 开关 / 适配器名) 都走 LiveQuote."""
     db.init(":memory:")
     db.insert_portfolio(
         Portfolio(
@@ -70,21 +71,19 @@ def test_runtime_bootstrap_paper_uses_mock_gateway_market_data(monkeypatch):
     runtime_cfg = SimpleNamespace(
         runtime_mode="paper",
         gateway_enabled=True,
-        runtime_market_adapter="gateway",
         runtime_broker_adapter="",
         livequote_mode="none",
     )
 
     monkeypatch.setattr(runtime_modes, "get_settings", lambda: runtime_cfg)
     monkeypatch.setattr(runtime_modes.scheduler, "start", lambda: None)
-    monkeypatch.setattr(runtime_modes.GatewayClient, "from_config", staticmethod(lambda: object()))
-    monkeypatch.setattr(runtime_modes, "GatewayMarketDataAdapter", DummyGatewayMarketData)
+    monkeypatch.setattr(runtime_modes.live_quote, "start", lambda: None)
 
     runtime = runtime_modes.RuntimeBootstrap(mode="paper").bootstrap()
 
     assert runtime.mode == "paper"
-    assert isinstance(runtime.market_data, DummyGatewayMarketData)
-    assert runtime.market_data.started is True
+    from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter
+    assert isinstance(runtime.market_data, LiveQuoteMarketDataAdapter)
 
     handle = runtime.registry.get(BrokerKind.SIMULATION, "paper-account")
     assert handle is not None
