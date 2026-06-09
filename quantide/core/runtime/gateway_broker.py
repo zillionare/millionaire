@@ -19,6 +19,7 @@ from quantide.core.ports import (
     TradeView,
 )
 from quantide.core.runtime.gateway_client import GatewayClient
+from quantide.data.helper import qfq_adjustment
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Order, Position, Trade
@@ -145,8 +146,17 @@ class GatewayBrokerWrapper(Broker):
         else:
             hist = self._provider_get_bars(provider, asset, count, end_date, frame_type)
 
+        forming_applied = False
         if include_forming_bar:
             hist = self._maybe_attach_forming_bar(asset, hist, end_date, end_dt, count)
+            forming_applied = True
+
+        if (
+            not forming_applied
+            and "adjust" in hist.columns
+            and not hist.is_empty()
+        ):
+            hist = qfq_adjustment(hist, adj_factor_col="adjust", eager_mode=True)
         return hist
 
     def _provider_get_bars(
@@ -159,7 +169,7 @@ class GatewayBrokerWrapper(Broker):
                 n=count,
                 end=end_date,
                 assets=[asset],
-                adjust="qfq",
+                adjust=None,
                 eager_mode=True,
             )
         return self._empty_history_frame()

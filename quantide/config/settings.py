@@ -66,6 +66,18 @@ def parse_cheat_on_close_time(value: Any) -> datetime.time:
     return datetime.time(h, m)
 
 
+def _normalize_cheat_on_close_time(value: Any) -> str:
+    """在 Settings.from_state 边界 normalize: 非法值 fallback 到默认 14:57.
+
+    失败不抛异常，固定返回合法 HH:MM 字符串。这样调用方无须每次 try/except。
+    """
+    try:
+        parse_cheat_on_close_time(value)
+        return str(value).strip()
+    except (ValueError, TypeError, AttributeError):
+        return "14:57"
+
+
 def _normalize_path_prefix(value: str, default: str = "/") -> str:
     text = str(value or "").strip()
     if not text:
@@ -247,9 +259,9 @@ class Settings:
             or "tushare",
             epoch=_as_date(getattr(state, "epoch", None), datetime.date(2005, 1, 1)),
             timezone=timezone,
-            cheat_on_close_time=str(
-                getattr(state, "cheat_on_close_time", "") or "14:57"
-            ).strip() or "14:57",
+            cheat_on_close_time=_normalize_cheat_on_close_time(
+                getattr(state, "cheat_on_close_time", "")
+            ),
         )
 
 

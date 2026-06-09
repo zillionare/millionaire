@@ -524,3 +524,72 @@ async def test_live_broker_deferred_queue_submits_at_scheduled_at():
     assert len(client.post_calls) == pre_call_count + 1
     assert client.post_calls[-1][0] == "/api/trade/buy"
     assert len(wrapper.deferred_orders) == 0
+
+
+@pytest.mark.asyncio
+async def test_gateway_broker_no_double_qfq_adjustment_on_forming_merge(monkeypatch):
+    """#43 fix: live 路径非 adjust=1.0 时, forming 合并不能二次前复权.
+
+    场景: hist 5 行, adjust=[1.0, 1.0, 1.0, 1.0, 1.10]; 末行今日 adjust=1.10。
+    合并 forming bar 后, hist 历史的 close 应被 *1.0/1.10 调整一次 (不是两次)。
+    """
+    import polars as pl
+
+    from quantide.core.enums import OrderSide
+    from quantide.core.ports import OrderRequest
+    from quantide.service.livequote import live_quote
+
+    dates = [datetime.date(2026, 1, i) for i in range(1, 6)]
+    hist = pl.DataFrame(
+        {
+            "date": pl.Series(
+                [datetime.datetime.combine(d, datetime.time.min) for d in dates]
+            ),
+            "asset": ["000001.SZ"] * 5,
+            "open": [10.0] * 5,
+            "high": [10.0] * 5,
+            "low": [10.0] * 5,
+            "close": [10.0] * 5,
+            "volume": [0.0] * 5,
+            "amount": [0.0] * 5,
+            "adjust": [1.0, 1.0, 1.0, 1.0, 1.10],
+            "is_st": [False] * 5,
+            "up_limit": [11.0] * 5,
+            "down_limit": [9.0] * 5,
+        }
+    )
+
+    class _RawProvider:
+        def get_bars(self, n, end, assets, adjust, eager_mode):
+            return hist
+
+    client = DummyGatewayClient()
+    adapter = GatewayBrokerAdapter(client)
+    wrapper = GatewayBrokerWrapper(adapter, history_provider=_RawProvider())
+    wrapper.set_clock(datetime.datetime(2026, 1, 5, 15, 0))
+    live_quote._daily_bars["000001.SZ"] = {
+        "asset": "000001.SZ",
+        "frame": "1d",
+        "dt": datetime.date(2026, 1, 5),
+        "open": 11.0,
+        "high": 11.0,
+        "low": 11.0,
+        "close": 11.0,
+        "volume": 0.0,
+        "amount": 0.0,
+    }
+    try:
+        result = wrapper.get_history(
+            "000001.SZ", count=6, end_dt=datetime.datetime(2026, 1, 5, 15, 0)
+        )
+    finally:
+        live_quote._daily_bars.pop("000001.SZ", None)
+
+    expected_hist_close = 10.0 / 1.10
+    closes = result["close"].to_list()
+    assert len(closes) == 5
+    for i in range(4):
+        assert abs(closes[i] - expected_hist_close) < 0.01, (
+            f"row {i}: close={closes[i]}, expected={expected_hist_close}"
+        )
+    assert abs(closes[4] - 11.0) < 0.01

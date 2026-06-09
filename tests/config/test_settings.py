@@ -289,3 +289,20 @@ def test_cheat_on_close_time_invalid_persisted_value_falls_back(monkeypatch, db,
         pk="id",
     )
     assert settings_module.get_cheat_on_close_time() == "14:57"
+
+
+def test_settings_from_state_normalizes_invalid_cheat_on_close_time(db, tmp_path: Path):
+    """#44 fix: 非法持久化值在 Settings.from_state 边界 normalize, 不需要每个调方都 try/except."""
+    db["app_state"].upsert(
+        AppState(app_home=str(tmp_path), cheat_on_close_time="99:99").to_dict(),
+        pk="id",
+    )
+    settings = settings_module.get_settings()
+    assert settings.cheat_on_close_time == "14:57"
+
+    db["app_state"].upsert(
+        AppState(app_home=str(tmp_path), cheat_on_close_time="14:50").to_dict(),
+        pk="id",
+    )
+    settings = settings_module.get_settings()
+    assert settings.cheat_on_close_time == "14:50"
