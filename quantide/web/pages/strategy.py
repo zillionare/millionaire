@@ -1671,9 +1671,61 @@ def _render_deploy_result(message: str, is_error: bool = False) -> Any:
     return Div(message, id="deploy-result", cls=cls, hx_swap_oob="true")
 
 
+def _render_config_table(
+    config: dict[str, Any],
+    default_config: dict[str, Any] | None = None,
+    form_id_suffix: str = "paper",
+) -> Any:
+    """渲染策略 config 表格 (列: key / default / custom).
+
+    default_config 来自策略类 ``default_config()``, 缺则用空 dict.
+    config 来自回测 run 实际值, 表格行按 config 顺序排列.
+    """
+    defaults = default_config or {}
+    if not config and not defaults:
+        return None
+    rows: list[Any] = []
+    all_keys = list(dict.fromkeys(list(config.keys()) + list(defaults.keys())))
+    for key in all_keys:
+        cur = config.get(key, defaults.get(key))
+        default_val = defaults.get(key, cur)
+        rows.append(
+            Tr(
+                Td(Code(key), cls="text-xs"),
+                Td(repr(default_val), cls="text-xs text-gray-500"),
+                Td(
+                    Input(
+                        name=f"custom_{key}",
+                        type="text",
+                        value="" if cur is None else str(cur),
+                        cls="input input-sm w-full",
+                    ),
+                    cls="text-xs",
+                ),
+            )
+        )
+    return Div(
+        P("策略参数（可编辑覆盖）", cls="text-sm text-gray-500 mt-4"),
+        Table(
+            Thead(
+                Tr(
+                    Th("key", cls="text-xs"),
+                    Th("default", cls="text-xs"),
+                    Th("custom", cls="text-xs"),
+                )
+            ),
+            Tbody(*rows),
+            cls="table table-sm w-full",
+        ),
+        cls="mt-2",
+    )
+
+
 def _paper_deploy_modal(
     portfolio_id: str,
     principal: str = "1000000",
+    config: dict[str, Any] | None = None,
+    default_config: dict[str, Any] | None = None,
     error_message: str = "",
 ) -> Any:
     """渲染转入仿真确认弹窗。"""
@@ -1729,8 +1781,10 @@ def _paper_deploy_modal(
 def _live_deploy_modal(
     portfolio_id: str,
     live_accounts: list[dict[str, Any]],
+    config: dict[str, Any] | None = None,
+    default_config: dict[str, Any] | None = None,
 ) -> Any:
-    """渲染转入实盘确认弹窗。"""
+    """渲染转入实盘确认弹窗."""
     if not live_accounts:
         return _strategy_dialog_modal(
             "无法转入实盘",
@@ -1752,6 +1806,9 @@ def _live_deploy_modal(
 
     account_id = str(live_accounts[0].get("id") or "gateway:default")
     account_name = str(live_accounts[0].get("name") or account_id)
+    config_table = _render_config_table(
+        config or {}, default_config, form_id_suffix="live"
+    )
     return _strategy_dialog_modal(
         "确认转入实盘",
         Div(
@@ -1759,6 +1816,7 @@ def _live_deploy_modal(
             P(f"实盘网关：{account_name}", cls="mt-3 text-sm text-gray-700"),
             Form(
                 Input(type="hidden", name="live_account_id", value=account_id),
+                config_table,
                 id="deploy-live-form",
             ),
             cls="space-y-4",
@@ -1885,16 +1943,79 @@ def delete_backtest_execute(portfolio_id: str):
     )
 
 
+def _load_backtest_run_config(portfolio_id: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """从 BacktestRun 拿 config + 策略类 default_config (无 run 时回空)."""
+    run = strategy_runtime_manager.get_backtest_run(portfolio_id)
+    if run is None:
+        return {}, None
+    default_config: dict[str, Any] | None = None
+    try:
+        strategies = strategy_loader.load_from_cache()
+        for s in strategies:
+            cls = s.get("cls") if isinstance(s, dict) else getattr(s, "cls", None)
+            name = s.get("name") if isinstance(s, dict) else getattr(s, "name", None)
+            if name == run.strategy_name and cls is not None:
+                default_config = cls.default_config()
+                break
+    except Exception:
+        default_config = None
+    return dict(run.config or {}), default_config
+
+
+def _form_to_config(form, base_config: dict[str, Any]) -> dict[str, Any]:
+    """把 form 自定义字段 (custom_*) 合并到 base_config.
+
+    base_config 中存在的 key → 用 form 自定义值覆盖; 缺失的 key 不补.
+    """
+    out: dict[str, Any] = {}
+    for key, val in base_config.items():
+        form_key = f"custom_{key}"
+        if form_key in form:
+            raw = form[form_key]
+            out[key] = _coerce_form_value(raw)
+        else:
+            out[key] = val
+    return out
+
+
+def _coerce_form_value(raw: Any) -> Any:
+    """把 form 字符串值转回原始类型 (int / float / bool / str)."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if text == "":
+        return ""
+    if text.lower() in ("true", "false"):
+        return text.lower() == "true"
+    try:
+        if "." in text:
+            return float(text)
+        return int(text)
+    except ValueError:
+        return text
+
+
 @rt("/backtest/{portfolio_id}/deploy/paper/modal")
 def deploy_backtest_to_paper_modal(portfolio_id: str):
     """渲染转入仿真确认弹窗。"""
-    return _paper_deploy_modal(portfolio_id)
+    config, default_config = _load_backtest_run_config(portfolio_id)
+    return _paper_deploy_modal(
+        portfolio_id,
+        config=config,
+        default_config=default_config,
+    )
 
 
 @rt("/backtest/{portfolio_id}/deploy/live/modal")
 def deploy_backtest_to_live_modal(req, portfolio_id: str):
     """渲染转入实盘确认弹窗。"""
-    return _live_deploy_modal(portfolio_id, _get_live_accounts(req))
+    config, default_config = _load_backtest_run_config(portfolio_id)
+    return _live_deploy_modal(
+        portfolio_id,
+        _get_live_accounts(req),
+        config=config,
+        default_config=default_config,
+    )
 
 
 @rt("/backtest/{portfolio_id}/deploy/paper", methods=["POST"])
@@ -1904,12 +2025,33 @@ async def deploy_backtest_to_paper(req, portfolio_id: str):
     try:
         principal = float(principal_raw)
     except ValueError:
-        return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message="请输入有效的仿真本金")
+        config, default_config = _load_backtest_run_config(portfolio_id)
+        return _paper_deploy_modal(
+            portfolio_id,
+            principal=principal_raw,
+            config=config,
+            default_config=default_config,
+            error_message="请输入有效的仿真本金",
+        )
     if principal <= 0:
-        return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message="仿真本金必须大于 0")
+        config, default_config = _load_backtest_run_config(portfolio_id)
+        return _paper_deploy_modal(
+            portfolio_id,
+            principal=principal_raw,
+            config=config,
+            default_config=default_config,
+            error_message="仿真本金必须大于 0",
+        )
     registry = _get_registry(req)
     if registry is None:
-        return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message="运行时未初始化")
+        config, default_config = _load_backtest_run_config(portfolio_id)
+        return _paper_deploy_modal(
+            portfolio_id,
+            principal=principal_raw,
+            config=config,
+            default_config=default_config,
+            error_message="运行时未初始化",
+        )
     existing_runtime = strategy_runtime_manager.get_active_backtest_deployment(portfolio_id, "paper")
     if existing_runtime is not None:
         return (
@@ -1924,12 +2066,15 @@ async def deploy_backtest_to_paper(req, portfolio_id: str):
                 **_get_backtest_deploy_capabilities(req),
             ),
         )
+    base_config, _ = _load_backtest_run_config(portfolio_id)
+    custom_config = _form_to_config(form, base_config)
     try:
         runtime = strategy_runtime_manager.deploy_to_paper(
             portfolio_id=portfolio_id,
             principal=principal,
             registry=registry,
             market_data=_get_market_data(req),
+            config=custom_config,
         )
         return (
             Div(id="modal-container"),
@@ -1944,7 +2089,14 @@ async def deploy_backtest_to_paper(req, portfolio_id: str):
             ),
         )
     except Exception as e:
-        return _paper_deploy_modal(portfolio_id, principal=principal_raw, error_message=f"转入仿真失败: {e}")
+        config, default_config = _load_backtest_run_config(portfolio_id)
+        return _paper_deploy_modal(
+            portfolio_id,
+            principal=principal_raw,
+            config=config,
+            default_config=default_config,
+            error_message=f"转入仿真失败: {e}",
+        )
 
 
 @rt("/backtest/{portfolio_id}/deploy/live", methods=["POST"])
@@ -1953,10 +2105,12 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
     account_id = str(form.get("live_account_id") or "gateway:default")
     registry = _get_registry(req)
     if registry is None:
-        return _live_deploy_modal(portfolio_id, [])
+        config, default_config = _load_backtest_run_config(portfolio_id)
+        return _live_deploy_modal(portfolio_id, [], config=config, default_config=default_config)
     live_accounts = _get_live_accounts(req)
     if not live_accounts:
-        return _live_deploy_modal(portfolio_id, [])
+        config, default_config = _load_backtest_run_config(portfolio_id)
+        return _live_deploy_modal(portfolio_id, [], config=config, default_config=default_config)
     existing_runtime = strategy_runtime_manager.get_active_backtest_deployment(portfolio_id, "live")
     if existing_runtime is not None:
         return (
@@ -1971,12 +2125,15 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
                 **_get_backtest_deploy_capabilities(req),
             ),
         )
+    base_config, _ = _load_backtest_run_config(portfolio_id)
+    custom_config = _form_to_config(form, base_config)
     try:
         runtime = strategy_runtime_manager.deploy_to_live(
             portfolio_id=portfolio_id,
             account_id=account_id,
             registry=registry,
             market_data=_get_market_data(req),
+            config=custom_config,
         )
         return (
             Div(id="modal-container"),

@@ -230,11 +230,13 @@ class StrategyRuntimeManager:
         principal: float,
         registry: BrokerRegistry,
         market_data: Any,
+        config: dict[str, Any] | None = None,
     ) -> StrategyRuntime:
         run = self._resolve_backtest_run(portfolio_id)
         existing = self.get_active_backtest_deployment(run.portfolio_id, "paper")
         if existing is not None:
             return existing
+        effective_config = config if config is not None else run.config
         account_id = f"paper-{run.strategy_name}-{uuid.uuid4().hex[:8]}"
         broker = PaperBroker.create(
             portfolio_id=account_id,
@@ -256,7 +258,7 @@ class StrategyRuntimeManager:
         return self._start_strategy_runtime(
             mode="paper",
             strategy_name=run.strategy_name,
-            config=run.config,
+            config=effective_config,
             broker=handle,
             portfolio_id=account_id,
             source_backtest_portfolio_id=run.portfolio_id,
@@ -272,11 +274,13 @@ class StrategyRuntimeManager:
         account_id: str,
         registry: BrokerRegistry,
         market_data: Any,
+        config: dict[str, Any] | None = None,
     ) -> StrategyRuntime:
         run = self._resolve_backtest_run(portfolio_id)
         existing = self.get_active_backtest_deployment(run.portfolio_id, "live")
         if existing is not None:
             return existing
+        effective_config = config if config is not None else run.config
         broker = self._gateway_broker
         account_kind = "gateway"
         account_id = "gateway"
@@ -285,7 +289,7 @@ class StrategyRuntimeManager:
         return self._start_strategy_runtime(
             mode="live",
             strategy_name=run.strategy_name,
-            config=run.config,
+            config=effective_config,
             broker=broker,
             portfolio_id=account_id,
             source_backtest_portfolio_id=run.portfolio_id,

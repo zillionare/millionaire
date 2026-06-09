@@ -58,6 +58,15 @@ class BaseStrategy:
         """核心驱动方法，每个周期调用一次"""
         pass
 
+    @staticmethod
+    def default_config() -> dict[str, Any]:
+        """策略 config 默认值。子类覆盖以声明自己的配置项。
+
+        部署到 paper/live 时, UI 模态框按 (key, default, custom) 三列展示,
+        custom 列默认等于回测时实际值, 用户可编辑覆盖。
+        """
+        return {}
+
     def get_history(
         self,
         asset: str,
