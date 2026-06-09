@@ -115,7 +115,11 @@ def _yesterday_close(asset: str, yesterday: datetime.date) -> float:
 
 
 class MockHistoryProvider:
-    """轻量假 history provider，给 sim_broker / gateway_broker 的 get_history 用."""
+    """轻量假 history provider，给 sim_broker / gateway_broker 的 get_history 用.
+
+    返 12 列：date/frame, asset, OHLCV, adjust=1.0, is_st=False,
+    up_limit=close*1.1, down_limit=close*0.9（fake 但合理）。
+    """
 
     def __init__(self, asset: str = TEST_ASSET):
         self._df = _load_history_frame(asset)
@@ -135,7 +139,15 @@ class MockHistoryProvider:
         sub = self._df.filter(pl.col("date").dt.date() <= end_d).sort("date").tail(n)
         if not sub.is_empty():
             sub = sub.rename({"date": "frame"})
-            sub = sub.with_columns(pl.col("frame").cast(pl.Datetime))
+            sub = sub.with_columns(
+                [
+                    pl.col("frame").cast(pl.Datetime),
+                    pl.lit(1.0).alias("adjust").cast(pl.Float64),
+                    pl.lit(False).alias("is_st").cast(pl.Boolean),
+                    (pl.col("close") * 1.1).alias("up_limit").cast(pl.Float64),
+                    (pl.col("close") * 0.9).alias("down_limit").cast(pl.Float64),
+                ]
+            )
         return sub
 
     def get_history(self, asset, count, end_date, frame_type="1d"):
@@ -565,11 +577,12 @@ def test_forming_bar_open_uses_today_open_not_yesterday_close(pin_today):
 def test_concat_with_forming_applies_qfq_adjustment(pin_today):
     """#43 adjust 复权：forming bar 行的 adjust 从 hist 今日取，合并后整体 qfq_adjustment.
 
-    场景：hist 全部 close=10.0，最后一行（今日）adjust=1.10；forming bar close=12.0。
+    场景：hist 全部 close=10.0，今日（最后一行）adjust=1.10；forming bar close=12.0。
     合并后整体 qfq_adjustment，latest_adj_factor=1.10：
-    - hist 历史的 close 被 *1.0/1.10 调整 → 9.0909
+    - hist 历史（adjust=1.0）的 close 被 *1.0/1.10 调整 → 9.0909
+    - hist 今日（adjust=1.10）的 close 保持 10.0
     - forming 行 close = 12.0 * 1.10/1.10 = 12.0（不变）
-    - adjust 列 = 1.0（应用后）
+    - adjust 列保留原始因子（与 backtest broker 走 daily_bars.get_bars(adjust="qfq") 输出一致）
     """
     _reset_singletons()
     trade_dates = _seed_daily_bars(days=3)
@@ -607,7 +620,7 @@ def test_concat_with_forming_applies_qfq_adjustment(pin_today):
         "amount": 0.0,
     }
 
-    result = PaperBroker._concat_with_forming(hist, forming, count=5)
+    result = PaperBroker._concat_with_forming(hist, forming, count=6)
 
     expected_hist_close = 10.0 / 1.10
     for i in range(4):
@@ -616,11 +629,15 @@ def test_concat_with_forming_applies_qfq_adjustment(pin_today):
             f"row {i}: close={actual}, expected={expected_hist_close}"
         )
 
-    assert abs(float(result["close"][4]) - 12.0) < 0.01
+    assert abs(float(result["close"][4]) - 10.0) < 0.01
 
-    assert all(a == 1.0 for a in result["adjust"].to_list()), (
-        f"adjust values: {result['adjust'].to_list()}"
+    assert abs(float(result["close"][5]) - 12.0) < 0.01
+
+    adjust_values = result["adjust"].to_list()
+    assert all(a is not None and a > 0 for a in adjust_values), (
+        f"adjust values: {adjust_values}"
     )
+    assert max(adjust_values) == pytest.approx(1.10)
 
 
 def test_concat_with_forming_fills_up_down_limit_is_st(pin_today):

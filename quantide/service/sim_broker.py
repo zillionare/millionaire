@@ -19,6 +19,7 @@ from quantide.core.errors import (
 )
 from quantide.core.message import msg_hub
 from quantide.core.ports import MarketDataPort
+from quantide.data.helper import qfq_adjustment
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Order, Portfolio, Position, Trade, db
@@ -226,16 +227,25 @@ class PaperBroker(AbstractBroker):
         else:
             hist = self._get_history_bars(asset, count, end_date, frame_type)
 
+        forming_applied = False
         if include_forming_bar and self._should_attach_forming_bar(end_date, end_dt):
             forming = self._extract_forming_bar(asset, end_date)
             if forming is not None:
                 hist = self._concat_with_forming(hist, forming, count)
+                forming_applied = True
             elif end_date == self._get_today():
                 # include_forming_bar=True 但 LiveQuote 还没收到今日 tick — 今日的
                 # 历史 close 还没固定，按"看昨日及更早"回退。
                 hist = self._get_history_bars(
                     asset, count, self._previous_trade_date(end_date), frame_type
                 )
+
+        if (
+            not forming_applied
+            and "adjust" in hist.columns
+            and not hist.is_empty()
+        ):
+            hist = qfq_adjustment(hist, adj_factor_col="adjust", eager_mode=True)
 
         return hist
 
@@ -253,7 +263,12 @@ class PaperBroker(AbstractBroker):
         end_date: datetime.date,
         frame_type: str,
     ) -> pl.DataFrame:
-        """统一的 history 数据源获取（market_data 优先，回落 daily_bars）。"""
+        """统一的 history 数据源获取（market_data 优先，回落 daily_bars）。
+
+        返**未复权**的原始 bars（``adjust`` 列保留原始因子）。复权由
+        :func:`quantide.data.helper.qfq_adjustment` 在 ``get_history`` 末尾
+        或 :meth:`_concat_with_forming` 中**统一**应用一次，避免双重复权。
+        """
         if self._market_data is not None and hasattr(self._market_data, "get_history"):
             return self._market_data.get_history(asset, count, end_date, frame_type)
 
@@ -262,7 +277,7 @@ class PaperBroker(AbstractBroker):
                 n=count,
                 end=end_date,
                 assets=[asset],
-                adjust="qfq",
+                adjust=None,
                 eager_mode=True,
             )
 
@@ -271,7 +286,7 @@ class PaperBroker(AbstractBroker):
                 n=count,
                 end=end_date,
                 assets=[asset],
-                adjust="qfq",
+                adjust=None,
                 eager_mode=True,
             )
 
@@ -307,15 +322,22 @@ class PaperBroker(AbstractBroker):
     def _concat_with_forming(
         hist: pl.DataFrame, forming: dict[str, Any], count: int
     ) -> pl.DataFrame:
-        """把 forming bar（dict）拼到 history 末尾，裁剪到 count 行。"""
+        """把 forming bar（dict）拼到 history 末尾，裁剪到 count 行，并应用 qfq_adjustment.
+
+        forming 行的 4 个补齐字段（#43）：
+        - ``adjust`` ← hist 今日行的 adjust 因子（未复权）
+        - ``is_st`` ← hist 今日行的 is_st
+        - ``up_limit`` / ``down_limit`` ← ``live_quote._limits[asset]``（highest priority）
+
+        合并后整体调 ``qfq_adjustment``（``quantide/data/helper.py:8`` 现成函数）
+        把 hist 历史的 OHLCV 按今日 adjust 因子调整到前复权；forming 行的
+        adjust=今日/latest, 所以 close 不变。``adjust`` 列最终 = 1.0。
+        """
         forming_clean: dict[str, Any] = dict(forming)
-        # 丢掉 forming 里的 ``frame`` 字符串（LiveQuote 的 frame 字段是 "1d" 标签，
-        # 不是日期；真正的日期在 ``dt`` 里）。
         if "frame" in forming_clean and not isinstance(
             forming_clean["frame"], (datetime.date, datetime.datetime)
         ):
             forming_clean.pop("frame")
-        # LiveQuote 的 ``dt``（date）要重命名成 hist 用的日期列名（``frame`` 或 ``date``）
         hist_date_col = "frame" if "frame" in hist.columns else (
             "date" if "date" in hist.columns else None
         )
@@ -328,14 +350,30 @@ class PaperBroker(AbstractBroker):
             ):
                 dt_value = datetime.datetime.combine(dt_value, datetime.time.min)
             forming_clean[hist_date_col] = dt_value
-        # 补齐 hist 有的列，缺则置 null（让 concat 对齐）
+
+        if hist.is_empty():
+            return hist
+
+        today_adjust = hist["adjust"][-1] if "adjust" in hist.columns else 1.0
+        today_is_st = bool(hist["is_st"][-1]) if "is_st" in hist.columns else False
+        limits = live_quote._limits.get(forming_clean.get("asset", ""), {}) or {}
+        today_up_limit = limits.get("up_limit")
+        today_down_limit = limits.get("down_limit")
+
+        for col, val in (
+            ("adjust", today_adjust),
+            ("is_st", today_is_st),
+            ("up_limit", today_up_limit),
+            ("down_limit", today_down_limit),
+        ):
+            if col in hist.columns and col not in forming_clean:
+                forming_clean[col] = val
+
         for col in hist.columns:
             if col not in forming_clean:
                 forming_clean[col] = None
-        # 丢掉 forming 有但 hist 没有的列（如 amount/volume 已存在则保留）
         forming_clean = {k: v for k, v in forming_clean.items() if k in hist.columns}
         forming_df = pl.DataFrame([forming_clean])
-        # 类型对齐
         for col in hist.columns:
             if col in forming_df.columns and hist.schema[col] != forming_df.schema[col]:
                 try:
@@ -345,7 +383,6 @@ class PaperBroker(AbstractBroker):
                 except Exception:
                     forming_df = forming_df.drop(col)
         merged = pl.concat([hist, forming_df.select(hist.columns)], how="vertical")
-        # 同一天的 forming 覆盖历史行（keep="last"）
         if "asset" in merged.columns:
             merged = merged.unique(subset=[hist_date_col, "asset"], keep="last")
         else:
@@ -353,6 +390,10 @@ class PaperBroker(AbstractBroker):
         merged = merged.sort(hist_date_col)
         if len(merged) > count:
             merged = merged.tail(count)
+
+        if "adjust" in merged.columns:
+            merged = qfq_adjustment(merged, adj_factor_col="adjust", eager_mode=True)
+
         return merged
 
     def _resolve_history_end_date(
