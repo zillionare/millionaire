@@ -1962,6 +1962,36 @@ def _load_backtest_run_config(portfolio_id: str) -> tuple[dict[str, Any], dict[s
     return dict(run.config or {}), default_config
 
 
+def _build_cheat_on_close_badge(portfolio_id: str):
+    """回测报告 header 区 amber badge (#49).
+
+    当 cheat_on_close=True 时显示 amber badge + cheat_on_close_time, 提示用户
+    此回测使用了 14:57 forming bar 撮合, 与实盘有偏差.
+    """
+    run = strategy_runtime_manager.get_backtest_run(portfolio_id)
+    if run is None or not getattr(run, "cheat_on_close", False):
+        return Div(id="cheat_badge", cls="hidden")
+    cheat_tm = getattr(run, "cheat_on_close_time", "") or "?"
+    return Div(
+        Span(
+            "⚠ ",
+            Span("cheat_on_close"),
+            Span(f" @ {cheat_tm}", cls="font-mono"),
+            cls=(
+                "inline-flex items-center px-3 py-1 rounded-full "
+                "text-xs font-semibold bg-amber-100 text-amber-800 "
+                "border border-amber-300"
+            ),
+        ),
+        Span(
+            " 撮合价基于 forming bar (实盘有 < 1 tick 偏差)",
+            cls="ml-2 text-xs text-amber-700",
+        ),
+        cls="mb-4 flex items-center",
+        id="cheat_badge",
+    )
+
+
 def _form_to_config(form, base_config: dict[str, Any]) -> dict[str, Any]:
     """把 form 自定义字段 (custom_*) 合并到 base_config.
 
@@ -2862,6 +2892,7 @@ def backtest_result(req, session, portfolio_id: str):
             Div(
                 A("← 返回策略详情", href="javascript:history.back()", cls="text-gray-500 hover:text-gray-800 mb-4 inline-block"),
                 error_panel,
+                _build_cheat_on_close_badge(portfolio_id),
                 active_panel,
 
                 cls="max-w-6xl mx-auto py-8"

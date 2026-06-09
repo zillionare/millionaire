@@ -10,6 +10,7 @@ from typing import Any
 from loguru import logger
 
 from quantide.config.paths import get_backtest_log_path, get_strategy_runtime_state_path
+from quantide.config.settings import get_cheat_on_close_time
 from quantide.core.enums import BrokerKind, FrameType
 from quantide.core.runtime import RuntimeContext
 from quantide.data.sqlite import db
@@ -52,6 +53,8 @@ class BacktestRun:
     status: str
     save_logs: bool = False
     log_path: str = ""
+    cheat_on_close: bool = False
+    cheat_on_close_time: str = ""
     created_at: datetime.datetime = field(default_factory=datetime.datetime.now)
     updated_at: datetime.datetime = field(default_factory=datetime.datetime.now)
     error: str = ""
@@ -183,6 +186,8 @@ class StrategyRuntimeManager:
         initial_cash: float,
         save_logs: bool = False,
     ) -> None:
+        cheat = bool(config.get("cheat_on_close", False))
+        cheat_tm = get_cheat_on_close_time() if cheat else ""
         run = BacktestRun(
             runtime_id=f"backtest:{portfolio_id}",
             portfolio_id=portfolio_id,
@@ -195,6 +200,8 @@ class StrategyRuntimeManager:
             status="running",
             save_logs=save_logs,
             log_path=str(get_backtest_log_path(portfolio_id)),
+            cheat_on_close=cheat,
+            cheat_on_close_time=cheat_tm,
         )
         with self._lock:
             self._backtest_runtimes[portfolio_id] = run
@@ -636,6 +643,8 @@ class StrategyRuntimeManager:
         strategies = strategy_loader.load_from_cache()
         strategy_cls = strategies.get(strategy_name)
         config = dict(getattr(strategy_cls, "PARAMS", {})) if strategy_cls else {}
+        cheat = bool(config.get("cheat_on_close", False))
+        cheat_tm = get_cheat_on_close_time() if cheat else ""
         return BacktestRun(
             runtime_id=f"backtest:{portfolio_id}",
             portfolio_id=portfolio_id,
@@ -648,6 +657,8 @@ class StrategyRuntimeManager:
             status="finished",
             save_logs=get_backtest_log_path(portfolio_id).exists(),
             log_path=str(get_backtest_log_path(portfolio_id)),
+            cheat_on_close=cheat,
+            cheat_on_close_time=cheat_tm,
         )
 
     def _start_strategy_runtime(
