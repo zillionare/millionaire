@@ -89,11 +89,29 @@ class GatewayBrokerWrapper(Broker):
         self._kind = BrokerKind.QMT
         self._history_provider = history_provider
         self._clock: datetime.datetime | None = None
+        self._strategy_cheat_on_close: bool = True
+        self._live_execution_window: str = "auction"
+        self._live_execution_slippage: float = 0.001
+        self._deferred_orders: list[dict[str, Any]] = []
 
     def set_clock(self, dt: datetime.datetime | None) -> None:
         """设置当前策略时钟，便于 live 回放测试复用同一路径。"""
         self._clock = dt
 
+    def set_strategy_runtime_config(
+        self,
+        cheat_on_close: bool = False,
+        live_execution_window: str = "auction",
+        live_execution_slippage: float = 0.001,
+    ) -> None:
+        """由 StrategyRuntime 在启动时调一次，告知 broker 当前策略的 cheat_on_close 与延迟执行参数。"""
+        self._strategy_cheat_on_close = bool(cheat_on_close)
+        self._live_execution_window = str(live_execution_window)
+        self._live_execution_slippage = float(live_execution_slippage)
+
+    @property
+    def deferred_orders(self) -> list[dict[str, Any]]:
+        return list(self._deferred_orders)
     def get_history(
         self,
         asset: str,
@@ -516,7 +534,33 @@ class GatewayBrokerWrapper(Broker):
         timeout: float,
         extra: dict[str, Any],
     ) -> TradeResult:
-        """将旧版 Broker 调用委托到统一交易端口."""
+        """将旧版 Broker 调用委托到统一交易端口.
+
+        当 ``strategy_runtime_config.cheat_on_close=False``（盘后决策模式）且
+        broker 处于 live 模式时，订单**不**立即发送 qmt-gateway，而是放进
+        :attr:`deferred_orders` 队列，调度器在次日指定时间调
+        :meth:`process_deferred_orders` 时再下柜台（限价单，昨收/今开 + 滑点）。
+        """
+        if not self._strategy_cheat_on_close:
+            scheduled_at = self._compute_scheduled_at()
+            self._deferred_orders.append(
+                {
+                    "asset": asset,
+                    "side": side,
+                    "value": float(value),
+                    "style": style,
+                    "price": price,
+                    "order_time": order_time,
+                    "timeout": timeout,
+                    "extra": extra,
+                    "execution_window": self._live_execution_window,
+                    "slippage": self._live_execution_slippage,
+                    "scheduled_at": scheduled_at,
+                    "submitted_at": self._now(),
+                }
+            )
+            return TradeResult.empty()
+
         request = OrderRequest(
             asset=asset,
             side=side,
@@ -547,6 +591,80 @@ class GatewayBrokerWrapper(Broker):
             for item in (ack.trades or [])
         ]
         return TradeResult(str(ack.order_id), trades)
+
+    def _now(self) -> datetime.datetime:
+        if self._clock is not None:
+            return self._clock
+        return datetime.datetime.now()
+
+    def _compute_scheduled_at(self) -> datetime.datetime:
+        """根据 live_execution_window 算次日撮合时刻."""
+        try:
+            next_trade_date = calendar.day_shift(self._today(), 1)
+        except Exception:
+            next_trade_date = self._today() + datetime.timedelta(days=1)
+        if self._live_execution_window == "post_auction":
+            return datetime.datetime.combine(
+                next_trade_date, datetime.time(9, 30, 0, 1000)
+            )
+        return datetime.datetime.combine(next_trade_date, datetime.time(9, 25))
+
+    async def process_deferred_orders(
+        self, now: datetime.datetime | None = None
+    ) -> int:
+        """扫描 :attr:`deferred_orders`，到点的订单按限价单下柜台.
+
+        返回本次实际提交的订单数。scheduler 协程（或测试）按需调。
+        """
+        current = now or self._now()
+        submitted = 0
+        remaining: list[dict[str, Any]] = []
+        for order in self._deferred_orders:
+            if order["scheduled_at"] <= current:
+                limit_price = self._estimate_limit_price(order)
+                request = OrderRequest(
+                    asset=order["asset"],
+                    side=order["side"],
+                    value=order["value"],
+                    style=order["style"],
+                    price=limit_price,
+                    order_time=current,
+                    timeout=order["timeout"],
+                    extra={
+                        **order["extra"],
+                        "bid_type": "LIMIT",
+                        "slippage": order["slippage"],
+                        "execution_window": order["execution_window"],
+                    },
+                )
+                ack = await self._adapter.submit(request)
+                if ack.order_id is not None:
+                    submitted += 1
+            else:
+                remaining.append(order)
+        self._deferred_orders = remaining
+        return submitted
+
+    def _estimate_limit_price(self, order: dict[str, Any]) -> float:
+        """限价单价格估算：auction 模式用昨收 + 滑点，post_auction 模式用今开 + 滑点."""
+        try:
+            trade_date = calendar.day_shift(self._today(), -1)
+            hist = daily_bars.get_bars(
+                n=2, end=trade_date, assets=[order["asset"]]
+            )
+            if hist is None or hist.is_empty():
+                base_price = 0.0
+            else:
+                row = hist.row(-1, named=True)
+                base_price = float(row.get("close", 0.0) or 0.0)
+        except Exception:
+            base_price = 0.0
+        if base_price <= 0:
+            base_price = float(order.get("price", 0.0) or 0.0)
+        if base_price <= 0:
+            return 0.0
+        slippage = float(order.get("slippage", 0.0) or 0.0)
+        return round(base_price * (1.0 + slippage), 4)
 
 
 class GatewayBrokerAdapter(BrokerPort):

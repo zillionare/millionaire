@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 
 from quantide.core.enums import OrderSide, OrderStatus
@@ -445,3 +447,80 @@ class TestGatewayBrokerWrapperOrdersProperty:
         adapter = GatewayBrokerAdapter(_EmptyOrdersClient())
         wrapper = GatewayBrokerWrapper(adapter)
         assert wrapper.orders == {}
+
+
+# ============================================================
+# Issue #45: live broker 截图订单 + DeferredOrderQueue
+# ============================================================
+
+
+@pytest.mark.asyncio
+async def test_live_broker_defers_order_when_cheat_on_close_false():
+    """#45: live + cheat_on_close=False → 订单进 DeferredOrderQueue, 不立即调 qmt-gateway."""
+    client = DummyGatewayClient()
+    adapter = GatewayBrokerAdapter(client)
+    wrapper = GatewayBrokerWrapper(adapter)
+    wrapper.set_strategy_runtime_config(
+        cheat_on_close=False,
+        live_execution_window="auction",
+        live_execution_slippage=0.001,
+    )
+
+    result = await wrapper.buy_amount("000001.SZ", 5000, price=10)
+
+    assert result.qt_oid is None
+    assert client.post_calls == []
+    assert len(wrapper.deferred_orders) == 1
+    deferred = wrapper.deferred_orders[0]
+    assert deferred["asset"] == "000001.SZ"
+    assert deferred["value"] == 5000.0
+    assert deferred["execution_window"] == "auction"
+    assert deferred["slippage"] == 0.001
+    assert deferred["scheduled_at"] > datetime.datetime.now()
+
+
+@pytest.mark.asyncio
+async def test_live_broker_submits_immediately_when_cheat_on_close_true():
+    """#45: live + cheat_on_close=True → 立即调 qmt-gateway（不截图）."""
+    client = DummyGatewayClient()
+    adapter = GatewayBrokerAdapter(client)
+    wrapper = GatewayBrokerWrapper(adapter)
+    wrapper.set_strategy_runtime_config(
+        cheat_on_close=True,
+        live_execution_window="auction",
+        live_execution_slippage=0.001,
+    )
+
+    result = await wrapper.buy_amount("000001.SZ", 5000, price=10)
+
+    assert result.qt_oid == client.post_calls[-1][1]["qtoid"]
+    assert len(wrapper.deferred_orders) == 0
+    assert client.post_calls[-1][0] == "/api/trade/buy"
+
+
+@pytest.mark.asyncio
+async def test_live_broker_deferred_queue_submits_at_scheduled_at():
+    """#45: process_deferred_orders 触发后, scheduled_at ≤ now 的订单被 submit."""
+    client = DummyGatewayClient()
+    adapter = GatewayBrokerAdapter(client)
+    wrapper = GatewayBrokerWrapper(adapter)
+    wrapper.set_strategy_runtime_config(
+        cheat_on_close=False,
+        live_execution_window="auction",
+        live_execution_slippage=0.001,
+    )
+
+    await wrapper.buy_amount("000001.SZ", 5000, price=10)
+    assert len(wrapper.deferred_orders) == 1
+    scheduled = wrapper.deferred_orders[0]["scheduled_at"]
+
+    pre_call_count = len(client.post_calls)
+
+    await wrapper.process_deferred_orders(now=scheduled - datetime.timedelta(seconds=1))
+    assert len(client.post_calls) == pre_call_count
+    assert len(wrapper.deferred_orders) == 1
+
+    await wrapper.process_deferred_orders(now=scheduled)
+    assert len(client.post_calls) == pre_call_count + 1
+    assert client.post_calls[-1][0] == "/api/trade/buy"
+    assert len(wrapper.deferred_orders) == 0
