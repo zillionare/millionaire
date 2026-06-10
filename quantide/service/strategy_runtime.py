@@ -243,6 +243,20 @@ class StrategyRuntimeManager:
         with self._lock:
             return self._backtest_history.get(portfolio_id)
 
+    def get_backtest_run_or_resolve(self, portfolio_id: str) -> BacktestRun | None:
+        """优先 in-memory history, 缺失时回退 _resolve_backtest_run (持久化恢复).
+
+        #47/#49 followup2: 进程重启后 _backtest_history 为空, 报告页 / deploy modal
+        仍需拿到恢复后的 run 才能正常渲染. 回退失败 (portfolio 不存在) 时返 None.
+        """
+        run = self.get_backtest_run(portfolio_id)
+        if run is not None:
+            return run
+        try:
+            return self._resolve_backtest_run(portfolio_id)
+        except Exception:
+            return None
+
     def remove_backtest_run(self, portfolio_id: str) -> None:
         """从内存中移除指定回测的运行记录。
 

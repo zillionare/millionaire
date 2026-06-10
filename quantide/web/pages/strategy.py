@@ -1947,8 +1947,12 @@ def delete_backtest_execute(portfolio_id: str):
 
 
 def _load_backtest_run_config(portfolio_id: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """从 BacktestRun 拿 config + 策略类 default_config (无 run 时回空)."""
-    run = strategy_runtime_manager.get_backtest_run(portfolio_id)
+    """从 BacktestRun 拿 config + 策略类 default_config (无 run 时回空).
+
+    进程重启后 _backtest_history 为空, 必须回退 _resolve_backtest_run 从持久化
+    specs 恢复, 否则 deploy modal 失去 config 表 + POST 传空 config 覆盖 run.config.
+    """
+    run = strategy_runtime_manager.get_backtest_run_or_resolve(portfolio_id)
     if run is None:
         return {}, None
     default_config: dict[str, Any] | None = None
@@ -1967,8 +1971,11 @@ def _build_cheat_on_close_badge(portfolio_id: str):
 
     当 cheat_on_close=True 时显示 amber badge + cheat_on_close_time, 提示用户
     此回测使用了 14:57 forming bar 撮合, 与实盘有偏差.
+
+    进程重启后 _backtest_history 为空, 必须回退到 _resolve_backtest_run 从持久化
+    specs 恢复 cheat metadata, 否则历史报告永远走 hidden 分支.
     """
-    run = strategy_runtime_manager.get_backtest_run(portfolio_id)
+    run = strategy_runtime_manager.get_backtest_run_or_resolve(portfolio_id)
     if run is None or not getattr(run, "cheat_on_close", False):
         return Div(id="cheat_badge", cls="hidden")
     cheat_tm = getattr(run, "cheat_on_close_time", "") or "?"

@@ -654,6 +654,87 @@ def test_load_backtest_run_config_resolves_default_from_strategy_class(monkeypat
     assert default_config == {"symbol": "000001.SZ", "fast": 3}
 
 
+def test_load_backtest_run_config_falls_back_to_resolve_after_restart(monkeypatch):
+    """#47 followup2: 进程重启后 in-memory history 丢失, 必须回退到 _resolve_backtest_run.
+
+    回归 Aaron 8054a94 review: _load_backtest_run_config 只看 get_backtest_run (内存),
+    重启后回 ({}, None), deploy modal 失去 config 表 + POST 传空 config 覆盖
+    恢复出来的 run.config.
+    """
+    from quantide.service import strategy_runtime
+
+    recovered_run = strategy_runtime.BacktestRun(
+        runtime_id="backtest:demo-pf",
+        portfolio_id="demo-pf",
+        strategy_name="DemoStrategy",
+        config={"symbol": "000001.SZ", "fast": 7},
+        interval="1d",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        initial_cash=1000000,
+        status="finished",
+    )
+
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "get_backtest_run",
+        lambda portfolio_id: None,
+    )
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "_resolve_backtest_run",
+        lambda portfolio_id: recovered_run if portfolio_id == "demo-pf" else None,
+    )
+
+    config, default_config = strategy_page._load_backtest_run_config("demo-pf")
+    assert config == {"symbol": "000001.SZ", "fast": 7}, (
+        f"重启后应从 _resolve_backtest_run 恢复 config, got {config}"
+    )
+    assert default_config is None
+
+
+def test_build_cheat_on_close_badge_uses_resolve_after_restart(monkeypatch):
+    """#49 followup2: 进程重启后 in-memory history 丢失, 必须回退到 _resolve_backtest_run.
+
+    回归 Aaron 8054a94 review: _build_cheat_on_close_badge 只看 get_backtest_run (内存),
+    重启后即使持久化 specs 有 cheat metadata, 也走 hidden 分支.
+    """
+    from quantide.service import strategy_runtime
+
+    recovered_run = strategy_runtime.BacktestRun(
+        runtime_id="backtest:demo-pf",
+        portfolio_id="demo-pf",
+        strategy_name="DemoStrategy",
+        config={"cheat_on_close": True},
+        interval="1d",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        initial_cash=1000000,
+        status="finished",
+        cheat_on_close=True,
+        cheat_on_close_time="14:30",
+    )
+
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "get_backtest_run",
+        lambda portfolio_id: None,
+    )
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "_resolve_backtest_run",
+        lambda portfolio_id: recovered_run if portfolio_id == "demo-pf" else None,
+    )
+
+    badge = strategy_page._build_cheat_on_close_badge("demo-pf")
+    html = to_xml(badge)
+    assert "14:30" in html, (
+        f"重启后 badge 应展示持久化的 cheat_on_close_time, got {html}"
+    )
+    assert 'id="cheat_badge"' in html
+    assert "hidden" not in (badge.attrs.get("cls") or "")
+
+
 def test_deploy_backtest_to_live_modal_requires_gateway(monkeypatch):
     monkeypatch.setattr(strategy_page, "_get_live_accounts", lambda req: [])
 
