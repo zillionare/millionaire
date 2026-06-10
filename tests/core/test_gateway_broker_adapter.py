@@ -656,6 +656,10 @@ async def test_live_estimate_limit_price_post_auction_uses_next_day_open(monkeyp
     """#45 followup: post_auction 模式限价 = 次日开盘 × (1 + slippage).
 
     回归 #45 review: 原 _estimate_limit_price 一律用昨收, post_auction 路径错误.
+
+    已知限制 (#45 followup2): 当前从 daily_bars 读"次日 open", 但 9:30 盘中
+    daily_bars 没有当日行, 实际拿到昨日 close. 等 zillionare/qmt-gateway#62
+    调查结果后切换到 live_quote.get_daily_bar(asset).open.
     """
     import polars as pl
 

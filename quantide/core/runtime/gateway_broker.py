@@ -653,10 +653,16 @@ class GatewayBrokerWrapper(Broker):
         """限价单价格估算.
 
         - ``auction`` (次日 9:25 集合竞价): ``昨收 × (1 + slippage)``
-        - ``post_auction`` (次日 9:30:00.001 开盘): ``次日开盘 × (1 + slippage)``
+        - ``post_auction`` (次日 9:30:00.001 开盘): ``今开 × (1 + slippage)``
 
         订单里的 ``scheduled_at`` 决定读取哪个交易日；fallback 到 ``order.price`` /
         0.0 时表示数据不足, 允许废单.
+
+        TODO(#45 followup): post_auction 现在从 daily_bars 读"次日 open", 但 daily_bars
+        在 9:30 盘中还没当日行 (历史数据收盘后入库). 等 zillionare/qmt-gateway#62
+        调查完 9:15~9:30 tick 推送行为后, 切到 live_quote.get_daily_bar(asset).open
+        作为今开价. 在此之前, post_auction 路径会用昨日 close 撮合, 实际等于
+        auction 模式, 偏差需通过 cheat_on_close_time 调晚 + slippage 放大缓解.
         """
         execution_window = order.get("execution_window", "auction")
         try:

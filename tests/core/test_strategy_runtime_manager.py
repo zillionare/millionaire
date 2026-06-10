@@ -223,6 +223,59 @@ def test_apply_live_broker_config_defaults_when_strategy_omits_params():
     """#45 followup: 策略 config 不写 cheat_on_close 时, 默认 False (post-bar decision)."""
     manager = StrategyRuntimeManager()
 
+    class _DemoStrategy:
+        cheat_on_close = False
+
+    from quantide.service import strategy_runtime as _rt_mod
+    monkey = _rt_mod.strategy_loader
+    original = monkey.load_from_cache
+    monkey.load_from_cache = lambda: {"DemoStrategy": _DemoStrategy}
+    try:
+        class _SpyWrapper:
+            def __init__(self):
+                self.calls: list[dict] = []
+
+            def set_strategy_runtime_config(self, **kwargs):
+                self.calls.append(kwargs)
+
+        spy = _SpyWrapper()
+        runtime = StrategyRuntime(
+            runtime_id="live:gateway:demo2",
+            mode="live",
+            strategy_name="DemoStrategy",
+            strategy_id="demo2",
+            portfolio_id="gateway",
+            account_kind=BrokerKind.QMT.value,
+            status="running",
+            config={"symbol": "000001.SZ"},
+            broker=spy,
+        )
+        manager._apply_live_broker_config(runtime)
+
+        assert spy.calls[0]["cheat_on_close"] is False
+        assert spy.calls[0]["live_execution_window"] == "auction"
+        assert spy.calls[0]["live_execution_slippage"] == 0.001
+    finally:
+        monkey.load_from_cache = original
+
+
+def test_apply_live_broker_config_reads_class_attribute_when_config_omits(monkeypatch):
+    """#45 followup2: 策略类有 cheat_on_close=True 类属性, config 没写时必须读到 True.
+
+    回归 #45 review (Aaron d1a96e8): 旧实现 hard-code config.get default=False,
+    把类属性默认 cheat_on_close=True 的策略强制改成 deferred-order 路径, 违反 #46 契约.
+    """
+    manager = StrategyRuntimeManager()
+
+    class _DemoStrategy:
+        cheat_on_close = True
+
+    from quantide.service import strategy_runtime as _rt_mod
+    monkeypatch.setattr(
+        _rt_mod.strategy_loader, "load_from_cache",
+        lambda: {"DemoStrategy": _DemoStrategy},
+    )
+
     class _SpyWrapper:
         def __init__(self):
             self.calls: list[dict] = []
@@ -232,10 +285,10 @@ def test_apply_live_broker_config_defaults_when_strategy_omits_params():
 
     spy = _SpyWrapper()
     runtime = StrategyRuntime(
-        runtime_id="live:gateway:demo2",
+        runtime_id="live:gateway:demo3",
         mode="live",
         strategy_name="DemoStrategy",
-        strategy_id="demo2",
+        strategy_id="demo3",
         portfolio_id="gateway",
         account_kind=BrokerKind.QMT.value,
         status="running",
@@ -244,9 +297,9 @@ def test_apply_live_broker_config_defaults_when_strategy_omits_params():
     )
     manager._apply_live_broker_config(runtime)
 
-    assert spy.calls[0]["cheat_on_close"] is False
-    assert spy.calls[0]["live_execution_window"] == "auction"
-    assert spy.calls[0]["live_execution_slippage"] == 0.001
+    assert spy.calls[0]["cheat_on_close"] is True, (
+        f"类属性 cheat_on_close=True 必须生效, got {spy.calls[0]}"
+    )
 
 
 def test_create_backtest_runtime_persists_cheat_metadata(tmp_path: Path):

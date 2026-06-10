@@ -779,14 +779,23 @@ class StrategyRuntimeManager:
         asyncio.run(self._strategy_loop(runtime, interval, market_data))
 
     def _apply_live_broker_config(self, runtime: StrategyRuntime) -> None:
-        """把 strategy config 中的 cheat_on_close / execution_window / slippage 注入 broker wrapper.
+        """把 strategy config / 类属性中的 cheat_on_close / execution_window / slippage 注入 broker wrapper.
 
         #45 followup: 原 set_strategy_runtime_config 从未被调用,
         GatewayBrokerWrapper._strategy_cheat_on_close 永远默认 True,
         导致 cheat_on_close=False 路径上的 DeferredOrderQueue 实际是死代码.
+        #45 followup2: config 缺 cheat_on_close 时, 读策略类属性 (与 BacktestRunner._resolve_cheat_on_close 对齐),
+        否则把 cheat_on_close=True 类属性策略强制改成 deferred-order 路径, 违反 #46 契约.
         """
         config = runtime.config or {}
-        cheat_on_close = bool(config.get("cheat_on_close", False))
+        if "cheat_on_close" in config:
+            cheat_on_close = bool(config["cheat_on_close"])
+        else:
+            try:
+                strategy_cls = strategy_loader.load_from_cache().get(runtime.strategy_name)
+            except Exception:
+                strategy_cls = None
+            cheat_on_close = bool(getattr(strategy_cls, "cheat_on_close", False))
         live_execution_window = str(config.get("live_execution_window", "auction"))
         live_execution_slippage = float(config.get("live_execution_slippage", 0.001))
         setter = getattr(runtime.broker, "set_strategy_runtime_config", None)
