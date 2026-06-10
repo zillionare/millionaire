@@ -650,17 +650,47 @@ class GatewayBrokerWrapper(Broker):
         return submitted
 
     def _estimate_limit_price(self, order: dict[str, Any]) -> float:
-        """限价单价格估算：auction 模式用昨收 + 滑点，post_auction 模式用今开 + 滑点."""
+        """限价单价格估算.
+
+        - ``auction`` (次日 9:25 集合竞价): ``昨收 × (1 + slippage)``
+        - ``post_auction`` (次日 9:30:00.001 开盘): ``次日开盘 × (1 + slippage)``
+
+        订单里的 ``scheduled_at`` 决定读取哪个交易日；fallback 到 ``order.price`` /
+        0.0 时表示数据不足, 允许废单.
+        """
+        execution_window = order.get("execution_window", "auction")
         try:
-            trade_date = calendar.day_shift(self._today(), -1)
-            hist = daily_bars.get_bars(
-                n=2, end=trade_date, assets=[order["asset"]]
-            )
+            scheduled_at = order["scheduled_at"]
+            if isinstance(scheduled_at, datetime.datetime):
+                target_date = scheduled_at.date()
+            else:
+                target_date = scheduled_at
+        except (KeyError, TypeError):
+            target_date = None
+        if execution_window == "post_auction":
+            end_date = target_date or self._today()
+            price_column = "open"
+        else:
+            try:
+                end_date = (
+                    target_date - datetime.timedelta(days=1)
+                    if target_date is not None
+                    else calendar.day_shift(self._today(), -1)
+                )
+            except Exception:
+                end_date = (
+                    target_date - datetime.timedelta(days=1)
+                    if target_date is not None
+                    else self._today() - datetime.timedelta(days=1)
+                )
+            price_column = "close"
+        try:
+            hist = daily_bars.get_bars(n=2, end=end_date, assets=[order["asset"]])
             if hist is None or hist.is_empty():
                 base_price = 0.0
             else:
                 row = hist.row(-1, named=True)
-                base_price = float(row.get("close", 0.0) or 0.0)
+                base_price = float(row.get(price_column, 0.0) or 0.0)
         except Exception:
             base_price = 0.0
         if base_price <= 0:

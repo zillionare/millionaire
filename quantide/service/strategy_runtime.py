@@ -749,6 +749,26 @@ class StrategyRuntimeManager:
     def _run_strategy_loop(self, runtime: StrategyRuntime, interval: str, market_data: Any) -> None:
         asyncio.run(self._strategy_loop(runtime, interval, market_data))
 
+    def _apply_live_broker_config(self, runtime: StrategyRuntime) -> None:
+        """把 strategy config 中的 cheat_on_close / execution_window / slippage 注入 broker wrapper.
+
+        #45 followup: 原 set_strategy_runtime_config 从未被调用,
+        GatewayBrokerWrapper._strategy_cheat_on_close 永远默认 True,
+        导致 cheat_on_close=False 路径上的 DeferredOrderQueue 实际是死代码.
+        """
+        config = runtime.config or {}
+        cheat_on_close = bool(config.get("cheat_on_close", False))
+        live_execution_window = str(config.get("live_execution_window", "auction"))
+        live_execution_slippage = float(config.get("live_execution_slippage", 0.001))
+        setter = getattr(runtime.broker, "set_strategy_runtime_config", None)
+        if not callable(setter):
+            return
+        setter(
+            cheat_on_close=cheat_on_close,
+            live_execution_window=live_execution_window,
+            live_execution_slippage=live_execution_slippage,
+        )
+
     async def _strategy_loop(self, runtime: StrategyRuntime, interval: str, market_data: Any) -> None:
         strategies = strategy_loader.load_from_cache()
         strategy_cls = strategies.get(runtime.strategy_name)
@@ -757,6 +777,8 @@ class StrategyRuntimeManager:
             runtime.error = f"策略不存在: {runtime.strategy_name}"
             runtime.updated_at = datetime.datetime.now()
             return
+        if runtime.mode == "live":
+            self._apply_live_broker_config(runtime)
         broker = runtime.broker
         if runtime.mode == "live":
             broker = StrategyBrokerProxy(runtime.broker, runtime.strategy_id)

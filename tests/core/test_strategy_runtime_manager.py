@@ -1,6 +1,7 @@
 import datetime
 from pathlib import Path
 
+from quantide.core.enums import BrokerKind
 from quantide.service.strategy_runtime import StrategyRuntime, StrategyRuntimeManager
 
 
@@ -175,3 +176,74 @@ def test_strategy_runtime_manager_backtest_deployment_modes_only_reports_active_
     assert "paper" in result
     assert "live" not in result
     assert result["paper"]["source_backtest_portfolio_id"] == "bt-1"
+
+
+def test_apply_live_broker_config_wires_cheat_off_to_wrapper():
+    """#45 followup: 启动 live runtime 时必须把 cheat_on_close 等参数注入 broker wrapper.
+
+    回归 #45 review (Aaron): 原 set_strategy_runtime_config 从未被调用,
+    生产路径上 _strategy_cheat_on_close 永远默认 True, deferred_orders 分支死代码.
+    """
+    manager = StrategyRuntimeManager()
+
+    class _SpyWrapper:
+        def __init__(self):
+            self.calls: list[dict] = []
+
+        def set_strategy_runtime_config(self, **kwargs):
+            self.calls.append(kwargs)
+
+    spy = _SpyWrapper()
+    runtime = StrategyRuntime(
+        runtime_id="live:gateway:demo",
+        mode="live",
+        strategy_name="DemoStrategy",
+        strategy_id="demo",
+        portfolio_id="gateway",
+        account_kind=BrokerKind.QMT.value,
+        status="running",
+        config={
+            "cheat_on_close": False,
+            "live_execution_window": "post_auction",
+            "live_execution_slippage": 0.005,
+        },
+        broker=spy,
+    )
+    manager._apply_live_broker_config(runtime)
+
+    assert len(spy.calls) == 1, (
+        f"set_strategy_runtime_config 应被调一次, got {spy.calls}"
+    )
+    assert spy.calls[0]["cheat_on_close"] is False
+    assert spy.calls[0]["live_execution_window"] == "post_auction"
+    assert spy.calls[0]["live_execution_slippage"] == 0.005
+
+
+def test_apply_live_broker_config_defaults_when_strategy_omits_params():
+    """#45 followup: 策略 config 不写 cheat_on_close 时, 默认 False (post-bar decision)."""
+    manager = StrategyRuntimeManager()
+
+    class _SpyWrapper:
+        def __init__(self):
+            self.calls: list[dict] = []
+
+        def set_strategy_runtime_config(self, **kwargs):
+            self.calls.append(kwargs)
+
+    spy = _SpyWrapper()
+    runtime = StrategyRuntime(
+        runtime_id="live:gateway:demo2",
+        mode="live",
+        strategy_name="DemoStrategy",
+        strategy_id="demo2",
+        portfolio_id="gateway",
+        account_kind=BrokerKind.QMT.value,
+        status="running",
+        config={"symbol": "000001.SZ"},
+        broker=spy,
+    )
+    manager._apply_live_broker_config(runtime)
+
+    assert spy.calls[0]["cheat_on_close"] is False
+    assert spy.calls[0]["live_execution_window"] == "auction"
+    assert spy.calls[0]["live_execution_slippage"] == 0.001

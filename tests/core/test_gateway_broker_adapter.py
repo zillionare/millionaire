@@ -596,3 +596,119 @@ async def test_gateway_broker_no_double_qfq_adjustment_on_forming_merge(monkeypa
             f"row {i}: close={closes[i]}, expected={expected_hist_close}"
         )
     assert abs(closes[4] - 11.0) < 0.01
+
+
+@pytest.mark.asyncio
+async def test_live_estimate_limit_price_auction_uses_previous_close(monkeypatch):
+    """#45 followup: auction 模式限价 = 昨收 × (1 + slippage)."""
+    import polars as pl
+
+    from quantide.core.runtime import gateway_broker as _gb_mod
+
+    class _FakeBars:
+        def get_bars(self, n, end, assets, **kwargs):
+            return pl.DataFrame(
+                {
+                    "date": [end],
+                    "asset": assets,
+                    "open": [10.0],
+                    "high": [11.0],
+                    "low": [9.0],
+                    "close": [10.0],
+                    "volume": [0.0],
+                    "amount": [0.0],
+                    "adjust": [1.0],
+                    "is_st": [False],
+                    "up_limit": [11.0],
+                    "down_limit": [9.0],
+                }
+            )
+
+    monkeypatch.setattr(_gb_mod, "daily_bars", _FakeBars())
+
+    client = DummyGatewayClient()
+    adapter = GatewayBrokerAdapter(client)
+    wrapper = GatewayBrokerWrapper(adapter)
+    wrapper.set_clock(datetime.datetime(2026, 1, 5, 15, 0))
+    wrapper.set_strategy_runtime_config(
+        cheat_on_close=False,
+        live_execution_window="auction",
+        live_execution_slippage=0.001,
+    )
+
+    price = wrapper._estimate_limit_price(
+        {
+            "asset": "000001.SZ",
+            "side": "buy",
+            "value": 5000.0,
+            "style": "amount",
+            "price": 0,
+            "execution_window": "auction",
+            "slippage": 0.001,
+            "scheduled_at": datetime.datetime(2026, 1, 6, 9, 25),
+        }
+    )
+    assert abs(price - 10.0 * 1.001) < 0.0001
+
+
+@pytest.mark.asyncio
+async def test_live_estimate_limit_price_post_auction_uses_next_day_open(monkeypatch):
+    """#45 followup: post_auction 模式限价 = 次日开盘 × (1 + slippage).
+
+    回归 #45 review: 原 _estimate_limit_price 一律用昨收, post_auction 路径错误.
+    """
+    import polars as pl
+
+    from quantide.core.runtime import gateway_broker as _gb_mod
+
+    call_log: list[datetime.date] = []
+
+    class _FakeBars:
+        def get_bars(self, n, end, assets, **kwargs):
+            call_log.append(end)
+            return pl.DataFrame(
+                {
+                    "date": [end],
+                    "asset": assets,
+                    "open": [11.5],
+                    "high": [12.0],
+                    "low": [11.0],
+                    "close": [10.0],
+                    "volume": [0.0],
+                    "amount": [0.0],
+                    "adjust": [1.0],
+                    "is_st": [False],
+                    "up_limit": [13.0],
+                    "down_limit": [9.0],
+                }
+            )
+
+    monkeypatch.setattr(_gb_mod, "daily_bars", _FakeBars())
+
+    client = DummyGatewayClient()
+    adapter = GatewayBrokerAdapter(client)
+    wrapper = GatewayBrokerWrapper(adapter)
+    wrapper.set_clock(datetime.datetime(2026, 1, 5, 15, 0))
+    wrapper.set_strategy_runtime_config(
+        cheat_on_close=False,
+        live_execution_window="post_auction",
+        live_execution_slippage=0.002,
+    )
+
+    price = wrapper._estimate_limit_price(
+        {
+            "asset": "000001.SZ",
+            "side": "buy",
+            "value": 5000.0,
+            "style": "amount",
+            "price": 0,
+            "execution_window": "post_auction",
+            "slippage": 0.002,
+            "scheduled_at": datetime.datetime(2026, 1, 6, 9, 30, 0, 1000),
+        }
+    )
+    assert abs(price - 11.5 * 1.002) < 0.0001, f"got {price}, expected 11.5*1.002=11.523"
+    assert len(call_log) == 1
+    assert call_log[0] == datetime.date(2026, 1, 6), (
+        f"post_auction 应读次日 (2026-01-06), got {call_log[0]}"
+    )
