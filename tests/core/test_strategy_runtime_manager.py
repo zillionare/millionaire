@@ -247,3 +247,194 @@ def test_apply_live_broker_config_defaults_when_strategy_omits_params():
     assert spy.calls[0]["cheat_on_close"] is False
     assert spy.calls[0]["live_execution_window"] == "auction"
     assert spy.calls[0]["live_execution_slippage"] == 0.001
+
+
+def test_create_backtest_runtime_persists_cheat_metadata(tmp_path: Path):
+    """#49 followup: cheat_on_close + cheat_on_close_time 进入 runtime_specs 持久化文件."""
+    manager = StrategyRuntimeManager()
+    manager._state_file = lambda: tmp_path / "strategy_runtimes.json"
+    manager.create_backtest_runtime(
+        portfolio_id="p1",
+        strategy_name="DemoStrategy",
+        config={"symbol": "000001.SZ", "cheat_on_close": True},
+        interval="1d",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        initial_cash=1000000,
+    )
+
+    manager2 = StrategyRuntimeManager()
+    manager2._state_file = lambda: tmp_path / "strategy_runtimes.json"
+    manager2._load_specs()
+    spec = manager2._runtime_specs.get("backtest:p1")
+    assert spec is not None, "runtime_specs 应持久化 backtest:p1"
+    assert spec.get("cheat_on_close") is True
+    assert spec.get("cheat_on_close_time") == "14:57"
+
+
+def test_resolve_backtest_run_restores_cheat_from_persisted_specs(tmp_path: Path):
+    """#49 followup: 重启后 _resolve_backtest_run 必须从持久化 specs 恢复 cheat 字段,
+    而不是用策略 PARAMS class attr + 当前 settings.cheat_on_close_time 推断.
+    """
+    manager = StrategyRuntimeManager()
+    manager._state_file = lambda: tmp_path / "strategy_runtimes.json"
+    manager._runtime_specs = {
+        "backtest:bt-historic": {
+            "runtime_id": "backtest:bt-historic",
+            "mode": "backtest",
+            "strategy_name": "DualMAStrategy",
+            "strategy_id": "s-historic",
+            "portfolio_id": "bt-historic",
+            "account_kind": "bt",
+            "status": "finished",
+            "config": {"symbol": "000001.SZ", "cheat_on_close": True},
+            "cheat_on_close": True,
+            "cheat_on_close_time": "14:30",
+            "interval": "1d",
+        }
+    }
+    manager._save_specs()
+
+    class _FakePortfolio:
+        name = "DualMAStrategy"
+        start = "2024-01-01"
+        end = "2024-01-31"
+
+    manager2 = StrategyRuntimeManager()
+    manager2._state_file = lambda: tmp_path / "strategy_runtimes.json"
+    manager2._load_specs()
+
+    from quantide.service import strategy_runtime as _rt_mod
+    manager2.get_backtest_run = lambda pid: None  # type: ignore[assignment]
+    monkeypatch_obj = _rt_mod.db
+    original_get_portfolio = monkeypatch_obj.get_portfolio
+
+    def _fake_get_portfolio(pid):
+        if pid == "bt-historic":
+            return _FakePortfolio()
+        return original_get_portfolio(pid)
+
+    monkeypatch_obj.get_portfolio = _fake_get_portfolio  # type: ignore[assignment]
+    try:
+        run = manager2._resolve_backtest_run("bt-historic")
+        assert run.cheat_on_close is True
+        assert run.cheat_on_close_time == "14:30", (
+            f"应从持久化 specs 恢复 14:30, got {run.cheat_on_close_time!r}"
+        )
+    finally:
+        monkeypatch_obj.get_portfolio = original_get_portfolio  # type: ignore[assignment]
+
+
+def test_strategy_loop_live_wires_broker_config_and_uses_real_time(monkeypatch):
+    """#46 / #45 integration: live runtime 必须先调 _apply_live_broker_config,
+    on_bar 用 datetime.now() (real time), 不是 9:30/14:57 控制时钟.
+
+    反驳 #46 review 的部分观点: paper/live bar trigger time 应是 real time,
+    只有 backtest runner 才有 9:30 vs 14:57 选择.
+    """
+    import asyncio
+    from quantide.core.enums import FrameType
+    from quantide.service import strategy_runtime as _rt_mod
+
+    class _DemoStrategy:
+        def __init__(self, broker, config):
+            self.broker = broker
+            self.config = config
+            self.interval = "1d"
+            self.on_bar_calls: list = []
+
+        async def init(self):
+            pass
+
+        async def on_start(self, tm):
+            self._on_start_tm = tm
+
+        async def on_bar(self, tm, quotes, frame_type):
+            self.on_bar_calls.append((tm, frame_type))
+            self.broker._spy_stop = True
+            raise RuntimeError("stop loop")
+
+        async def on_stop(self, tm):
+            pass
+
+    class _SpyBroker:
+        def __init__(self):
+            self.set_strategy_runtime_config_called: list[dict] = []
+            self.set_clock_calls: list = []
+
+        def set_strategy_runtime_config(self, **kwargs):
+            self.set_strategy_runtime_config_called.append(kwargs)
+
+        def set_clock(self, tm):
+            self.set_clock_calls.append(tm)
+
+    spy = _SpyBroker()
+    monkeypatch.setattr(_rt_mod.strategy_loader, "load_from_cache",
+                        lambda: {"DemoStrategy": _DemoStrategy})
+
+    manager = _rt_mod.StrategyRuntimeManager()
+    runtime = _rt_mod.StrategyRuntime(
+        runtime_id="live:gateway:demo",
+        mode="live",
+        strategy_name="DemoStrategy",
+        strategy_id="demo",
+        portfolio_id="gateway",
+        account_kind="gateway",
+        status="running",
+        config={
+            "cheat_on_close": False,
+            "live_execution_window": "auction",
+            "live_execution_slippage": 0.001,
+        },
+        symbols=["000001.SZ"],
+        stop_event=_rt_mod.threading.Event(),
+        broker=spy,
+    )
+
+    async def _noop_sleep():
+        pass
+
+    strategy_holder: dict[str, Any] = {}
+
+    original_strategy_cls = _DemoStrategy
+    wrapped_cls = type(
+        "WrappedDemoStrategy",
+        (original_strategy_cls,),
+        {
+            "__init__": lambda self, broker, config: (
+                original_strategy_cls.__init__(self, broker, config),
+                strategy_holder.update({"instance": self}),
+            )[-1],
+        },
+    )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            _rt_mod.strategy_loader,
+            "load_from_cache",
+            lambda: {"DemoStrategy": wrapped_cls},
+        )
+        m.setattr(_rt_mod.asyncio, "sleep", lambda *_a, **_kw: _noop_sleep())
+
+        async def _run_loop():
+            await manager._strategy_loop(runtime, "1d", market_data=None)
+
+        _rt_mod.asyncio.run(_run_loop())
+
+    assert len(spy.set_strategy_runtime_config_called) == 1, (
+        f"live loop 必须先调 set_strategy_runtime_config, got {spy.set_strategy_runtime_config_called}"
+    )
+    assert spy.set_strategy_runtime_config_called[0]["cheat_on_close"] is False
+
+    strategy_instance = strategy_holder["instance"]
+    assert len(strategy_instance.on_bar_calls) == 1, (
+        f"应触发一次 on_bar, got {len(strategy_instance.on_bar_calls)} calls"
+    )
+    bar_tm, frame = strategy_instance.on_bar_calls[0]
+    assert frame == FrameType.DAY
+    delta = abs((bar_tm - _rt_mod.datetime.datetime.now()).total_seconds())
+    assert delta < 5, (
+        f"live loop 的 bar_tm 应是 real time (now), 偏差 {delta:.1f}s"
+    )
+    assert runtime.status == "failed"
+    assert runtime.error == "stop loop"

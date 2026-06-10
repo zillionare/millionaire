@@ -206,6 +206,23 @@ class StrategyRuntimeManager:
         with self._lock:
             self._backtest_runtimes[portfolio_id] = run
             self._backtest_history[portfolio_id] = run
+            self._runtime_specs[run.runtime_id] = {
+                "runtime_id": run.runtime_id,
+                "mode": "backtest",
+                "strategy_name": strategy_name,
+                "strategy_id": "",
+                "portfolio_id": portfolio_id,
+                "source_backtest_portfolio_id": "",
+                "account_kind": "bt",
+                "status": run.status,
+                "config": dict(config or {}),
+                "symbols": [],
+                "principal": initial_cash,
+                "interval": interval,
+                "cheat_on_close": cheat,
+                "cheat_on_close_time": cheat_tm,
+            }
+            self._save_specs()
 
     def complete_backtest_runtime(self, portfolio_id: str, error: str = "") -> None:
         with self._lock:
@@ -214,6 +231,11 @@ class StrategyRuntimeManager:
                 run.status = "failed" if error else "finished"
                 run.error = error
                 run.updated_at = datetime.datetime.now()
+                spec = self._runtime_specs.get(run.runtime_id)
+                if spec is not None:
+                    spec["status"] = run.status
+                    spec["error"] = run.error
+                    self._save_specs()
             if portfolio_id in self._backtest_runtimes:
                 del self._backtest_runtimes[portfolio_id]
 
@@ -640,13 +662,20 @@ class StrategyRuntimeManager:
         strategy_name = portfolio.name or ""
         if not strategy_name:
             raise RuntimeError("无法识别回测策略名")
-        strategies = strategy_loader.load_from_cache()
-        strategy_cls = strategies.get(strategy_name)
-        config = dict(getattr(strategy_cls, "PARAMS", {})) if strategy_cls else {}
-        cheat = bool(config.get("cheat_on_close", False))
-        cheat_tm = get_cheat_on_close_time() if cheat else ""
+        runtime_id = f"backtest:{portfolio_id}"
+        spec = self._runtime_specs.get(runtime_id)
+        if spec is not None:
+            config = dict(spec.get("config") or {})
+            cheat = bool(spec.get("cheat_on_close", False))
+            cheat_tm = str(spec.get("cheat_on_close_time") or "")
+        else:
+            strategies = strategy_loader.load_from_cache()
+            strategy_cls = strategies.get(strategy_name)
+            config = dict(getattr(strategy_cls, "PARAMS", {})) if strategy_cls else {}
+            cheat = bool(config.get("cheat_on_close", False))
+            cheat_tm = get_cheat_on_close_time() if cheat else ""
         return BacktestRun(
-            runtime_id=f"backtest:{portfolio_id}",
+            runtime_id=runtime_id,
             portfolio_id=portfolio_id,
             strategy_name=strategy_name,
             config=config,

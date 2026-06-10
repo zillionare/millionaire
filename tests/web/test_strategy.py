@@ -600,6 +600,60 @@ def test_deploy_backtest_to_paper_modal_requests_principal_confirmation():
     assert 'hx-post="/strategy/backtest/demo-pf/deploy/paper"' in html
 
 
+def test_paper_modal_renders_config_table_when_default_config_provided():
+    """#47 followup: paper modal 也要渲染 config 表 (与 live 对齐)."""
+    html = to_xml(
+        strategy_page._paper_deploy_modal(
+            "demo-pf",
+            principal="500000",
+            config={"symbol": "000001.SZ", "fast": 5},
+            default_config={"symbol": "000001.SZ", "fast": 3, "slow": 10},
+        )
+    )
+    assert 'id="deploy-paper-form"' in html
+    assert "fast" in html
+    assert 'name="custom_fast"' in html
+    assert "5" in html
+
+
+def test_load_backtest_run_config_resolves_default_from_strategy_class(monkeypatch):
+    """#47 followup: loader 返回 dict[str, type], 按 key 匹配策略类名 + cls.default_config()."""
+    from quantide.core.strategy import BaseStrategy
+    from quantide.service import strategy_runtime
+
+    class _DemoStrategy(BaseStrategy):
+        @staticmethod
+        def default_config() -> dict:
+            return {"symbol": "000001.SZ", "fast": 3}
+
+    fake_run = strategy_runtime.BacktestRun(
+        runtime_id="backtest:demo-pf",
+        portfolio_id="demo-pf",
+        strategy_name="_DemoStrategy",
+        config={"symbol": "000001.SZ"},
+        interval="1d",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        initial_cash=1000000,
+        status="finished",
+    )
+
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager,
+        "get_backtest_run",
+        lambda portfolio_id: fake_run if portfolio_id == "demo-pf" else None,
+    )
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "load_from_cache",
+        lambda: {"_DemoStrategy": _DemoStrategy},
+    )
+
+    config, default_config = strategy_page._load_backtest_run_config("demo-pf")
+    assert config == {"symbol": "000001.SZ"}
+    assert default_config == {"symbol": "000001.SZ", "fast": 3}
+
+
 def test_deploy_backtest_to_live_modal_requires_gateway(monkeypatch):
     monkeypatch.setattr(strategy_page, "_get_live_accounts", lambda req: [])
 

@@ -1739,6 +1739,9 @@ def _paper_deploy_modal(
             error_block,
             Form(
                 Input(type="hidden", name="portfolio_id", value=portfolio_id),
+                _render_config_table(
+                    config or {}, default_config, form_id_suffix="paper"
+                ),
                 Div(
                     fh.Label("仿真本金", cls="text-sm text-gray-500"),
                     Input(
@@ -1951,12 +1954,9 @@ def _load_backtest_run_config(portfolio_id: str) -> tuple[dict[str, Any], dict[s
     default_config: dict[str, Any] | None = None
     try:
         strategies = strategy_loader.load_from_cache()
-        for s in strategies:
-            cls = s.get("cls") if isinstance(s, dict) else getattr(s, "cls", None)
-            name = s.get("name") if isinstance(s, dict) else getattr(s, "name", None)
-            if name == run.strategy_name and cls is not None:
-                default_config = cls.default_config()
-                break
+        cls = strategies.get(run.strategy_name)
+        if cls is not None and hasattr(cls, "default_config"):
+            default_config = cls.default_config()
     except Exception:
         default_config = None
     return dict(run.config or {}), default_config
