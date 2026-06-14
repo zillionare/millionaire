@@ -14,7 +14,7 @@
 
 quantIDE 是一款量化交易软件，提供数据维护、回测、仿真和实盘交易功能。策略通过外部开发工具来开发，使用本应用提供的策略框架以及数据、交易 API。
 
-### qmt-gateway
+### 2.1. qmt-gateway
 
 quantIDE 依赖 qmt-gateway 来获得实时行情和实盘交易能力。qmt-gateway 也是同一作者开发。quantIDE 可部署在 linux/windows/mac 上，但 qmt-gateway 只能部署在 windows 上，并且在同一台机器上，需要安装迅投开发的 qmt 及 xtquant sdk。
 
@@ -32,7 +32,7 @@ quantIDE与 qmt-gateway 之间通过 web socket 及RESTful API进行通讯。当
 
 qauntIDE 必须不依赖于 xtquant，并且在没有 qmt-gateway 的情况下，也能够运行。不过，在这种状态下，只能运行策略回测和分析，不能进行仿真、实盘交易。
 
-## quantIDE的核心技术栈
+## 3. quantIDE的核心技术栈
 
 使用 python 3.13 作为运行时。
 
@@ -40,28 +40,27 @@ UI 界面使用 FastHTML 和 monster UI构建。行情数据使用 parquet 格�
 
 数据访问模块必须提供非常强大的性能，每一行语句都要精心打磨。
 
-### 开发环境
+### 3.1. 开发环境
 
 1. 同样使用 python 3.13作为运行时。
-2. 使用 conda 创建虚拟环境，虚拟环境与项目同名。
-3. 使用 poetry 来管理依赖和进行构建。
-4. 使用 black进行格式化
-5. 使用 ruff 和 mypy 进行语法检查 。
-6. 使用 pytest 来运行和管理单元测试。
-7. 使用 starlette 自带的 Testclient 进行集成测试。页面样式、动态效果一般手工进行测试。
+2. 使用 uv/venv 创建虚拟环境和管理依赖
+3. 使用 black进行格式化
+4. 使用 ruff 和 mypy 进行语法检查 。
+5. 使用 pytest 来运行和管理单元测试。
+6. 使用 starlette 自带的 Testclient 进行集成测试。页面样式、动态效果一般手工进行测试。
 
-## 重要架构考虑
+## 4. 重要架构考虑
 
 1. 配置保存在数据库quantide.db 中。使用操作系统默认的配置文件目录来存储该文件。在系统第一次运行时，通过运行 init-wizard 来完成最重要的配置。详见02-init-wizard.md。
 2. quantIDE提供策略框架。该框架既是一系列约定，也提供了抽象基类。派生于该框架的策略，能被quantIDE发现，加载和运行。
-3. 策略由运行时驱动，无论是在回测、仿真还是实盘运行时，都不需要进行修改。
+3. 策略由运行时驱动，无论是在回测、仿真还是实盘运行时，策略都不需要进行修改。
 4. 策略发出的每一个订单，都将通过 qtoid 来进行跟踪。接收和处理订单的系统都要透传，或者自己建立 qtoid 与外部 id 之间的关联。
 5. quantIDE将可以运行在 macos/linux/windows 上。它必须不依赖于 xtquant。
 6. 界面 layout, style 等约定在03-layout-nav-style.md 文档中说明。
 7. 系统从外部数据源（比如 tushare）接收数据时，必须转换成为标准数据格式（见本文对应章节）再存储。
 8. 系统支持多个数据源，系统（比如后台更新任务）只使用系统自己的标准数据 API 来获取数据。在初始化时，这些 API 将绑定到对应的适配器上。
 
-### 策略零移植
+### 4.1. 策略零移植
 
 策略代码必须跨模式零修改运行，这是发布态硬性业务目标。
 
@@ -69,28 +68,22 @@ UI 界面使用 FastHTML 和 monster UI构建。行情数据使用 parquet 格�
 
 1. 同一份策略代码，不因运行模式不同而修改源代码。
 2. 策略不感知回测/仿真/实盘差异。
-3. 策略仅依赖统一的 broker、market data 和 runtime context。
+3. 策略仅依赖统一的 broker、data。
 
-运行模式统一为：
+运行模式为以下三种之一：
 
-1. `backtest`
-2. `paper`
-3. `live`
+1. `backtest`：历史数据回放 + 本地仿真撮合
+2. `paper`: 远程 gateway 行情 + 本地仿真撮合
+3. `live`: 远程 gateway 行情 + 远程 gateway 交易
 
-其中：
+### 4.2. 订单跟踪
 
-1. `live` = 远程 gateway 行情 + 远程 gateway 交易
-2. `paper` = 实时行情 + 本地仿真撮合
-3. `backtest` = 历史数据回放 + 本地仿真撮合
-
-### 订单跟踪
-
-1. `qtoid` 是主体侧订单生命周期的主标识。
+1. `qtoid` 是quantide侧订单生命周期的主标识。
 2. gateway/QMT 返回的外部订单号是外部标识，不替代 `qtoid`。
 3. 订单、成交、UI 展示、策略等待/唤醒都应围绕 `qtoid` 对齐。
 4. 在 quantIDE界面展示订单时，除非是为了 troubleshooting 的场合，一般只展示 `qtoid`（甚至为了用户友好，该字段也不必要展示）。
 
-### 行情数据字段规范化
+### 4.3. 行情数据字段规范化
 
 我们将建立一套标准化的行情数据交换格式。规定为：
 
@@ -101,11 +94,11 @@ UI 界面使用 FastHTML 和 monster UI构建。行情数据使用 parquet 格�
 
 这是数据层硬约束。
 
-### 事件总线
+### 4.4. 事件总线
 
 在系统内部通过 MessageHub 来进行通信。它只用于进程内部通信，而不用于 quantIDE 与gateway 的通信。它的主要作用是用于模块之间的 de-couple，以及支持异步调用。
 
-### UI 导航与渲染架构约束
+### 4.5. UI 导航与渲染架构约束
 
 quantIDE 的 Web UI 在共享布局层必须优先采用 fragment 导航，而不是完整页面重绘。
 
@@ -126,3 +119,50 @@ quantIDE 的 Web UI 在共享布局层必须优先采用 fragment 导航，而�
 1. 保持 Header + Sidebar 作为稳定壳层，减少切换闪烁。
 2. 使系统在现有 FastHTML + HTMX 技术栈下获得更接近 SPA 的交互体验。
 3. 避免后续新增页面继续沿用完整页面重绘，导致体验持续退化。
+
+
+## 策略框架
+
+### 生命期
+
+策略的生命周期包含**构造、初始化、启动、日内循环（含 Bar 循环）、停止**五个阶段。整体流程如下：
+
+```mermaid
+flowchart TD
+    A([驱动启动]) --> B["__init__(broker, config)<br/>绑定 broker 与配置"]
+    B --> C["init()<br/>异步初始化：加载数据、初始化变量"]
+    C --> D["on_start()<br/>回测/实盘开始前回调"]
+    D --> E{"更多交易日或<br/>实盘叫停？"}
+    E -- 是 --> F["on_day_open(tm)<br/>盘前回调（09:30 前）"]
+    F --> G["on_bar(tm, quote, frame_type)<br/>核心驱动回调"]
+    G --> H{"更多 Bar？"}
+    H -- 是 --> G
+    H -- 否 --> I["on_day_close(tm)<br/>盘后回调（15:30 后）"]
+    I --> E
+    E -- 否 --> J["on_stop()<br/>回测/实盘结束后回调"]
+    J --> K([策略结束])
+```
+
+各阶段要点：
+
+1. **构造**：`__init__(broker, config)` 仅保存 broker 与配置，不做 I/O。
+2. **初始化**：`init()` 是异步方法，实例化后立即调用，可用于加载历史数据、计算指标、初始化账户状态。
+3. **启动**：`on_start()` 在回测/实盘正式开始前调用一次，适合订阅行情、设置全局状态。
+4. **日内循环**：每个交易日先 `on_day_open(tm)`，再逐根 `on_bar(tm, quote, frame_type)`（核心交易逻辑，可调用 `broker.buy/sell` 与 `record`），日内结束调用 `on_day_close(tm)`。
+5. **停止**：`on_stop()` 在整个回测/实盘结束后调用一次，用于清理资源、输出总结。
+
+### 数据获取
+
+策略一般需要在 init 和 on_bar被调用时获取数据。获取数据时使用 get_history (暂定名) 这个 API，最终它会被绑定到 broker 上的同名 API.
+
+### 撮合时机
+
+在每个 on_bar 时，策略都可以发出买卖信号。根据 RuntimeContext 的不同以及是否允许 cheat-on-close，broker 撮合时机和机制也有所不同。
+
+| mode       | cheat-on-close=yes | cheat-on-close=false | comments                                         |
+| ---------- | ------------------ | -------------------- | ------------------------------------------------ |
+| backtest   | 当日收盘价         | 次日开盘价           | 未成交的订单自动作废，不看成交量                 |
+| paper/live | 立即发出           | 次日集合竞价期间发出 | 未成交的订单持续到收盘后自动作废，成交量决定撮合 |
+
+其中 paper 自己负责撮合；它扫描在 order 之后达到的行情数据，根据价格和成交量来决定能否成交；live 则是把订单发送给真实的柜台网关 -- 比如qmt gateway.
+

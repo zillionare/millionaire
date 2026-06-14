@@ -55,12 +55,12 @@ return self.broker.get_history(
 
 ### 2.2 不要直接调用的内部 API
 
-| 内部 API | 原因 |
-|---|---|
-| `self.broker.get_history(...)` | 跳过策略基类封装，破坏可移植性 |
-| `self._data_feed.get_bars(...)` | 数据层是 broker 私有资产 |
-| `live_quote.get_daily_bar(...)` | LiveQuote 不在策略上下文保证可用；schema 不全 |
-| `daily_bars.get_bars(...)` | 同上，且直接调会绕过 `include_forming_bar` 合并逻辑 |
+| 内部 API                        | 原因                                                |
+| ------------------------------- | --------------------------------------------------- |
+| `self.broker.get_history(...)`  | 跳过策略基类封装，破坏可移植性                      |
+| `self._data_feed.get_bars(...)` | 数据层是 broker 私有资产                            |
+| `live_quote.get_daily_bar(...)` | LiveQuote 不在策略上下文保证可用；schema 不全       |
+| `daily_bars.get_bars(...)`      | 同上，且直接调会绕过 `include_forming_bar` 合并逻辑 |
 
 ### 2.3 `BarsFeed.get_bars` 的角色
 
@@ -101,19 +101,19 @@ POST 路由（`strategy.py:1900, 1950`）最终调：
 
 回测转 paper / live 后，runtime 切换到**真实时钟**（不再是回测模拟时钟）：
 
-| 维度 | 回测 | paper | live |
-|---|---|---|---|
-| Clock | 回测模拟时钟（`backtest_broker._clock`） | 真实 wall clock + 交易日历 | 真实 wall clock + 交易日历 |
-| 运行时段 | `start_date..end_date` 一次性跑完 | 从回测 `end_date + 1` 起，**持续运行**到 portfolio 被手动停止 | 同 paper |
-| on_bar 触发时间 | 9:30（cheat_on_close=False）/ 14:57（cheat_on_close=True） | 9:30（cheat_on_close=False）/ 14:57（cheat_on_close=True） | **15:00 收盘后**（cheat_on_close=False，盘后触发）/ 14:57（cheat_on_close=True） |
-| 撮合时机 | cheat_on_close=False：runner 在每个交易日 9:30 都触发 on_bar，可严格实现 execution_offset=1（次日 9:30 open 撮合） | cheat_on_close=True：**立即**按当前价撮合；cheat_on_close=False：等到次日 9:25 集合竞价结束撮合 | cheat_on_close=True：**立即**按当前价撮合；cheat_on_close=False：broker **截图订单** + 延迟到次日指定时间下柜台（见 §3.6） |
-| 撮合价 | cheat_on_close=False：次日 9:30 open；cheat_on_close=True：当根 close | cheat_on_close=True：14:57 forming close；cheat_on_close=False：次日 9:25 集合竞价 close | cheat_on_close=True：14:57 forming close；cheat_on_close=False：**限价单**（昨收/今开 + 滑点），废单允许 |
+| 维度            | 回测                                                                                                               | paper                                                                                           | live                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Clock           | 回测模拟时钟（`backtest_broker._clock`）                                                                           | 真实 wall clock + 交易日历                                                                      | 真实 wall clock + 交易日历                                                                                                 |
+| 运行时段        | `start_date..end_date` 一次性跑完                                                                                  | 从回测 `end_date + 1` 起，**持续运行**到 portfolio 被手动停止                                   | 同 paper                                                                                                                   |
+| on_bar 触发时间 | 9:30（cheat_on_close=False）/ 14:57（cheat_on_close=True）                                                         | 9:30（cheat_on_close=False）/ 14:57（cheat_on_close=True）                                      | **15:00 收盘后**（cheat_on_close=False，盘后触发）/ 14:57（cheat_on_close=True）                                           |
+| 撮合时机        | cheat_on_close=False：runner 在每个交易日 9:30 都触发 on_bar，可严格实现 execution_offset=1（次日 9:30 open 撮合） | cheat_on_close=True：**立即**按当前价撮合；cheat_on_close=False：等到次日 9:25 集合竞价结束撮合 | cheat_on_close=True：**立即**按当前价撮合；cheat_on_close=False：broker **截留订单** + 延迟到次日指定时间下柜台（见 §3.6） |
+| 撮合价          | cheat_on_close=False：次日 9:30 open；cheat_on_close=True：当根 close                                              | cheat_on_close=True：14:57 forming close；cheat_on_close=False：次日 9:25 集合竞价 close        | cheat_on_close=True：14:57 forming close；cheat_on_close=False：**限价单**（昨收/今开 + 滑点），废单允许                   |
 
 **on_bar 触发时间的设计洞察**：
 
 cheat_on_close=False 模式是"盘后决策、次日开盘成交"——触发时间应该是**当日 15:00 收盘后**（此时当日 K 线已确定，看到的就是真 K 线）。但 cheat_on_close=True 模式是"尾盘集合竞价触发"——触发时间应该是 14:57（在 close 撮合前一刻）。
 
-Aaron 提出：**`on_day_close` hook 不做交易**（仅用于日志/对账等），所以盘后触发**不能用** on_day_close，必须由 on_bar 驱动 → 策略代码**自己** 在 15:00 触发时根据 cheat_on_close 决定行为。
+**`on_day_close` hook 不做交易**（仅用于日志/对账等），所以盘后触发**不能用** on_day_close，必须由 on_bar 驱动 → 策略代码 -> 发出订单，但订单被截留到第二天。
 
 **回测 vs paper/live 的 on_bar 时间差异**：
 
@@ -126,7 +126,7 @@ Aaron 提出：**`on_day_close` hook 不做交易**（仅用于日志/对账等�
 - **paper / cheat_on_close=True**：on_bar 14:57 触发 → 立即发单 → broker 立即按 14:57 forming close 撮合
 - **paper / cheat_on_close=False**：on_bar 15:00 触发 → 立即发单 → broker 等待次日 9:25 集合竞价结束 → 按集合竞价 close 撮合（**若 qmt-gateway 拿不到集合竞价数据**，fallback 到次日第 1 根 bar 撮合价）
 - **live / cheat_on_close=True**：on_bar 14:57 触发 → 立即发单（14:57-15:00 集合竞价撮合时段，发单合法）→ qmt-gateway 撮合
-- **live / cheat_on_close=False**（**见 §3.6 最终方案**）：on_bar 15:00 触发 → broker **截图订单**放进内部队列 → 次日指定时间下柜台（限价单，昨收/今开 + 滑点）
+- **live / cheat_on_close=False**（**见 §3.6 最终方案**）：on_bar 15:00 触发 → broker **截留订单**放进内部队列 → 次日指定时间下柜台（限价单，昨收/今开 + 滑点）
 
 ### 3.5 策略 config 在 UI 中显示和修改
 
@@ -134,11 +134,11 @@ Aaron 提出：**`on_day_close` hook 不做交易**（仅用于日志/对账等�
 
 **表格列**：
 
-| 列 | 来源 |
-|---|---|
-| `key` | 策略 config 的键名 |
-| `default` | 策略类的默认 config（来自 `StrategyClass.default_config()` 静态方法） |
-| `custom` | 当前回测 run 用的 config（来自 `BacktestRun.config`）—— 用户可在此列编辑覆盖 |
+| 列        | 来源                                                                         |
+| --------- | ---------------------------------------------------------------------------- |
+| `key`     | 策略 config 的键名                                                           |
+| `default` | 策略类的默认 config（来自 `StrategyClass.default_config()` 静态方法）        |
+| `custom`  | 当前回测 run 用的 config（来自 `BacktestRun.config`）—— 用户可在此列编辑覆盖 |
 
 **继承语义**：
 
@@ -177,22 +177,22 @@ class DualMAStrategy(BaseStrategy):
 回测 run.config = `{"symbol": "688371.SH", "fast": 8, "slow": 20, "invest": 50000}`（用户改了 fast=8, slow=20, invest=50000）。
 
 模态框显示：
-| key | default | custom |
-|---|---|---|
+| key    | default   | custom    |
+| ------ | --------- | --------- |
 | symbol | 000001.SZ | 688371.SH |
-| fast | 5 | 8 |
-| slow | 10 | 20 |
-| invest | 100000 | 50000 |
+| fast   | 5         | 8         |
+| slow   | 10        | 20        |
+| invest | 100000    | 50000     |
 
 用户可编辑 `custom` 列。提交后 deploy 用修改后的 config。
 
-### 3.6 cheat_on_close=False + live 模式：broker 截图订单 + 限价单（最终方案）
+### 3.6 cheat_on_close=False + live 模式：broker 截留订单 + 限价单（最终方案）
 
 **Aaron 决策**：
 
 不需要 `effective_at` 字段（**不**对策略暴露）。live broker 在 `cheat_on_close=False` 时**自动**：
 
-1. **截图订单**（on_bar 15:00 触发时立即捕获 buy/sell 调用，不真送 qmt-gateway）
+1. **截留订单**（on_bar 15:00 触发时立即捕获 buy/sell 调用，不真送 qmt-gateway）
 2. **放进 broker 内部 DeferredOrderQueue**（含 asset / side / value / style / execution_window）
 3. **在次日指定时间下柜台**（broker 内部 scheduler 线程到点后调 `submit()` 送 qmt-gateway）
 4. **订单类型：限价单**（bid_type=LIMIT，price 由 broker 自动算）
@@ -233,7 +233,7 @@ class DualMAStrategy(BaseStrategy):
 
 - paper broker 立即撮合（mock）
 - cheat_on_close=False + paper：on_bar 15:00 触发 → 立即发单 → broker 等 wall clock 到次日 9:25/9:30 → 撮合
-- 不需要"截图订单"语义（paper 撮合是 mock，不会变成废单）
+- 不需要"截留订单"语义（paper 撮合是 mock，不会变成废单）
 
 **回测模式严格实现 execution_offset=1**：
 
@@ -263,11 +263,11 @@ class DualMAStrategy(BaseStrategy):
 
 **表格列**：
 
-| 列 | 来源 |
-|---|---|
-| `key` | 策略 config 的键名 |
-| `default` | 策略类的默认 config（来自 `StrategyClass.default_config()` 静态方法） |
-| `custom` | 当前回测 run 用的 config（来自 `BacktestRun.config`）—— 用户可在此列编辑覆盖 |
+| 列        | 来源                                                                         |
+| --------- | ---------------------------------------------------------------------------- |
+| `key`     | 策略 config 的键名                                                           |
+| `default` | 策略类的默认 config（来自 `StrategyClass.default_config()` 静态方法）        |
+| `custom`  | 当前回测 run 用的 config（来自 `BacktestRun.config`）—— 用户可在此列编辑覆盖 |
 
 **继承语义**：
 
@@ -306,12 +306,12 @@ class DualMAStrategy(BaseStrategy):
 回测 run.config = `{"symbol": "688371.SH", "fast": 8, "slow": 20, "invest": 50000}`（用户改了 fast=8, slow=20, invest=50000）。
 
 模态框显示：
-| key | default | custom |
-|---|---|---|
+| key    | default   | custom    |
+| ------ | --------- | --------- |
 | symbol | 000001.SZ | 688371.SH |
-| fast | 5 | 8 |
-| slow | 10 | 20 |
-| invest | 100000 | 50000 |
+| fast   | 5         | 8         |
+| slow   | 10        | 20        |
+| invest | 100000    | 50000     |
 
 用户可编辑 `custom` 列。提交后 deploy 用修改后的 config。
 
@@ -321,14 +321,14 @@ class DualMAStrategy(BaseStrategy):
 
 ### 4.1 共同契约
 
-| 维度 | 一致性 |
-|---|---|
-| 签名 | `asset, count, end_dt=None, frame_type="1d", include_forming_bar=True` |
-| 返回 schema | 12 列固定：`date, asset, open, high, low, close, volume, amount, adjust, is_st, up_limit, down_limit` |
-| `_empty_history_frame` schema | sim_broker.py:370-386；gateway_broker.py:219-225（两处一致 12 列） |
-| Lookahead 防护 | end_dt ≤ 9:30 → 回退一天 / 不挂 forming |
-| 静默 fallback | LiveQuote 无 tick → 回退昨日 |
-| `_previous_trade_date` | `calendar.day_shift(today, -1)`，失败则 `today - 1` |
+| 维度                          | 一致性                                                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 签名                          | `asset, count, end_dt=None, frame_type="1d", include_forming_bar=True`                                |
+| 返回 schema                   | 12 列固定：`date, asset, open, high, low, close, volume, amount, adjust, is_st, up_limit, down_limit` |
+| `_empty_history_frame` schema | sim_broker.py:370-386；gateway_broker.py:219-225（两处一致 12 列）                                    |
+| Lookahead 防护                | end_dt ≤ 9:30 → 回退一天 / 不挂 forming                                                               |
+| 静默 fallback                 | LiveQuote 无 tick → 回退昨日                                                                          |
+| `_previous_trade_date`        | `calendar.day_shift(today, -1)`，失败则 `today - 1`                                                   |
 
 ### 4.2 `BacktestBroker.get_history`
 
@@ -418,20 +418,20 @@ def get_history(self, asset, count, end_dt=None, frame_type="1d",
 
 ### 5.1 字段集对比
 
-| 字段 | backtest | paper/live 历史行 | paper/live forming 行 |
-|---|---|---|---|
-| `date` | ✓ | ✓ | ✓（来自 LiveQuote.dt） |
-| `asset` | ✓ | ✓ | ✓ |
-| `open` | ✓ | ✓ | ✓（首 tick 锁定） |
-| `high` | ✓ | ✓ | ✓（max 累计） |
-| `low` | ✓ | ✓ | ✓（min 累计） |
-| `close` | ✓ | ✓ | ✓（最新 tick） |
-| `volume` | ✓ | ✓ | ✓（1d 累计，非 1m） |
-| `amount` | ✓ | ✓ | ✓（1d 累计） |
-| `adjust` | ✓（恒 1.0） | ✓ | **None**（**待 P0 修复**） |
-| `is_st` | ✓ | ✓ | **None**（**待 P0 修复**） |
-| `up_limit` | ✓ | ✓ | **None**（**待 P0 修复**） |
-| `down_limit` | ✓ | ✓ | **None**（**待 P0 修复**） |
+| 字段         | backtest    | paper/live 历史行 | paper/live forming 行      |
+| ------------ | ----------- | ----------------- | -------------------------- |
+| `date`       | ✓           | ✓                 | ✓（来自 LiveQuote.dt）     |
+| `asset`      | ✓           | ✓                 | ✓                          |
+| `open`       | ✓           | ✓                 | ✓（首 tick 锁定）          |
+| `high`       | ✓           | ✓                 | ✓（max 累计）              |
+| `low`        | ✓           | ✓                 | ✓（min 累计）              |
+| `close`      | ✓           | ✓                 | ✓（最新 tick）             |
+| `volume`     | ✓           | ✓                 | ✓（1d 累计，非 1m）        |
+| `amount`     | ✓           | ✓                 | ✓（1d 累计）               |
+| `adjust`     | ✓（恒 1.0） | ✓                 | **None**（**待 P0 修复**） |
+| `is_st`      | ✓           | ✓                 | **None**（**待 P0 修复**） |
+| `up_limit`   | ✓           | ✓                 | **None**（**待 P0 修复**） |
+| `down_limit` | ✓           | ✓                 | **None**（**待 P0 修复**） |
 
 ### 5.2 形成行 4 个 None 的原因
 
@@ -521,14 +521,14 @@ Stub 模式（`QUANTIDE_ENABLE_DEV_STUBS=1`）行为：
 - `LiveQuote._build_ws_url`（`livequote.py:75-81`）拼 `ws://127.0.0.1:xxxxx/ws/quotes`
 - LiveQuote 启动 WebSocket 连 localhost stub → 收 mock tick → 累积成 forming bar
 
-| 维度 | 真实 live | 真实 paper | stub 模式 |
-|---|---|---|---|
-| WebSocket 连接 | 真实 qmt gateway | 真实 qmt gateway | localhost mock gateway |
-| LiveQuote 启动 | 是 | 是 | 是 |
-| `get_quote` 接口 | `live_quote.get_quote(asset)` | `live_quote.get_quote(asset)` | `live_quote.get_quote(asset)` ✓ |
+| 维度                 | 真实 live                         | 真实 paper                        | stub 模式                           |
+| -------------------- | --------------------------------- | --------------------------------- | ----------------------------------- |
+| WebSocket 连接       | 真实 qmt gateway                  | 真实 qmt gateway                  | localhost mock gateway              |
+| LiveQuote 启动       | 是                                | 是                                | 是                                  |
+| `get_quote` 接口     | `live_quote.get_quote(asset)`     | `live_quote.get_quote(asset)`     | `live_quote.get_quote(asset)` ✓     |
 | `get_daily_bar` 接口 | `live_quote.get_daily_bar(asset)` | `live_quote.get_daily_bar(asset)` | `live_quote.get_daily_bar(asset)` ✓ |
-| 数据真实性 | 真实 tick | 真实 tick | mock tick (fixture) |
-| 接口签名 | 一致 | 一致 | **一致** ✓ |
+| 数据真实性           | 真实 tick                         | 真实 tick                         | mock tick (fixture)                 |
+| 接口签名             | 一致                              | 一致                              | **一致** ✓                          |
 
 **唯一差异是数据本身（mock vs 真实）**——这正是 stub 模式的设计目的。broker 接口、LiveQuote 累积路径、WebSocket 协议**完全一致**。
 
@@ -538,14 +538,14 @@ Stub 模式（`QUANTIDE_ENABLE_DEV_STUBS=1`）行为：
 
 ### 7.1 字段消除范围
 
-| 字段 | 当前用法 | 收敛动作 |
-|---|---|---|
-| `PaperBroker._market_data` | `sim_broker.py:171-172, 189` 拿 tick 快照做下单价估算；`sim_broker.py:257, 260` 拿历史（**死路径**） | **删除**。两处 fallback 已存在（`sim_broker.py:182, 191` 直接调 `live_quote`）。`get_history` 路径完全走 `daily_bars` |
-| `GatewayBrokerWrapper._history_provider` | `gateway_broker.py:114-118` fallback 到 `daily_bars` | **删除**。永远走 `daily_bars` |
-| `GatewayBrokerAdapter._market_data` | `gateway_broker.py:917-920, 933-935` 拿 qmt gateway tick 快照做下单价 / 涨跌停估算 | **删除**。下单价改走 `live_quote.get_quote(asset)` / `live_quote.get_price_limits(asset)`（统一接口名） |
-| `GatewayMarketDataAdapter`（`gateway_market.py`） | live 模式下独立 WebSocket 给 GatewayBrokerAdapter 喂下单价 | **删除**。理由：与 LiveQuote 都从同一 qmt gateway 拿 tick，差异无特别意义 |
-| `runtime_market_adapter` 配置项（`settings.py:133`） | `"gateway"` / `"live_quote"` 二选一，决定 `_build_market_data` 走 GatewayMarketDataAdapter 还是 LiveQuoteMarketDataAdapter | **删除**。永远走 LiveQuote |
-| `RuntimeContext.market_data` | `modes.py:37` 全局行情端口 | **保留为内部 runtime 配置**（提供 `LiveQuoteMarketDataAdapter` 给策略代码查询），但不再注入到 PaperBroker / GatewayBrokerWrapper 的 `__init__` |
+| 字段                                                 | 当前用法                                                                                                                   | 收敛动作                                                                                                                                       |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PaperBroker._market_data`                           | `sim_broker.py:171-172, 189` 拿 tick 快照做下单价估算；`sim_broker.py:257, 260` 拿历史（**死路径**）                       | **删除**。两处 fallback 已存在（`sim_broker.py:182, 191` 直接调 `live_quote`）。`get_history` 路径完全走 `daily_bars`                          |
+| `GatewayBrokerWrapper._history_provider`             | `gateway_broker.py:114-118` fallback 到 `daily_bars`                                                                       | **删除**。永远走 `daily_bars`                                                                                                                  |
+| `GatewayBrokerAdapter._market_data`                  | `gateway_broker.py:917-920, 933-935` 拿 qmt gateway tick 快照做下单价 / 涨跌停估算                                         | **删除**。下单价改走 `live_quote.get_quote(asset)` / `live_quote.get_price_limits(asset)`（统一接口名）                                        |
+| `GatewayMarketDataAdapter`（`gateway_market.py`）    | live 模式下独立 WebSocket 给 GatewayBrokerAdapter 喂下单价                                                                 | **删除**。理由：与 LiveQuote 都从同一 qmt gateway 拿 tick，差异无特别意义                                                                      |
+| `runtime_market_adapter` 配置项（`settings.py:133`） | `"gateway"` / `"live_quote"` 二选一，决定 `_build_market_data` 走 GatewayMarketDataAdapter 还是 LiveQuoteMarketDataAdapter | **删除**。永远走 LiveQuote                                                                                                                     |
+| `RuntimeContext.market_data`                         | `modes.py:37` 全局行情端口                                                                                                 | **保留为内部 runtime 配置**（提供 `LiveQuoteMarketDataAdapter` 给策略代码查询），但不再注入到 PaperBroker / GatewayBrokerWrapper 的 `__init__` |
 
 ### 7.2 统一后的数据流
 
@@ -706,10 +706,10 @@ return current_date
 
 参数名 **`cheat_on_close`**（与 backtrader `cerebro.broker.set_coc(True)` / `Strategy.cheat_on_close = True` 一致，避免学习成本）。
 
-| 策略声明 | bar_tm | execution_offset | 信号源 | 撮合 |
-|---|---|---|---|---|
-| `cheat_on_close = False`（默认） | 9:30 | 1（次日 9:30 open 撮合） | 昨日 K 线 | 次日 9:30 open |
-| `cheat_on_close = True` | `cheat_on_close_time`（默认 14:57） | 0（当根 close 撮合） | 14:57 forming bar | 当根 close |
+| 策略声明                         | bar_tm                              | execution_offset         | 信号源            | 撮合           |
+| -------------------------------- | ----------------------------------- | ------------------------ | ----------------- | -------------- |
+| `cheat_on_close = False`（默认） | 9:30                                | 1（次日 9:30 open 撮合） | 昨日 K 线         | 次日 9:30 open |
+| `cheat_on_close = True`          | `cheat_on_close_time`（默认 14:57） | 0（当根 close 撮合）     | 14:57 forming bar | 当根 close     |
 
 **不需要独立的 `execution_offset` 参数**——框架根据 `cheat_on_close` 自动推导。
 
@@ -746,11 +746,11 @@ else:
 
 ### 8.4 撮合价语义（14:57 集合竞价 close）
 
-| 模式 | cheat_on_close=True 时撮合价 | 备注 |
-|---|---|---|
-| 回测 | daily_bars 当日 **15:00 close** | 作为 14:57 撮合价的"估算"（1d 数据无 14:57 真实价，但 14:57-15:00 集合竞价撮合价 ≈ 15:00 close，误差通常 < 1 tick） |
-| paper | LiveQuote **14:57 当时累积的 close**（即 14:55-14:57 之间的最新 tick 价） | 真实集合竞价前一刻的盘中价 |
-| live | LiveQuote **14:57 当时累积的 close** | 同 paper |
+| 模式  | cheat_on_close=True 时撮合价                                              | 备注                                                                                                                |
+| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 回测  | daily_bars 当日 **15:00 close**                                           | 作为 14:57 撮合价的"估算"（1d 数据无 14:57 真实价，但 14:57-15:00 集合竞价撮合价 ≈ 15:00 close，误差通常 < 1 tick） |
+| paper | LiveQuote **14:57 当时累积的 close**（即 14:55-14:57 之间的最新 tick 价） | 真实集合竞价前一刻的盘中价                                                                                          |
+| live  | LiveQuote **14:57 当时累积的 close**                                      | 同 paper                                                                                                            |
 
 **bar_tm = 14:57**（不是 14:55、不是 15:00）：
 
@@ -861,31 +861,31 @@ class MyStrategy(BaseStrategy):
 
 ## 10. 验证清单
 
-| 项 | 怎么验证 |
-|---|---|
-| 三模式 `get_history` 签名一致 | `grep "def get_history" quantide/service/{backtest,sim}_broker.py quantide/core/runtime/gateway_broker.py quantide/core/strategy.py` |
-| 12 列 schema 固定 | `grep -A 14 "_empty_history_frame" quantide/service/sim_broker.py quantide/core/runtime/gateway_broker.py` |
-| `include_forming_bar` 三模式参数都有 | 同上 |
-| 回测字段完整 | `python -c "import polars as pl; df=pl.read_parquet('tests/assets/2024_bars.parquet'); print(df.columns)"`（生产数据有 12 列） |
-| Paper/Live forming 行 4 字段补齐（P0 实施后） | `pytest tests/service/test_forming_daily_bars.py -v` |
-| UI 按钮路由 | `quantide/web/pages/strategy.py:880-955`（按钮构建）+ `1900, 1950`（POST 路由） |
-| 部署到 paper/live | `quantide/service/strategy_runtime.py:227, 269` |
-| LiveQuote 在 stub / 真实 live 都启动 | `modes.py:140-143`（`live_quote.start()` 永远调用） |
+| 项                                            | 怎么验证                                                                                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 三模式 `get_history` 签名一致                 | `grep "def get_history" quantide/service/{backtest,sim}_broker.py quantide/core/runtime/gateway_broker.py quantide/core/strategy.py` |
+| 12 列 schema 固定                             | `grep -A 14 "_empty_history_frame" quantide/service/sim_broker.py quantide/core/runtime/gateway_broker.py`                           |
+| `include_forming_bar` 三模式参数都有          | 同上                                                                                                                                 |
+| 回测字段完整                                  | `python -c "import polars as pl; df=pl.read_parquet('tests/assets/2024_bars.parquet'); print(df.columns)"`（生产数据有 12 列）       |
+| Paper/Live forming 行 4 字段补齐（P0 实施后） | `pytest tests/service/test_forming_daily_bars.py -v`                                                                                 |
+| UI 按钮路由                                   | `quantide/web/pages/strategy.py:880-955`（按钮构建）+ `1900, 1950`（POST 路由）                                                      |
+| 部署到 paper/live                             | `quantide/service/strategy_runtime.py:227, 269`                                                                                      |
+| LiveQuote 在 stub / 真实 live 都启动          | `modes.py:140-143`（`live_quote.start()` 永远调用）                                                                                  |
 
 ---
 
 ## 11. 实施路线图
 
-| 阶段 | 内容 | 规模 |
-|---|---|---|
-| **P0** | forming bar 4 字段补齐 + cheat_on_close 路径测试 + 删 PaperBroker._market_data | ~50 行 + 5-6 测试 |
-| **P0.5** | `cheat_on_close_time` 系统设置（settings 字段 + UI 路径） | ~30 行 + 3 测试 |
-| **P0.7** | live broker 截图订单 + DeferredOrderQueue + 限价单（昨收/今开 + 滑点） | ~80 行 + 5-6 测试 |
-| **P1** | cheat_on_close 双触发框架（runner.py / strategy.py / strategy_runtime.py） | ~70 行 + 6-8 测试 |
-| **P1.5** | 策略 config UI（default_config + 表格 key/default/custom）+ paper/live 撮合时机明确 | ~50 行 + 4 测试 |
-| **P2** | 删 GatewayBrokerWrapper._history_provider + 删 GatewayMarketDataAdapter + 删 runtime_market_adapter + 统一下单价接口 | ~80 行 + 5-6 测试 |
-| **P3** | 回测报告 UI 显示 cheat_on_close amber badge + 撮合价来源 | UI 改动 + backtest_logs 字段 |
-| **P4**（不在 v0.1） | 分钟级框架（1m / 5m `frame_type` 支持） | 独立 milestone |
+| 阶段                | 内容                                                                                                                 | 规模                         |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **P0**              | forming bar 4 字段补齐 + cheat_on_close 路径测试 + 删 PaperBroker._market_data                                       | ~50 行 + 5-6 测试            |
+| **P0.5**            | `cheat_on_close_time` 系统设置（settings 字段 + UI 路径）                                                            | ~30 行 + 3 测试              |
+| **P0.7**            | live broker 截留订单 + DeferredOrderQueue + 限价单（昨收/今开 + 滑点）                                               | ~80 行 + 5-6 测试            |
+| **P1**              | cheat_on_close 双触发框架（runner.py / strategy.py / strategy_runtime.py）                                           | ~70 行 + 6-8 测试            |
+| **P1.5**            | 策略 config UI（default_config + 表格 key/default/custom）+ paper/live 撮合时机明确                                  | ~50 行 + 4 测试              |
+| **P2**              | 删 GatewayBrokerWrapper._history_provider + 删 GatewayMarketDataAdapter + 删 runtime_market_adapter + 统一下单价接口 | ~80 行 + 5-6 测试            |
+| **P3**              | 回测报告 UI 显示 cheat_on_close amber badge + 撮合价来源                                                             | UI 改动 + backtest_logs 字段 |
+| **P4**（不在 v0.1） | 分钟级框架（1m / 5m `frame_type` 支持）                                                                              | 独立 milestone               |
 
 ### P0: forming bar 字段补齐 + cheat_on_close 路径测试
 
@@ -894,7 +894,7 @@ class MyStrategy(BaseStrategy):
 - `quantide/service/sim_broker.py:73, 171-191` `_market_data` 字段删除，迁直接调 `live_quote`
 - 新增测试：cheat_on_close=True 时 paper/live 路径的字段补齐
 
-### P0.7: live broker 截图订单 + DeferredOrderQueue
+### P0.7: live broker 截留订单 + DeferredOrderQueue
 
 - `quantide/core/ports/broker.py` `OrderRequest` **不**新增字段
 - `quantide/core/runtime/gateway_broker.py` GatewayBrokerWrapper 接 buy/sell 时检查 `runtime_mode == "live" and strategy.cheat_on_close == False`：
@@ -906,7 +906,7 @@ class MyStrategy(BaseStrategy):
   - `execution_window=post_auction` → 次日 9:30:00.001
 - price 计算：`(昨收/今开) × (1 + slippage)`，bid_type=LIMIT
 - 策略 config 新增 `live_execution_window` 和 `live_execution_slippage`（默认值见 §3.6）
-- 测试：截图订单在队列里、到点发出、限价单 price 估算、废单行为
+- 测试：截留订单在队列里、到点发出、限价单 price 估算、废单行为
 - **v0.1 不做**：DeferredOrderQueue 持久化（broker 重启丢 pending 订单）
 
 ### P0.5: `cheat_on_close_time` 系统设置
@@ -961,32 +961,32 @@ class MyStrategy(BaseStrategy):
 
 ## 12. 关键决策记录
 
-| 决策 | 理由 |
-|---|---|
-| 策略唯一入口 `BaseStrategy.get_history` | 一行委托给 broker，策略代码 0 改动跨模式 |
-| 三模式数据全部来自 `daily_bars`（tushare 落盘） | `tushare` 是唯一历史数据源；`LiveQuote` 只补 forming bar（live/paper 才有 tick 流） |
-| forming bar 合并由 broker 内部完成 | 策略不感知细节，统一返 12 列 schema |
-| 形成行 4 字段（up_limit / down_limit / is_st / adjust）补齐方案 | 复用 `LiveQuote._limits` 已有 9:00 cron 拉取（`livequote.py:194-202`）；`is_st` 从 daily_bars 拿昨日行；`adjust` 填 1.0（与回测语义一致） |
-| 删除 `GatewayMarketDataAdapter` | 与 LiveQuote 都从同一 qmt gateway 拿 tick，差异无特别意义；统一接口让 stub / 真实 / paper / live 全部一致 |
-| 删除 `runtime_market_adapter` 配置项 | 永远走 LiveQuote（已 fix §7.3 的"默认 live 下 LiveQuote 不启动"问题） |
-| `cheat_on_close` 参数名 | 与 backtrader `cerebro.broker.set_coc(True)` / `Strategy.cheat_on_close = True` 对齐，避免学习成本 |
-| 不需要 `execution_offset` 参数 | 默认永远是 1（次日开盘成交），开启 cheat 后变 0（当根 close 撮合） |
-| `cheat_on_close_time` 在系统设置 | 所有策略共享（不是策略 config）；用户调早会扩大回测偏差，UI 需警告 |
-| cheat_on_close 默认 14:57（A 股集合竞价撮合时刻） | 14:57 后进入集合竞价撮合，15:00 产生收盘价；撮合价 ≈ close，偏差最小 |
-| 回测撮合价 = 15:00 close（估算 14:57 撮合） | 1d 数据无 14:57 真实价；与实盘 14:57 实时价误差通常 < 1 tick |
-| cheat_on_close=True 时不新增 `on_close_auction` 钩子 | 14:57 自动触发 on_bar，策略不需要重复实现 |
-| 12 列固定 schema（`date, asset, open, high, low, close, volume, amount, adjust, is_st, up_limit, down_limit`） | 跨模式一致；形成行缺字段时 fill_null(1.0) 等兜底 |
-| stub 模式天然契合统一接口设计 | broker 接口、LiveQuote 累积路径、WebSocket 协议完全一致；唯一差异是数据本身（mock vs 真实） |
-| paper/live 撮合时机：立即按当前价撮合 | 简化，符合 paper/live "实时"直觉；与回测 execution_offset=1 严格语义不完全一致，文档需明确 |
-| paper/live 运行时段：从回测 end_date +1 起持续运行到 portfolio 手动停止 | 策略 runtime 是长生命周期 |
-| 策略 config UI：表格 key/default/custom，custom 列默认等于 BacktestRun.config | 用户可直观修改 config；继承回测参数 |
-| config 数据格式：当前只支持无嵌套 dict | 简化实现；嵌套支持延后到 P5+ |
-| 策略类通过 `default_config() -> dict` 静态方法暴露默认值 | 统一接口；UI 模态框可遍历渲染 |
-| paper / cheat_on_close=True：立即按当前价撮合 | 14:57 在合法集合竞价撮合时段内 |
-| paper / cheat_on_close=False：等到次日 9:25 集合竞价结束撮合 | qmt-gateway 能拿集合竞价数据则用集合竞价 close；否则 fallback 到次日第 1 根 bar 撮合价 |
-| live / cheat_on_close=True：14:57 立即发单 | 14:57-15:00 集合竞价撮合时段，发单合法 |
-| live / cheat_on_close=False：broker **截图订单**（不立即送 qmt-gateway）+ 延迟到次日 9:25/9:30 + 限价单（昨收/今开 + 滑点） + 废单允许 | qmt-gateway 协议不变；复杂度留在 Millionaire broker 内部；策略 config 新增 `live_execution_window` 和 `live_execution_slippage` |
-| 多策略 live 抢资金 | v0.1 不做分仓；billionaire 功能；文档明确告知 |
+| 决策                                                                                                                                   | 理由                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 策略唯一入口 `BaseStrategy.get_history`                                                                                                | 一行委托给 broker，策略代码 0 改动跨模式                                                                                                  |
+| 三模式数据全部来自 `daily_bars`（tushare 落盘）                                                                                        | `tushare` 是唯一历史数据源；`LiveQuote` 只补 forming bar（live/paper 才有 tick 流）                                                       |
+| forming bar 合并由 broker 内部完成                                                                                                     | 策略不感知细节，统一返 12 列 schema                                                                                                       |
+| 形成行 4 字段（up_limit / down_limit / is_st / adjust）补齐方案                                                                        | 复用 `LiveQuote._limits` 已有 9:00 cron 拉取（`livequote.py:194-202`）；`is_st` 从 daily_bars 拿昨日行；`adjust` 填 1.0（与回测语义一致） |
+| 删除 `GatewayMarketDataAdapter`                                                                                                        | 与 LiveQuote 都从同一 qmt gateway 拿 tick，差异无特别意义；统一接口让 stub / 真实 / paper / live 全部一致                                 |
+| 删除 `runtime_market_adapter` 配置项                                                                                                   | 永远走 LiveQuote（已 fix §7.3 的"默认 live 下 LiveQuote 不启动"问题）                                                                     |
+| `cheat_on_close` 参数名                                                                                                                | 与 backtrader `cerebro.broker.set_coc(True)` / `Strategy.cheat_on_close = True` 对齐，避免学习成本                                        |
+| 不需要 `execution_offset` 参数                                                                                                         | 默认永远是 1（次日开盘成交），开启 cheat 后变 0（当根 close 撮合）                                                                        |
+| `cheat_on_close_time` 在系统设置                                                                                                       | 所有策略共享（不是策略 config）；用户调早会扩大回测偏差，UI 需警告                                                                        |
+| cheat_on_close 默认 14:57（A 股集合竞价撮合时刻）                                                                                      | 14:57 后进入集合竞价撮合，15:00 产生收盘价；撮合价 ≈ close，偏差最小                                                                      |
+| 回测撮合价 = 15:00 close（估算 14:57 撮合）                                                                                            | 1d 数据无 14:57 真实价；与实盘 14:57 实时价误差通常 < 1 tick                                                                              |
+| cheat_on_close=True 时不新增 `on_close_auction` 钩子                                                                                   | 14:57 自动触发 on_bar，策略不需要重复实现                                                                                                 |
+| 12 列固定 schema（`date, asset, open, high, low, close, volume, amount, adjust, is_st, up_limit, down_limit`）                         | 跨模式一致；形成行缺字段时 fill_null(1.0) 等兜底                                                                                          |
+| stub 模式天然契合统一接口设计                                                                                                          | broker 接口、LiveQuote 累积路径、WebSocket 协议完全一致；唯一差异是数据本身（mock vs 真实）                                               |
+| paper/live 撮合时机：立即按当前价撮合                                                                                                  | 简化，符合 paper/live "实时"直觉；与回测 execution_offset=1 严格语义不完全一致，文档需明确                                                |
+| paper/live 运行时段：从回测 end_date +1 起持续运行到 portfolio 手动停止                                                                | 策略 runtime 是长生命周期                                                                                                                 |
+| 策略 config UI：表格 key/default/custom，custom 列默认等于 BacktestRun.config                                                          | 用户可直观修改 config；继承回测参数                                                                                                       |
+| config 数据格式：当前只支持无嵌套 dict                                                                                                 | 简化实现；嵌套支持延后到 P5+                                                                                                              |
+| 策略类通过 `default_config() -> dict` 静态方法暴露默认值                                                                               | 统一接口；UI 模态框可遍历渲染                                                                                                             |
+| paper / cheat_on_close=True：立即按当前价撮合                                                                                          | 14:57 在合法集合竞价撮合时段内                                                                                                            |
+| paper / cheat_on_close=False：等到次日 9:25 集合竞价结束撮合                                                                           | qmt-gateway 能拿集合竞价数据则用集合竞价 close；否则 fallback 到次日第 1 根 bar 撮合价                                                    |
+| live / cheat_on_close=True：14:57 立即发单                                                                                             | 14:57-15:00 集合竞价撮合时段，发单合法                                                                                                    |
+| live / cheat_on_close=False：broker **截留订单**（不立即送 qmt-gateway）+ 延迟到次日 9:25/9:30 + 限价单（昨收/今开 + 滑点） + 废单允许 | qmt-gateway 协议不变；复杂度留在 Millionaire broker 内部；策略 config 新增 `live_execution_window` 和 `live_execution_slippage`           |
+| 多策略 live 抢资金                                                                                                                     | v0.1 不做分仓；billionaire 功能；文档明确告知                                                                                             |
 
 ---
 
@@ -998,12 +998,12 @@ class MyStrategy(BaseStrategy):
 
 ## 14. 已知风险与开放问题
 
-| # | 风险 / 问题 | 状态 | 文档位置 |
-|---|---|---|---|
-| R1 | cheat_on_close=False + live 模式下，15:00 立即发单是废单（9:30 之前不是合法委托时段） | **已决策**：broker 内部截图订单 + 延迟到次日 9:25/9:30 + 限价单（昨收/今开 + 滑点） | §3.6 |
-| R2 | 多策略 live 抢资金（共享 gateway 账户，无分仓） | **已知风险**，文档说明；分仓是 billionaire 功能 | §3.7 |
-| R3 | daily_bars 落盘数据可能未同步到最新（盘中调 `get_history` 时） | **已知风险**，当前不实现，toast 提示延后 | §5.5 |
-| R4 | cheat_on_close=True 时回测撮合价用 15:00 close 估算 14:57 撮合，与实盘有偏差（< 1 tick 正常，极端扩大） | **已知**，amber badge + 撮合价来源标注 | §8.7 |
-| R5 | cheat_on_close=True 模式下用户调早 `cheat_on_close_time`（如 14:50）会扩大回测撮合价偏差 | **已知**，系统设置 UI 需警告 | §8.5 |
-| R6 | `cheat_on_close_time` 调早到 09:30 之前或收盘后导致触发时刻不合法 | **待校验**，需要在 settings 加范围校验（09:00-15:00） | §8.5 |
-| R7 | config 嵌套 dict（v0.1 不支持） | **延后**，P5+ | §3.5 |
+| #   | 风险 / 问题                                                                                             | 状态                                                                                | 文档位置 |
+| --- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------- |
+| R1  | cheat_on_close=False + live 模式下，15:00 立即发单是废单（9:30 之前不是合法委托时段）                   | **已决策**：broker 内部截留订单 + 延迟到次日 9:25/9:30 + 限价单（昨收/今开 + 滑点） | §3.6     |
+| R2  | 多策略 live 抢资金（共享 gateway 账户，无分仓）                                                         | **已知风险**，文档说明；分仓是 billionaire 功能                                     | §3.7     |
+| R3  | daily_bars 落盘数据可能未同步到最新（盘中调 `get_history` 时）                                          | **已知风险**，当前不实现，toast 提示延后                                            | §5.5     |
+| R4  | cheat_on_close=True 时回测撮合价用 15:00 close 估算 14:57 撮合，与实盘有偏差（< 1 tick 正常，极端扩大） | **已知**，amber badge + 撮合价来源标注                                              | §8.7     |
+| R5  | cheat_on_close=True 模式下用户调早 `cheat_on_close_time`（如 14:50）会扩大回测撮合价偏差                | **已知**，系统设置 UI 需警告                                                        | §8.5     |
+| R6  | `cheat_on_close_time` 调早到 09:30 之前或收盘后导致触发时刻不合法                                       | **待校验**，需要在 settings 加范围校验（09:00-15:00）                               | §8.5     |
+| R7  | config 嵌套 dict（v0.1 不支持）                                                                         | **延后**，P5+                                                                       | §3.5     |
