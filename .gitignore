@@ -110,6 +110,9 @@ site/
 # vscode extension - local history
 .history/
 tests/assets/DailyBars-dates.pq
+agents
+
+.specforge/
 .omc/**
 .playwright-mcp
 .sisyphus
