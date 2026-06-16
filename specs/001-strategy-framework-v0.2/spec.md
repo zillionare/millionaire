@@ -62,7 +62,7 @@ priority: P0
 
 ### scenario-020 实时策略上实盘
 
-编写 `OvernightStrategy(Strategy)`，在仿真界面运行 1 周 → 切到实盘 → 系统当日停止原仿真 → 自动创建并行仿真 → 策略在实盘正常发单。期间如需暂停，点 "dry-run"，策略继续运行不实际下单，可观察并行仿真曲线。
+编写 `OvernightStrategy(LiveStrategy)，在仿真界面运行 1 周 → 切到实盘 → 系统当日停止原仿真 → 自动创建并行仿真 → 策略在实盘正常发单。期间如需暂停，点 "dry-run"，策略继续运行不实际下单，可观察并行仿真曲线。
 
 ### scenario-030 风控策略叠加
 
@@ -70,13 +70,30 @@ priority: P0
 
 ## 功能需求
 
-> **编号约定**: FR 采用 3 位零填充，10-step 递增（FR-010/020/...），便于中间插入新需求。FR 与 story §x.y 一一对应。NFR 同。
+> **编号约定**: FR 采用 3 位零填充，10-step 递增（FR-010/020/...），便于中间插入新需求。
 
-### FR-010 策略作为 SDK 暴露（v0.2 仅声明接口，v0.3 实现 AI Agent skill）
+### FR-010 策略对象模型与 SDK 暴露（v0.2 提供 Python SDK；AI Agent skill 推迟 v0.3）
 
-公开 `BaseStrategy` 基类与统一生命周期 API。v0.2 提供 Python SDK；AI Coding Agent skill（基于 skill 暴露数据/交易接口、生成策略模板）推迟至 v0.3。
+v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类、三类策略子类、统一生命周期 API、数据接口、交易接口。AI Coding Agent skill（基于 skill 封装数据/交易接口、生成策略模板）推迟至 v0.3。
 
-#### 生命周期钩子
+#### 策略类型分层
+
+策略分三类，**类型决定调度行为，而非运行时标记**。调度器按类型分发任务——这从结构上保证"实时策略不会被误送回测、风控策略不会被独立调度"：
+
+| 维度 | DayStrategy | LiveStrategy | RiskStrategy |
+|---|---|---|---|
+| 资金账户 | 独立虚拟账户 | 独立虚拟账户 | 无（操作宿主账户） |
+| 可回测 | ✅ | ❌（类型保证） | ❌（类型保证） |
+| 调度入口 | 必须从回测起 | 仿真/实盘直接起 | 跟随宿主生命周期 |
+| 驱动契约 | FR-115（日线） | FR-120（实时） | FR-125（风控） |
+| 评估指标 | FR-340 完整 8 项 | FR-350 完整 8 项 | FR-360 仅超额收益 |
+
+
+#### BaseStrategy 共享契约
+
+以下接口由 `BaseStrategy` 定义，三类子类继承。AI Agent skill 推迟 v0.3 不影响这些接口的 v0.2 可用性。
+
+##### 生命周期钩子
 
 | 钩子 | 调用时机 | 参数 | async |
 |---|---|---|---|
@@ -85,40 +102,12 @@ priority: P0
 | `on_stop()` | 运行结束后 | 无 | ✅ |
 | `on_day_open(tm)` | 每日开盘前 | `tm: datetime` | ✅ |
 | `on_day_close(tm)` | 每日收盘后 | `tm: datetime` | ✅ |
-| `on_bar(tm, quote, frame_type)` | 每个周期驱动 | `tm: datetime`, `quote: dict`, `frame_type: FrameType` | ✅ |
 
 所有钩子默认实现为空操作（`pass`），子类可覆盖任意子集。
 
-#### 交易接口
+> **`on_bar` 不在 BaseStrategy 中**：`on_bar` 仅由 DayStrategy 和 LiveStrategy 使用（见 FR-011/012）；RiskStrategy 使用专有回调 `on_check`（见 FR-125）。
 
-| 方法 | 语义 |
-|---|---|
-| `buy(asset, shares, price=0)` | 按股数买入，市价当 price=0 |
-| `buy_percent(asset, percent)` | 按现金比例买入（0~1） |
-| `buy_amount(asset, amount)` | 按金额买入 |
-| `sell(asset, shares, price=0)` | 按股数卖出 |
-| `sell_percent(asset, percent)` | 按持仓比例卖出 |
-| `sell_amount(asset, amount)` | 按金额卖出 |
-| `cancel_order(qt_oid)` | 取消指定订单 |
-| `cancel_all_orders(side=None)` | 取消所有未成交订单，可按方向过滤 |
-| `trade_target_pct(asset, target_pct)` | 调仓至总市值占比 |
-
-所有买卖方法返回 `TradeResult`（含 `qt_oid` 订单 ID 和 `trades` 成交记录列表）。
-
-#### 查询接口
-
-| 属性 | 类型 | 语义 |
-|---|---|---|
-| `positions` | `dict[str, Position]` | 标的代码 → 持仓对象 |
-| `cash` | `float` | 当前可用资金 |
-
-#### 数据接口
-
-`get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True)` → `pl.DataFrame`
-
-- `end_dt` 默认为当前运行时间
-- `include_forming_bar=True` 时返回含当日 forming bar
-- `include_forming_bar=False` 时只返回昨日及更早数据
+> **子类专有回调**：各子类可能定义 BaseStrategy 之外的专有回调，详见 FR-011/012/013。
 
 #### 辅助接口
 
@@ -128,9 +117,96 @@ priority: P0
 | `log(msg, level, tm)` | 输出日志，时间戳默认为仿真时间 |
 | `record(key, value, dt)` | 记录策略指标/信号，`dt` 默认为仿真时间 |
 
-#### 约束
+> **模式无关性约束**
+> 策略代码中无任何 API 可获取当前运行模式（回测/仿真/实盘/dry-run）。基类不暴露 `get_mode()` 或等价方法。生命周期钩子在四模式下行为一致（同一回调名、同一时序、同一参数语义）；仅撮合行为与数据来源因模式不同而异，且这些差异由框架在策略不可见处处理。
 
-策略代码中无任何 API 可获取当前运行模式（回测/仿真/实盘/dry-run）。基类不暴露 `get_mode()` 或等价方法。
+```yaml
+testability: ✅
+resolved: ✅
+valid: ✅
+```
+
+### FR-011 DayStrategy 结构契约（日线策略）
+
+日线策略的基类。**可回测性由类型保证**——`BacktestRunner` 仅接受 `DayStrategy` 实例。
+
+- **继承**：`DayStrategy(BaseStrategy)`
+- **资金账户**：独立虚拟账户（FR-210），每个实例一个 `portfolio_id`
+- **可回测**：✅。必须从回测开始才能进入仿真/实盘（FR-230）
+- **驱动契约**：见 FR-115（日线驱动）。专有钩子 `on_bar(tm)`——纯时序信号，策略通过 `get_bars` 拉取所需数据
+- **数据接口**：`get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True)` → `pl.LazyFrame`。仅支持 `frame_type="1d"`，传其它周期报错
+- **交易接口**：完整买卖接口（buy/sell/buy_percent/sell_percent/buy_amount/sell_amount/cancel_order/cancel_all_orders/trade_target_pct），订单归属本策略 `portfolio_id`
+- **查询接口**：`positions`（`dict[str, Position]`）、`cash`（`float`）
+- **评估指标**：FR-340 完整 8 项
+- **内置实现**：`DualMAStrategy`（FR-090）
+
+> **DayStrategy 与 LiveStrategy 共享的接口契约**（交易/查询/数据）：
+>
+> 两者接口完全相同，仅数据周期与可回测性不同。DayStrategy 限制 `frame_type="1d"`；LiveStrategy 支持 `"30m"|"1d"` 等多周期。
+>
+> **交易接口**：
+> `buy(asset, shares, price=0)` / `buy_percent(asset, percent)` / `buy_amount(asset, amount)` / `sell(asset, shares, price=0)` / `sell_percent(asset, percent)` / `sell_amount(asset, amount)` / `cancel_order(qt_oid)` / `cancel_all_orders(side=None)` / `trade_target_pct(asset, target_pct)`
+>
+> 所有买卖方法返回 `TradeResult`（含 `qt_oid` 订单 ID 和 `trades` 成交记录列表）。
+>
+> **数据接口**：
+> `get_bars(asset, count, end_dt=None, frame_type, include_forming_bar=True)` → `pl.DataFrame`
+> - `end_dt` 默认为当前运行时间
+> - `include_forming_bar=True` 时返回含当日 forming bar
+> - `include_forming_bar=False` 时只返回昨日及更早数据
+
+```yaml
+testability: ✅
+resolved: ✅
+valid: ✅
+```
+
+### FR-012 LiveStrategy 结构契约（实时策略）
+
+实时策略的基类。**不可回测由类型保证**——`LiveStrategy` 不被 `BacktestRunner` 接受；调度器拒绝为其创建回测任务。
+
+- **继承**：`LiveStrategy(BaseStrategy)`
+- **资金账户**：独立虚拟账户（FR-210），每个实例一个 `portfolio_id`
+- **可回测**：❌（类型保证，非运行时校验）。调度路径为 仿真→实盘 或直接实盘（FR-240）
+- **驱动契约**：见 FR-120（实时驱动）
+- **数据接口**：`get_bars(frame_type="30m"|"1d")`；30m 等非原始周期由框架基于实时行情聚合后提供（接口定义见 FR-011）
+- **交易接口**：完整买卖接口（与 DayStrategy 相同，见 FR-011），订单归属本策略 `portfolio_id`
+- **查询接口**：`positions`（`dict[str, Position]`）、`cash`（`float`）
+- **评估指标**：FR-350 完整 8 项
+- **内置实现**：无（用户自行编写，如 30 分钟隔夜策略）
+
+> Aaron: get_bars 获取30分钟数据从哪里来，需要一个新的 spec
+
+```yaml
+testability: ✅
+resolved: ✅
+valid: ✅
+```
+
+### FR-013 RiskStrategy 结构契约（风控策略）
+
+风控策略的基类。**与 Day/Live 是结构性差异，不是"共享+约束"关系**：无账户、操作宿主持仓、只算超额收益。
+
+- **继承**：`RiskStrategy(BaseStrategy)`
+- **资金账户**：❌ 无。不创建 `portfolio_id`，不持有资金
+- **可回测**：❌（类型保证）。**不可独立仿真**——只能挂载到宿主独立策略上随其激活（FR-250）
+- **宿主挂载**：每个 `RiskStrategy` 实例绑定一个宿主（`DayStrategy` 或 `LiveStrategy`）。宿主进入 paper/live 时，其关联的 `RiskStrategy` 自动激活（FR-250）
+- **持仓视图**：只读访问**宿主**的持仓（不可访问自身，因无账户）
+- **交易接口**：不继承 Day/Live 的买卖接口。提供专用接口：
+  - `sell_host_position(asset, shares, reason)` — 卖出宿主持仓；订单写入**宿主** `portfolio_id`（资金从宿主扣减），不改变持仓归属（FR-130）；同时记一条风控触发事件（标的、触发价、原因）
+  - 不提供买入接口（风控只卖不买）
+- **驱动契约**：见 FR-125（风控驱动）
+- **评估指标**：FR-360 仅超额收益 + 触发次数/原因统计
+- **可随时停止**：停止后不再监控宿主持仓，已发出的订单不撤回
+- **内置实现**：`DrawbackSellStrategy`（FR-100）、`CostStopStrategy`（FR-110）
+
+> **超额收益公式**（FR-130/FR-360 共用，story §1.8）：
+> 以风控触发卖出价为基准，至当日（或后续 N 日，N 可配置，默认 0）收盘价的反向收益率累计。
+> 公式：`excess_return = (sell_price - close_price_N) / sell_price`
+> 例：卖出价 10 元、当日收盘 9 元（N=0），则该次触发贡献 `(10-9)/10 = +10%`。
+> 正值表示风控卖出后标的下跌（风控有效）；负值表示卖出后标的上涨（风控过早）。
+
+> Aaron: 是挂到策略上，还是账户上？这一点至少要与 story 一致。
 
 ```yaml
 testability: ✅
@@ -213,7 +289,7 @@ valid: ✅
 
 ### FR-090 内置策略 — 双均线（日线策略）
 
-日线策略。计算 [fast, slow] 周期均线，fast 上穿 slow → 买入；slow 上穿 fast → 卖出。参数 `[fast, slow]`，默认 `[5, 20]`。回测结果图形化展示：净值、参考线、买入点、卖出点、MA 指标。
+日线策略（`DayStrategy`）。计算 [fast, slow] 周期均线，fast 上穿 slow → 买入；slow 上穿 fast → 卖出。参数 `[fast, slow]`，默认 `[5, 20]`。回测结果图形化展示：净值、参考线、买入点、卖出点、MA 指标。
 
 ```yaml
 testability: ✅
@@ -223,17 +299,54 @@ valid: ✅
 
 ### FR-100 内置策略 — 回落卖出（风控）
 
-个股当天上涨至 m% 后，若 n 分钟内下跌超过 k%，立即卖出。参数 `[m, n, k]`，默认 `[5.0, 30, 2.0]`。需 tick 级数据。
+`RiskStrategy`（FR-013）的内置实现。个股当天上涨至 m% 后，若 n 分钟内下跌超过 k%，立即卖出。参数 `[m, k]`（均为百分点，如 m=5.0 表示 5%），默认 `[7, 1, 0.5]`。
+
+> **需 tick 级数据**。v0.2 未实现 tick 驱动（FR-125），故本策略在 v0.2 **不可运行**，仅作为接口契约与算法声明保留；待 tick 级风控 spec 落地后激活。
+> Aaron: 需要实现
 
 ```yaml
-testability: ✅
-resolved: ✅
+testability: ⚠️ 依赖 tick 级驱动（v0.2 未实现，见 FR-125）
+resolved: ⚠️ 算法已定义，驱动待后续 spec
 valid: ✅
 ```
 
 ### FR-110 内置策略 — 成本止损（风控）
 
-持仓个股跌破买入价 k% 时立即卖出。参数 `[k]`，默认 `[-5.0]`。
+`RiskStrategy`（FR-013）的内置实现。对宿主持仓个股，当 `price ≤ cost_basis × (1 + k/100)` 时触发卖出。
+
+- **参数** `[k]`（百分点，默认 `[-5.0]` 即 -5%）
+- **成本基准** `cost_basis` = 该持仓加权均价（买入时加权平均更新，FR-180）
+- **触发后行为**：清仓该标的全部**可卖持仓**（受 T+1 约束，在途持仓不可卖）
+- **驱动**：`on_check` 跟随宿主周期（FR-125）；宿主为 `DayStrategy` 时日级检查（当日收盘价 vs 成本）
+- **卖出**：`sell_host_position`，默认次日开盘撮合（FR-060），归属宿主账户
+- **超额收益**：按 FR-013 公式记录（N=0 即当日收盘）
+
+### FR-115 日线策略驱动契约
+
+`DayStrategy` 的运行时驱动规范。本契约由框架的回测引擎（backtest）/仿真与实盘运行时（paper/live）实现，策略代码只消费回调。
+
+#### 回调时序（单日）
+
+```
+on_day_open(tm=T 09:30)          ← 每个交易日开盘前一次
+  ↓
+on_bar(tm=T)                               ← T 日收盘后驱动一次；策略通过 get_bars 拉取数据
+  ↓                                    策略在此产生信号；信号订单按 FR-050/060/070 撮合
+on_day_close(tm=T 15:00)         ← 每个交易日收盘后一次
+```
+
+#### 各模式差异（策略不可见）
+
+| 模式 | `on_bar` 触发时点 | 数据来源 | 撮合 |
+|---|---|---|---|
+| 回测 | 回测时钟推进到 T 日收盘 | 历史日线（parquet） | 按 FR-050/060/070 立即撮合 |
+| paper | T 日盘后（默认 15:05，可配） | 当日聚合日线 | 信号延迟至 T+1 处理（见 FR-050/060/070） |
+| live | T 日盘后（默认 15:05，可配） | qmt-gateway 当日行情 | 同 paper |
+
+- **数据约束**：`get_bars` 仅支持 `frame_type="1d"`，传其它周期报错。
+- **"盘后运行"时点**：paper/live 下策略在 T 日收盘后被驱动，默认 15:05（A 股收盘 15:00 后留 5 分钟确保数据完整），可在运行时参数配置。对比 FR-050 cheat-on-close 的 14:57——后者是尾盘集合竞价前，本契约是收盘后，二者不冲突（分属不同下单方式的驱动时点）。
+- **信号与撮合解耦**：`on_bar` 只产生信号（调用交易接口表达意图）；实际撮合时点与价格由下单方式（FR-050/060/070）决定，策略无需感知。
+- **拉取式数据模型**：`on_bar` 不携带行情数据（无 `quote` 参数）；策略通过 `get_bars` 主动拉取所需数据（日线、周线等），框架仅负责时序驱动。
 
 ```yaml
 testability: ✅
@@ -243,12 +356,61 @@ valid: ✅
 
 ### FR-120 实时策略驱动契约
 
-- 仅支持 paper/live，不支持回测
+`LiveStrategy`（FR-012）的运行时驱动规范。仅 paper/live 实现，不实现回测。
+
+- 仅支持 paper/live，不支持回测（类型保证，见 FR-012）
 - 通过 `on_day_open` 与 `on_bar` 驱动
-- `on_bar` 对应 30m/1d 等框架定义周期
-- 30m 等非原始数据由框架基于实时行情聚合后提供
+- `on_bar` 对应 30m/1d 等框架定义周期；30m 等非原始数据由框架基于实时行情聚合后提供，策略通过 `get_bars` 拉取
+- `on_day_open` 在每个交易日开盘前驱动，用于选股/预处理（如 30 分钟隔夜策略的 day_open 选股）
 - 不直接访问 qmt-gateway 原始接口，仅通过框架 API
 - tick 级驱动不在本 spec 范围（需后续 spec 明确）
+
+```yaml
+testability: ✅
+resolved: ✅
+valid: ✅
+```
+
+> Aaron: 实时行情聚合后提供怎么解决？LiveQuote提供？内存缓存 n 天？通过 on_bar + 订阅实现？
+
+### FR-125 风控策略驱动契约
+
+`RiskStrategy`（FR-013）的运行时驱动规范。本契约解决"风控策略由什么驱动、何时触发卖出、卖出走什么撮合"三个此前 spec 未定义的问题。
+
+#### 宿主绑定与激活
+
+- 每个 `RiskStrategy` 实例在创建时绑定一个宿主（`DayStrategy` 或 `LiveStrategy`）
+- 宿主进入 paper/live 时，其绑定的 `RiskStrategy` 自动激活（FR-250）；激活后开始监控宿主持仓
+- 宿主停止时，`RiskStrategy` 一并停止（可随时单独停止，已发订单不撤回）
+
+#### 回调时序与驱动周期
+
+风控策略的驱动周期**跟随宿主**，由框架在宿主的每次 `on_bar` 后追加调用：
+
+```
+[宿主] on_bar(tm)
+  ↓
+[风控] on_check(host_positions, tm)          ← 宿主 on_bar 后立即触发，传入宿主当前持仓快照
+  ↓                                            若触发条件满足 → 调用 sell_host_position
+[风控] 记录超额收益事件
+```
+
+- **驱动周期** = 宿主的 `on_bar` 周期。宿主为 `DayStrategy` → 风控日级检查（用当日收盘价 vs 成本）；宿主为 `LiveStrategy`(30m) → 风控 30 分钟级检查
+- **回调签名**：`on_check(positions: dict[str, Position], tm: datetime)` —— `positions` 是宿主的**只读**持仓快照。风控策略如需当前价格，通过 `get_bars` 拉取
+- v0.2 不实现 tick 级风控（如 FR-100 回落卖出需 tick）。tick 级风控驱动需后续 spec 明确；v0.2 内置风控策略（FR-110 成本止损）以日级/宿主周期运行
+
+> Aaron: 需求错误。风控必须是 tick级的、实时监控。on_bar 无法做到实时风控
+
+#### 卖出撮合
+
+- 风控调用 `sell_host_position(asset, shares, reason)` 表达卖出意图
+- **默认撮合方式**：次日开盘（FR-060）。v0.2 不提供"立即/tick 级"撮合（无 tick 支持）；"立即卖出"语义推迟至 tick 级风控 spec
+- 卖出订单写入**宿主** `portfolio_id`，资金从宿主扣减，不改变持仓归属（FR-130）
+- 同时记一条风控触发事件：`{风控策略id, 宿主id, asset, 触发价, 成本价, reason, ts}`
+
+#### 超额收益落账
+
+每次风控触发卖出后，按 FR-013 超额收益公式计算并记录（N 日窗口默认 0=当日收盘）。N 日后收盘价已知时回填最终值。
 
 ```yaml
 testability: ✅
@@ -754,10 +916,10 @@ valid: ✅
 
 - **Billionaire / Zillionaire** 不在本仓库范围
 
-### 推迟到 v0.3
+### 推迟到 v0.3 / 后续 spec
 
-- **AI Coding Agent skill**（基于 skill 暴露数据/交易接口、生成策略模板）v0.3 实现，v0.2 仅声明接口（FR-010）
-- **tick 级驱动**（story §1.7 提及）需后续 spec 明确，v0.2 不实现
+- **AI Coding Agent skill**（基于 skill 封装数据/交易接口、生成策略模板）v0.3 实现（FR-010）。**注**：数据接口、交易接口本身属 v0.2 Python SDK（FR-010 已提供），仅 AI Agent 的 skill 封装层推迟
+- **tick 级驱动**（story §1.7 提及）需后续 spec 明确，v0.2 不实现。这导致 FR-100 回落卖出（需 tick）在 v0.2 不可运行
 
 ## 澄清记录
 
@@ -774,3 +936,13 @@ valid: ✅
 > - E15 通知渠道 → 改为 FR-450 微信通知 + 二维码
 >
 > 待用户在 IDE 中 review 后，Sage 将进入 Step 3（基于 git diff 进一步追问）。
+>
+> ---
+>
+> **2026-06-16 变更（策略框架类型分层 + 驱动契约补齐）**：针对审核发现的"三类策略无类型分层、风控驱动契约空白、超额收益公式缺失"问题，本次变更：
+> - **FR-010 重写**：声明策略类型分层（`BaseStrategy` → `DayStrategy` / `LiveStrategy` / `RiskStrategy`），类型决定调度行为而非运行时标记——从结构上保证实时策略不被误回测、风控策略不被独立调度
+> - **新增 FR-011/012/013**：三类策略各自的结构契约（继承关系、账户、可回测性、数据/交易接口、评估指标）。**FR-013 内含超额收益公式**（story §1.8，含 N 日窗口），消除 FR-130/360 的循环引用
+> - **新增 FR-115/125**：日线策略与风控策略的驱动契约（此前仅 FR-120 有实时驱动）。FR-125 明确风控的"跟随宿主周期驱动 + `on_check` 回调 + 次日开盘撮合 + 超额收益落账"
+> - **FR-090/100/110 修正**：标注所属策略类型；FR-100（回落卖出，需 tick）元数据改为 ⚠️（v0.2 不可运行）；FR-110（成本止损）补齐成本基准、数量语义、驱动周期等验收细节
+> - **FR-130 修正**：超额收益定义改为引用 FR-013（不再回指 story）
+> - 设计依据：用户指出"三类策略接口与调度方式不同，需在 spec 层面明确"——类型分层使调度器在加载期按类型分发，而非运行时 if 判断
