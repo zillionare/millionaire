@@ -263,7 +263,23 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 |---|---|---|
 | ✅ | ✅ | ✅ |
 
-扫描用户配置目录（默认 `~/.millionaire/strategies/`，可配置）中的策略类，读取 `default_config()` 类方法返回的 dict（key=参数名, value=默认值）获得参数列表，UI 展示。
+枚举用户配置的策略目录（默认路径由系统设置指定，可在系统设置中修改）中的 `.py` 文件，识别其中**所有 `DayStrategy` / `LiveStrategy` / `RiskStrategy` 的具体子类**（直接继承 `BaseStrategy` 的类不被识别，见 FR-010）。
+
+#### 识别规则
+- 目标文件：目录下的 `.py` 文件（不递归子目录）
+- 识别条件：类继承自 `DayStrategy` / `LiveStrategy` / `RiskStrategy` 之一
+- 参数获取：调用 `default_config()`（`@staticmethod`），返回 `dict[str, Any]`（key=参数名, value=默认值）；未覆盖时返回 `{}`
+- 策略名称：`cls.__name__`
+- 策略描述：`cls.__doc__` 首行（无 docstring 时为空）
+
+#### 容错策略
+- 语法错误 / import 失败的 `.py` 文件 → 跳过，记录警告日志，不阻塞其他策略的加载
+- 目录不存在 → 不报错，策略列表为空
+
+#### 安全前提
+- 配置目录为用户自有目录，框架信任其中的代码（与用户手动安装 Python 包同信任级别）
+
+UI 展示枚举结果：策略名称、类型（Day/Live/Risk）、参数列表与默认值、描述。
 
 ---
 
