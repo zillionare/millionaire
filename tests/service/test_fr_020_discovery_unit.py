@@ -18,13 +18,23 @@ from quantide.service.discovery import strategy_loader
 
 @pytest.fixture(autouse=True)
 def clean_state(db):
-    """清理 strategy_info / strategy_config 表 + 内存缓存"""
-    db.execute("DELETE FROM strategy_info")
-    db.execute("DELETE FROM strategy_config")
+    """清理 strategy_info / strategy_config 表 + 内存缓存
+
+    表可能尚未创建(默认 db fixture 不会建)— 用 silent=True 容忍
+    缺失的表,避免污染其他测试。
+    """
+    for table in ("strategy_info", "strategy_config"):
+        try:
+            db.execute(f"DELETE FROM {table}")
+        except Exception:
+            pass  # 表未初始化;忽略
     strategy_loader._strategies = {}
     yield
-    db.execute("DELETE FROM strategy_info")
-    db.execute("DELETE FROM strategy_config")
+    for table in ("strategy_info", "strategy_config"):
+        try:
+            db.execute(f"DELETE FROM {table}")
+        except Exception:
+            pass
     strategy_loader._strategies = {}
 
 
