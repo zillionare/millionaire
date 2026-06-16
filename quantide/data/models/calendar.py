@@ -1126,5 +1126,16 @@ class Calendar:
         filtered_dates = filtered_table.column("date")
         return [date.as_py() for date in filtered_dates]
 
+    def count_trading_days(
+        self, start: datetime.date, end: datetime.date
+    ) -> int:
+        """[start, end] 区间内的交易日数(含起止)。
+
+        spec FR-014 命名;等价于 count_day_frames。
+        """
+        if start > end:
+            raise ValueError(f"开始日期 {start} 不能大于结束日期 {end}")
+        return self.count_day_frames(start, end)
+
 
 calendar = Calendar()
