@@ -169,13 +169,13 @@ valid: ✅
 - **资金账户**：独立虚拟账户（FR-210），每个实例一个 `portfolio_id`
 - **可回测**：❌（类型保证，非运行时校验）。调度路径为 仿真→实盘 或直接实盘（FR-240）
 - **驱动契约**：见 FR-120（实时驱动）
-- **数据接口**：`get_bars(frame_type="30m"|"1d")`；30m 等非原始周期由框架基于实时行情聚合后提供（接口定义见 FR-011）
+- **数据接口**：`get_bars(frame_type="30m"|"1d")`；30m 等非原始周期由框架基于 qmt-gateway tick 订阅缓存聚合后提供（接口定义见 FR-011）
 - **交易接口**：完整买卖接口（与 DayStrategy 相同，见 FR-011），订单归属本策略 `portfolio_id`
 - **查询接口**：`positions`（`dict[str, Position]`）、`cash`（`float`）
 - **评估指标**：FR-350 完整 8 项
 - **内置实现**：无（用户自行编写，如 30 分钟隔夜策略）
 
-> Aaron: get_bars 获取30分钟数据从哪里来，需要一个新的 spec
+> **30m 数据来源**：框架订阅 qmt-gateway tick 行情后缓存在内存中，按 30m 窗口聚合为 OHLCV bar。策略通过 `get_bars(frame_type="30m")` 拉取，与日线接口完全一致。
 
 ```yaml
 testability: ✅
@@ -195,7 +195,8 @@ valid: ✅
 - **交易接口**：不继承 Day/Live 的买卖接口。提供专用接口：
   - `sell_host_position(asset, shares, reason)` — 卖出宿主持仓；订单写入**宿主** `portfolio_id`（资金从宿主扣减），不改变持仓归属（FR-130）；同时记一条风控触发事件（标的、触发价、原因）
   - 不提供买入接口（风控只卖不买）
-- **驱动契约**：见 FR-125（风控驱动）
+- **数据接口**：`get_ticks(asset, count)` / `get_prices(assets)` — 获取 tick 级行情数据，数据来源为 qmt-gateway 订阅消息的当日缓存
+- **驱动契约**：见 FR-125（tick 级独立驱动）。`on_day_open` 读取前一日可卖持仓，交易时段内每个 tick 触发 `on_check`
 - **评估指标**：FR-360 仅超额收益 + 触发次数/原因统计
 - **可随时停止**：停止后不再监控宿主持仓，已发出的订单不撤回
 - **内置实现**：`DrawbackSellStrategy`（FR-100）、`CostStopStrategy`（FR-110）
@@ -206,7 +207,6 @@ valid: ✅
 > 例：卖出价 10 元、当日收盘 9 元（N=0），则该次触发贡献 `(10-9)/10 = +10%`。
 > 正值表示风控卖出后标的下跌（风控有效）；负值表示卖出后标的上涨（风控过早）。
 
-> Aaron: 是挂到策略上，还是账户上？这一点至少要与 story 一致。
 
 ```yaml
 testability: ✅
@@ -301,12 +301,11 @@ valid: ✅
 
 `RiskStrategy`（FR-013）的内置实现。个股当天上涨至 m% 后，若 n 分钟内下跌超过 k%，立即卖出。参数 `[m, k]`（均为百分点，如 m=5.0 表示 5%），默认 `[7, 1, 0.5]`。
 
-> **需 tick 级数据**。v0.2 未实现 tick 驱动（FR-125），故本策略在 v0.2 **不可运行**，仅作为接口契约与算法声明保留；待 tick 级风控 spec 落地后激活。
-> Aaron: 需要实现
+> v0.2 通过 qmt-gateway tick 订阅 + 当日缓存已具备 tick 级数据能力。本策略通过 tick 级 `on_check`（FR-125）驱动，可正常运行。
 
 ```yaml
-testability: ⚠️ 依赖 tick 级驱动（v0.2 未实现，见 FR-125）
-resolved: ⚠️ 算法已定义，驱动待后续 spec
+testability: ✅
+resolved: ✅
 valid: ✅
 ```
 
@@ -317,8 +316,8 @@ valid: ✅
 - **参数** `[k]`（百分点，默认 `[-5.0]` 即 -5%）
 - **成本基准** `cost_basis` = 该持仓加权均价（买入时加权平均更新，FR-180）
 - **触发后行为**：清仓该标的全部**可卖持仓**（受 T+1 约束，在途持仓不可卖）
-- **驱动**：`on_check` 跟随宿主周期（FR-125）；宿主为 `DayStrategy` 时日级检查（当日收盘价 vs 成本）
-- **卖出**：`sell_host_position`，默认次日开盘撮合（FR-060），归属宿主账户
+- **驱动**：tick 级独立驱动（FR-125），不绑定宿主 `on_bar` 周期。`on_day_open` 读取前一日可卖持仓，交易时段内每个 tick 触发 `on_check`
+- **卖出**：`sell_host_position`，即时市价成交，归属宿主账户
 - **超额收益**：按 FR-013 公式记录（N=0 即当日收盘）
 
 ### FR-115 日线策略驱动契约
@@ -360,10 +359,9 @@ valid: ✅
 
 - 仅支持 paper/live，不支持回测（类型保证，见 FR-012）
 - 通过 `on_day_open` 与 `on_bar` 驱动
-- `on_bar` 对应 30m/1d 等框架定义周期；30m 等非原始数据由框架基于实时行情聚合后提供，策略通过 `get_bars` 拉取
+- `on_bar` 对应 30m/1d 等框架定义周期；30m 等非原始数据由框架基于 qmt-gateway tick 订阅缓存聚合后提供，策略通过 `get_bars` 拉取
 - `on_day_open` 在每个交易日开盘前驱动，用于选股/预处理（如 30 分钟隔夜策略的 day_open 选股）
 - 不直接访问 qmt-gateway 原始接口，仅通过框架 API
-- tick 级驱动不在本 spec 范围（需后续 spec 明确）
 
 ```yaml
 testability: ✅
@@ -371,11 +369,9 @@ resolved: ✅
 valid: ✅
 ```
 
-> Aaron: 实时行情聚合后提供怎么解决？LiveQuote提供？内存缓存 n 天？通过 on_bar + 订阅实现？
-
 ### FR-125 风控策略驱动契约
 
-`RiskStrategy`（FR-013）的运行时驱动规范。本契约解决"风控策略由什么驱动、何时触发卖出、卖出走什么撮合"三个此前 spec 未定义的问题。
+`RiskStrategy`（FR-013）的运行时驱动规范。本契约解决“风控策略由什么驱动、何时触发卖出、卖出走什么撮合”三个此前 spec 未定义的问题。
 
 #### 宿主绑定与激活
 
@@ -383,29 +379,34 @@ valid: ✅
 - 宿主进入 paper/live 时，其绑定的 `RiskStrategy` 自动激活（FR-250）；激活后开始监控宿主持仓
 - 宿主停止时，`RiskStrategy` 一并停止（可随时单独停止，已发订单不撤回）
 
-#### 回调时序与驱动周期
+#### 回调时序与驱动模型
 
-风控策略的驱动周期**跟随宿主**，由框架在宿主的每次 `on_bar` 后追加调用：
+风控策略采用 **tick 级独立驱动**，不绑定宿主的 `on_bar` 周期：
 
 ```
-[宿主] on_bar(tm)
+on_day_open(tm)                               ← 每个交易日开盘前
   ↓
-[风控] on_check(host_positions, tm)          ← 宿主 on_bar 后立即触发，传入宿主当前持仓快照
-  ↓                                            若触发条件满足 → 调用 sell_host_position
-[风控] 记录超额收益事件
+读取前一日可卖持仓（T+1 过滤后的持仓快照）
+  ↓
+交易时段 tick 级监控循环：
+  每个 tick → on_check(host_positions, tm)    ← tick 触发，传入当日可卖持仓快照
+    → 策略判断是否触发卖出条件
+    → 触发则 sell_host_position(asset, shares, reason)
+    → 被卖出的标的从监控列表移除（当日不再触发），但仍计算超额收益
+  ↓
+on_day_close(tm)                              ← 收盘后停止监控，记录超额收益事件
 ```
 
-- **驱动周期** = 宿主的 `on_bar` 周期。宿主为 `DayStrategy` → 风控日级检查（用当日收盘价 vs 成本）；宿主为 `LiveStrategy`(30m) → 风控 30 分钟级检查
-- **回调签名**：`on_check(positions: dict[str, Position], tm: datetime)` —— `positions` 是宿主的**只读**持仓快照。风控策略如需当前价格，通过 `get_bars` 拉取
-- v0.2 不实现 tick 级风控（如 FR-100 回落卖出需 tick）。tick 级风控驱动需后续 spec 明确；v0.2 内置风控策略（FR-110 成本止损）以日级/宿主周期运行
-
-> Aaron: 需求错误。风控必须是 tick级的、实时监控。on_bar 无法做到实时风控
+- **驱动数据**：tick 级实时行情，数据来源为 qmt-gateway 订阅消息的当日缓存
+- **持仓快照**：`on_day_open` 时读取前一日可卖持仓（受 T+1 约束，当日买入的不可卖）
+- **回调签名**：`on_check(positions: dict[str, Position], tm: datetime)` —— `positions` 是 `on_day_open` 时确定的可卖持仓快照（只读）
+- **监控列表管理**：风控触发卖出的标的从监控列表移除（当日不再重复触发），但仍纳入超额收益统计
+- **宿主当日卖出**：若宿主策略当日主动卖出某标的，该标的也从风控监控列表移除
 
 #### 卖出撮合
 
 - 风控调用 `sell_host_position(asset, shares, reason)` 表达卖出意图
-- **默认撮合方式**：次日开盘（FR-060）。v0.2 不提供"立即/tick 级"撮合（无 tick 支持）；"立即卖出"语义推迟至 tick 级风控 spec
-- 卖出订单写入**宿主** `portfolio_id`，资金从宿主扣减，不改变持仓归属（FR-130）
+- **撮合方式**：即时市价成交。卖出订单写入**宿主** `portfolio_id`，资金从宿主扣减，不改变持仓归属（FR-130）
 - 同时记一条风控触发事件：`{风控策略id, 宿主id, asset, 触发价, 成本价, reason, ts}`
 
 #### 超额收益落账
@@ -919,7 +920,6 @@ valid: ✅
 ### 推迟到 v0.3 / 后续 spec
 
 - **AI Coding Agent skill**（基于 skill 封装数据/交易接口、生成策略模板）v0.3 实现（FR-010）。**注**：数据接口、交易接口本身属 v0.2 Python SDK（FR-010 已提供），仅 AI Agent 的 skill 封装层推迟
-- **tick 级驱动**（story §1.7 提及）需后续 spec 明确，v0.2 不实现。这导致 FR-100 回落卖出（需 tick）在 v0.2 不可运行
 
 ## 澄清记录
 
@@ -945,4 +945,15 @@ valid: ✅
 > - **新增 FR-115/125**：日线策略与风控策略的驱动契约（此前仅 FR-120 有实时驱动）。FR-125 明确风控的"跟随宿主周期驱动 + `on_check` 回调 + 次日开盘撮合 + 超额收益落账"
 > - **FR-090/100/110 修正**：标注所属策略类型；FR-100（回落卖出，需 tick）元数据改为 ⚠️（v0.2 不可运行）；FR-110（成本止损）补齐成本基准、数量语义、驱动周期等验收细节
 > - **FR-130 修正**：超额收益定义改为引用 FR-013（不再回指 story）
-> - 设计依据：用户指出"三类策略接口与调度方式不同，需在 spec 层面明确"——类型分层使调度器在加载期按类型分发，而非运行时 if 判断
+> - 设计依据：用户指出“三类策略接口与调度方式不同，需在 spec 层面明确”——类型分层使调度器在加载期按类型分发，而非运行时 if 判断
+>
+> ---
+>
+> **2026-06-17 变更（拉取式数据模型 + tick 级风控驱动）**：
+> - **on_bar / on_check 签名精简**：`on_bar(tm)` 和 `on_check(host_positions, tm)` 不再携带 quote/frame_type 参数；框架只负责时序驱动，策略通过 `get_bars` / `get_ticks` / `get_prices` 拉取数据
+> - **FR-125 重写**：风控策略从“跟随宿主 on_bar 周期”改为 **tick 级独立驱动**。`on_day_open` 读取前一日可卖持仓，交易时段内每个 tick 触发 `on_check`，触发即市价成交
+> - **FR-013 新增数据接口**：`get_ticks(asset, count)` / `get_prices(assets)`，数据来源为 qmt-gateway tick 订阅缓存
+> - **FR-100 从 ⚠️ 改回 ✅**：v0.2 已具备 tick 数据能力，回落卖出可正常运行
+> - **FR-110 更新**：驱动从“跟随宿主周期”改为 tick 级独立驱动，撮合从“次日开盘”改为即时市价成交
+> - **FR-012/120 30m 数据来源明确**：框架基于 qmt-gateway tick 订阅缓存聚合为 30m bar，策略通过 `get_bars` 拉取
+> - **监控列表管理**：风控触发卖出或宿主主动卖出的标的从监控列表移除，但仍纳入超额收益统计
