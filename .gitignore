@@ -111,6 +111,8 @@ site/
 .history/
 tests/assets/DailyBars-dates.pq
 tests/assets/synthetic/
+tests/assets/real/
+tests/assets/real/_cache/
 agents
 
 .specforge/
