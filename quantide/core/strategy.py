@@ -52,12 +52,6 @@ class BaseStrategy:
         """每日收盘后调用"""
         pass
 
-    async def on_bar(
-        self, tm: datetime.datetime, quote: dict[str, Any], frame_type: FrameType
-    ):
-        """核心驱动方法，每个周期调用一次"""
-        pass
-
     @staticmethod
     def default_config() -> dict[str, Any]:
         """策略 config 默认值。子类覆盖以声明自己的配置项。
