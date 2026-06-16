@@ -116,13 +116,13 @@
 - 每类至少 5 个标的(避免单点)
 - 每类覆盖不同交易所(沪深北)
 - 每类覆盖不同行业(避免行业特异性)
-- 具体清单存于 `tests/strategy-framework/fixtures/asset_universe.json`(实施时维护)
+- 具体清单存于 `tests/e2e/fixtures/asset_universe.json`(实施时维护)
 
 ### 1.3 环境构建
 
 #### 1.3.1 拉取脚本
 
-位置:`tests/strategy-framework/scripts/build_env.py`(实施时落地)
+位置:`tests/e2e/scripts/build_env.py`(实施时落地)
 
 功能:
 - 调用 tushare API 拉取上述数据
@@ -132,7 +132,7 @@
 
 #### 1.3.2 校验脚本
 
-位置:`tests/strategy-framework/scripts/validate_env.py`(实施时落地)
+位置:`tests/e2e/scripts/validate_env.py`(实施时落地)
 
 校验内容:
 - 完整性:每个标的的日线条数应 ≈ 实际交易日数(±5 容忍因停牌)
@@ -142,7 +142,7 @@
 
 #### 1.3.3 快照与版本
 
-- 数据存储在 `tests/strategy-framework/fixtures/data/`
+- 数据存储在 `tests/e2e/fixtures/data/`
 - `env_manifest.json` 记录版本,CI 中校验 "测试数据版本 = 预期版本"
 - 数据不可变;更新数据需新版本号 + 重新走 §1.5 维护流程
 
@@ -156,7 +156,7 @@
 @pytest.fixture(scope="session")
 def strategy_env():
     """加载测试环境;若 env_manifest 版本不匹配则报错"""
-    env = load_env("tests/strategy-framework/fixtures/data")
+    env = load_env("tests/e2e/fixtures/data")
     assert env.manifest.version == EXPECTED_VERSION
     return env
 ```
@@ -401,10 +401,24 @@ return final_pnl, trades
 
 ## 4. 测试组织
 
-### 4.1 目录结构(建议)
+### 4.0 Unit 测试 vs E2E(黑盒)测试的边界
+
+仓库内有两类测试,**组织原则不同**:
+
+| 测试类型 | 路径 | 组织原则 | 编写者 | 目的 |
+|---|---|---|---|---|
+| **Unit 测试** | `tests/unit/`(沿用各项目惯例) | **按源文件目录**(与 `quantide/...` 1:1 镜像) | 开发 | 验证模块内部逻辑 |
+| **E2E / 黑盒测试**(本文件) | `tests/e2e/` | **按场景** | 测试工程师 | 验证框架外部行为 |
+
+> **强制分离**:
+> - Unit 测试**不允许**依赖 `tests/e2e/fixtures/data/`(测试数据)
+> - E2E 测试**不允许** mock 框架内部实现(若必须 mock,意味着 AC 应改写为更易观测的形式)
+> - E2E 测试**不**依赖 `quantide/` 包内部的任何私有 API
+
+### 4.1 目录结构
 
 ```
-tests/strategy-framework/
+tests/e2e/
 ├── conftest.py                      # session 级 fixture(加载 env)
 ├── fixtures/
 │   ├── data/                        # 测试数据(由 §1.3 产出)
@@ -430,49 +444,66 @@ tests/strategy-framework/
 │   ├── backtest.py                  # 回测 ground truth
 │   ├── risk.py                      # 风控 ground truth
 │   └── metrics.py                   # empyrical 评估指标
-├── fr-010/
-│   ├── test_strategy_lifecycle.py
-│   ├── test_default_config.py
-│   └── test_record_log.py
-├── fr-011/
-│   ├── test_backtest_acceptance.py
-│   ├── test_data_interface.py
-│   └── test_account_isolation.py
-├── fr-012/
-│   ├── test_live_strategy_rejection.py
-│   └── test_multiframe_data.py
-├── fr-013/
-│   ├── test_risk_no_account.py
-│   ├── test_risk_tick_driven.py
-│   └── test_risk_excess_return.py
-├── fr-014/
-│   ├── test_trade_day.py
-│   ├── test_day_shift.py
-│   └── test_mode_agnostic.py
-├── fr-015/
-│   ├── test_stocks_listed.py
-│   ├── test_is_st.py
-│   └── test_days_since_ipo.py
-└── fr-020/
-    ├── test_enumerate_basic.py
-    ├── test_enumerate_recognition.py
-    ├── test_enumerate_metadata.py
-    ├── test_enumerate_fault_tolerance.py
-    └── test_enumerate_mode_agnostic.py
+└── scenarios/                       # **按场景组织**(覆盖 §5 矩阵)
+    ├── strategy_discovery/          # FR-010 + FR-020 策略枚举与发现
+    │   ├── test_enumerate_basic.py
+    │   ├── test_enumerate_recognition.py
+    │   ├── test_enumerate_metadata.py
+    │   ├── test_enumerate_fault_tolerance.py
+    │   ├── test_enumerate_mode_agnostic.py
+    │   ├── test_default_config.py
+    │   └── test_strategy_lifecycle.py
+    ├── backtest/                    # FR-011 DayStrategy 回测场景
+    │   ├── test_backtest_acceptance.py
+    │   ├── test_data_interface.py
+    │   ├── test_account_isolation.py
+    │   ├── test_matching.py         # 撮合规则(cheat-on-close / 次日开盘 / 限价)
+    │   ├── test_evaluation_metrics.py  # Sharpe / 最大回撤 / 等
+    │   └── test_t_plus_1.py         # T+1 与持仓记账
+    ├── live_strategy/               # FR-012 LiveStrategy 场景
+    │   ├── test_live_strategy_rejection.py
+    │   ├── test_multiframe_data.py
+    │   └── test_paper_live_account.py
+    ├── risk_strategy/               # FR-013 RiskStrategy 场景
+    │   ├── test_risk_no_account.py
+    │   ├── test_risk_tick_driven.py
+    │   ├── test_risk_excess_return.py
+    │   └── test_risk_cost_stop.py   # 成本止损场景
+    ├── calendar/                    # FR-014 交易日历场景
+    │   ├── test_trade_day.py
+    │   ├── test_day_shift.py
+    │   └── test_mode_agnostic.py
+    └── securities/                  # FR-015 证券列表场景
+        ├── test_stocks_listed.py
+        ├── test_is_st.py
+        ├── test_days_since_ipo.py
+        └── test_boundary_categories.py  # IPO / 退市 / ST / 停牌 / 创科
 ```
 
 ### 4.2 命名约定(建议)
 
-- 文件:`test_<AC-id>__<场景>.py`
-- 函数:`test_<AC-id>_<子场景>`
-- 例:`test_ac_020_08_empty_directory`、`test_ac_020_09_syntax_error`
+- 文件:`test_<场景>__<子场景>.py`,例如 `test_enumerate__syntax_error.py`
+- 函数:`test_<AC-id>_<子场景>`,例如 `test_ac_020_08_empty_directory`
+- 跨场景的共享工具放 `tests/e2e/conftest.py` 或 `tests/e2e/utils/`
 
 ### 4.3 执行
 
 - **离线运行**:全部测试不依赖网络(数据已固化)
 - **执行顺序**:单测(快速)→ 集成(中等)→ 系统级(慢)
-- **并行**:各 FR 目录内可并行;FR 间可并行
+- **并行**:各 `scenarios/` 目录内可并行;场景间可并行
 - **CI**:每次 push 必跑完整套;数据更新需触发完整回归
+- **与 unit 测试隔离**:E2E 可用独立 marker(如 `@pytest.mark.e2e`)或独立 pytest 配置(`pytest-e2e.ini`),避免与 unit 测试混跑
+
+### 4.4 scenario ↔ FR 的覆盖矩阵(用于跟踪)
+
+| Scenario 目录 | 覆盖 FR | 主要 AC |
+|---|---|---|
+| `strategy_discovery/` | FR-010, FR-020 | AC-010-XX, AC-020-01 ~ 15 |
+| `backtest/` | FR-011 | AC-011-01 ~ 04 |
+| `live_strategy/` | FR-012 | AC-012-01 ~ 04 |
+| `risk_strategy/` | FR-013 | AC-013-01 ~ 05 |
+| `calendar/` | FR-014 | AC-014-01 ~ 04 |
+| `securities/` | FR-015 | AC-015-01 ~ 04 |
 
 ---
 
