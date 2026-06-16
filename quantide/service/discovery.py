@@ -239,26 +239,25 @@ class StrategyLoader:
             self._add_scan_dir_to_sys_path(str(source.directory))
 
         scanned: dict[str, StrategyInfo] = {}
-        for root, _, files in os.walk(source.directory):
-            for file in files:
-                if not file.endswith(".py") or file.startswith("__"):
-                    continue
-
-                file_path = Path(root) / file
-                try:
-                    module_name = self._get_module_name(
-                        source.directory,
-                        file_path,
-                        source.module_prefix,
-                    )
-                    strategies = self._load_module_and_get_info(
-                        module_name,
-                        str(source.directory),
-                    )
-                    for strategy_info in strategies:
-                        scanned[strategy_info.name] = strategy_info
-                except Exception as e:
-                    logger.error(f"Failed to process file {file_path}: {e}")
+        # spec FR-020 AC-020-02: 不递归子目录;仅顶层 .py 文件
+        for file in sorted(source.directory.iterdir()):
+            if not file.is_file() or not file.name.endswith(".py") or file.name.startswith("__"):
+                continue
+            file_path = file
+            try:
+                module_name = self._get_module_name(
+                    source.directory,
+                    file_path,
+                    source.module_prefix,
+                )
+                strategies = self._load_module_and_get_info(
+                    module_name,
+                    str(source.directory),
+                )
+                for strategy_info in strategies:
+                    scanned[strategy_info.name] = strategy_info
+            except Exception as e:
+                logger.error(f"Failed to process file {file_path}: {e}")
         return scanned
 
     def _get_module_name(
