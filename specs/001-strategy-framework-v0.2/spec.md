@@ -74,7 +74,63 @@ priority: P0
 
 ### FR-010 策略作为 SDK 暴露（v0.2 仅声明接口，v0.3 实现 AI Agent skill）
 
-公开 `Strategy` 基类与统一生命周期 API（`on_day_open` / `on_bar` 等）。v0.2 提供 Python SDK；AI Coding Agent skill（基于 skill 暴露数据/交易接口、生成策略模板）推迟至 v0.3。
+公开 `BaseStrategy` 基类与统一生命周期 API。v0.2 提供 Python SDK；AI Coding Agent skill（基于 skill 暴露数据/交易接口、生成策略模板）推迟至 v0.3。
+
+#### 生命周期钩子
+
+| 钩子 | 调用时机 | 参数 | async |
+|---|---|---|---|
+| `init()` | 实例化后立即调用 | 无 | ✅ |
+| `on_start()` | 运行开始前 | 无 | ✅ |
+| `on_stop()` | 运行结束后 | 无 | ✅ |
+| `on_day_open(tm)` | 每日开盘前 | `tm: datetime` | ✅ |
+| `on_day_close(tm)` | 每日收盘后 | `tm: datetime` | ✅ |
+| `on_bar(tm, quote, frame_type)` | 每个周期驱动 | `tm: datetime`, `quote: dict`, `frame_type: FrameType` | ✅ |
+
+所有钩子默认实现为空操作（`pass`），子类可覆盖任意子集。
+
+#### 交易接口
+
+| 方法 | 语义 |
+|---|---|
+| `buy(asset, shares, price=0)` | 按股数买入，市价当 price=0 |
+| `buy_percent(asset, percent)` | 按现金比例买入（0~1） |
+| `buy_amount(asset, amount)` | 按金额买入 |
+| `sell(asset, shares, price=0)` | 按股数卖出 |
+| `sell_percent(asset, percent)` | 按持仓比例卖出 |
+| `sell_amount(asset, amount)` | 按金额卖出 |
+| `cancel_order(qt_oid)` | 取消指定订单 |
+| `cancel_all_orders(side=None)` | 取消所有未成交订单，可按方向过滤 |
+| `trade_target_pct(asset, target_pct)` | 调仓至总市值占比 |
+
+所有买卖方法返回 `TradeResult`（含 `qt_oid` 订单 ID 和 `trades` 成交记录列表）。
+
+#### 查询接口
+
+| 属性 | 类型 | 语义 |
+|---|---|---|
+| `positions` | `dict[str, Position]` | 标的代码 → 持仓对象 |
+| `cash` | `float` | 当前可用资金 |
+
+#### 数据接口
+
+`get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True)` → `pl.DataFrame`
+
+- `end_dt` 默认为当前运行时间
+- `include_forming_bar=True` 时返回含当日 forming bar
+- `include_forming_bar=False` 时只返回昨日及更早数据
+
+#### 辅助接口
+
+| 方法 | 语义 |
+|---|---|
+| `default_config()` → `dict[str, Any]` | `@staticmethod`，声明策略参数名与默认值，默认返回 `{}` |
+| `log(msg, level, tm)` | 输出日志，时间戳默认为仿真时间 |
+| `record(key, value, dt)` | 记录策略指标/信号，`dt` 默认为仿真时间 |
+
+#### 约束
+
+策略代码中无任何 API 可获取当前运行模式（回测/仿真/实盘/dry-run）。基类不暴露 `get_mode()` 或等价方法。
 
 ```yaml
 testability: ✅
@@ -203,7 +259,7 @@ valid: ✅
 ### FR-130 风控策略契约
 
 - 无独立资金账户，监控其它策略的持仓
-- 只统计超额收益，不统计其他指标
+- 只统计超额收益（定义见 story §1.8），不统计其他指标
 - 不可回测、不可独立仿真
 - 可随时停止
 - 操作他人持仓时不改变持仓归属、不改变原策略的收益计算
@@ -265,7 +321,7 @@ valid: ✅
 ### FR-180 交易规则 — 资金
 
 - 卖出回款当日可用于继续买入（A 股现金账户规则）
-- 印花税（卖方收取，按比率）、佣金（按比率，不低于单笔最低佣金）按 §1.10 配置扣除，扣减发生在成交后立即结算
+- 印花税（卖方收取，按比率）、佣金（按比率，不低于单笔最低佣金）按 FR-200 配置扣除，扣减发生在成交后立即结算
 - 资金校验在虚拟账户层进行：买入下单时检查虚拟账户可用资金是否足以覆盖（成交金额 + 佣金）
 
 ```yaml
@@ -480,7 +536,7 @@ valid: ✅
 ### FR-360 评估指标 — 风控策略
 
 风控策略无独立资金账户，不计算传统收益指标。仅评估：
-- **超额收益**（按 FR-130 定义）
+- **超额收益**（定义见 story §1.8）
 - 风控触发次数及触发原因统计
 
 ```yaml
