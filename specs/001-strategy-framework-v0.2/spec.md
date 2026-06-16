@@ -214,6 +214,49 @@ resolved: ✅
 valid: ✅
 ```
 
+### FR-014 SDK 元数据接口 — 交易日历
+
+独立的只读 SDK 接口，不属于策略框架。可在任何地方调用（策略内、策略外、UI 层）。在 backtest/paper/live 模式下**接口相同、数据来源不同**。
+
+#### 接口契约
+
+| 接口 | 参数 | 返回 | 说明 |
+|---|---|---|---|
+| `is_trade_day(dt)` | `dt: date \| datetime` | `bool` | 判断指定日期是否为交易日 |
+| `day_shift(date, n)` | `date: date, n: int` | `date` | 向前/向后移位 n 个交易日；n=0 返回最近已结束的交易日 |
+| `count_trading_days(start, end)` | `start, end: date` | `int` | [start, end] 间的交易日数（含起止） |
+| `get_trade_dates(start, end)` | `start, end: date` | `list[date]` | 返回 [start, end] 间所有交易日 |
+| `last_trade_date()` | 无 | `date` | 返回最近一个已结束的交易日 |
+
+> **策略中的使用场景**：`on_day_open` 中判断“下一个交易日是否为月末”“距离今天 N 个交易日是哪天”，用于月末调仓、持有期计算等策略逻辑。
+
+```yaml
+testability: ✅
+resolved: ✅
+valid: ✅
+```
+
+### FR-015 SDK 元数据接口 — 证券列表
+
+独立的只读 SDK 接口，不属于策略框架。可在任何地方调用。在 backtest/paper/live 模式下**接口相同、数据来源不同**。
+
+#### 接口契约
+
+| 接口 | 参数 | 返回 | 说明 |
+|---|---|---|---|
+| `stocks_listed(date, exclude_st=True)` | `date: date, exclude_st: bool` | `list[str]` | 返回指定日期已上市的所有证券代码（可选排除 ST） |
+| `is_st(asset, date)` | `asset: str, date: date` | `bool` | 判断指定日期是否为 ST |
+| `days_since_ipo(asset, date)` | `asset: str, date: date` | `int` | 返回证券在指定日期的上市天数（上市前返回 0） |
+| `get_name(asset)` | `asset: str` | `str` | 返回证券名称 |
+
+> **策略中的使用场景**：`on_day_open` 中动态选股——“全 A 非 ST、上市超过 60 天的股票中选股”。
+
+```yaml
+testability: ✅
+resolved: ✅
+valid: ✅
+```
+
 ### FR-020 自动发现策略
 
 扫描用户配置目录（默认 `~/.millionaire/strategies/`，可配置）中的策略类，读取 `default_config()` 类方法返回的 dict（key=参数名, value=默认值）获得参数列表，UI 展示。
@@ -300,8 +343,6 @@ valid: ✅
 ### FR-100 内置策略 — 回落卖出（风控）
 
 `RiskStrategy`（FR-013）的内置实现。个股当天上涨至 m% 后，若 n 分钟内下跌超过 k%，立即卖出。参数 `[m, k]`（均为百分点，如 m=5.0 表示 5%），默认 `[7, 1, 0.5]`。
-
-> v0.2 通过 qmt-gateway tick 订阅 + 当日缓存已具备 tick 级数据能力。本策略通过 tick 级 `on_check`（FR-125）驱动，可正常运行。
 
 ```yaml
 testability: ✅
@@ -957,3 +998,9 @@ valid: ✅
 > - **FR-110 更新**：驱动从“跟随宿主周期”改为 tick 级独立驱动，撮合从“次日开盘”改为即时市价成交
 > - **FR-012/120 30m 数据来源明确**：框架基于 qmt-gateway tick 订阅缓存聚合为 30m bar，策略通过 `get_bars` 拉取
 > - **监控列表管理**：风控触发卖出或宿主主动卖出的标的从监控列表移除，但仍纳入超额收益统计
+>
+> ---
+>
+> **2026-06-17 变更（新增 SDK 元数据接口）**：
+> - **新增 FR-014（交易日历）**：独立只读 SDK 接口——`is_trade_day`、`day_shift`、`count_trading_days`、`get_trade_dates`、`last_trade_date`。不属于策略框架，可在任何地方调用。接口在 backtest/paper/live 模式下相同，数据来源不同
+> - **新增 FR-015（证券列表）**：独立只读 SDK 接口——`stocks_listed`、`is_st`、`days_since_ipo`、`get_name`。与 FR-014 同属 SDK 元数据层，与策略框架解耦
