@@ -12,17 +12,26 @@ tests/e2e/backtest/test_dual_ma_accuracy.py 用 calendar_model)。
 from __future__ import annotations
 
 import datetime
+from pathlib import Path
 
 import pytest
 
 from quantide.data.models.calendar import Calendar
 
 
+# Real tushare calendar fixture (preferred); fall back to synthetic if missing
+REAL_CAL = Path(__file__).resolve().parents[2] / "assets" / "real" / "real_calendar.parquet"
+SYNTH_CAL = Path(__file__).resolve().parents[2] / "assets" / "synthetic" / "synthetic_calendar.parquet"
+CAL_FIXTURE = REAL_CAL if REAL_CAL.exists() else SYNTH_CAL
+
+
 @pytest.fixture
-def cal(asset_dir):
-    """加载测试用交易日历;复用 session 级 asset_dir fixture"""
+def cal():
+    """加载测试用交易日历(优先真实 tushare 数据)"""
+    if not CAL_FIXTURE.exists():
+        pytest.skip(f"calendar fixture missing: {CAL_FIXTURE}")
     c = Calendar()
-    c.load(asset_dir / "baseline_calendar.parquet")
+    c.load(CAL_FIXTURE)
     return c
 
 

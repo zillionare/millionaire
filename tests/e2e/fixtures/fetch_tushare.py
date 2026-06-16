@@ -387,9 +387,15 @@ def main(output_dir: str) -> None:
         limit_df.to_parquet(limit_path, index=False)
         print(f"limit rows: {len(limit_df)} → {limit_path}", flush=True)
 
-    # 4. Calendar(从 daily 推)
+    # 4. Calendar(从 daily 推;带 prev 列,与 baseline_calendar.parquet 同 schema)
     cal_df = daily_df[["date"]].drop_duplicates().sort_values("date").reset_index(drop=True)
     cal_df["is_open"] = 1
+    cal_df["prev"] = cal_df["date"].shift(1)
+    cal_df["prev"] = cal_df["prev"].fillna(cal_df["date"] - pd.Timedelta(days=1))
+    # Calendar.load() 需要 date 类型而非 datetime
+    cal_df["date"] = pd.to_datetime(cal_df["date"]).dt.date
+    cal_df["prev"] = pd.to_datetime(cal_df["prev"]).dt.date
+    cal_df = cal_df[["is_open", "prev", "date"]]
     cal_path = output_path / "real_calendar.parquet"
     cal_df.to_parquet(cal_path, index=False)
     print(f"calendar dates: {len(cal_df)} → {cal_path}", flush=True)
