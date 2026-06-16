@@ -100,6 +100,8 @@ class StockList:
         """
         date = date or datetime.date.today()
         list_date = self.data.filter(pl.col("asset") == asset).item(0, "list_date")
+        if isinstance(list_date, datetime.datetime):
+            list_date = list_date.date()
 
         return max(0, (date - list_date).days)
 
@@ -210,19 +212,10 @@ class StockList:
         """
         from quantide.data.models.daily_bars import daily_bars
 
-        if not exclude_st:
-            date_text = date.isoformat()
-            filters = [
-                pl.col("delist_date").is_null()
-                | (pl.col("delist_date").dt.strftime("%F") > date_text)
-            ]
-            filters.append(pl.col("list_date").dt.strftime("%F") <= date_text)
-
-            result = self.data.filter(pl.all_horizontal(filters))["asset"].to_list()
-            return result
-
         lf = daily_bars.get_bars_in_range(date, date, eager_mode=False)
-        return lf.filter(~pl.col("is_st")).collect()["asset"].to_list()
+        if exclude_st:
+            return lf.filter(~pl.col("is_st")).collect()["asset"].to_list()
+        return lf.collect()["asset"].to_list()
 
     def sample(
         self, date: datetime.date, size: int, exclude_st: bool = True, seed: int = 42
