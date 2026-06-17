@@ -35,14 +35,32 @@
 
 ## 1. 策略框架外部契约(策略编写视角)
 
-策略**编写者**使用的接口(spec FR-010/011/012/013/020 直接约束):
+策略**编写者**使用的接口(spec FR-010/013/020 直接约束)。用户视角只有两个可继承基类：`BaseStrategy`（独立策略）与 `RiskStrategy`（风控策略）；二者均继承自抽象根 `Strategy`（用户不直接继承）。
 
-### 1.1 `BaseStrategy`(FR-010)
+```
+                ┌─────────────────────────────┐
+                │      Strategy (抽象根)        │  ← 生命周期 + 声明 + 可观测
+                │      用户不直接继承            │     （可设为 ABC）
+                └────────────┬────────────────┘
+            ┌────────────────┴───────────────┐
+            ▼                                ▼
+   ┌─────────────────────┐         ┌─────────────────────┐
+   │    BaseStrategy     │         │    RiskStrategy     │
+   │   独立策略基类        │         │   风控策略基类        │
+   │ 账户·买卖·on_bar·数据 │         │ 宿主·卖出·on_check·数据│
+   └──────────▲──────────┘         └──────────▲──────────┘
+              │ 用户继承                        │ 用户继承
+       class MyStrategy(...)            class MyRiskStrategy(...)
+```
 
-类签名:
+> `RiskStrategy` 是 `BaseStrategy` 的**兄弟**而非子类——结构性地拿不到 `buy`/`positions`/`cash`，"风控只卖不买"由继承结构保证。
+
+### 1.1 `Strategy`(抽象根, FR-010)
+
+抽象根，承载所有策略共享的契约。用户不直接继承此类（可设为 ABC）。`BaseStrategy` 与 `RiskStrategy` 均继承自它。
 
 ```python
-class BaseStrategy:
+class Strategy(ABC):
     def __init__(self, broker: "Broker", config: dict[str, Any]) -> None: ...
     @staticmethod
     def default_config() -> dict[str, Any]: ...  # 默认返回 {}
@@ -56,26 +74,27 @@ class BaseStrategy:
     def record(self, key: str, value: float,
                dt: datetime.datetime | None = None,
                extra: dict | None = None) -> None: ...
-```
-
-**与现有实现的冲突点**:
-
-| 项 | spec | 现有 `quantide/core/strategy.py` | 决策 |
-|---|---|---|---|
-| `on_bar` 签名 | spec 不在 BaseStrategy 中(子类提供) | `BaseStrategy.on_bar(tm, quote, frame_type)` | **删除 `on_bar` from BaseStrategy**;挪到 DayStrategy/LiveStrategy,签名 `async def on_bar(self, tm: datetime.datetime) -> None`(纯时序,无 quote) |
-| `get_bars` 方法名 | spec `get_bars` | 现有 `get_history` | **重命名 `get_history` → `get_bars`**(保持签名一致) |
-| `default_config` | `@staticmethod`,返回 `dict[str, Any]` | 已匹配 | 保持 |
-| `__display_name__` | spec 元数据来源 | 未实现 | **新增支持**:`cls.__display_name__` 若存在则优先于 `__name__` |
-
-### 1.2 `DayStrategy`(FR-011)
-
-```python
-class DayStrategy(BaseStrategy):
-    async def on_bar(self, tm: datetime.datetime) -> None: ...
     def get_bars(self, asset: str, count: int,
                  end_dt: datetime.datetime | None = None,
-                 frame_type: str = "1d",
+                 frame_type: str = "1d",  # "1d" | "30m",运行时参数非类型
                  include_forming_bar: bool = True) -> pl.DataFrame: ...
+```
+
+**约束**:
+- `get_bars(frame_type)` 支持 `"1d" | "30m"`;其他 → `ValueError`
+- **可回测性是派生属性**：`frame_type="1d"` 的数据可回测；`"30m"` 等 live-only 粒度仅 paper/live 实时聚合。`BacktestRunner` 在策略调用 live-only 粒度时抛 `UnsupportedFrameTypeForBacktest`（运行时检查）
+- 资金从本策略 `portfolio_id` 账户扣减;`positions` / `cash` 只反映本账户（仅 BaseStrategy 有）
+- 调度路径由数据粒度决定：可回测粒度走 FR-230（回测→仿真→实盘）；live-only 粒度走 FR-240（仿真→实盘）
+
+> **决策驱动钩子不在抽象根**：`on_bar`（时序，BaseStrategy 专有）与 `on_check`（事件，RiskStrategy 专有）语义不同，分属两个基类，不上提。
+
+### 1.2 `BaseStrategy`(独立策略, FR-010)
+
+独立策略基类。在 `Strategy` 之上扩展账户、交易、决策驱动三类能力。**`get_bars` 在抽象根已定义，独立策略继承即可，不再重复**。
+
+```python
+class BaseStrategy(Strategy):
+    async def on_bar(self, tm: datetime.datetime) -> None: ...  # 唯一决策入口,默认 pass
     async def buy(self, asset: str, shares: int, price: float = 0,
                   order_time: datetime.datetime | None = None) -> "TradeResult": ...
     # buy_percent / buy_amount / sell / sell_percent / sell_amount 同形
@@ -89,55 +108,37 @@ class DayStrategy(BaseStrategy):
 ```
 
 **约束**:
-- `get_bars(frame_type="1d")` 接受唯一合法值;非 `"1d"` → 抛 `ValueError("frame_type must be '1d' for DayStrategy, got: {value}")`
+- **类层不存在** `get_ticks` / `get_prices` / `sell_host_position` / `on_check`——由继承结构保证（`BaseStrategy` 继承 `Strategy` 而非 `RiskStrategy`），非运行时检查
 - 资金从本策略 `portfolio_id` 账户扣减;`positions` / `cash` 只反映本账户
-- 必须从回测开始才能进入仿真/实盘(FR-230 调度路径,运行时校验)
+- 调度路径由数据粒度决定：可回测粒度走 FR-230（回测→仿真→实盘）；live-only 粒度走 FR-240（仿真→实盘）
 
-**关联 AC**: AC-011-01 ~ 04
+**关联 AC**: AC-010-01 ~ 04
 
-### 1.3 `LiveStrategy`(FR-012)
+### 1.3 `RiskStrategy`(风控策略, FR-013)
 
-```python
-class LiveStrategy(BaseStrategy):
-    async def on_day_open(self, tm: datetime.datetime) -> None: ...  # 选股/预处理
-    async def on_bar(self, tm: datetime.datetime) -> None: ...     # 多周期
-    def get_bars(self, asset: str, count: int,
-                 end_dt: datetime.datetime | None = None,
-                 frame_type: str = "30m",  # 默认 30m
-                 include_forming_bar: bool = True) -> pl.DataFrame: ...
-    # 交易/查询接口与 DayStrategy 完全相同
-```
-
-**约束**:
-- `frame_type` 支持 `"30m" | "1d"`;其他 → `ValueError`
-- 不可被 `BacktestRunner` 接受:类型保证,由调度器在加载期拒绝
-- 数据来源:30m 由框架基于 qmt-gateway tick 缓存聚合(2025 年最后 2 个交易日,见 test-plan §1.1.2)
-
-**关联 AC**: AC-012-01 ~ 04
-
-### 1.4 `RiskStrategy`(FR-013)
+风控策略基类，`BaseStrategy` 的**兄弟**（均继承自 `Strategy`）。**不继承 BaseStrategy**，因此类层无 `buy` / `positions` / `cash` / `get_bars`（`get_bars` 从抽象根继承）。
 
 ```python
-class RiskStrategy(BaseStrategy):
-    # 无 buy / sell / positions / cash
-    async def on_day_open(self, tm: datetime.datetime) -> None: ...  # 读前一日可卖持仓
+class RiskStrategy(Strategy):  # 兄弟类,非 BaseStrategy 子类
+    # 无 buy / sell / positions / cash（继承结构保证）
     async def on_check(self, positions: dict[str, "Position"],
-                       tm: datetime.datetime) -> None: ...  # tick 触发
-    def get_ticks(self, asset: str, count: int) -> pl.DataFrame: ...
+                       tm: datetime.datetime) -> None: ...  # tick/事件触发,默认 pass
     def get_prices(self, assets: list[str]) -> dict[str, float]: ...
+    def get_ticks(self, asset: str, count: int) -> pl.DataFrame: ...
     async def sell_host_position(self, asset: str, shares: int,
                                  reason: str) -> "TradeResult": ...
 ```
 
 **约束**:
-- **类层不暴露** `buy` / `sell` / `buy_amount` / `sell_percent` 等交易接口(通过类结构保证,非运行时检查)
+- **类层不暴露** `buy` / `sell` / `buy_amount` / `sell_percent` / `positions` / `cash`——由继承结构保证（`RiskStrategy` 继承 `Strategy` 而非 `BaseStrategy`），非运行时检查
 - **无 `portfolio_id`**;`positions` / `cash` 属性访问抛 `AttributeError`
-- 不可独立运行;必须绑定宿主 DayStrategy 或 LiveStrategy
-- 宿主进入 paper/live 时自动激活;宿主停止时一并停止
+- 不可独立运行;必须绑定一个宿主 `BaseStrategy`。绑定关系在运行配置中建立（可热调），不在策略代码中以类属性声明
+- 宿主进入 paper/live 时自动激活;宿主停止时一并停止;可随时单独停止/重新启动（每次重启记一个新"开启区间"，超额收益按区间独立累计，FR-013/FR-360）
+- **可回测**：⏸ 暂缓（v0.2 不强制风控可回测；是否回测由风控自身是否依赖 `get_prices` / `get_ticks` 等 live-only 数据决定；详见 FR-013 §回测状态）
 
 **关联 AC**: AC-013-01 ~ 05
 
-### 1.5 枚举契约(FR-020)
+### 1.4 枚举契约(FR-020)
 
 枚举函数(框架内部,黑盒测试通过 §2 API 触发):
 
@@ -154,7 +155,7 @@ class StrategyMetadata:
     strategy_id: str                # f"{module}.{class_name}"
     name: str                       # __display_name__ or __name__
     description: str                # docstring 首行
-    strategy_type: Literal["day", "live", "risk"]  # 由最终基类推导
+    strategy_type: Literal["independent", "risk"]  # 由最终基类推导: BaseStrategy→independent, RiskStrategy→risk
     module: str
     is_builtin: bool
     default_config: dict[str, "ParamSpec"]
@@ -528,16 +529,18 @@ class EnumerationResult:
 | code | HTTP | 触发场景 | 关联 AC |
 |---|---|---|---|
 | `STRATEGY_NOT_FOUND` | 404 | API 查询不存在 strategy_id | — |
-| `INVALID_FRAME_TYPE` | 400 | DayStrategy 调用 `get_bars(frame_type="30m")` | AC-011-03 |
+| `INVALID_FRAME_TYPE` | 400 | `get_bars(frame_type)` 取值不在 `{"1d", "30m"}` 之内 | AC-010-XX |
+| `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` | 400/409 | 回测模式下 `get_bars(frame_type != "1d")` 抛（运行时检查） | AC-010-XX |
 | `INVALID_RANGE` | 400 | 交易日历 `start > end` | AC-014-03 |
 | `ASSET_NOT_FOUND` | 404 | `get_name` 资产代码不存在 | — |
 | `RISK_NO_ACCOUNT` | 400/422 | RiskStrategy 访问 `positions` / `cash` | AC-013-01 |
 | `RISK_NOT_BOUND` | 422 | RiskStrategy 启动时未绑定宿主 | AC-013-05 |
 | `RISK_NO_BUY_API` | 400/422 | RiskStrategy 调用 buy 类方法 | AC-013-02 |
-| `LIVE_NOT_BACKTESTABLE` | 422 | LiveStrategy 提交给 BacktestRunner | AC-012-01 |
 | `ENUMERATION_FAILED` | 500 | 不可恢复的枚举错误 | AC-020-12 |
 
-> 注:`LIVE_NOT_BACKTESTABLE` 应在调度路径加载期拒收,非运行时;在 API 路径则 422 表示"语义不允许"。
+> 注:`UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` 是 `RuntimeError` 子类，仅在 BacktestRunner 上下文抛出；paper/live 不受影响。
+
+> **⏸ 暂缓**：风控策略回测语义未固化前，`get_prices` / `get_ticks` 在回测下的行为不写进错误码表（不抛错还是返回模拟值由实现层决定）。
 
 ## 5. 日志条目类型(从 test-plan §3.1.3 细化)
 
@@ -561,14 +564,16 @@ class EnumerationResult:
 
 | # | 冲突点 | spec 决定 | 现有实现 | 处理 |
 |---|---|---|---|---|
-| C1 | `BaseStrategy.on_bar` | 不在 BaseStrategy | 已实现 in BaseStrategy | **删除 BaseStrategy.on_bar**;挪到 DayStrategy/LiveStrategy |
+| C1 | `BaseStrategy.on_bar` | 不在 BaseStrategy(子类专有) | 已实现 in BaseStrategy | **删除 BaseStrategy.on_bar**;挪到 BaseStrategy 子类的默认实现 |
 | C2 | `on_bar` 签名 | `on_bar(tm)` 纯时序 | `on_bar(tm, quote, frame_type)` | **重写** |
-| C3 | 数据方法名 | `get_bars` | `get_history` | **重命名** `get_history` → `get_bars` |
-| C4 | 策略类分层 | DayStrategy/LiveStrategy/RiskStrategy | 仅 BaseStrategy + DualMAStrategy(直接继承) | **新增三个子类**;DualMAStrategy 改为继承 DayStrategy |
+| C3 | 数据方法名 | `get_bars` 在 `Strategy` 抽象根 | `get_history` in BaseStrategy | **重命名** `get_history` → `get_bars`;**上移**到抽象根 |
+| C4 | 策略类分层 | `BaseStrategy` + `RiskStrategy`(兄弟,均继承 `Strategy`) | 仅 BaseStrategy + DualMAStrategy(直接继承) | **新增 `RiskStrategy`;新增 `Strategy` 抽象根**;DualMAStrategy 改为继承 BaseStrategy |
 | C5 | 策略目录默认 | spec 不硬定路径 | `~/.millionaire/strategies/` | 现有实现保留可配置;spec 兼容(只要默认指向内置示例即满足 AC-020-01) |
 | C6 | `default_config` UI 展示字段 | spec 要求元数据 schema | 现有仅返回原始 dict | **增强**:在枚举时把 dict 转 `dict[str, ParamSpec]` |
 | C7 | SDK 元数据(FR-014/015) | spec 接口 | 已在 `data/models/` 实现 | **对齐**:验证签名/返回类型与 spec 一致 |
 | C8 | 测试数据 | spec 要 2023-2025, 105 标的 | 现有 `assets/baselines/dual_ma_2024.backtest.json` 用 2024 | **保留现有作为最小子集**;逐步扩展到 105 个 |
+| C9 | `get_prices` / `get_ticks` 归属 | 仅 `RiskStrategy` | 现有未实现 | **新建**于 `RiskStrategy` 专有;**类层不存在**于 `BaseStrategy`(继承结构保证) |
+| C10 | 风控回测语义 | ⏸ 暂缓(FR-013 §回测状态) | 现有未实现 | **不固化**到 spec;实现层决定 |
 
 ### 6.2 未识别冲突(实施时跟踪)
 
@@ -588,3 +593,10 @@ class EnumerationResult:
   - §4 异常表(集中 spec 散落的错误场景)
   - §5 日志条目(细化 test-plan §3.1.3)
   - §6 冲突清单(基线 8 项)
+- **2026-06-17 (本轮)**: 对齐 spec.md 的"数据方法上提 / 下移"决策
+  - §1.1 `Strategy` 加 `get_bars` 签名
+  - §1.2 `BaseStrategy` 移除 `get_bars`(已上提);类别从"四类"改为"三类"
+  - §1.3 `RiskStrategy` 保留 `get_prices` / `get_ticks`(已明确归属)
+  - §4 异常表加 `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST`;移除 `LIVE_NOT_BACKTESTABLE` 与 `RISK_NO_BUY_API`(因 FR-011/012 删除);`INVALID_FRAME_TYPE` 关联 AC 改 AC-010-XX
+  - §6 加 C9(数据方法归属)/ C10(风控回测 暂缓);更新 C1/C2/C3/C4 措辞以反映新分层
+  - §4 注:`get_prices` / `get_ticks` 在回测下的行为 ⏸ 暂缓,不进错误码表
