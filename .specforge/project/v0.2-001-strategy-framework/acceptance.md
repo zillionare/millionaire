@@ -15,92 +15,85 @@
 ### FR-010 策略对象模型与 SDK 暴露
 
 #### AC-010-01 策略类型分层可被识别
-- ⬜ 用户编写一个继承 `DayStrategy` / `LiveStrategy` / `RiskStrategy` 并实现 `default_config()` 的类 → 框架扫描后识别为合法策略
-- ⬜ 直接继承 `BaseStrategy` 的类 → 不被识别为可调度策略（`BaseStrategy` 为抽象基类）
-- ⬜ 未继承 `BaseStrategy` 的类 → 不被识别为策略
+- ⬜ 用户编写一个继承 `BaseStrategy`（独立策略）或 `RiskStrategy`（风控策略）并实现 `default_config()` 的类 → 框架扫描后识别为合法策略
+- ⬜ 直接继承 `Strategy` 抽象根的类 → 不被识别为可调度策略（`Strategy` 为抽象根，用户不直接继承）
+- ⬜ 未继承 `Strategy` / `BaseStrategy` / `RiskStrategy` 的类 → 不被识别为策略
 
-#### AC-010-02 BaseStrategy 生命周期钩子按顺序触发
+#### AC-010-02 生命周期钩子按顺序触发
 - ⬜ 一次完整运行的调用顺序为：`init()` → `on_start()` → [`on_day_open()` → … → `on_day_close()`] × D 天 → `on_stop()`
 - ⬜ `init()` / `on_start()` / `on_stop()` 各只调用一次
 - ⬜ `on_day_open()` / `on_day_close()` 每个交易日各调用一次
-- ⬜ `on_bar` 不在 BaseStrategy 中；仅 DayStrategy/LiveStrategy 子类提供（见 FR-011/012）
+- ⬜ `init`/`on_start`/`on_stop`/`on_day_open`/`on_day_close` 在 `Strategy` 抽象根定义（两个基类均继承）
+- ⬜ `on_bar(tm)` 在 `BaseStrategy` 专有定义（独立策略决策入口）
+- ⬜ `on_check(positions, tm)` 在 `RiskStrategy` 专有定义（风控策略事件入口）
 
-#### AC-010-03 BaseStrategy 辅助接口可用
+#### AC-010-03 辅助接口可用
 - ⬜ 策略覆盖 `default_config()` 返回 `{"fast": 5, "slow": 20}` → 框架扫描时读取参数列表与默认值
 - ⬜ 策略未覆盖 `default_config()` → 默认返回 `{}`，框架识别为无参数策略
 - ⬜ 策略调用日志接口 → 输出日志，时间戳默认为仿真时间而非系统时间
 - ⬜ 策略调用指标记录接口 → 数据可在后续分析/可视化中使用
+- ⬜ `get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True) → pl.DataFrame` 在 `Strategy` 抽象根定义（两个基类均可用）
+- ⬜ 策略调用 `get_bars(frame_type="1d")` → 4 模式可用（回测/仿真/实盘/dry-run）
+- ⬜ 策略调用 `get_bars(frame_type="30m")` → 回测模式下抛 `UnsupportedFrameTypeForBacktest`；paper/live 正常返回 30m 数据
+- ⬜ 独立策略（`BaseStrategy` 子类）调用 `get_prices` / `get_ticks` → 类层**不存在**该方法（继承结构保证，非运行时拦截）
+- ⬜ 风控策略（`RiskStrategy` 子类）调用 `get_prices(assets)` → 返回 `dict[str, float]`
+- ⬜ 风控策略（`RiskStrategy` 子类）调用 `get_ticks(asset, count)` → 返回 `pl.DataFrame`
 
 #### AC-010-04 同一策略代码跨模式运行
-- ⬜ 同一份 DayStrategy 代码可分别在回测模式和仿真模式下成功运行完整生命周期（on_day_open → on_bar → on_day_close），无需任何代码修改
-- ⬜ 策略可达对象（BaseStrategy、Context、Broker）上不存在任何返回当前运行模式的方法（如 get_mode、is_backtest）
+- ⬜ 同一份 `BaseStrategy` 子类代码可分别在回测、仿真、实盘、dry-run 四种模式下成功运行完整生命周期（on_day_open → on_bar → on_day_close），无需任何代码修改
+- ⬜ 策略可达对象（Strategy、BaseStrategy、RiskStrategy、Context、Broker）上不存在任何返回当前运行模式的方法（如 get_mode、is_backtest）
 
 ---
 
-### FR-011 DayStrategy 结构契约（日线策略）
+### ~~FR-011 DayStrategy 结构契约（日线策略）~~ — ⏸ 已并入 FR-010
 
-#### AC-011-01 日线策略可被回测引擎接受
-- ⬜ 将 DayStrategy 实例提交给 BacktestRunner → 接受并正常运行
-- ⬜ DayStrategy 必须从回测开始才能进入仿真/实盘，不能直接启动 paper/live
+> **⏸ 暂缓**：原 FR-011 / FR-012 在 v0.2-001 修订中**合并**为单一 `BaseStrategy`（独立策略），由 `get_bars(frame_type)` 的运行时检查区分数据粒度。原 AC 全部迁移到 AC-010-03 / FR-115 相关条目。
 
-#### AC-011-02 on_bar 每个交易日驱动一次
-- ⬜ 一次完整回测中，`on_bar` 每个交易日恰好调用一次
-- ⬜ `on_bar` 调用时不携带行情数据（纯时序信号）
-
-#### AC-011-03 数据接口仅支持日线
-- ⬜ 策略调用 `get_bars` 且 `frame_type="1d"` → 正常返回日线数据
-- ⬜ 策略调用 `get_bars` 且 `frame_type="30m"` → 报错
-
-#### AC-011-04 交易接口归属独立账户
-- ⬜ 策略调用买入接口 → 订单归属本策略的 `portfolio_id`，资金从本策略账户扣减
-- ⬜ 策略查询 `positions` → 只返回本策略账户的持仓，不包含其他策略的持仓
-- ⬜ 策略查询 `cash` → 只返回本策略账户的可用资金
+#### ~~AC-011-01 日线策略可被回测引擎接受~~ → AC-010-03 + FR-115
+#### ~~AC-011-02 on_bar 每个交易日驱动一次~~ → FR-115
+#### ~~AC-011-03 数据接口仅支持日线~~ → AC-010-03（`get_bars` 抽象根契约）
+#### ~~AC-011-04 交易接口归属独立账户~~ → AC-010-03（`buy`/`positions`/`cash` 描述）
 
 ---
 
-### FR-012 LiveStrategy 结构契约（实时策略）
+### ~~FR-012 LiveStrategy 结构契约（实时策略）~~ — ⏸ 已并入 FR-010
 
-#### AC-012-01 实时策略不可回测（类型保证）
-- ⬜ 将 LiveStrategy 实例提交给 BacktestRunner → 被拒绝（类型层面拒绝，非运行时检查）
-- ⬜ LiveStrategy 可直接启动仿真或实盘
+> **⏸ 暂缓**：同 FR-011。原 AC 全部迁移。
 
-#### AC-012-02 数据接口支持多周期
-- ⬜ 策略调用 `get_bars` 且 `frame_type="30m"` → 返回**当日** 30 分钟线数据
-- ⬜ 策略调用 `get_bars` 且 `frame_type="1d"` → 返回日线数据
-- ⬜ 30m 数据由框架基于 tick 缓存聚合，策略拉取接口与日线完全一致
-
-#### AC-012-03 on_day_open 用于选股/预处理
-- ⬜ 每个交易日开盘前 `on_day_open` 被调用，策略可在此调用证券列表接口动态选股
-- ⬜ `on_day_open` 在 `on_bar` 之前被调用
-
-#### AC-012-04 交易接口与日线策略一致
-- ⬜ LiveStrategy 的交易/查询接口与 DayStrategy 完全相同
+#### ~~AC-012-01 实时策略不可回测（类型保证）~~ → AC-010-03（`UnsupportedFrameTypeForBacktest` 运行时检查）
+#### ~~AC-012-02 数据接口支持多周期~~ → AC-010-03
+#### ~~AC-012-03 on_day_open 用于选股/预处理~~ → FR-115
+#### ~~AC-012-04 交易接口与日线策略一致~~ → AC-010-03
 
 ---
 
 ### FR-013 RiskStrategy 结构契约（风控策略）
 
+> **⏸ 暂缓范围**：本节 AC 中与"风控可回测"相关的部分暂缓（FR-013 §回测状态未确定）。仅"结构性"AC 立即可验证（账户无/无 buy 接口/类层归属等）。
+
 #### AC-013-01 风控策略无独立账户
 - ⬜ 风控策略不创建 `portfolio_id`，不持有资金
-- ⬜ 风控策略无法访问 `positions` 或 `cash`（无自身账户）
+- ⬜ 风控策略**类层不存在** `positions` / `cash`（继承结构保证——`RiskStrategy` 继承 `Strategy` 而非 `BaseStrategy`）
 
 #### AC-013-02 只能卖出不能买入
 - ⬜ 风控策略可调用 `sell_host_position` → 订单写入宿主 `portfolio_id`，资金从宿主扣减
-- ⬜ 风控策略无买入接口（调用不存在或报错）
+- ⬜ 风控策略**类层不存在** `buy` / `buy_amount` / `buy_percent` / `sell`（除 `sell_host_position` 外）等买入/卖自己持仓的接口（继承结构保证，非运行时拦截）
 
 #### AC-013-03 只读访问宿主持仓
-- ⬜ 风控策略可查看宿主的持仓快照 → 只读，不可修改
+- ⬜ 风控策略可查看宿主的持仓快照（通过 `on_check(positions, ...)` 接收） → 只读，不可修改
+- ⬜ 风控策略**类层不存在** `positions`（属 BaseStrategy 专有）——通过 `on_check` 参数间接获得宿主持仓
 
-#### AC-013-04 tick 级数据接口可用
-- ⬜ 风控策略调用 `get_ticks` → 返回 tick 级行情数据
-- ⬜ 风控策略调用 `get_prices` → 返回当前价格
+#### AC-013-04 tick 级数据接口可用（风控专有）
+- ⬜ 风控策略调用 `get_ticks` → paper/live 返回 tick 级行情数据；**回测下的行为 ⏸ 暂缓**（实现层决定从 OHLC 派生，约束：价格 ∈ [min(O,L,C,H), max(O,L,C,H)]）
+- ⬜ 风控策略调用 `get_prices` → paper/live 返回当前价格；**回测下的行为 ⏸ 暂缓**
+- ⬜ **类层不存在** `get_prices` / `get_ticks` 于 `BaseStrategy`（独立策略拿不到这些方法）
 
 #### AC-013-05 宿主生命周期绑定
 - ⬜ 宿主进入 paper/live → 关联的 RiskStrategy 自动激活
 - ⬜ 宿主停止 → RiskStrategy 一并停止
-- ⬜ 单独停止 RiskStrategy → 不再监控，已发订单不撤回
-- ⬜ 将 RiskStrategy 传入 BacktestRunner → 启动时抛出类型错误
+- ⬜ 单独停止 RiskStrategy → 不再监控，已发订单不撤回；重新启动后开启新"开启区间"，超额收益按区间独立累计
 - ⬜ 尝试不带宿主账户直接启动 RiskStrategy → 抛出异常，提示必须绑定宿主
+- ⬜ **⏸ 暂缓**：RiskStrategy 提交给 BacktestRunner 的行为 / 风险策略可回测性 — 见 FR-013 §回测状态
 
 ---
 
@@ -270,7 +263,9 @@
 
 ### FR-125 风控策略驱动契约
 
-#### AC-125-01 tick 级独立驱动
+> **⏸ 暂缓范围**：本节 AC 中与"风控回测/Triple Barrier"相关的部分暂缓（FR-013 §回测状态未确定）。仅 paper/live 下的行为立即可验证。
+
+#### AC-125-01 tick 级独立驱动（paper/live）
 - ⬜ 风控策略的 `on_check` 由 tick 触发，与宿主的 `on_bar` 周期无关
 - ⬜ 宿主为日线策略（一天一次 `on_bar`）时，风控仍为 tick 级监控
 - ⬜ 宿主为实时策略（30m `on_bar`）时，风控同样为 tick 级监控
@@ -289,9 +284,10 @@
 - ⬜ 风控调用 `sell_host_position` → 即时市价成交，不延迟到次日开盘
 - ⬜ 标的当日跌停 → 卖单提交但无法成交，不阻塞后续标的的风控监控
 
-#### AC-125-05 超额收益记录
-- ⬜ 每次风控触发卖出后，系统记录超额收益事件（触发价、收盘价、收益率）
-- ⬜ N 日窗口内数据不足（如接近年末、尚未有 N 日收盘数据）→ 暂记为待回填，数据可用后更新最终值
+#### AC-125-05 超额收益记录 — ⏸ 暂缓
+- ⬜ ⏸ Triple Barrier 公式与"按开启区间切分"逻辑暂不固化（FR-013 §回测状态）
+- ⬜ ⏸ N 日窗口回填行为暂不写 acceptance
+- ⬜ ⏸ 等 FR-013 §回测状态确定后，本 AC 重新展开
 
 ---
 
@@ -300,3 +296,15 @@
 本文件中每条 AC 的验证,需通过 [spec.md NFR-050](./spec.md) 定义的可观测点(结构化日志 / 数据存盘文件 / 数据库表 / Web API)完成。完整的观测点清单见 [test-plan.md §3.1](./test-plan.md)。
 
 凡 AC 涉及的内部状态,实现层**必须**提供对应可观测出口;此为 PR 评审的强制 checklist。
+
+---
+
+## 变更记录
+
+- **2026-06-17 初稿**: 编写 FR-010 ~ FR-020 的验收条目
+- **2026-06-17 (本轮)**:
+  - AC-010-01/02/03/04: 适配 Strategy 抽象根 / BaseStrategy 兄弟结构 / 风控数据方法下移
+  - AC-011-XX / AC-012-XX: 整段标"⏸ 已并入 FR-010",原 AC 迁移到 AC-010-03 / FR-115
+  - AC-013-XX: 标记回测相关条目 ⏸ 暂缓(FR-013 §回测状态)
+  - AC-125-05: ⏸ 暂缓(Triple Barrier 公式未固化)
+  - 新增 AC-010-03 子条目: `get_bars` 在抽象根 + `UnsupportedFrameTypeForBacktest` + 类层归属保证
