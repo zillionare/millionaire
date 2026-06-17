@@ -512,17 +512,19 @@ tests/e2e/
 | FR-010 | AC-010-01 ~ 04 | 枚举端点 + 策略接口 + 缓存 | §2.6 数据本身 |
 | FR-011 | ⏸ 暂缓（已并入 FR-010） | — | — |
 | FR-012 | ⏸ 暂缓（已并入 FR-010） | — | — |
-| FR-013 | AC-013-01 ~ 05(回测部分 ⏸ 暂缓) | 风控事件 DB + 超额收益 DB + tick 日志 | §2.5 风控 |
-| FR-014 | AC-014-01 ~ 04 | 日历 API + 日历 Parquet | §2.6.1 日历 |
+| FR-013 | AC-013-01 ~ 05 | 风控事件 DB + 超额收益 DB + tick 日志 + BacktestRunner 拒绝启动 | §2.5 风控 |
+| FR-014 | AC-014-01 ~ 05 | 日历 API + 日历 Parquet | §2.6.1 日历 |
 | FR-015 | AC-015-01 ~ 04 | 证券列表 API + 证券列表 Parquet | §2.6.2 证券列表 |
 | FR-020 | AC-020-01 ~ 15 | 枚举端点 + 缓存 + skipped diagnostics + 日志 | §2.6 数据本身 |
 | FR-185 | ⏸ 暂缓（占位说明） | — | — |
+| FR-360 | AC-360-01 ~ 03 | 风控评估 DB (`activation_id` 持久化) + Triple Barrier 公式 + N 日窗口回填 | §2.5 风控 |
 
 每个 AC 至少 1 个测试用例;负面/边界 AC 至少 1 个负面测试。
 
 > **⏸ 暂缓项说明**:
 > - **FR-011/FR-012**: 已在 v0.2-001 修订中合并入 FR-010（独立策略 = 单一 `BaseStrategy`，数据粒度由 `get_bars(frame_type)` 区分）。原 AC 迁移到 AC-010-03。
-> - **FR-013 回测部分**: 风控策略可回测性 ⏸ 暂缓（见 spec FR-013 §回测状态）。`get_prices` / `get_ticks` 在回测下的行为由实现层决定。
+> - **FR-013 风控可回测性**: 已决定（v0.2 **不支持** RiskStrategy 回测,见 spec FR-013）。`get_prices` / `get_ticks` 仅 paper/live 可用;BacktestRunner 检测到 RiskStrategy 实例则拒绝启动。
+> - **FR-360 风控评估**: 已解除 ⏸ 暂缓（2026-06-17）。评估仅在 paper/live 下进行;AC-360-01 ~ 03 已写。
 > - **FR-185 加权均价算法**: 占位说明，acceptance 待 v0.2 review 单独决定。
 
 ---
@@ -539,16 +541,15 @@ tests/e2e/
 
 - v0.2-002-ui 的 UI 渲染细节(转给 002-ui test plan)
 - v0.2-001-strategy-framework 中尚未写 acceptance 的 FR:
-  - FR-115 / FR-125(驱动契约;AC-125-05 ⏸ 暂缓)
-  - FR-130(风控契约;⏸ 暂缓)
-  - FR-360(风控评估;⏸ 暂缓)
+  - FR-115 / FR-125(驱动契约)
+  - FR-130(风控契约)
   - FR-140 ~ FR-470(交易规则 / 调度 / 数据源 / 评估指标 / 安装)
   - FR-185(加权均价算法;⏸ 暂缓)
   - 这些 FR 的 acceptance 落地后,test plan 需补充对应章节
 - 性能 NFR(NFR-010 / NFR-020 / NFR-030 / NFR-040)— 独立 perf plan
 - 真实 qmt-gateway 联调 — 联调 plan
 - 真实行情实时性测试 — 在线 plan
-- **风控策略回测验证**(FR-013 §回测状态未确定) — 另立 plan
+- **风控策略回测验证**: v0.2 不支持(已决定),无相关测试
 
 ---
 
@@ -605,8 +606,10 @@ acceptance 中标注为声明性或基于假设的 AC,在 test plan 中需要**�
 | Ground truth | 手算 + empyrical | 不硬编码期望值;empyrical 是独立算法实现 |
 | 黑盒视角 | 外部契约可观测,内部不可观测 | 测试与实现解耦 |
 | `get_bars` 归属 | `Strategy` 抽象根(所有策略) | 抽象根定义数据接口;子类继承 |
-| `get_prices` / `get_ticks` 归属 | `RiskStrategy` 专有(类层) | 兄弟类结构保证独立策略拿不到 |
-| 风控回测语义 | ⏸ 暂缓(FR-013 §回测状态) | 避免固化未定的回测实现细节 |
+| `get_prices` / `get_ticks` 归属 | `RiskStrategy` 专有(类层) | 兄弟类结构保证独立策略拿不到;仅 paper/live 可用 |
+| 风控可回测性 | ❌ 否 (v0.2 不支持) | BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝;仅 paper/live 评估 |
+| Triple Barrier 公式 | ✅ 已固化 (FR-013) | P_sell × (1+up) / P_sell × (1-down) / N 日内未触发按 Close_N 退出 |
+| 按开启区间切分 | ✅ 已固化 (FR-013/FR-360) | stop → start 分配新 `activation_id`;区间内 `excess_return` 独立累计 |
 | 加权均价(FR-185) | ⏸ 暂缓(占位说明) | 算法待 v0.2 review 单独决定 |
 
 ## 附录 B — 相关文档
