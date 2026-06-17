@@ -37,3 +37,4 @@ class StrategyInfo(Entity):
     params: str = ""  # 参数配置(JSON)
     scan_dir: str = ""  # 扫描目录
     scanned_at: datetime = field(default_factory=datetime.now)
+    strategy_type: str = "independent"  # "independent" | "risk"

@@ -197,3 +197,16 @@ class InsufficientPosition(TradeError):
             security,
             amount
         )
+
+
+class UnsupportedFrameTypeForBacktest(RuntimeError):
+    def __init__(self, frame_type: str):
+        super().__init__(f"Unsupported frame_type '{frame_type}' for backtest")
+        self.frame_type = frame_type
+
+
+class RiskStrategyNotBacktestable(RuntimeError):
+    def __init__(self, strategy_id: str = ""):
+        msg = f"RiskStrategy '{strategy_id}' is not backtestable" if strategy_id else "RiskStrategy is not backtestable"
+        super().__init__(msg)
+        self.strategy_id = strategy_id

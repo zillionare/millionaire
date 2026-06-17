@@ -11,7 +11,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from quantide.core.strategy import BaseStrategy
+from quantide.core.strategy import BaseStrategy, RiskStrategy, Strategy
 from quantide.data.models.strategy_config import StrategyConfig, StrategyInfo
 from quantide.data.sqlite import db
 
@@ -46,7 +46,7 @@ class StrategyLoader:
     """管理策略扫描、缓存与内置示例复制。"""
 
     def __init__(self) -> None:
-        self._strategies: dict[str, type[BaseStrategy]] = {}
+        self._strategies: dict[str, type[Strategy]] = {}
         self._builtin_example_dir = (
             Path(__file__).resolve().parents[1] / "strategies" / "example"
         ).resolve()
@@ -114,7 +114,7 @@ class StrategyLoader:
         db["strategy_config"].upsert(config.to_dict(), pk="key")
         logger.info(f"Scan directory set to: {directory}")
 
-    def load_from_cache(self) -> dict[str, type[BaseStrategy]]:
+    def load_from_cache(self) -> dict[str, type[Strategy]]:
         """从数据库缓存加载策略"""
         self._strategies = {}
 
@@ -138,14 +138,14 @@ class StrategyLoader:
 
                     # 获取策略类
                     strategy_class = getattr(module, class_name, None)
-                    if (
-                        strategy_class
-                        and inspect.isclass(strategy_class)
-                        and issubclass(strategy_class, BaseStrategy)
-                        and strategy_class is not BaseStrategy
-                    ):
-                        self._strategies[class_name] = strategy_class
-                        logger.debug(f"Loaded strategy from cache: {class_name}")
+                    if strategy_class and inspect.isclass(strategy_class):
+                        is_valid = (
+                            (issubclass(strategy_class, BaseStrategy) and strategy_class not in (BaseStrategy, Strategy))
+                            or (issubclass(strategy_class, RiskStrategy) and strategy_class not in (RiskStrategy, Strategy))
+                        )
+                        if is_valid:
+                            self._strategies[class_name] = strategy_class
+                            logger.debug(f"Loaded strategy from cache: {class_name}")
                 except Exception as e:
                     logger.error(f"Failed to load strategy from cache: {row.get('name', 'unknown')}: {e}")
 
@@ -157,7 +157,7 @@ class StrategyLoader:
     def scan_and_cache(
         self,
         workspace_path: str | None = None,
-    ) -> dict[str, type[BaseStrategy]]:
+    ) -> dict[str, type[Strategy]]:
         """扫描目录并缓存到数据库"""
         # 清空现有缓存
         self._clear_cache()
@@ -280,45 +280,44 @@ class StrategyLoader:
         strategies = []
 
         try:
-            # 尝试导入模块
             if module_name in sys.modules:
                 module = importlib.reload(sys.modules[module_name])
             else:
                 module = importlib.import_module(module_name)
 
             for name, obj in inspect.getmembers(module):
-                if (
-                    inspect.isclass(obj)
-                    and issubclass(obj, BaseStrategy)
-                    and obj is not BaseStrategy
-                ):
-                    # 提取策略信息
-                    file_path = inspect.getfile(obj)
+                if not inspect.isclass(obj):
+                    continue
+                is_base = issubclass(obj, BaseStrategy) and obj not in (BaseStrategy, Strategy)
+                is_risk = issubclass(obj, RiskStrategy) and obj not in (RiskStrategy, Strategy)
+                if not is_base and not is_risk:
+                    continue
+                file_path = inspect.getfile(obj)
+                params = {}
+                if hasattr(obj, "params") and obj.params:
+                    params = obj.params
+                strategy_type = "risk" if is_risk else "independent"
 
-                    # 获取参数信息
-                    params = {}
-                    if hasattr(obj, "params") and obj.params:
-                        params = obj.params
-
-                    strategy_info = StrategyInfo(
-                        name=name,
-                        module_path=module_name,
-                        file_path=file_path,
-                        description=getattr(obj, "__doc__", "") or "",
-                        version=getattr(obj, "version", "1.0.0"),
-                        params=json.dumps(params, ensure_ascii=False),
-                        scan_dir=scan_dir,
-                        scanned_at=datetime.now(),
-                    )
-                    strategies.append(strategy_info)
-                    logger.debug(f"Scanned strategy: {name} from {module_name}")
+                strategy_info = StrategyInfo(
+                    name=name,
+                    module_path=module_name,
+                    file_path=file_path,
+                    description=getattr(obj, "__doc__", "") or "",
+                    version=getattr(obj, "version", "1.0.0"),
+                    params=json.dumps(params, ensure_ascii=False),
+                    scan_dir=scan_dir,
+                    scanned_at=datetime.now(),
+                    strategy_type=strategy_type,
+                )
+                strategies.append(strategy_info)
+                logger.debug(f"Scanned strategy: {name} ({strategy_type}) from {module_name}")
         except Exception as e:
             # 不抛出异常，以免一个文件错误导致整个加载失败
             logger.debug(f"Failed to load module {module_name}: {e}")
 
         return strategies
 
-    def load(self, workspace_path: str | None = None) -> dict[str, type[BaseStrategy]]:
+    def load(self, workspace_path: str | None = None) -> dict[str, type[Strategy]]:
         """加载策略（优先从缓存）"""
         # 先尝试从缓存加载
         cached = self.load_from_cache()
