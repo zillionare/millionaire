@@ -1,7 +1,7 @@
 # Test Plan — v0.2-001-strategy-framework
 
 - **Spec ID**: v0.2-001-strategy-framework
-- **范围**: FR-010 / FR-011 / FR-012 / FR-013 / FR-014 / FR-015 / FR-020
+- **范围**: FR-010 / FR-013 / FR-014 / FR-015 / FR-020 (FR-011/012 在 spec v0.2-001 修订中删除, 见 acceptance.md / interfaces.md changelog)
 - **位置**: 与 [acceptance.md](./acceptance.md) 并列,与 [spec.md](./spec.md) 同源
 - **性质**: 黑盒测试方案 — 不依赖框架内部实现,只依赖外部可观测对象
 
@@ -340,11 +340,11 @@ return final_pnl, trades
 |---|---|---|
 | 策略枚举端点 | 触发枚举、返回元数据 | FR-020 |
 | 策略参数查询端点 | 返回 `default_config` 解析结果 | FR-010, FR-020 |
-| 回测启动端点 | 提交回测参数,返回 task_id | FR-011 |
-| 回测进度端点 | 查询进度、当前净值 | FR-011 |
-| 回测结果端点 | 查询最终结果(指标 + 净值曲线 + 交易明细) | FR-011 |
-| 账户查询端点 | 返回 cash / positions | FR-011/012/013 |
-| 委托/成交查询端点 | 返回历史委托/成交 | FR-011/012/013 |
+| 回测启动端点 | 提交回测参数,返回 task_id | FR-010 |
+| 回测进度端点 | 查询进度、当前净值 | FR-010 |
+| 回测结果端点 | 查询最终结果(指标 + 净值曲线 + 交易明细) | FR-010 |
+| 账户查询端点 | 返回 cash / positions | FR-010/013 |
+| 委托/成交查询端点 | 返回历史委托/成交 | FR-010/013 |
 | 交易日历 API | `is_trade_day` / `get_trade_dates` 等 | FR-014 |
 | 证券列表 API | `stocks_listed` / `is_st` / `days_since_ipo` / `get_name` | FR-015 |
 
@@ -354,8 +354,8 @@ return final_pnl, trades
 |---|---|
 | 策略选择器 | FR-020 枚举结果可视化 |
 | 策略参数编辑表单 | FR-010 `default_config` 可视化 |
-| 启动回测表单 | FR-011 触发 |
-| 账户详情页 | FR-011/012/013 实时账户 |
+| 启动回测表单 | FR-010 触发 |
+| 账户详情页 | FR-010/013 实时账户 |
 | 风控事件列表 | FR-013 触发事件 |
 
 #### 3.1.3 日志条目类型
@@ -364,9 +364,9 @@ return final_pnl, trades
 |---|---|---|
 | `strategy.enumerated` | strategy_id, is_builtin, default_config_size | FR-020 枚举成功 |
 | `strategy.skipped` | path, class_name, reason, detail | FR-020 跳过 |
-| `backtest.started` | strategy_id, params, interval | FR-011 启动 |
-| `backtest.progress` | strategy_id, current_day, total_days | FR-011 进度 |
-| `backtest.completed` | strategy_id, metrics | FR-011 完成 |
+| `backtest.started` | strategy_id, params, interval | FR-010 启动 |
+| `backtest.progress` | strategy_id, current_day, total_days | FR-010 进度 |
+| `backtest.completed` | strategy_id, metrics | FR-010 完成 |
 | `risk.triggered` | asset, trigger_price, cost, reason, ts | FR-013 触发 |
 | `order.filled` | strategy_id, asset, qty, price | 撮合验证 |
 | `order.rejected` | strategy_id, asset, reason | 涨跌停/T+1 边界 |
@@ -375,8 +375,8 @@ return final_pnl, trades
 
 | 文件 | 格式 | 用途 |
 |---|---|---|
-| 回测结果 | JSON + Parquet | FR-011 完整结果 |
-| 虚拟账本快照 | Parquet/DB 表 | FR-011/012/013 账户 |
+| 回测结果 | JSON + Parquet | FR-010 完整结果 |
+| 虚拟账本快照 | Parquet/DB 表 | FR-010/013 账户 |
 | 委托明细 | Parquet/DB 表 | FR-140/150/160 规则验证 |
 | 成交明细 | Parquet/DB 表 | 撮合验证 |
 | 风控触发事件 | Parquet/DB 表 | FR-013/125 验证 |
@@ -389,9 +389,7 @@ return final_pnl, trades
 
 | FR | 主要观测点 |
 |---|---|
-| FR-010 策略对象模型 | 枚举端点 + 参数查询端点 + 枚举缓存文件 + 策略编写接口(`on_bar`/`default_config`) |
-| FR-011 DayStrategy | 回测启动/进度/结果端点 + 账户查询端点 + 委托/成交 DB + 日志 |
-| FR-012 LiveStrategy | 同 FR-011 + 30m 数据文件 + LiveStrategy 特有的端点 |
+| FR-010 策略对象模型 | 枚举端点 + 参数查询端点 + 枚举缓存文件 + 策略编写接口(`on_bar`/`default_config`) + 回测启动/进度/结果端点 + 账户/委托/成交 DB + 日志 |
 | FR-013 RiskStrategy | 风控触发事件 DB + 超额收益 DB + 宿主持仓查询端点 + tick 日志 |
 | FR-014 交易日历 | 日历 API + 日历缓存 Parquet + 单一日历文件 |
 | FR-015 证券列表 | 证券列表 API + 证券列表缓存 Parquet |
@@ -453,14 +451,14 @@ tests/e2e/
     │   ├── test_enumerate_mode_agnostic.py
     │   ├── test_default_config.py
     │   └── test_strategy_lifecycle.py
-    ├── backtest/                    # FR-011 DayStrategy 回测场景
+    ├── backtest/                    # FR-010 回测场景
     │   ├── test_backtest_acceptance.py
     │   ├── test_data_interface.py
     │   ├── test_account_isolation.py
     │   ├── test_matching.py         # 撮合规则(cheat-on-close / 次日开盘 / 限价)
     │   ├── test_evaluation_metrics.py  # Sharpe / 最大回撤 / 等
     │   └── test_t_plus_1.py         # T+1 与持仓记账
-    ├── live_strategy/               # FR-012 LiveStrategy 场景
+    ├── live_strategy/               # FR-010 实时(30m/live-only) 场景
     │   ├── test_live_strategy_rejection.py
     │   ├── test_multiframe_data.py
     │   └── test_paper_live_account.py
@@ -499,8 +497,8 @@ tests/e2e/
 | Scenario 目录 | 覆盖 FR | 主要 AC |
 |---|---|---|
 | `strategy_discovery/` | FR-010, FR-020 | AC-010-XX, AC-020-01 ~ 15 |
-| `backtest/` | FR-011 | AC-011-01 ~ 04 |
-| `live_strategy/` | FR-012 | AC-012-01 ~ 04 |
+| `backtest/` | FR-010 | (回测场景, 已被 acceptance.md FR-010 覆盖) |
+| `live_strategy/` | FR-010 | (实时场景, 已被 acceptance.md FR-010 覆盖) |
 | `risk_strategy/` | FR-013 | AC-013-01 ~ 05 |
 | `calendar/` | FR-014 | AC-014-01 ~ 04 |
 | `securities/` | FR-015 | AC-015-01 ~ 04 |
@@ -565,7 +563,6 @@ acceptance 中标注为声明性或基于假设的 AC,在 test plan 中需要**�
 以下 FR 当前**无 acceptance**,因此本 test plan **不覆盖**:
 
 - FR-115 日线策略驱动
-- FR-120 实时策略驱动
 - FR-125 风控策略驱动
 - FR-130 ~ FR-470
 
