@@ -292,12 +292,14 @@ return final_pnl, trades
 **手算**:
 - 触发条件:`close ≤ cost_basis × (1 + k/100)` → `9.4 ≤ 10 × 0.95 = 9.5` → 触发
 - 应清仓该标的全部可卖持仓(T+1 约束下)
-- 超额收益(N=0):`(sell_price - close_price_N) / sell_price` → 若以 close=9.4 卖出、收盘=9.4 → `(9.4 - 9.4)/9.4 = 0`
+- 超额收益(N=0):**Triple Barrier 公式**(详见 FR-013 / story §1.9; N=0 即当日收盘)
+  - 触发了 down 屏障 → `+down_threshold`(百分点,正数;因触发的是下界)
+  - 假设 down_threshold=5%(由策略 `default_config` 声明)→ `excess_return = +0.05`
 
 **测试做法**:
 - 构造 cost=10 的持仓
 - 输入当日 tick 数据触发 close ≤ 9.5
-- 跑框架,捕获:是否触发卖出、卖出价、超额收益事件
+- 跑框架,捕获:是否触发卖出、卖出价、超额收益事件(`excess_return = +down_threshold` 验证)
 - 与手算对比
 
 #### 2.5.2 回落卖出
@@ -500,7 +502,7 @@ tests/e2e/
 | `backtest/` | FR-010 | (回测场景, 已被 acceptance.md FR-010 覆盖) |
 | `live_strategy/` | FR-010 | (实时场景, 已被 acceptance.md FR-010 覆盖) |
 | `risk_strategy/` | FR-013 | AC-013-01 ~ 05 |
-| `calendar/` | FR-014 | AC-014-01 ~ 04 |
+| `calendar/` | FR-014 | AC-014-01 ~ 05 |
 | `securities/` | FR-015 | AC-015-01 ~ 04 |
 
 ---

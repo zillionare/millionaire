@@ -69,8 +69,8 @@ class Strategy(ABC):
     async def on_stop(self) -> None: ...
     async def on_day_open(self, tm: datetime.datetime) -> None: ...
     async def on_day_close(self, tm: datetime.datetime) -> None: ...
-    def log(self, msg: str, *, tm: datetime.datetime | None = None,
-            level: str = "INFO") -> None: ...
+    def log(self, msg: str, level: str = "INFO",
+            tm: datetime.datetime | None = None) -> None: ...
     def record(self, key: str, value: float,
                dt: datetime.datetime | None = None,
                extra: dict | None = None) -> None: ...
@@ -116,7 +116,7 @@ class BaseStrategy(Strategy):
 
 ### 1.3 `RiskStrategy`(风控策略, FR-013)
 
-风控策略基类，`BaseStrategy` 的**兄弟**（均继承自 `Strategy`）。**不继承 BaseStrategy**，因此类层无 `buy` / `positions` / `cash` / `get_bars`（`get_bars` 从抽象根继承）。
+风控策略基类，`BaseStrategy` 的**兄弟**（均继承自 `Strategy`）。**不继承 BaseStrategy**，因此类层无 `buy` / `positions` / `cash`(`get_bars` 从抽象根 `Strategy` 继承,**不**算 RiskStrategy 自有)。
 
 ```python
 class RiskStrategy(Strategy):  # 兄弟类,非 BaseStrategy 子类
@@ -259,9 +259,14 @@ class EnumerationResult:
 ```json
 {
   "strategy_id": "user.MyStrategy",
-  "default_config": { "fast": 5, "slow": 20 }
+  "default_config": {
+    "fast": { "name": "fast", "default": 5 },
+    "slow": { "name": "slow", "default": 20 }
+  }
 }
 ```
+
+`default_config` 是 `dict[str, ParamSpec]`(对齐 §1.4 ParamSpec schema 与 spec FR-020 元数据 schema)。
 
 **关联 AC**: AC-010-03
 
@@ -329,7 +334,7 @@ class EnumerationResult:
 
 按日期升序,不含周末与节假日。
 
-**关联 AC**: AC-014-01 ~ 04
+**关联 AC**: AC-014-01 ~ 05
 
 ### 2.4 证券列表 API(FR-015)
 
