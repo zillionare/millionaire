@@ -511,7 +511,7 @@ class EnumerationResult:
 | `barrier_hit` | `Literal["up", "down", "expire", null]` | 触发的屏障,数据不足时 `null` |
 | `close_price_n` | float \| null | N 日后收盘价(N=0 即当日);未触发屏障时使用 |
 | `n_window` | int | 窗口(默认 0,来自风控策略 `default_config()`) |
-| `excess_return` | float \| null | Triple Barrier 公式(见 FR-013 / story §1.9):<br>• `barrier_hit="up"` → `−1 * up_threshold`<br>• `barrier_hit="down"` → `+1 * down_threshold`<br>• `barrier_hit="expire"` → `P_sell / close_price_n − 1`<br>• 数据不足 → `null` |
+| `excess_return` | float \| null | Triple Barrier 公式(详见 [spec-trading.md F-TB-1 / F-TB-2 / F-TB-3](./spec-trading.md)):<br>• `barrier_hit="up"` → 应用 F-TB-1<br>• `barrier_hit="down"` → 应用 F-TB-2<br>• `barrier_hit="expire"` → 应用 F-TB-3<br>• 数据不足 → `null` |
 | `is_final` | bool | false=待回填, true=终值 |
 | `created_at` | datetime | |
 | `finalized_at` | datetime \| null | N=0 时 = `created_at`;N>0 时 = `trigger_ts + n_window` 日 |

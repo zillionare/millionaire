@@ -126,11 +126,11 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 
 > **超额收益公式 — Triple Barrier**（FR-013/FR-360 共用，story §1.9）—— **✅ 已固化**：
 >
-> 使用 Triple Barrier 方法计算每次触发的收益。从持仓卖出之日（`T0`）起，监控 `n` 日（`n` 可配置，默认 0），直到满足以下条件之一，结束监控并记该次贡献：
+> 使用 Triple Barrier 方法计算每次触发的收益。从持仓卖出之日（`T0`）起，监控 `n` 日（`n` 可配置，默认 0），直到满足以下条件之一，结束监控并记该次贡献:
 >
-> 1. 价格上涨到 `P_sell * (1 + up_threshold)` → 贡献 `−1 * up_threshold`
-> 2. 价格下跌到 `P_sell * (1 − down_threshold)` → 贡献 `+down_threshold`
-> 3. 直到 `T_n` 日，上述条件均未满足 → 按当日收盘价 `Close_n` 退出，贡献 `P_sell / Close_n − 1`
+> 1. 价格上涨到 `P_sell * (1 + up_threshold)` 屏障 → 贡献 `−1 * up_threshold`(详见 [spec-trading.md F-TB-1](./spec-trading.md))
+> 2. 价格下跌到 `P_sell * (1 − down_threshold)` 屏障 → 贡献 `+down_threshold`(详见 [spec-trading.md F-TB-2](./spec-trading.md))
+> 3. 直到 `T_n` 日，上述条件均未满足 → 按当日收盘价 `Close_n` 退出，贡献 `P_sell / Close_n − 1`(详见 [spec-trading.md F-TB-3](./spec-trading.md))
 >
 > **仿真/实盘**：以 last_price 先到者为准。
 > **N=0** 即当日收盘价。

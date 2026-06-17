@@ -253,7 +253,7 @@
 
 #### AC-360-01 评估维度齐全
 - ⬜ 每次风控触发卖出后,系统记录一条触发事件 `event_id`,字段含 `risk_strategy_id` / `host_strategy_id` / `asset` / `trigger_ts` / `trigger_price` / `reason`(`sell_host_position` 的 `reason` 参数)
-- ⬜ 每条事件计算 Triple Barrier 超额收益 `excess_return`(公式见 FR-013),`finalized_at = trigger_ts + n 日`;`n` 来自风控策略的 `default_config()`(策略作者在风控策略类中声明,默认 0 = 当日收盘)
+- ⬜ 每条事件计算 Triple Barrier 超额收益 `excess_return`(公式详见 [spec-trading.md F-TB-1 / F-TB-2 / F-TB-3](./spec-trading.md)),`finalized_at = trigger_ts + n 日`;`n` 来自风控策略的 `default_config()`(策略作者在风控策略类中声明,默认 0 = 当日收盘)
 - ⬜ 触发次数统计按 `risk_strategy_id` 聚合
 - ⬜ 触发原因分布按 `reason` 字段分组计数
 
@@ -296,7 +296,7 @@
 
 #### AC-125-05 超额收益事件记录
 - ⬜ 每次风控触发卖出后,系统记录一条 `excess_return` 事件,字段含 `sell_price` / `close_price_n` / `n_window` / `excess_return` / `activation_id` / `is_final`(字段定义见 [interfaces.md §3.7](./interfaces.md))
-- ⬜ Triple Barrier 公式按 FR-013 计算:`up` 触发记 `−up_threshold`,`down` 触发记 `+down_threshold`,N 日未触发记 `P_sell / Close_N − 1`,N=0 即当日收盘
+- ⬜ Triple Barrier 公式按 [spec-trading.md F-TB-1 / F-TB-2 / F-TB-3](./spec-trading.md) 计算:`up` 触发应用 F-TB-1,`down` 触发应用 F-TB-2,未触发应用 F-TB-3;N=0 即当日收盘
 - ⬜ N=0: 当日收盘价已知后立即计算并写入,`is_final = true`
 - ⬜ N>0: 初始记 `null`,N 日后(仿真/实盘时间)有收盘价时回填;`is_final` 在回填时设为 `true`;数据不足时暂记 `null` 可用后更新（详见 FR-360 AC-360-03）
 

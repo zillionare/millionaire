@@ -292,8 +292,8 @@ return final_pnl, trades
 **手算**:
 - 触发条件:`close ≤ cost_basis × (1 + k/100)` → `9.4 ≤ 10 × 0.95 = 9.5` → 触发
 - 应清仓该标的全部可卖持仓(T+1 约束下)
-- 超额收益(N=0):**Triple Barrier 公式**(详见 FR-013 / story §1.9; N=0 即当日收盘)
-  - 触发了 down 屏障 → `+down_threshold`(百分点,正数;因触发的是下界)
+- 超额收益(N=0):**Triple Barrier 公式**(详见 [spec-trading.md F-TB-2](./spec-trading.md); N=0 即当日收盘)
+  - 触发了 down 屏障 → 应用 F-TB-2:`+down_threshold`(百分点,正数;因触发的是下界)
   - 假设 down_threshold=5%(由策略 `default_config` 声明)→ `excess_return = +0.05`
 
 **测试做法**:
@@ -610,7 +610,7 @@ acceptance 中标注为声明性或基于假设的 AC,在 test plan 中需要**�
 | `get_bars` 归属 | `Strategy` 抽象根(所有策略) | 抽象根定义数据接口;子类继承 |
 | `get_prices` / `get_ticks` 归属 | `RiskStrategy` 专有(类层) | 兄弟类结构保证独立策略拿不到;仅 paper/live 可用 |
 | 风控可回测性 | ❌ 否 (v0.2 不支持) | BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝;仅 paper/live 评估 |
-| Triple Barrier 公式 | ✅ 已固化 (FR-013) | P_sell × (1+up) / P_sell × (1-down) / N 日内未触发按 Close_N 退出 |
+| Triple Barrier 公式 | ✅ 已固化 (F-TB-1/2/3, [spec-trading.md](./spec-trading.md)) | 屏障触发: ±threshold; 未触发: P_sell/Close_n - 1 |
 | 按开启区间切分 | ✅ 已固化 (FR-013/FR-360) | stop → start 分配新 `activation_id`;区间内 `excess_return` 独立累计 |
 | 加权均价(FR-185) | ⏸ 暂缓(占位说明) | 算法待 v0.2 review 单独决定 |
 
