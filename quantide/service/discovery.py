@@ -1,4 +1,4 @@
-"""策略扫描与内置示例管理。"""
+"""策略扫描与内置示例管理 (v0.2 spec)"""
 
 import importlib
 import inspect
@@ -12,7 +12,16 @@ from pathlib import Path
 from loguru import logger
 
 from quantide.core.strategy import BaseStrategy, RiskStrategy, Strategy
-from quantide.data.models.strategy_config import StrategyConfig, StrategyInfo
+from quantide.data.models.strategy_config import (
+    SKIP_INVALID_CONFIG,
+    SKIP_NOT_A_STRATEGY,
+    EnumerationResult,
+    ParamSpec,
+    SkippedEntry,
+    StrategyConfig,
+    StrategyInfo,
+    StrategyMetadata,
+)
 from quantide.data.sqlite import db
 
 
@@ -396,3 +405,194 @@ class StrategyLoader:
 
 
 strategy_loader = StrategyLoader()
+
+
+# ─────────────────── v0.2 spec FR-020 接口 ───────────────────
+
+
+_BUILTIN_MODULE_PREFIX = "quantide.examples"
+
+
+def _classify_strategy(cls) -> str | None:
+    """v0.2 spec: BaseStrategy 子类 → "independent", RiskStrategy 子类 → "risk"
+    排除 Strategy/BaseStrategy/RiskStrategy 自身.
+    """
+    from quantide.core.strategy import BaseStrategy, RiskStrategy, Strategy
+
+    if not inspect.isclass(cls):
+        return None
+    if cls is BaseStrategy or cls is RiskStrategy or cls is Strategy:
+        return None
+    try:
+        if issubclass(cls, RiskStrategy):
+            return "risk"
+        if issubclass(cls, BaseStrategy):
+            return "independent"
+    except TypeError:
+        return None
+    return None
+
+
+def _to_param_spec(params: dict) -> dict:
+    """v0.2 spec: default_config dict → dict[str, ParamSpec]"""
+    result = {}
+    for key, value in (params or {}).items():
+        result[key] = ParamSpec(
+            name=key,
+            default=value,
+            type_hint=None,
+            description=None,
+            constraints=None,
+        )
+    return result
+
+
+def _is_builtin_class(cls) -> bool:
+    """v0.2 spec: 框架包内 (quantide.*) 的类视为内置"""
+    module = getattr(cls, "__module__", "") or ""
+    return module.startswith("quantide.") and not module.startswith("quantide.examples.")
+
+
+def is_builtin_path(path: str | Path) -> bool:
+    """v0.2 spec: 路径在 quantide 框架包内视为内置目录"""
+    p = Path(path).expanduser().resolve()
+    quantide_root = Path(__file__).resolve().parent.parent
+    try:
+        p.relative_to(quantide_root)
+        return True
+    except ValueError:
+        return False
+
+
+def enumerate_strategies(
+    root: str | Path | None = None,
+    include_builtin: bool = True,
+) -> EnumerationResult:
+    """v0.2 spec FR-020: 枚举策略类
+
+    Args:
+        root: 用户策略目录 (None 表示未配置).
+        include_builtin: 是否包含内置策略.
+
+    Returns:
+        EnumerationResult(strategies, diagnostics).
+    """
+    strategies: list[StrategyMetadata] = []
+    diagnostics: list[SkippedEntry] = []
+
+    if root is None:
+        if include_builtin:
+            builtin_root = Path(__file__).resolve().parent.parent / "examples"
+            if builtin_root.exists():
+                result = _enumerate_dir(builtin_root, is_builtin=True)
+                strategies.extend(result[0])
+                diagnostics.extend(result[1])
+        return EnumerationResult(strategies=strategies, diagnostics=diagnostics)
+
+    root_path = Path(root).expanduser().resolve()
+    if not root_path.exists():
+        diagnostics.append(SkippedEntry(
+            path=str(root),
+            class_name=None,
+            reason="PermissionDenied",
+            detail=f"directory does not exist: {root}",
+        ))
+        return EnumerationResult(strategies=strategies, diagnostics=diagnostics)
+
+    user_strategies, user_diags = _enumerate_dir(root_path, is_builtin=False)
+    strategies.extend(user_strategies)
+    diagnostics.extend(user_diags)
+
+    if include_builtin:
+        builtin_root = Path(__file__).resolve().parent.parent / "examples"
+        if builtin_root.exists() and builtin_root.resolve() != root_path:
+            result = _enumerate_dir(builtin_root, is_builtin=True)
+            strategies.extend(result[0])
+            diagnostics.extend(result[1])
+
+    return EnumerationResult(strategies=strategies, diagnostics=diagnostics)
+
+
+def _enumerate_dir(
+    directory: Path, is_builtin: bool
+) -> tuple[list[StrategyMetadata], list[SkippedEntry]]:
+    """扫描单个目录,返回 (strategies, diagnostics)"""
+    strategies: list[StrategyMetadata] = []
+    diagnostics: list[SkippedEntry] = []
+
+    if not is_builtin:
+        sys.path.insert(0, str(directory))
+
+    for file in sorted(directory.iterdir()):
+        if not file.is_file() or not file.name.endswith(".py") or file.name.startswith("__"):
+            continue
+        file_path = file
+        try:
+            module_name = (
+                f"{_BUILTIN_MODULE_PREFIX}.{file.stem}" if is_builtin
+                else file.stem
+            )
+            if module_name in sys.modules:
+                module = importlib.reload(sys.modules[module_name])
+            else:
+                module = importlib.import_module(module_name)
+        except SyntaxError as e:
+            diagnostics.append(SkippedEntry(
+                path=str(file_path),
+                class_name=None,
+                reason="SyntaxError",
+                detail=f"line {e.lineno}: {e.msg}",
+            ))
+            continue
+        except (ImportError, ModuleNotFoundError) as e:
+            diagnostics.append(SkippedEntry(
+                path=str(file_path),
+                class_name=None,
+                reason="ImportError",
+                detail=str(e),
+            ))
+            continue
+        except Exception as e:
+            diagnostics.append(SkippedEntry(
+                path=str(file_path),
+                class_name=None,
+                reason="ModuleInitError",
+                detail=str(e),
+            ))
+            continue
+
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if obj.__module__ != module_name:
+                continue
+            strategy_type = _classify_strategy(obj)
+            if strategy_type is None:
+                diagnostics.append(SkippedEntry(
+                    path=str(file_path),
+                    class_name=name,
+                    reason=SKIP_NOT_A_STRATEGY,
+                    detail="class is not a BaseStrategy/RiskStrategy subclass",
+                ))
+                continue
+            try:
+                params = obj.default_config()
+            except Exception as e:
+                diagnostics.append(SkippedEntry(
+                    path=str(file_path),
+                    class_name=name,
+                    reason=SKIP_INVALID_CONFIG,
+                    detail=str(e),
+                ))
+                continue
+            strategy_id = f"{obj.__module__}.{name}"
+            strategies.append(StrategyMetadata(
+                strategy_id=strategy_id,
+                name=getattr(obj, "__display_name__", None) or name,
+                description=(obj.__doc__ or "").strip().split("\n", 1)[0] if obj.__doc__ else "",
+                strategy_type=strategy_type,
+                module=obj.__module__,
+                is_builtin=is_builtin,
+                default_config=_to_param_spec(params),
+                skipped_reasons=[],
+            ))
+
+    return strategies, diagnostics
