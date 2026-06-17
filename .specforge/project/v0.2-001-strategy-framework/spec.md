@@ -98,13 +98,17 @@ priority: P0
 
 | FR | 标题 | 锚点 | Issue |
 |---|---|---|---|
-| [FR-010](./spec-strategy.md#fr-010) | 策略对象模型与 SDK 暴露 | spec-strategy.md#fr-010 | [待建](#) |
-| [FR-013](./spec-strategy.md#fr-013) | RiskStrategy 结构契约 | spec-strategy.md#fr-013 | [待建](#) |
-| [FR-014](./spec-strategy.md#fr-014) | SDK 元数据接口 — 交易日历 | spec-strategy.md#fr-014 | [待建](#) |
-| [FR-015](./spec-strategy.md#fr-015) | SDK 元数据接口 — 证券列表 | spec-strategy.md#fr-015 | [待建](#) |
-| [FR-020](./spec-strategy.md#fr-020) | 自动发现策略 | spec-strategy.md#fr-020 | [待建](#) |
+| [FR-010](./spec-strategy.md#fr-010) | 策略对象模型与 SDK 暴露 | spec-strategy.md#fr-010 | [#55](https://github.com/zillionare/millionaire/issues/55) |
+| [FR-013](./spec-strategy.md#fr-013) | RiskStrategy 结构契约 | spec-strategy.md#fr-013 | [#56](https://github.com/zillionare/millionaire/issues/56) |
+| [FR-014](./spec-strategy.md#fr-014) | SDK 元数据接口 — 交易日历 | spec-strategy.md#fr-014 | [#57](https://github.com/zillionare/millionaire/issues/57) |
+| [FR-015](./spec-strategy.md#fr-015) | SDK 元数据接口 — 证券列表 | spec-strategy.md#fr-015 | [#58](https://github.com/zillionare/millionaire/issues/58) |
+| [FR-020](./spec-strategy.md#fr-020) | 自动发现策略 | spec-strategy.md#fr-020 | [#59](https://github.com/zillionare/millionaire/issues/59) |
 
-> **范围说明**: 本轮 Sage-Lex 流程只覆盖 FR-010 ~ FR-020 (含) 且有 acceptance 的 FR. FR-011/FR-012 编号保留但 spec 修订中已删, 不建 issue. 超出本范围的 FR (FR-115/125/130/360/185/190+ 等) 暂不建 issue, 等下一轮 review.
+> **Issue 格式** (Sage 决策, 2026-06-17):
+> - **Body**: `### 需求 ID` + `### Spec 链接` + **Spec 段落全文** (自包含, 不依赖外部文档)
+> - **第一条 reply**: `## 验收标准 (AC 列表)` 完整从 acceptance.md 复制, 每条 AC 带 `AC-1, AC-2, ...` 编号
+> - **关联 Project**: `Millionaire 0.2` (#5, 位于 zillionare user 下)
+> - **范围说明**: 本轮 Sage-Lex 流程只覆盖 FR-010 ~ FR-020 (含) 且有 acceptance 的 FR. FR-011/FR-012 编号保留但 spec 修订中已删, 不建 issue. 超出本范围的 FR (FR-115/125/130/360/185/190+ 等) 暂不建 issue, 等下一轮 review.
 
 ---
 

@@ -2,7 +2,7 @@
 
 - **Version**: v0.2
 - **Repo**: github.com/zillionare/millionaire
-- **Project**: specforge-v0.2 (#4, PVT_kwHOED0Dk84BZfh0)
+- **Project**: Millionaire 0.2 (#5, PVT_kwHOAG33KM4Ba79Q, 位于 zillionare user 下)
 - **Spec ID**: v0.2-001-strategy-framework
 - **Release Branch**: `releases/v0.2`（Scout 产生的全部上游产物都在该分支上；上游固定为 `main`）
 - **Test Issue**: #53 (closed) — Good First Issue: millionaire-v0.2
