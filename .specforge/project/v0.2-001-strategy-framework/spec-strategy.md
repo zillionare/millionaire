@@ -108,7 +108,7 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 风控策略的基类，继承自抽象根 `Strategy`。**与独立策略是结构性差异，不是"共享+约束"关系**：无账户、操作宿主持仓、只算超额收益。
 
 - **资金账户**：❌ 无。不创建 `portfolio_id`，不持有资金
-- **可回测**：⏸ 暂缓（v0.2 不强制要求风控可回测——风控是否可回测由其自身是否依赖 `get_prices`/`get_ticks` 等 live-only 数据决定；spec 不固化回测语义。详见 FR-013 § 回测状态）
+- **可回测**：❌ 否。v0.2 不支持 RiskStrategy 回测。BacktestRunner 在启动时检测到 RiskStrategy 实例则拒绝（类型层 / 启动检查，关联 AC-013-05）。风控策略仅在 paper/live 下验证
 - **不可独立 paper/live**：无宿主即无可监控的持仓；仅在宿主进入 paper/live 时由 FR-250 自动激活跟随。用户若想在 paper/live 阶段验证风控策略，必须先挂载到宿主
 - **宿主挂载**：每个 `RiskStrategy` 实例绑定一个宿主 `BaseStrategy`（独立策略）。宿主进入 paper/live 时，其关联的 `RiskStrategy` 自动激活（FR-250）。绑定关系在运行配置中建立（可热调），不在策略代码中以类属性声明
 - **可随时停止和重新启动**：停止后不再监控宿主持仓，已发出的订单不撤回；重新启动后开启新的"开启区间"，新开启区间的超额收益独立计算（见下方）
@@ -117,29 +117,25 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
   - `sell_host_position(asset, shares, reason)` — 卖出宿主持仓；订单写入**宿主** `portfolio_id`（资金从宿主扣减），不改变持仓归属（FR-130）；同时记一条风控触发事件（标的、触发价、原因）
   - 无买入接口（风控只卖不买，由继承结构保证而非运行时拦截）
 - **数据接口**（**仅风控可调用，独立策略不允许**）：
-  - `get_prices(assets: list[str]) → dict[str, float]` — 拿最新价（单点）。paper/live 下为最新 tick；回测下的语义⏸ 暂缓（实现层决定）
-  - `get_ticks(asset: str, count: int) → pl.DataFrame` — 拿最近 N 个 tick（完整序列）。paper/live 下为真实 tick；回测下从当根 K 线 OHLC 派生（具体派生规则见实现层；约束：价格 ∈ [min(O,L,C,H), max(O,L,C,H)]，时间戳 = 当根 K 线时间）
+  - `get_prices(assets: list[str]) → dict[str, float]` — 拿最新价（单点）。仅 paper/live 下可用（回测下 RiskStrategy 不可用）
+  - `get_ticks(asset: str, count: int) → pl.DataFrame` — 拿最近 N 个 tick（完整序列）。仅 paper/live 下可用
   - 上述两个方法**类层不存在**于 `BaseStrategy`，由"RiskStrategy 继承结构"保证独立策略不可调用（不是运行时拦截）
-- **驱动契约**：见 FR-125（事件驱动）。`on_check(positions, tm)` 由框架在每个 tick（paper/live）| bar （回测）触发，`positions` 为宿主当日可卖持仓快照（只读）
-- **评估指标**：⏸ 暂缓（与"可回测"状态绑定——回测语义未固化前不写 AC；等 FR-013 § 回测状态确定后再补）
+- **驱动契约**：见 FR-125（事件驱动）。`on_check(positions, tm)` 由框架在每个 tick（paper/live）触发，`positions` 为宿主当日可卖持仓快照（只读）
+- **评估指标**：✅ paper/live 下完整计算（见 FR-360）
 - **内置实现**：`DrawbackSellStrategy`（FR-100）、`CostStopStrategy`（FR-110）
 
-> **回测状态（⏸ 暂缓）**：风控策略的可回测性由策略自身决定。依赖 `get_ticks` / `get_prices` 等 live-only 数据的风控**只能** paper/live 验证，**不可**回测。回测下调用 `get_ticks` / `get_prices` 的具体行为由实现层决定（不固化到 spec）。Triple Barrier 公式与"按开启区间切分"逻辑暂缓固化，等回测语义确定后再写 acceptance。
-
-> **超额收益公式 — Triple Barrier**（FR-013/FR-360 共用，story §1.9）—— **⏸ 暂缓**：
-> 风控策略可回测性未固化前，Triple Barrier 公式仅作为**参考描述**（不写 acceptance 强制）。后续 FR-013 §回测状态确定后，再固化公式与边界。
+> **超额收益公式 — Triple Barrier**（FR-013/FR-360 共用，story §1.9）—— **✅ 已固化**：
 >
-> 参考描述：使用 Triple Barrier 方法计算每次触发的收益。从持仓卖出之日（`T0`）起，监控 `n` 日（`n` 可配置，默认 0），直到满足以下条件之一，结束监控并记该次贡献：
+> 使用 Triple Barrier 方法计算每次触发的收益。从持仓卖出之日（`T0`）起，监控 `n` 日（`n` 可配置，默认 0），直到满足以下条件之一，结束监控并记该次贡献：
 >
 > 1. 价格上涨到 `P_sell * (1 + up_threshold)` → 贡献 `−1 * up_threshold`
 > 2. 价格下跌到 `P_sell * (1 − down_threshold)` → 贡献 `+down_threshold`
 > 3. 直到 `T_n` 日，上述条件均未满足 → 按当日收盘价 `Close_n` 退出，贡献 `P_sell / Close_n − 1`
 >
-> **日线（回测）**：用当日 high/low 判断是否触发屏障；若一日内两屏障同时触发，以开盘价最近者为准。但若监控参数 **n = 0**，则不使用 high/low 判断，直接以当日收盘价判断。
 > **仿真/实盘**：以 last_price 先到者为准。
 > **N=0** 即当日收盘价。
 >
-> **按"开启区间"独立计算**（⏸ 暂缓）：风控策略的"开启" = 被激活且正在监控宿主持仓的状态。每发生一次 stop → start，记为一个**新开启区间**。每个开启区间内的所有触发事件的收益**单独累计**，不与前一个开启区间合并。指标展示与持久化按"开启区间"维度切分（详见 FR-360，⏸ 暂缓）。
+> **按"开启区间"独立计算**：风控策略的"开启" = 被激活且正在监控宿主持仓的状态。每发生一次 stop → start，记为一个**新开启区间**。每个开启区间内的所有触发事件的收益**单独累计**，不与前一个开启区间合并。指标展示与持久化按"开启区间"维度切分（详见 FR-360）。
 >
 
 ---
