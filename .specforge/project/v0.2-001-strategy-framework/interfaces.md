@@ -134,7 +134,7 @@ class RiskStrategy(Strategy):  # 兄弟类,非 BaseStrategy 子类
 - **无 `portfolio_id`**;`positions` / `cash` 属性访问抛 `AttributeError`
 - 不可独立运行;必须绑定一个宿主 `BaseStrategy`。绑定关系在运行配置中建立（可热调），不在策略代码中以类属性声明
 - 宿主进入 paper/live 时自动激活;宿主停止时一并停止;可随时单独停止/重新启动（每次重启记一个新"开启区间"，超额收益按区间独立累计，FR-013/FR-360）
-- **可回测**：⏸ 暂缓（v0.2 不强制风控可回测；是否回测由风控自身是否依赖 `get_prices` / `get_ticks` 等 live-only 数据决定；详见 FR-013 §回测状态）
+- **可回测**：❌ 否。v0.2 不支持 RiskStrategy 回测。BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝（抛 `RiskStrategyNotBacktestable`），关联 AC-013-05
 
 **关联 AC**: AC-013-01 ~ 05
 
@@ -548,11 +548,10 @@ class EnumerationResult:
 | `RISK_NO_ACCOUNT` | 400/422 | RiskStrategy 访问 `positions` / `cash` | AC-013-01 |
 | `RISK_NOT_BOUND` | 422 | RiskStrategy 启动时未绑定宿主 | AC-013-05 |
 | `RISK_NO_BUY_API` | 400/422 | RiskStrategy 调用 buy 类方法 | AC-013-02 |
+| `RISK_STRATEGY_NOT_BACKTESTABLE` | 422 | RiskStrategy 提交给 BacktestRunner | AC-013-05 |
 | `ENUMERATION_FAILED` | 500 | 不可恢复的枚举错误 | AC-020-12 |
 
 > 注:`UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` 是 `RuntimeError` 子类，仅在 BacktestRunner 上下文抛出；paper/live 不受影响。
-
-> **⏸ 暂缓**：风控策略回测语义未固化前，`get_prices` / `get_ticks` 在回测下的行为不写进错误码表（不抛错还是返回模拟值由实现层决定）。
 
 ## 5. 日志条目类型(从 test-plan §3.1.3 细化)
 
@@ -595,7 +594,7 @@ class EnumerationResult:
 | C7 | 策略目录默认 | spec 不硬定路径 | `~/.millionaire/strategies/` | 现有实现保留可配置;spec 兼容(只要默认指向内置示例即满足 AC-020-01) |
 | C8 | SDK 元数据(FR-014/015) | spec 接口 | 已在 `data/models/` 实现 | **对齐**:验证签名/返回类型与 spec 一致 |
 | C9 | `get_prices` / `get_ticks` 归属 | 仅 `RiskStrategy` | 缺 | **新建**于 `RiskStrategy` 专有;**类层不存在**于 `BaseStrategy`(继承结构保证) |
-| C10 | 风控回测语义 | ⏸ 暂缓(FR-013 §回测状态) | 缺 | **不固化**到 spec;实现层决定 |
+| C10 | 风控可回测性 | **v0.2 不支持 RiskStrategy 回测** (用户决定) | 缺 | BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝启动 (抛 `RISK_STRATEGY_NOT_BACKTESTABLE`,关联 AC-013-05);风控评估仅在 paper/live 下进行 (FR-360) |
 | C11 | `UnsupportedFrameTypeForBacktest` 抛出位置 | BacktestRunner 上下文: `get_bars(frame_type != "1d")` 抛 | 缺 | **新增** 该异常类;BacktestRunner 拦截 |
 | C12 | 测试数据 | spec 要 2023-2025, 105 标的 | 已有(已扩展) | **保留**: `tests/assets/real/` 105 资产 + 69,551 日线 + 3 年真实 tushare 数据 |
 
@@ -625,6 +624,11 @@ class EnumerationResult:
   - §4 异常表加 `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST`;移除 `LIVE_NOT_BACKTESTABLE` 与 `RISK_NO_BUY_API`(因 FR-011/012 删除);`INVALID_FRAME_TYPE` 关联 AC 改 AC-010-XX
   - §6 加 C9(数据方法归属)/ C10(风控回测 暂缓);更新 C1/C2/C3/C4 措辞以反映新分层
   - §4 注:`get_prices` / `get_ticks` 在回测下的行为 ⏸ 暂缓,不进错误码表
+- **2026-06-17 (本轮 3)**: 用户决定 RiskStrategy 不可回测,落地到 interfaces
+  - §1.3 RiskStrategy '可回测: ⏸ 暂缓' -> '❌ 否. BacktestRunner 启动拒绝'
+  - §4 异常表加 `RISK_STRATEGY_NOT_BACKTESTABLE` (RiskStrategy 提交给 BacktestRunner)
+  - §4 '⏸ 暂缓: 风控回测语义' 段删除
+  - §6 C10: '⏸ 暂缓' -> 'v0.2 不支持 RiskStrategy 回测 (用户决定)'
 - **2026-06-17 (本轮 2)**: 重新核对实现层实际状态后重写 §6
   - 纠正:实现层仅含 `BaseStrategy` 空壳(157 行);"DayStrategy / LiveStrategy 子类"系误判,实际不存在
   - §6.1 现状摘要:列出 BaseStrategy 有/缺什么
