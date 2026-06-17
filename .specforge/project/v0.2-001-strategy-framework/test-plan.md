@@ -1,6 +1,6 @@
-# Test Plan — 001-strategy-framework-v0.2
+# Test Plan — v0.2-001-strategy-framework
 
-- **Spec ID**: 001-strategy-framework-v0.2
+- **Spec ID**: v0.2-001-strategy-framework
 - **范围**: FR-010 / FR-011 / FR-012 / FR-013 / FR-014 / FR-015 / FR-020
 - **位置**: 与 [acceptance.md](./acceptance.md) 并列,与 [spec.md](./spec.md) 同源
 - **性质**: 黑盒测试方案 — 不依赖框架内部实现,只依赖外部可观测对象
@@ -15,7 +15,7 @@
 |---|---|
 | 策略暴露的外部契约 | `on_bar` / `on_day_open` / `get_bars` / `buy` / `sell` / `sell_host_position` / `default_config` 等(均为策略编写时使用的接口,本身即契约) |
 | Web service API | 策略发现端点、回测启动端点、账户查询端点、参数查询端点 |
-| UI 入口 | 002-ui-v0.2 定义的关键交互(本文件仅**观测**,不**验证渲染**) |
+| UI 入口 | v0.2-002-ui 定义的关键交互(本文件仅**观测**,不**验证渲染**) |
 | 日志条目 | 框架在关键事件时写入的结构化日志 |
 | 数据存盘文件 | 回测结果 JSON/parquet、虚拟账本快照、委托/成交明细、策略枚举缓存 |
 | 数据库表 | 框架持久化的所有业务表 |
@@ -38,7 +38,7 @@
 | "返回空列表" | "tmp_path 为空目录时,调用 enumerate_strategies API,断言响应 strategies 字段为 [],diagnostics 字段为 []" |
 | "记录 SyntaxError" | "tmp_path 含语法错误的 .py 时,断言响应 diagnostics 含 reason='SyntaxError' 的条目,且 details 含文件名+行号" |
 
-### 0.4 与 002-ui-v0.2 test plan 的边界
+### 0.4 与 v0.2-002-ui test plan 的边界
 
 | 在本文件 | 在 002-ui test plan |
 |---|---|
@@ -533,8 +533,8 @@ tests/e2e/
 
 ### 6.2 不在范围
 
-- 002-ui-v0.2 的 UI 渲染细节(转给 002-ui test plan)
-- 001-strategy-framework-v0.2 中尚未写 acceptance 的 FR:
+- v0.2-002-ui 的 UI 渲染细节(转给 002-ui test plan)
+- v0.2-001-strategy-framework 中尚未写 acceptance 的 FR:
   - FR-115 / FR-120 / FR-125(驱动契约)
   - FR-130(风控契约)
   - FR-140 ~ FR-470(交易规则 / 调度 / 数据源 / 评估指标 / 安装)
@@ -574,7 +574,7 @@ acceptance 中标注为声明性或基于假设的 AC,在 test plan 中需要**�
 
 ### 8.1 版本
 
-- 当前 test plan 版本与 001-strategy-framework-v0.2 同步
+- 当前 test plan 版本与 v0.2-001-strategy-framework 同步
 - 修订 test plan 需更新本文档版本号
 
 ### 8.2 与 acceptance 同步
@@ -603,5 +603,5 @@ acceptance 中标注为声明性或基于假设的 AC,在 test plan 中需要**�
 
 - [spec.md](./spec.md) — 策略框架 spec
 - [acceptance.md](./acceptance.md) — 验收标准
-- [../002-ui-v0.2/spec.md](../002-ui-v0.2/spec.md) — UI spec
+- [../v0.2-002-ui/spec.md](../v0.2-002-ui/spec.md) — UI spec
 - empyrical — 第三方评估指标库(https://github.com/quantopian/empyrical)

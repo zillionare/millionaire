@@ -1,13 +1,13 @@
 # Millionaire UI Spec — 用户界面与交互
 
-- **Spec ID**: 002-ui-v0.2
+- **Spec ID**: v0.2-002-ui
 - **创建日期**: 2026-06-17
 - **状态**: 草稿
 - **上游 spec**:
-  - [001-strategy-framework-v0.2](../001-strategy-framework-v0.2/spec.md) — 策略框架/调度/数据/SDK
-- **本 spec 来源**: 从 001-strategy-framework-v0.2 抽取 UI 相关 FR,并补齐缺失
+  - [v0.2-001-strategy-framework](../v0.2-001-strategy-framework/spec.md) — 策略框架/调度/数据/SDK
+- **本 spec 来源**: 从 v0.2-001-strategy-framework 抽取 UI 相关 FR,并补齐缺失
 
-> **本 spec 仅定义 UI/交互层面的契约**。**计算规则、调度规则、数据契约、撮合规则等业务规则仍在 001-strategy-framework-v0.2**。本 spec 通过引用联动上游 FR,不重复定义。
+> **本 spec 仅定义 UI/交互层面的契约**。**计算规则、调度规则、数据契约、撮合规则等业务规则仍在 v0.2-001-strategy-framework**。本 spec 通过引用联动上游 FR,不重复定义。
 
 ## 0. 范围与边界
 
@@ -22,10 +22,10 @@
 
 ### 0.2 不在本 spec 范围内
 
-- 业务计算规则(策略评估指标、撮合、T+1 等)→ 001-strategy-framework-v0.2
-- 数据来源与存储(tushare / qmt-gateway)→ 001-strategy-framework-v0.2
-- 调度路径与生命周期 → 001-strategy-framework-v0.2 FR-230/240/250
-- SDK 元数据接口 → 001-strategy-framework-v0.2 FR-014/015
+- 业务计算规则(策略评估指标、撮合、T+1 等)→ v0.2-001-strategy-framework
+- 数据来源与存储(tushare / qmt-gateway)→ v0.2-001-strategy-framework
+- 调度路径与生命周期 → v0.2-001-strategy-framework FR-230/240/250
+- SDK 元数据接口 → v0.2-001-strategy-framework FR-014/015
 
 ## 1. 用户故事
 
@@ -66,7 +66,7 @@
 |---|---|---|
 | ✅ | ✅ | ✅ |
 
-UI 消费 [001-FR-020](../001-strategy-framework-v0.2/spec.md) 产出的策略元数据列表,按规则**展示、排序、过滤**。
+UI 消费 [001-FR-020](../v0.2-001-strategy-framework/spec.md) 产出的策略元数据列表,按规则**展示、排序、过滤**。
 
 #### 展示字段
 
@@ -93,7 +93,7 @@ UI 消费 [001-FR-020](../001-strategy-framework-v0.2/spec.md) 产出的策略�
 
 #### 联动接口
 
-- 上游:[001-FR-020](../001-strategy-framework-v0.2/spec.md) — 提供元数据
+- 上游:[001-FR-020](../v0.2-001-strategy-framework/spec.md) — 提供元数据
 - 下游:UI-FR-040(调度操作)按本 FR 的策略列表生成入口
 
 ---
@@ -127,7 +127,7 @@ UI 消费 [001-FR-020](../001-strategy-framework-v0.2/spec.md) 产出的策略�
 
 #### 联动接口
 
-- 上游:[001-FR-200](../001-strategy-framework-v0.2/spec.md) — 参数定义
+- 上游:[001-FR-200](../v0.2-001-strategy-framework/spec.md) — 参数定义
 - 下游:UI-FR-040 — 启动按钮携带运行时参数
 
 ---
@@ -138,7 +138,7 @@ UI 消费 [001-FR-020](../001-strategy-framework-v0.2/spec.md) 产出的策略�
 |---|---|---|
 | ✅ | ✅ | ✅ |
 
-UI 提供启动/停止/切换模式的操作入口。**调度规则在 001-strategy-framework-v0.2 FR-230/240/250 定义**,本 FR 仅定义 UI 操作。
+UI 提供启动/停止/切换模式的操作入口。**调度规则在 v0.2-001-strategy-framework FR-230/240/250 定义**,本 FR 仅定义 UI 操作。
 
 #### 启动回测
 
@@ -189,7 +189,7 @@ UI 提供启动/停止/切换模式的操作入口。**调度规则在 001-strat
 
 #### 联动接口
 
-- 上游:[001-FR-440](../001-strategy-framework-v0.2/spec.md) — 行为定义
+- 上游:[001-FR-440](../v0.2-001-strategy-framework/spec.md) — 行为定义
 
 ---
 
@@ -262,7 +262,7 @@ UI 提供启动/停止/切换模式的操作入口。**调度规则在 001-strat
 
 ### UI-FR-260 调度 UI(原 001-FR-260)
 
-> **从 001-strategy-framework-v0.2 FR-260 迁移**。本 FR 仅定义 UI 操作,调度规则在 001-FR-230/240/250。
+> **从 v0.2-001-strategy-framework FR-260 迁移**。本 FR 仅定义 UI 操作,调度规则在 001-FR-230/240/250。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
@@ -282,7 +282,7 @@ UI 提供策略调度入口。启动回测时提供界面改写策略默认参�
 
 ### UI-FR-370 核心图表(原 001-FR-370)
 
-> **从 001-strategy-framework-v0.2 FR-370 迁移**。
+> **从 v0.2-001-strategy-framework FR-370 迁移**。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
@@ -300,19 +300,19 @@ Web 框架 FastHTML(已在主项目 README 中选型),支持响应式可视化�
 
 #### 联动接口
 
-- 上游:[001-FR-340/350/360](../001-strategy-framework-v0.2/spec.md)
+- 上游:[001-FR-340/350/360](../v0.2-001-strategy-framework/spec.md)
 
 ---
 
 ### UI-FR-380 回测进度(原 001-FR-380)
 
-> **从 001-strategy-framework-v0.2 FR-380 迁移**。详见 UI-FR-080。
+> **从 v0.2-001-strategy-framework FR-380 迁移**。详见 UI-FR-080。
 
 ---
 
 ### UI-FR-390 账户总览(原 001-FR-390)
 
-> **从 001-strategy-framework-v0.2 FR-390 迁移**。
+> **从 v0.2-001-strategy-framework FR-390 迁移**。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
@@ -325,7 +325,7 @@ Web 框架 FastHTML(已在主项目 README 中选型),支持响应式可视化�
 
 ### UI-FR-400 委托与成交记录(原 001-FR-400)
 
-> **从 001-strategy-framework-v0.2 FR-400 迁移**。
+> **从 v0.2-001-strategy-framework FR-400 迁移**。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
@@ -342,7 +342,7 @@ Web 框架 FastHTML(已在主项目 README 中选型),支持响应式可视化�
 
 ### UI-FR-410 paper/live 账户(原 001-FR-410)
 
-> **从 001-strategy-framework-v0.2 FR-410 迁移**。
+> **从 v0.2-001-strategy-framework FR-410 迁移**。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
@@ -357,7 +357,7 @@ Web 框架 FastHTML(已在主项目 README 中选型),支持响应式可视化�
 
 ### UI-FR-420 实盘交易界面(原 001-FR-420)
 
-> **从 001-strategy-framework-v0.2 FR-420 迁移**。
+> **从 v0.2-001-strategy-framework FR-420 迁移**。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
@@ -380,7 +380,7 @@ Web 框架 FastHTML(已在主项目 README 中选型),支持响应式可视化�
 
 ### UI-FR-430 仿真交易界面(原 001-FR-430)
 
-> **从 001-strategy-framework-v0.2 FR-430 迁移**。
+> **从 v0.2-001-strategy-framework FR-430 迁移**。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
@@ -398,13 +398,13 @@ Web 框架 FastHTML(已在主项目 README 中选型),支持响应式可视化�
 
 ### UI-FR-450 通知配置界面
 
-> **从 001-strategy-framework-v0.2 FR-450 拆分**:事件触发列表留在 001(策略侧),配置 UI 部分迁入本 spec。
+> **从 v0.2-001-strategy-framework FR-450 拆分**:事件触发列表留在 001(策略侧),配置 UI 部分迁入本 spec。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
 | ✅ | ✅ | ✅ |
 
-微信通知通过**二维码扫描启用**。事件列表(委托/成交/失败/网关断开)定义在 001-strategy-framework-v0.2 FR-450。
+微信通知通过**二维码扫描启用**。事件列表(委托/成交/失败/网关断开)定义在 v0.2-001-strategy-framework FR-450。
 
 #### 启用流程
 
@@ -423,7 +423,7 @@ Web 框架 FastHTML(已在主项目 README 中选型),支持响应式可视化�
 
 ### UI-FR-460 系统配置(init-wizard,原 001-FR-460)
 
-> **从 001-strategy-framework-v0.2 FR-460 迁移**。
+> **从 v0.2-001-strategy-framework FR-460 迁移**。
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
@@ -450,7 +450,7 @@ Web 框架 FastHTML(已在主项目 README 中选型),支持响应式可视化�
 
 ### UI-FR-310-UI 数据同步任务的错误展示
 
-> **从 001-strategy-framework-v0.2 FR-310 拆分**:任务定义留在 001,UI 错误展示迁入本 spec。
+> **从 v0.2-001-strategy-framework FR-310 拆分**:任务定义留在 001,UI 错误展示迁入本 spec。
 
 UI 展示 001-FR-310 数据同步任务的运行报告:
 
@@ -466,7 +466,7 @@ UI 展示 001-FR-310 数据同步任务的运行报告:
 
 ### UI-FR-320-UI 数据完整性校验报告展示
 
-> **从 001-strategy-framework-v0.2 FR-320 拆分**。
+> **从 v0.2-001-strategy-framework FR-320 拆分**。
 
 UI 展示 001-FR-320 数据完整性校验报告:
 
@@ -479,7 +479,7 @@ UI 展示 001-FR-320 数据完整性校验报告:
 
 ### UI-FR-330-UI 个股查询与 K 线图
 
-> **从 001-strategy-framework-v0.2 FR-330 拆分**:查询能力留在 001,K 线图绘制迁入本 spec。
+> **从 v0.2-001-strategy-framework FR-330 拆分**:查询能力留在 001,K 线图绘制迁入本 spec。
 
 UI 提供按名字/数字/拼音模糊查询个股,选中后展示 K 线图(日线 + 关键字段 hover)。
 
@@ -545,7 +545,7 @@ UI 提供按名字/数字/拼音模糊查询个股,选中后展示 K 线图(日�
 
 ## 6. 迁移记录
 
-> **2026-06-17**:从 001-strategy-framework-v0.2 抽取 UI 相关 FR,补齐缺失:
+> **2026-06-17**:从 v0.2-001-strategy-framework 抽取 UI 相关 FR,补齐缺失:
 > - 新增 UI-FR-010:策略发现与展示(含内置 vs 用户优先级)— 解决 001-FR-020 "内置/用户优先级" 空白
 > - 新增 UI-FR-020:运行时参数编辑 — 解决 001-FR-030 vs 001-FR-200 边界空白
 > - 新增 UI-FR-040:调度操作界面

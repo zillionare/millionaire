@@ -1,6 +1,6 @@
-# Interfaces — 001-strategy-framework-v0.2
+# Interfaces — v0.2-001-strategy-framework
 
-- **Spec ID**: 001-strategy-framework-v0.2
+- **Spec ID**: v0.2-001-strategy-framework
 - **位置**: 与 [spec.md](./spec.md) / [acceptance.md](./acceptance.md) / [test-plan.md](./test-plan.md) 同源
 - **性质**: 外部可观测契约清单 — 测试工程师据此写黑盒测试,实现层据此暴露 API/数据 schema
 - **基线**: 严格对齐 [spec.md](./spec.md) 已确定部分(FR-010 ~ FR-020)
@@ -202,7 +202,7 @@ class EnumerationResult:
 
 ## 2. Web API 契约(框架 HTTP 暴露)
 
-> **状态**: spec 未硬定 URL。本节按 FastAPI 惯例与 002-ui-v0.2 需求推断。**最终 URL 由实现层在启动时确认并冻结**,但**响应 schema 是契约,不可变**。
+> **状态**: spec 未硬定 URL。本节按 FastAPI 惯例与 v0.2-002-ui 需求推断。**最终 URL 由实现层在启动时确认并冻结**,但**响应 schema 是契约,不可变**。
 
 ### 2.1 策略枚举 API
 

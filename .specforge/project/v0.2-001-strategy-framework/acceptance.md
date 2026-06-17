@@ -1,6 +1,6 @@
-# 验收标准 — 001-strategy-framework-v0.2
+# 验收标准 — v0.2-001-strategy-framework
 
-- **Spec ID**: 001-strategy-framework-v0.2
+- **Spec ID**: v0.2-001-strategy-framework
 - **创建日期**: 2026-06-15
 - **状态**: 草稿
 - **对应 spec**: [spec.md](./spec.md)
@@ -159,7 +159,7 @@
 ### FR-020 自动发现策略
 
 > **范围说明**:本节仅覆盖**枚举契约**(识别规则、元数据 schema、模式无关性、容错、安全前提)。
-> 内置 vs 用户策略的展示优先级/排序/过滤/搜索等 UI 行为见 [002-ui-v0.2/spec.md](../002-ui-v0.2/spec.md) UI-FR-010 的 acceptance。
+> 内置 vs 用户策略的展示优先级/排序/过滤/搜索等 UI 行为见 [v0.2-002-ui/spec.md](../v0.2-002-ui/spec.md) UI-FR-010 的 acceptance。
 
 #### AC-020-01 识别规则 — 基类判定
 

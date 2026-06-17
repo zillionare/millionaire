@@ -115,7 +115,7 @@ tests/assets/real/
 tests/assets/real/_cache/
 agents
 
-.specforge/
+.specforge/agents
 .omc/**
 .playwright-mcp
 .sisyphus

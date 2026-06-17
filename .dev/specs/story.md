@@ -1,1 +1,1 @@
-../../specs/001-strategy-framework-v0.2/story.md
+../../.specforge/project/v0.2-001-strategy-framework/story.md
