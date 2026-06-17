@@ -46,7 +46,7 @@
 
 ### FR-013 RiskStrategy 结构契约（风控策略）
 
-> **⏸ 暂缓范围**：本节 AC 中与"风控可回测"相关的部分暂缓（FR-013 §回测状态未确定）。仅"结构性"AC 立即可验证（账户无/无 buy 接口/类层归属等）。
+> **不可回测**：v0.2 不支持 RiskStrategy 回测。仅 paper/live 下验证。
 
 #### AC-013-01 风控策略无独立账户
 - ⬜ 风控策略不创建 `portfolio_id`，不持有资金
@@ -60,17 +60,17 @@
 - ⬜ 风控策略可查看宿主的持仓快照（通过 `on_check(positions, ...)` 接收） → 只读，不可修改
 - ⬜ 风控策略**类层不存在** `positions`（属 BaseStrategy 专有）——通过 `on_check` 参数间接获得宿主持仓
 
-#### AC-013-04 tick 级数据接口可用（风控专有）
-- ⬜ 风控策略调用 `get_ticks` → paper/live 返回 tick 级行情数据；**回测下的行为 ⏸ 暂缓**（实现层决定从 OHLC 派生，约束：价格 ∈ [min(O,L,C,H), max(O,L,C,H)]）
-- ⬜ 风控策略调用 `get_prices` → paper/live 返回当前价格；**回测下的行为 ⏸ 暂缓**
+#### AC-013-04 tick 级数据接口可用（风控专有, 仅 paper/live）
+- ⬜ 风控策略调用 `get_ticks` → paper/live 返回真实 tick 级行情数据
+- ⬜ 风控策略调用 `get_prices` → paper/live 返回当前价格
 - ⬜ **类层不存在** `get_prices` / `get_ticks` 于 `BaseStrategy`（独立策略拿不到这些方法）
 
-#### AC-013-05 宿主生命周期绑定
+#### AC-013-05 宿主生命周期绑定 + 不可回测
 - ⬜ 宿主进入 paper/live → 关联的 RiskStrategy 自动激活
 - ⬜ 宿主停止 → RiskStrategy 一并停止
 - ⬜ 单独停止 RiskStrategy → 不再监控，已发订单不撤回；重新启动后开启新"开启区间"，超额收益按区间独立累计
 - ⬜ 尝试不带宿主账户直接启动 RiskStrategy → 抛出异常，提示必须绑定宿主
-- ⬜ **⏸ 暂缓**：RiskStrategy 提交给 BacktestRunner 的行为 / 风险策略可回测性 — 见 FR-013 §回测状态
+- ⬜ 将 RiskStrategy 实例提交给 BacktestRunner → BacktestRunner 启动时检测到 RiskStrategy 子类, **拒绝启动**（抛 `RiskStrategyNotBacktestable` 或类似错误,关联 AC-013-05）
 
 ---
 
@@ -244,6 +244,30 @@
 - ✅ 枚举调用方的契约:接收 `Path | str | None`(None 表示未配置)→ 返回 `EnumerationResult`
 - ✅ `EnumerationResult` 含两个字段:`strategies: list[StrategyMetadata]`(通过的策略) + `diagnostics: list[SkippedEntry]`(失败的文件/类及原因)
 - ✅ `SkippedEntry` 含字段:`path: str`(文件路径)、`class_name: str | None`(类名,文件级失败时为 None)、`reason: SkippedReason`、`detail: str`(原因详情,如异常消息)
+
+---
+
+### FR-360 评估指标 — 风控策略
+
+> 评估仅在 paper/live 下进行(v0.2 不支持 RiskStrategy 回测)。
+
+#### AC-360-01 评估维度齐全
+- ⬜ 每次风控触发卖出后,系统记录一条触发事件 `event_id`,字段含 `risk_strategy_id` / `host_strategy_id` / `asset` / `trigger_ts` / `trigger_price` / `reason`(`sell_host_position` 的 `reason` 参数)
+- ⬜ 每条事件计算 Triple Barrier 超额收益 `excess_return`(公式见 FR-013),`finalized_at = trigger_ts + n 日`(n 来自 `sell_host_position` 的 `n` 参数,默认 0 = 当日收盘)
+- ⬜ 触发次数统计按 `risk_strategy_id` 聚合
+- ⬜ 触发原因分布按 `reason` 字段分组计数
+
+#### AC-360-02 按开启区间切分
+- ⬜ 风控被激活时分配新 `activation_id`(UUID)
+- ⬜ 同一 `activation_id` 内的所有 `excess_return` 求和,作为该区间的总贡献
+- ⬜ 风控被"单独停止" → 当前 `activation_id` 立即关闭;已发订单不撤回
+- ⬜ 风控重新启动 → 分配**新** `activation_id`,新事件归新区间
+- ⬜ 不同 `activation_id` 的 `excess_return` **不合并**(每个区间独立)
+
+#### AC-360-03 N 日窗口回填
+- ⬜ `n = 0` 时,`excess_return` 在 `trigger_ts` 当日(仿真/实盘时间)的收盘价已知后立即计算并写入
+- ⬜ `n > 0` 时,`excess_return` 初始写入 `null`,N 日后(仿真/实盘时间)有收盘价时回填
+- ⬜ N 日窗口内数据不足(如接近年末、尚未有 N 日收盘数据)→ 暂记 `null`,数据可用后更新最终值
 
 ---
 
