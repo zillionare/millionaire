@@ -54,7 +54,7 @@ class TestBaseClassRecognitionV2:
 
     def test_base_strategy_subclass_independent(self, tmp_path):
         """AC-020-01-01: BaseStrategy 子类 → strategy_type == "independent" """
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "my_strat.py", """
             from quantide.core.strategy import BaseStrategy
@@ -68,7 +68,7 @@ class TestBaseClassRecognitionV2:
 
     def test_risk_strategy_subclass_risk(self, tmp_path):
         """AC-020-01-02: RiskStrategy 子类 → strategy_type == "risk" """
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "risk_strat.py", """
             from quantide.core.strategy import RiskStrategy
@@ -82,7 +82,7 @@ class TestBaseClassRecognitionV2:
 
     def test_strategy_itself_excluded(self, tmp_path):
         """AC-020-01-03: Strategy 自身不出现"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "strat.py", """
             from quantide.core.strategy import Strategy
@@ -96,7 +96,7 @@ class TestBaseClassRecognitionV2:
 
     def test_base_strategy_itself_excluded(self, tmp_path):
         """AC-020-01-04: BaseStrategy 自身不出现"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         result = enumerate_strategies(d)
         ids = [s.strategy_id for s in result.strategies]
@@ -104,7 +104,7 @@ class TestBaseClassRecognitionV2:
 
     def test_risk_strategy_itself_excluded(self, tmp_path):
         """AC-020-01-05: RiskStrategy 自身不出现"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         result = enumerate_strategies(d)
         ids = [s.strategy_id for s in result.strategies]
@@ -119,7 +119,7 @@ class TestFileScopeV2:
 
     def test_py_files_scanned(self, tmp_path):
         """AC-020-02-01: .py 文件被扫描"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "a.py", """
             from quantide.core.strategy import BaseStrategy
@@ -131,7 +131,7 @@ class TestFileScopeV2:
 
     def test_non_py_skipped(self, tmp_path):
         """AC-020-02-02: 非 .py 文件跳过,不记录错误"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "readme.txt", "not python")
         result = enumerate_strategies(d)
@@ -139,7 +139,7 @@ class TestFileScopeV2:
 
     def test_subdirectories_not_recursed(self, tmp_path):
         """AC-020-02-03: 子目录不递归"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         sub = d / "sub"
         _make_strategy_file(sub, "nested.py", """
@@ -153,7 +153,7 @@ class TestFileScopeV2:
 
     def test_pycache_skipped(self, tmp_path):
         """AC-020-02-04: __pycache__ 跳过"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         cache = d / "__pycache__"
         cache.mkdir(parents=True)
@@ -171,7 +171,7 @@ class TestNameAndDescriptionV2:
 
     def test_name_defaults_to_class_name(self, tmp_path):
         """AC-020-03-01: 未定义 __display_name__ → name = cls.__name__"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "foo.py", """
             from quantide.core.strategy import BaseStrategy
@@ -184,7 +184,7 @@ class TestNameAndDescriptionV2:
 
     def test_display_name_used(self, tmp_path):
         """AC-020-03-02: __display_name__ 优先级高于 __name__"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "bar.py", """
             from quantide.core.strategy import BaseStrategy
@@ -198,7 +198,7 @@ class TestNameAndDescriptionV2:
 
     def test_docstring_first_line_as_description(self, tmp_path):
         """AC-020-03-03: docstring 首行 → description"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "baz.py", """
             from quantide.core.strategy import BaseStrategy
@@ -213,7 +213,7 @@ class TestNameAndDescriptionV2:
 
     def test_no_docstring_empty_description(self, tmp_path):
         """AC-020-03-04: 无 docstring → description = \"\" """
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "qux.py", """
             from quantide.core.strategy import BaseStrategy
@@ -234,7 +234,7 @@ class TestMetadataCoreFieldsV2:
 
     def test_strategy_id_format(self, tmp_path):
         """AC-020-04-01: strategy_id == f\"{module}.{class_name}\" """
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "my_mod.py", """
             from quantide.core.strategy import BaseStrategy
@@ -248,7 +248,7 @@ class TestMetadataCoreFieldsV2:
 
     def test_strategy_type_values(self, tmp_path):
         """AC-020-04-02: strategy_type ∈ {"independent", "risk"}"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "type_test.py", """
             from quantide.core.strategy import BaseStrategy
@@ -261,7 +261,7 @@ class TestMetadataCoreFieldsV2:
 
     def test_module_field(self, tmp_path):
         """AC-020-04-03: module == cls.__module__"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "mod_check.py", """
             from quantide.core.strategy import BaseStrategy
@@ -274,8 +274,8 @@ class TestMetadataCoreFieldsV2:
 
     def test_is_builtin_flag(self):
         """AC-020-04-04: 框架包内 → is_builtin=True;否则 False"""
-        from quantide.service.discovery_v2 import enumerate_strategies
-        from quantide.service.discovery_v2 import is_builtin_path
+        from quantide.service.discovery import enumerate_strategies
+        from quantide.service.discovery import is_builtin_path
         # builtin strategies from quantide.*
         result = enumerate_strategies(include_builtin=True)
         builtin = [s for s in result.strategies if s.is_builtin]
@@ -285,7 +285,7 @@ class TestMetadataCoreFieldsV2:
 
     def test_skipped_reasons_only_on_non_strategy(self, tmp_path):
         """AC-020-04-05: 通过的策略 skipped_reasons=[]"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "ok.py", """
             from quantide.core.strategy import BaseStrategy
@@ -305,7 +305,7 @@ class TestDefaultConfigToParamSpecV2:
 
     def test_config_with_params(self, tmp_path):
         """AC-020-05-01: default_config({"fast":5,"slow":20}) → ParamSpec"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "paramd.py", """
             from quantide.core.strategy import BaseStrategy
@@ -326,7 +326,7 @@ class TestDefaultConfigToParamSpecV2:
 
     def test_empty_config(self, tmp_path):
         """AC-020-05-02: default_config({}) → default_config == {}"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "empty_cfg.py", """
             from quantide.core.strategy import BaseStrategy
@@ -342,7 +342,7 @@ class TestDefaultConfigToParamSpecV2:
 
     def test_no_override_empty_config(self, tmp_path):
         """AC-020-05-03: 未覆盖 → default_config == {} (不抛异常)"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "no_ovr.py", """
             from quantide.core.strategy import BaseStrategy
@@ -356,7 +356,7 @@ class TestDefaultConfigToParamSpecV2:
 
     def test_config_stable(self, tmp_path):
         """AC-020-05-04: 同一策略两次枚举 → default_config 稳定一致"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "stable.py", """
             from quantide.core.strategy import BaseStrategy
@@ -381,7 +381,7 @@ class TestParamSpecFieldsV2:
 
     def test_paramspec_name_and_default_required(self, tmp_path):
         """AC-020-06-01: ParamSpec.name 必填 = key; default 必填"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "ps.py", """
             from quantide.core.strategy import BaseStrategy
@@ -398,7 +398,7 @@ class TestParamSpecFieldsV2:
 
     def test_type_hint_none_v02(self, tmp_path):
         """AC-020-06-02: type_hint v0.2 始终为 None"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "th.py", """
             from quantide.core.strategy import BaseStrategy
@@ -414,7 +414,7 @@ class TestParamSpecFieldsV2:
 
     def test_description_none_v02(self, tmp_path):
         """AC-020-06-03: description v0.2 始终为 None"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "desc.py", """
             from quantide.core.strategy import BaseStrategy
@@ -430,7 +430,7 @@ class TestParamSpecFieldsV2:
 
     def test_constraints_none_v02(self, tmp_path):
         """AC-020-06-04: constraints v0.2 始终为 None"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "con.py", """
             from quantide.core.strategy import BaseStrategy
@@ -453,7 +453,7 @@ class TestModeAgnosticV2:
 
     def test_enumeration_does_not_contain_runtime_params(self, tmp_path):
         """AC-020-07-04: 枚举结果不含运行时参数"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "mode_test.py", """
             from quantide.core.strategy import BaseStrategy
@@ -475,14 +475,14 @@ class TestDirectoryFaultToleranceV2:
 
     def test_directory_not_exists_returns_empty(self):
         """AC-020-08-01: 目录不存在 → 空列表,不抛异常"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         result = enumerate_strategies("/nonexistent/path/that/does/not/exist")
         assert result.strategies == []
         assert isinstance(result, object)
 
     def test_empty_directory_returns_empty(self, tmp_path):
         """AC-020-08-03: 目录存在但为空 → 空列表"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "empty"
         d.mkdir()
         result = enumerate_strategies(d)
@@ -497,7 +497,7 @@ class TestSingleFileFaultToleranceV2:
 
     def test_syntax_error_skipped(self, tmp_path):
         """AC-020-09-01: 语法错 → 跳过,原因=SyntaxError"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "broken.py", "def incomplete(\n    pass\n")
         _make_strategy_file(d, "good.py", """
@@ -512,7 +512,7 @@ class TestSingleFileFaultToleranceV2:
 
     def test_import_error_skipped(self, tmp_path):
         """AC-020-09-02: import 失败 → 跳过,原因=ImportError"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "bad_import.py", """
             import nonexistent_module_xyz
@@ -533,7 +533,7 @@ class TestClassLevelFaultToleranceV2:
 
     def test_non_strategy_class_excluded(self, tmp_path):
         """AC-020-10-01: 非 BaseStrategy 子类 → NotAStrategy"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "not_strat.py", """
             class NotAStrategy:
@@ -545,7 +545,7 @@ class TestClassLevelFaultToleranceV2:
 
     def test_invalid_config_excluded(self, tmp_path):
         """AC-020-10-02: default_config 抛异常 → InvalidConfig"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "bad_cfg.py", """
             from quantide.core.strategy import BaseStrategy
@@ -567,7 +567,7 @@ class TestNonBlockingV2:
 
     def test_partial_failure_returns_valid(self, tmp_path):
         """AC-020-12-01: M 个失败,M < N → 返回 N-M 有效策略 + 诊断"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "bad.py", "syntax error(")
         _make_strategy_file(d, "good.py", """
@@ -580,7 +580,7 @@ class TestNonBlockingV2:
 
     def test_all_fail_returns_empty(self, tmp_path):
         """AC-020-12-02: 全部失败 → 空策略列表 + 诊断(不抛异常)"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "bad1.py", "syntax(")
         _make_strategy_file(d, "bad2.py", "also bad(")
@@ -597,7 +597,7 @@ class TestExclusionsV2:
 
     def test_enumeration_does_not_validate_business_logic(self, tmp_path):
         """AC-020-14-01: 枚举不验证业务逻辑正确性"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "bad_logic.py", """
             from quantide.core.strategy import BaseStrategy
@@ -615,7 +615,7 @@ class TestExclusionsV2:
     def test_enumeration_no_network(self, tmp_path):
         """AC-020-14-02: 枚举不发起远程网络请求(仅本地.py)"""
         import socket
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "local.py", """
             from quantide.core.strategy import BaseStrategy
@@ -635,15 +635,15 @@ class TestCallerInterfaceV2:
 
     def test_enumerate_strategies_signature(self):
         """AC-020-15-01: enumerate_strategies 接受 Path|str|None,返回 EnumerationResult"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         import inspect
         sig = inspect.signature(enumerate_strategies)
         assert "root" in sig.parameters or "path" in sig.parameters
 
     def test_enumeration_result_fields(self, tmp_path):
         """AC-020-15-02: EnumerationResult 含 strategies + diagnostics"""
-        from quantide.service.discovery_v2 import enumerate_strategies
-        from quantide.service.discovery_v2 import EnumerationResult
+        from quantide.service.discovery import enumerate_strategies
+        from quantide.service.discovery import EnumerationResult
         d = tmp_path / "strategies"
         _make_strategy_file(d, "a.py", """
             from quantide.core.strategy import BaseStrategy
@@ -657,7 +657,7 @@ class TestCallerInterfaceV2:
 
     def test_skipped_entry_fields(self, tmp_path):
         """AC-020-15-03: SkippedEntry 含 path / class_name / reason / detail"""
-        from quantide.service.discovery_v2 import enumerate_strategies
+        from quantide.service.discovery import enumerate_strategies
         d = tmp_path / "strategies"
         _make_strategy_file(d, "sk.py", "syntax error{{}")
         result = enumerate_strategies(d)

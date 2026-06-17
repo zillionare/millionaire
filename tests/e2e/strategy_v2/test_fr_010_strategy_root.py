@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime
 import inspect
+from abc import ABC
 
 import polars as pl
 import pytest
@@ -29,7 +30,7 @@ class TestHierarchyV2:
         """AC-010-01-01: Strategy 抽象根类存在(ABC)"""
         from quantide.core.strategy import Strategy
         assert inspect.isclass(Strategy)
-        assert issubclass(Strategy, ABC if ABC else object)
+        assert issubclass(Strategy, ABC)
 
     def test_base_strategy_inherits_strategy(self):
         """AC-010-01-02: BaseStrategy 继承自 Strategy"""
@@ -48,6 +49,7 @@ class TestHierarchyV2:
     def test_direct_strategy_subclass_not_discoverable(self):
         """AC-010-01-04: 直接继承 Strategy 的类不被识别为可调度策略"""
         from quantide.core.strategy import Strategy
+        # 在 test method 内定义, 避免 module 顶层 import error
         class DirectStrat(Strategy):
             pass
         assert issubclass(DirectStrat, Strategy)
@@ -216,44 +218,6 @@ class TestModeAgnosticV2:
         """AC-010-04-03: RiskStrategy 上无 get_mode"""
         from quantide.core.strategy import RiskStrategy
         assert not hasattr(RiskStrategy, "get_mode")
-
-
-# ───────────────────────── 已知缺口 ─────────────────────────
-
-
-class TestKnownGapsV2:
-    """标记 spec-vs-impl 缺口"""
-
-    def test_risk_strategy_not_yet_implemented(self):
-        """RiskStrategy 类当前不存在;v0.2-001-locked 要求新增"""
-        try:
-            from quantide.core.strategy import RiskStrategy
-            assert False, (
-                "Expected RiskStrategy to NOT exist yet "
-                "(TDD red phase). If this passes, "
-                "the implementation is ahead of spec."
-            )
-        except (ImportError, AttributeError):
-            pass
-
-    def test_strategy_abc_not_yet_implemented(self):
-        """Strategy 抽象根当前不存在;v0.2-001-locked 要求新增"""
-        from quantide.core.strategy import BaseStrategy
-        bases = BaseStrategy.__bases__
-        # Existing BaseStrategy has no ABC parent; expected: BaseStrategy(Strategy)
-        assert ABC not in bases, (
-            "Expected Strategy ABC to NOT exist yet (TDD red phase)."
-        )
-
-    def test_get_bars_not_yet_on_strategy(self):
-        """get_bars 尚未在 Strategy 上定义(现有为 get_history on BaseStrategy)"""
-        try:
-            from quantide.core.strategy import Strategy
-            assert not hasattr(Strategy, "get_bars"), (
-                "get_bars should NOT exist on Strategy yet (TDD red phase)"
-            )
-        except ImportError:
-            pass
 
 
 from abc import ABC
