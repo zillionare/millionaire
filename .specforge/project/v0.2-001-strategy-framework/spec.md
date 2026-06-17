@@ -94,6 +94,18 @@ priority: P0
 - ✅ FR-010 ~ FR-185: spec + acceptance + test-plan + interfaces 四文档已对齐
 - ⏸ FR-190 ~ FR-470: spec 已有, acceptance 待补, test-plan 待补
 
+#### v0.2-001 已锁定 FR (有锚点, 已建 issue)
+
+| FR | 标题 | 锚点 | Issue |
+|---|---|---|---|
+| [FR-010](./spec-strategy.md#fr-010) | 策略对象模型与 SDK 暴露 | spec-strategy.md#fr-010 | [待建](#) |
+| [FR-013](./spec-strategy.md#fr-013) | RiskStrategy 结构契约 | spec-strategy.md#fr-013 | [待建](#) |
+| [FR-014](./spec-strategy.md#fr-014) | SDK 元数据接口 — 交易日历 | spec-strategy.md#fr-014 | [待建](#) |
+| [FR-015](./spec-strategy.md#fr-015) | SDK 元数据接口 — 证券列表 | spec-strategy.md#fr-015 | [待建](#) |
+| [FR-020](./spec-strategy.md#fr-020) | 自动发现策略 | spec-strategy.md#fr-020 | [待建](#) |
+
+> **范围说明**: 本轮 Sage-Lex 流程只覆盖 FR-010 ~ FR-020 (含) 且有 acceptance 的 FR. FR-011/FR-012 编号保留但 spec 修订中已删, 不建 issue. 超出本范围的 FR (FR-115/125/130/360/185/190+ 等) 暂不建 issue, 等下一轮 review.
+
 ---
 
 ## 跨分册引用约定
