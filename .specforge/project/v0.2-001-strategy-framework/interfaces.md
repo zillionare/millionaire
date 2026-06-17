@@ -1,9 +1,9 @@
 # Interfaces — v0.2-001-strategy-framework
 
 - **Spec ID**: v0.2-001-strategy-framework
-- **位置**: 与 [spec.md](./spec.md) / [acceptance.md](./acceptance.md) / [test-plan.md](./test-plan.md) 同源
+- **位置**: 与 [spec.md](./spec.md) (含索引)/ [acceptance.md](./acceptance.md) / [test-plan.md](./test-plan.md) 同源
 - **性质**: 外部可观测契约清单 — 测试工程师据此写黑盒测试,实现层据此暴露 API/数据 schema
-- **基线**: 严格对齐 [spec.md](./spec.md) 已确定部分(FR-010 ~ FR-020)
+- **基线**: 严格对齐 [spec-strategy.md](./spec-strategy.md) 已确定部分(FR-010 ~ FR-020);NFR 引用 [spec-foundation.md NFR-050](./spec-foundation.md)
 - **范围外**: FR > 020 未确定的 FR,本文件不涉及
 
 > **本文件不是实现设计,是从 spec 推导出的"接口冻结"清单**。实现层如发现接口无法实现,需回退到 spec 修订而非本文件。

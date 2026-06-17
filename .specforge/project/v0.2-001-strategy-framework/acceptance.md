@@ -270,6 +270,6 @@
 
 ## 可观测性契约引用
 
-本文件中每条 AC 的验证,需通过 [spec.md NFR-050](./spec.md) 定义的可观测点(结构化日志 / 数据存盘文件 / 数据库表 / Web API)完成。完整的观测点清单见 [test-plan.md §3.1](./test-plan.md)。
+本文件中每条 AC 的验证,需通过 [spec-foundation.md NFR-050](./spec-foundation.md) 定义的可观测点(结构化日志 / 数据存盘文件 / 数据库表 / Web API)完成。完整的观测点清单见 [test-plan.md §3.1](./test-plan.md)。
 
 凡 AC 涉及的内部状态,实现层**必须**提供对应可观测出口;此为 PR 评审的强制 checklist。

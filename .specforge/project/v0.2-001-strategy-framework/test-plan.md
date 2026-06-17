@@ -28,7 +28,7 @@
 | 中间数据结构 | 仅在内存中存在、未持久化的对象 |
 | 内部实现细节 | 调度器内部队列、撮合器内部状态、注册表内部存储 |
 
-> **可观测契约**:凡 acceptance 验证需要的内部状态,实现层必须提供 dump/日志/DB 可观测点。详见 [spec.md NFR-050](./spec.md) 与 [acceptance.md 末尾的可观测契约引用](./acceptance.md)。
+> **可观测契约**:凡 acceptance 验证需要的内部状态,实现层必须提供 dump/日志/DB 可观测点。详见 [spec-foundation.md NFR-050](./spec-foundation.md) 与 [acceptance.md 末尾的可观测契约引用](./acceptance.md)。
 
 ### 0.3 与 acceptance.md 的关系
 
@@ -570,7 +570,7 @@ acceptance 中标注为声明性或基于假设的 AC,在 test plan 中需要**�
 
 ### 7.3 实现层契约跟踪
 
-本 test plan 隐含一个**实现层责任**:凡 AC 验证需要的内部状态,实现层必须提供 dump/日志/DB 可观测点。详见 [spec.md NFR-050](./spec.md)。
+本 test plan 隐含一个**实现层责任**:凡 AC 验证需要的内部状态,实现层必须提供 dump/日志/DB 可观测点。详见 [spec-foundation.md NFR-050](./spec-foundation.md)。
 
 实现层 PR 评审需对照 §3.1 观测点清单,确认所有可观测点已实现。
 
@@ -591,7 +591,7 @@ acceptance 中标注为声明性或基于假设的 AC,在 test plan 中需要**�
 ### 8.3 与实现同步
 
 - 实现层若调整 API endpoint / 日志格式 / 数据文件 schema,需更新 §3.1 观测点清单
-- 若新增观测点(test plan 派生),需更新 spec.md NFR-050
+- 若新增观测点(test plan 派生),需更新 spec-foundation.md NFR-050
 
 ---
 
