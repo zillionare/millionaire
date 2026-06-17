@@ -1132,9 +1132,13 @@ class Calendar:
         """[start, end] 区间内的交易日数(含起止)。
 
         spec FR-014 命名;等价于 count_day_frames。
+        spec AC-014-03-03: start == end 且非交易日 → 0
         """
         if start > end:
             raise ValueError(f"开始日期 {start} 不能大于结束日期 {end}")
+        # spec AC-014-03-03: start == end 且非交易日 → 0
+        if start == end and not self.is_trade_day(start):
+            return 0
         return self.count_day_frames(start, end)
 
 

@@ -73,11 +73,17 @@ class TestLifecycleHooks:
             params = list(sig.parameters.keys())
             assert "tm" in params, f"{name} must accept 'tm' parameter"
 
-    def test_on_bar_not_on_base_strategy(self):
-        """spec FR-010: on_bar 不在 BaseStrategy 中(子类专有)"""
-        # spec AC-010-02 明文要求
-        assert not hasattr(BaseStrategy, "on_bar"), (
-            "on_bar must NOT be on BaseStrategy per spec"
+    def test_on_bar_on_base_strategy(self):
+        """spec FR-010 AC-010-02: on_bar(tm) 在 BaseStrategy 专有定义
+        (BaseStrategy 专有, 不在抽象根 Strategy 上)
+        """
+        assert hasattr(BaseStrategy, "on_bar"), (
+            "on_bar must be on BaseStrategy per v0.2 spec AC-010-02"
+        )
+        # 同时验证: 不在 Strategy 抽象根上
+        from quantide.core.strategy import Strategy
+        assert not hasattr(Strategy, "on_bar"), (
+            "on_bar must NOT be on Strategy abstract root"
         )
 
 

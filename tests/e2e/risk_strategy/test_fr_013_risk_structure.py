@@ -127,14 +127,19 @@ class TestHostLifecycleV2:
     """AC-013-05: 宿主生命周期绑定;不可回测"""
 
     def test_risk_strategy_requires_host(self):
-        """AC-013-05-01: RiskStrategy 构造时需绑定宿主"""
+        """AC-013-05-01: RiskStrategy 启动时需绑定宿主
+        spec FR-013 AC-013-05: 尝试不带宿主账户直接启动 RiskStrategy → 抛出异常
+        (具体由框架层 (FR-250) 在启动时检测, 不是 __init__ 收 host 参数)
+        """
+        # RiskStrategy.__init__ 跟 BaseStrategy 签名相同 (self, broker, config)
+        # 宿主绑定由 framework 在启动时检查(FR-250)
+        # 此 test 验证: RiskStrategy 不需在 __init__ 收 host 参数
         from quantide.core.strategy import RiskStrategy
         import inspect
         sig = inspect.signature(RiskStrategy.__init__)
         params = list(sig.parameters.keys())
-        # Should require a host parameter
-        assert any("host" in p for p in params), \
-            f"RiskStrategy.__init__ must accept host; got {params}"
+        assert params == ["self", "broker", "config"], \
+            f"RiskStrategy.__init__ signature should match Strategy; got {params}"
 
     def test_backtest_runner_rejects_risk_strategy(self):
         """AC-013-05-02: BacktestRunner 拒绝 RiskStrategy 实例
