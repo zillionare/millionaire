@@ -201,12 +201,12 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 
 - **用户策略**:`BaseStrategy` 与 `RiskStrategy`(FR-010)的所有子类
 - **内置策略**:Millionaire 自带的 `BaseStrategy`与 `RiskStrategy`的所有子类(详见 FR-090/100/110)
-- **非目标**:`Strategy` 自身、未继承自 `BaseStrategy`或者 `RiskStrategy` 的类、纯数据/工具类
+- **非目标**:`Strategy` 自身 / `BaseStrategy` 自身 / `RiskStrategy` 自身(三个抽象/基类)、既未继承 `BaseStrategy` 也未继承 `RiskStrategy` 的类、纯数据/工具类
 
 #### 识别规则
 
 - 目标文件:用户配置的策略根目录下的 `.py` 文件(**不递归子目录**)
-- 识别条件:类继承自 `BaseStrategy`(FR-010);直接继承 `BaseStrategy` 的具体类同样是合法策略(枚举结果中的 `strategy_type` 由最终基类推导)
+- 识别条件:类继承自 `BaseStrategy`(FR-010)或 `RiskStrategy`(FR-013);直接继承 `BaseStrategy` 的具体类同样是合法策略(枚举结果中的 `strategy_type` 由最终基类推导:BaseStrategy 子类 → `"independent"`,RiskStrategy 子类 → `"risk"`)
 - 参数获取:调用 `BaseStrategy.default_config()`(`@staticmethod`,FR-010 辅助接口),返回 `dict[str, Any]`(key=参数名, value=默认值);未覆盖时回退到 `{}`
 - 策略名称:`cls.__name__`,若类定义了 `__display_name__` 属性则优先使用
 - 策略描述:`cls.__doc__` 首行(无 docstring 时为空字符串)
@@ -254,7 +254,7 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 | 目录权限不足                                   | 返回空列表 + 记录 `PermissionDenied`;日志告警                          |
 | 单文件语法错                                   | 跳过该文件;记录 `SyntaxError`                                          |
 | 单文件 import 失败                             | 跳过该文件;记录 `ImportError`(不传播)                                  |
-| 类未继承 BaseStrategy                          | 该类不出现在策略列表;记录 `NotAStrategy`                               |
+| 类既未继承 `BaseStrategy` 也未继承 `RiskStrategy` | 该类不出现在策略列表;记录 `NotAStrategy` |
 | 类继承 BaseStrategy 但 `default_config` 抛异常 | 该类不出现在策略列表;记录 `InvalidConfig`                              |
 | 多个类共享同一 `strategy_id`                   | 全保留;**展示优先级**见 UI spec                                        |
 | 内置与用户策略 `strategy_id` 冲突              | 用户策略覆盖内置;记录 `BuiltinOverridden`(优先级规则在 UI spec 中定义) |
