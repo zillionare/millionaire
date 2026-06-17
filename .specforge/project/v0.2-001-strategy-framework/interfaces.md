@@ -549,40 +549,53 @@ class EnumerationResult:
 | `strategy.enumerated` | `strategy_id, is_builtin, default_config_size` | INFO | FR-020 |
 | `strategy.skipped` | `path, class_name, reason, detail` | WARNING | FR-020 |
 | `strategy.lifecycle` | `strategy_id, hook, tm` | DEBUG | FR-010 |
-| `order.submitted` | `strategy_id, asset, side, shares, price` | INFO | FR-011/012 |
-| `order.filled` | `strategy_id, asset, filled_qty, fill_price, ts` | INFO | FR-011/012/013 |
-| `order.rejected` | `strategy_id, asset, reason` | WARNING | FR-140/150/160 |
+| `order.submitted` | `strategy_id, asset, side, shares, price` | INFO | FR-010 |
+| `order.filled` | `strategy_id, asset, filled_qty, fill_price, ts` | INFO | FR-010/013 |
+| `order.cancelled` | `strategy_id, order_id, reason` | INFO | FR-013 |
 | `risk.triggered` | `risk_strategy_id, host_strategy_id, asset, trigger_price, cost, reason, ts` | INFO | FR-013/125 |
 | `risk.excess_return.finalized` | `event_id, excess_return` | INFO | FR-013/360 |
-| `backtest.started` | `strategy_id, params, interval` | INFO | FR-011 |
-| `backtest.progress` | `strategy_id, current_day, total_days, pct` | INFO | FR-011 |
-| `backtest.completed` | `strategy_id, metrics` | INFO | FR-011 |
+| `backtest.started` | `strategy_id, params, interval` | INFO | FR-010 |
+| `backtest.progress` | `strategy_id, current_day, total_days, pct` | INFO | FR-010 |
+| `backtest.completed` | `strategy_id, metrics` | INFO | FR-010 |
 
 ## 6. 与现有实现的冲突与处理
 
-### 6.1 已识别冲突
+### 6.1 现状摘要
+
+实现层 `quantide/core/strategy.py` 当前**只含 `BaseStrategy` 一个空壳类**(157 行):
+- 有: `__init__`, `init`, `on_start`, `on_stop`, `on_day_open`, `on_day_close`, `default_config`, `get_history`, `log`, `record`
+- 缺: `Strategy` 抽象根, `RiskStrategy`, `on_bar`, `on_check`, `get_bars`(叫 `get_history`), `get_prices`, `get_ticks`, 账户接口(`buy`/`sell`/`positions`/`cash`/`sell_host_position`)
+- 缺: 回测端点(`backtest.started` 等日志触发点)
+- 缺: 风控触发 / 超额收益日志触发点
+
+> 之前记录的"DayStrategy / LiveStrategy 子类已存在"是**误判** — 实际不存在。本节冲突表按实际空壳重写。
+
+### 6.2 已识别冲突(基于实际代码核对)
 
 | # | 冲突点 | spec 决定 | 现有实现 | 处理 |
 |---|---|---|---|---|
-| C1 | `BaseStrategy.on_bar` | 不在 BaseStrategy(子类专有) | 已实现 in BaseStrategy | **删除 BaseStrategy.on_bar**;挪到 BaseStrategy 子类的默认实现 |
-| C2 | `on_bar` 签名 | `on_bar(tm)` 纯时序 | `on_bar(tm, quote, frame_type)` | **重写** |
-| C3 | 数据方法名 | `get_bars` 在 `Strategy` 抽象根 | `get_history` in BaseStrategy | **重命名** `get_history` → `get_bars`;**上移**到抽象根 |
-| C4 | 策略类分层 | `BaseStrategy` + `RiskStrategy`(兄弟,均继承 `Strategy`) | 仅 BaseStrategy + DualMAStrategy(直接继承) | **新增 `RiskStrategy`;新增 `Strategy` 抽象根**;DualMAStrategy 改为继承 BaseStrategy |
-| C5 | 策略目录默认 | spec 不硬定路径 | `~/.millionaire/strategies/` | 现有实现保留可配置;spec 兼容(只要默认指向内置示例即满足 AC-020-01) |
+| C1 | `on_bar` 缺失 | `BaseStrategy` 子类专有, 签名 `on_bar(tm)` | 缺 | **新增** `on_bar(tm)` 到 BaseStrategy(默认 pass) |
+| C2 | `on_check` 缺失 | `RiskStrategy` 专有, 签名 `on_check(positions, tm)` | 缺; RiskStrategy 整个缺 | **新增** `RiskStrategy` 类 + `on_check` 默认实现 |
+| C3 | 数据方法名 | `get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True) → pl.DataFrame` 在 `Strategy` 抽象根 | 现有 `get_history(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True) → pl.DataFrame` in BaseStrategy | **重命名** `get_history` → `get_bars`;**上移**到新 `Strategy` 抽象根 |
+| C4 | 策略类分层 | 三层: `Strategy`(抽象根) / `BaseStrategy`(独立) / `RiskStrategy`(风控);`BaseStrategy` 与 `RiskStrategy` **兄弟**,均继承 `Strategy` | 仅 `BaseStrategy` | **新增** `Strategy` 抽象根 + `RiskStrategy`(兄弟类,非 BaseStrategy 子类);`BaseStrategy(Strategy)` |
+| C5 | 账户接口 | `BaseStrategy` 子类有 `buy` / `sell` / `positions` / `cash`;`RiskStrategy` 有 `sell_host_position`,**类层无** `buy` / `positions` / `cash` | 全部缺 | **新增** 全部账户接口;`RiskStrategy` 继承 `Strategy` 而非 `BaseStrategy` 保证拿不到 buy/positions/cash(类层缺失) |
 | C6 | `default_config` UI 展示字段 | spec 要求元数据 schema | 现有仅返回原始 dict | **增强**:在枚举时把 dict 转 `dict[str, ParamSpec]` |
-| C7 | SDK 元数据(FR-014/015) | spec 接口 | 已在 `data/models/` 实现 | **对齐**:验证签名/返回类型与 spec 一致 |
-| C8 | 测试数据 | spec 要 2023-2025, 105 标的 | 现有 `assets/baselines/dual_ma_2024.backtest.json` 用 2024 | **保留现有作为最小子集**;逐步扩展到 105 个 |
-| C9 | `get_prices` / `get_ticks` 归属 | 仅 `RiskStrategy` | 现有未实现 | **新建**于 `RiskStrategy` 专有;**类层不存在**于 `BaseStrategy`(继承结构保证) |
-| C10 | 风控回测语义 | ⏸ 暂缓(FR-013 §回测状态) | 现有未实现 | **不固化**到 spec;实现层决定 |
+| C7 | 策略目录默认 | spec 不硬定路径 | `~/.millionaire/strategies/` | 现有实现保留可配置;spec 兼容(只要默认指向内置示例即满足 AC-020-01) |
+| C8 | SDK 元数据(FR-014/015) | spec 接口 | 已在 `data/models/` 实现 | **对齐**:验证签名/返回类型与 spec 一致 |
+| C9 | `get_prices` / `get_ticks` 归属 | 仅 `RiskStrategy` | 缺 | **新建**于 `RiskStrategy` 专有;**类层不存在**于 `BaseStrategy`(继承结构保证) |
+| C10 | 风控回测语义 | ⏸ 暂缓(FR-013 §回测状态) | 缺 | **不固化**到 spec;实现层决定 |
+| C11 | `UnsupportedFrameTypeForBacktest` 抛出位置 | BacktestRunner 上下文: `get_bars(frame_type != "1d")` 抛 | 缺 | **新增** 该异常类;BacktestRunner 拦截 |
+| C12 | 测试数据 | spec 要 2023-2025, 105 标的 | 已有(已扩展) | **保留**: `tests/assets/real/` 105 资产 + 69,551 日线 + 3 年真实 tushare 数据 |
 
-### 6.2 未识别冲突(实施时跟踪)
+### 6.3 未识别冲突(实施时跟踪)
 
 实现层 PR review 时需对照 spec 逐项核对,标记以下信息:
 
-- [ ] FR-010 钩子默认值(`pass` vs 现有 `pass`)
-- [ ] FR-010 不可知运行模式(无 `get_mode`)
+- [ ] FR-010 钩子默认值(`pass`)
+- [ ] FR-010 不可知运行模式(无 `get_mode` / `is_backtest`)
 - [ ] FR-013 风控策略的 `__init__` 强制绑定宿主参数
 - [ ] FR-020 模式无关性(枚举结果在 4 模式下一致)
+- [ ] FR-115 钩子调用顺序(已写进 AC-010-02)
 
 ## 7. 变更记录
 
@@ -593,10 +606,22 @@ class EnumerationResult:
   - §4 异常表(集中 spec 散落的错误场景)
   - §5 日志条目(细化 test-plan §3.1.3)
   - §6 冲突清单(基线 8 项)
-- **2026-06-17 (本轮)**: 对齐 spec.md 的"数据方法上提 / 下移"决策
+- **2026-06-17 (本轮 1)**: 对齐 spec.md 的"数据方法上提 / 下移"决策
   - §1.1 `Strategy` 加 `get_bars` 签名
   - §1.2 `BaseStrategy` 移除 `get_bars`(已上提);类别从"四类"改为"三类"
   - §1.3 `RiskStrategy` 保留 `get_prices` / `get_ticks`(已明确归属)
   - §4 异常表加 `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST`;移除 `LIVE_NOT_BACKTESTABLE` 与 `RISK_NO_BUY_API`(因 FR-011/012 删除);`INVALID_FRAME_TYPE` 关联 AC 改 AC-010-XX
   - §6 加 C9(数据方法归属)/ C10(风控回测 暂缓);更新 C1/C2/C3/C4 措辞以反映新分层
   - §4 注:`get_prices` / `get_ticks` 在回测下的行为 ⏸ 暂缓,不进错误码表
+- **2026-06-17 (本轮 2)**: 重新核对实现层实际状态后重写 §6
+  - 纠正:实现层仅含 `BaseStrategy` 空壳(157 行);"DayStrategy / LiveStrategy 子类"系误判,实际不存在
+  - §6.1 现状摘要:列出 BaseStrategy 有/缺什么
+  - §6.2 冲突表按实际重写(11 条):
+    - 删除原 C1/C2(基于错误假设的"on_bar 已存在")
+    - 新增 C1/C2/C5(基于实际"缺什么")
+    - C3 措辞调整(原"重命名"改为对上移到 Strategy 根)
+    - C4 措辞调整(明确"兄弟类")
+    - 新增 C11(`UnsupportedFrameTypeForBacktest` 抛出位置)
+    - C12 取代原 C8(测试数据已扩展完成,标"保留"而非"扩展中")
+  - §5 日志条目 FR 引用: FR-011/012 → FR-010(因 FR-011/012 已删除)
+  - §6.3 待跟踪清单补 FR-115 钩子顺序
