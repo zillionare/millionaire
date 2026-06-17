@@ -23,7 +23,7 @@ story: 作为用户，我希望使用三种内置策略：双均线（日线）�
 priority: P0
 
 ### US-050
-story: 作为用户，我编写日内策略（如 30 分钟隔夜策略）时，框架通过 on_day_open / on_bar 驱动，且不可回测
+story: 作为用户，我编写使用 30m 等 live-only 数据粒度的独立策略（如 30 分钟隔夜策略）时，框架通过 on_day_open / on_bar 驱动，调用 get_bars(frame_type="30m") 的策略不可回测，BacktestRunner 会抛 UnsupportedFrameTypeForBacktest
 priority: P0
 
 ### US-060
@@ -60,9 +60,9 @@ priority: P0
 
 选择双均线策略 + cheat-on-close 下单 + fast=5 / slow=20 + 回测起止 + 运行时本金。系统每日计算 MA5/MA20，cross-over 时发出买卖信号，T+0 收盘价成交。回测实时显示进度与净值曲线（按 on_bar 推进），结束后输出完整报告（指标 + 4 类图表）。
 
-### scenario-020 日内策略上实盘
+### scenario-020 独立策略（30 分钟隔夜）上实盘
 
-编写 `OvernightStrategy(IntraDayStrategy)，在仿真界面运行 1 周 → 切到实盘 → 系统当日停止原仿真 → 自动创建并行仿真 → 策略在实盘正常发单。期间如需暂停，点 "dry-run"，策略继续运行不实际下单，可观察并行仿真曲线。
+编写 `OvernightStrategy(BaseStrategy)`（直接继承 BaseStrategy，使用 `frame_type="30m"` 数据），在仿真界面运行 1 周 → 切到实盘 → 系统当日停止原仿真 → 自动创建并行仿真 → 策略在实盘正常发单。期间如需暂停，点 "dry-run"，策略继续运行不实际下单，可观察并行仿真曲线。
 
 ### scenario-030 风控策略叠加
 
@@ -80,23 +80,49 @@ priority: P0
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类、三类策略子类、统一生命周期 API、数据接口、交易接口。AI Coding Agent skill（基于 skill 封装数据/交易接口、生成策略模板）推迟至 v0.3。
+v0.2 提供可用的 Python SDK（非"仅声明"）：含 `Strategy` 抽象根、`BaseStrategy`（独立策略）与 `RiskStrategy`（风控策略）两个用户可继承基类，以及统一生命周期 API、数据接口、交易接口。AI Coding Agent skill（基于 skill 封装数据/交易接口、生成策略模板）推迟至 v0.3。
 
-#### 策略类型分层
+#### 分类依据：账户有无（而非"日线 vs 日内"）
 
-策略分三类，**类型决定调度行为，而非运行时标记**。调度器按类型分发任务——这从结构上保证"日内策略不会被误送回测、风控策略不会被独立调度"：
+story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用户场景，但二者**仅在"是否可回测"上有别**——而可回测性是 **Millionaire 不存日线以下行情**这一数据约束的派生结果，属业务/产品决定，不构成代码层面的类型分界。两者接口、账户、生命周期、评估指标完全相同，因此合并为同一个类。业务视角的对照见 story §1。
 
-| 维度     | DayStrategy      | IntraDayStrategy | RiskStrategy       |
-| -------- | ---------------- | ---------------- | ------------------ |
-| 资金账户 | 独立虚拟账户     | 独立虚拟账户     | 无（操作宿主账户） |
-| 可回测   | ✅                | ❌（类型保证）    | ❌（类型保证）      |
-| 调度入口 | 必须从回测起     | 仿真/实盘直接起  | 跟随宿主生命周期   |
-| 驱动契约 | FR-115（日线）   | FR-120（日内）   | FR-125（风控）     |
-| 评估指标 | FR-340 完整 8 项 | FR-350 完整 8 项 | FR-360 仅超额收益  |
+真正的类型分界是 **是否拥有独立资金账户**。它是一条因果链的根：账户有无 → 持仓归谁 → 能否买入 → 收益如何闭环 → 如何回测 → 如何评估 → 能否独立调度。按此将策略划为**两类**：
 
-#### BaseStrategy 共享契约
+| 能力维度     | `BaseStrategy`（独立策略）  |               `RiskStrategy`（风控策略）                | 差异根因          |
+| ------------ | :-------------------------: | :-----------------------------------------------------: | ----------------- |
+| 独立资金账户 | ✅ 每实例一个 `portfolio_id` |                          ❌ 无                           | **划分轴本身**    |
+| 持仓归属     |         自己的持仓          |                   操作**宿主**的持仓                    | 账户有无          |
+| 买入能力     |        ✅ buy 全家族         |            ❌ 类层无此 API（兄弟类，不继承）             | 无账户 → 无处入账 |
+| 卖出能力     |      卖**自己**的持仓       |            `sell_host_position` 卖**宿主**的            | 持仓归属不同      |
+| 收益闭环     |        卖出时即确定         | 从卖出时**才开始计算**（对比未来 N 日，Triple Barrier） | 收益范式不同      |
+| 回测方法     |      完整资金循环模拟       |     随机生成宿主持仓 → 触发 → Triple Barrier 算超额     | 收益范式不同      |
+| 评估指标     |   8 项完整（FR-340/350）    |             仅超额收益 + 触发统计（FR-360）             | 收益范式不同      |
+| 调度独立性   |    ✅ 可独立起 paper/live    |              ❌ 跟随宿主生命周期（FR-250）               | 无账户            |
+| 决策驱动钩子 |        `on_bar(tm)`         |                `on_check(positions, tm)`                | 决策触发方式不同  |
 
-以下接口由 `BaseStrategy` 定义，三类子类继承。AI Agent skill 推迟 v0.3 不影响这些接口的 v0.2 可用性。
+
+#### 类继承层次
+
+```
+                ┌─────────────────────────────┐
+                │      Strategy (抽象根)        │  ← 生命周期 + 声明 + 可观测
+                │      用户不直接继承            │     （可设为 ABC）
+                └────────────┬────────────────┘
+            ┌────────────────┴───────────────┐
+            ▼                                ▼
+   ┌─────────────────────┐         ┌─────────────────────┐
+   │    BaseStrategy     │         │    RiskStrategy     │
+   │   独立策略基类        │         │   风控策略基类        │
+   │ 账户·买卖·on_bar·数据 │         │ 宿主·卖出·on_check·数据│
+   └──────────▲──────────┘         └──────────▲──────────┘
+              │ 用户继承                        │ 用户继承
+       class MyStrategy(...)            class MyRiskStrategy(...)
+```
+
+
+#### `Strategy` 抽象根契约
+
+以下接口由 `Strategy` 定义，`BaseStrategy` 与 `RiskStrategy` **均继承**。AI Agent skill 推迟 v0.3 不影响这些接口的 v0.2 可用性。
 
 ##### 生命周期钩子
 
@@ -110,10 +136,6 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 
 所有钩子默认实现为空操作（`pass`），子类可覆盖任意子集。
 
-> **`on_bar` 不在 BaseStrategy 中**：`on_bar` 仅由 DayStrategy 和 IntraDayStrategy 使用（见 FR-011/012）；RiskStrategy 使用专有回调 `on_check`（见 FR-125）。
-
-> **子类专有回调**：各子类可能定义 BaseStrategy 之外的专有回调，详见 FR-011/012/013。
-
 #### 辅助接口
 
 | 方法                                  | 语义                                                   |
@@ -125,62 +147,18 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 > **模式无关性约束**
 > 策略代码中无任何 API 可获取当前运行模式（回测/仿真/实盘/dry-run）。基类不暴露 `get_mode()` 或等价方法。生命周期钩子在四模式下行为一致（同一回调名、同一时序、同一参数语义）；仅撮合行为与数据来源因模式不同而异，且这些差异由框架在策略不可见处处理。
 
----
+#### `BaseStrategy` 专有接口（独立策略）
 
-### FR-011 DayStrategy 结构契约（日线策略）
+`BaseStrategy` 在 `Strategy` 之上扩展账户、交易、数据、决策驱动四类能力。
 
-| 有效需求 | 可测性 | 是否已决定 |
-| -------- | ------ | ---------- |
-| ✅        | ✅      | ✅          |
+| 类别         | 成员                                                                                                                                       | 设计要点                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 决策驱动钩子 | `on_bar(tm)`                                                                                                                               | **唯一决策入口**，async，默认 `pass`。日线模式下每个交易日收盘后触发一次；日内模式下每个 30m bar 边界触发。驱动契约见 FR-115          |
+| 数据         | `get_bars(asset, count, end_dt=None, frame_type, include_forming_bar=True)` → `pl.DataFrame`                                               | **拉取式**。`frame_type` 支持 `"1d"` \| `"30m"`，是**运行时参数不是类型**。1d 数据可回测；30m 等 live-only 粒度仅 paper/live 实时聚合 |
+| 交易         | `buy` / `buy_percent` / `buy_amount` / `sell` / `sell_percent` / `sell_amount` / `cancel_order` / `cancel_all_orders` / `trade_target_pct` | 全部返回 `TradeResult`（含 `qt_oid` 与 `trades`），归属本策略 `portfolio_id`                                                          |
+| 账户查询     | `positions`（属性）/ `cash`（属性）                                                                                                        | 只反映本账户                                                                                                                          |
 
-日线策略的基类。**可回测性由类型保证**——`BacktestRunner` 仅接受 `DayStrategy` 实例。
-
-- **继承**：`DayStrategy(BaseStrategy)`
-- **资金账户**：独立虚拟账户（FR-210），每个实例一个 `portfolio_id`
-- **可回测**：✅。必须从回测开始才能进入仿真/实盘（FR-230）
-- **驱动契约**：见 FR-115（日线驱动）。专有钩子 `on_bar(tm)`——纯时序信号，策略通过 `get_bars` 拉取所需数据
-- **数据接口**：`get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True)` → `pl.LazyFrame`。仅支持 `frame_type="1d"`，传其它周期报错
-- **交易接口**：完整买卖接口（buy/sell/buy_percent/sell_percent/buy_amount/sell_amount/cancel_order/cancel_all_orders/trade_target_pct），订单归属本策略 `portfolio_id`
-- **查询接口**：`positions`（`dict[str, Position]`）、`cash`（`float`）
-- **评估指标**：FR-340 完整 8 项
-- **内置实现**：`DualMAStrategy`（FR-090）
-
-> **DayStrategy 与 IntraDayStrategy 共享的接口契约**（交易/查询/数据）：
->
-> 两者接口完全相同，仅数据周期与可回测性不同。DayStrategy 限制 `frame_type="1d"`；IntraDayStrategy 支持 `"30m"|"1d"` 等多周期。
->
-> **交易接口**：
-> `buy(asset, shares, price=0)` / `buy_percent(asset, percent)` / `buy_amount(asset, amount)` / `sell(asset, shares, price=0)` / `sell_percent(asset, percent)` / `sell_amount(asset, amount)` / `cancel_order(qt_oid)` / `cancel_all_orders(side=None)` / `trade_target_pct(asset, target_pct)`
->
-> 所有买卖方法返回 `TradeResult`（含 `qt_oid` 订单 ID 和 `trades` 成交记录列表）。
->
-> **数据接口**：
-> `get_bars(asset, count, end_dt=None, frame_type, include_forming_bar=True)` → `pl.DataFrame`
-> - `end_dt` 默认为当前运行时间
-> - `include_forming_bar=True` 时返回含当日 forming bar
-> - `include_forming_bar=False` 时只返回昨日及更早数据
-
----
-
-### FR-012 IntraDayStrategy 结构契约（日内策略）
-
-| 有效需求 | 可测性 | 是否已决定 |
-| -------- | ------ | ---------- |
-| ✅        | ✅      | ✅          |
-
-日内策略的基类。**不可回测由类型保证**——`IntraDayStrategy` 不被 `BacktestRunner` 接受；调度器拒绝为其创建回测任务。
-
-- **继承**：`IntraDayStrategy(BaseStrategy)`
-- **资金账户**：独立虚拟账户（FR-210），每个实例一个 `portfolio_id`
-- **可回测**：❌（类型保证，非运行时校验）。调度路径为 仿真→实盘 或直接实盘（FR-240）
-- **驱动契约**：见 FR-120（日内驱动）
-- **数据接口**：`get_bars(frame_type="30m"|"1d")`；30m 等非原始周期由框架基于 qmt-gateway tick 订阅缓存聚合后提供（接口定义见 FR-011）
-- **交易接口**：完整买卖接口（与 DayStrategy 相同，见 FR-011），订单归属本策略 `portfolio_id`
-- **查询接口**：`positions`（`dict[str, Position]`）、`cash`（`float`）
-- **评估指标**：FR-350 完整 8 项
-- **内置实现**：无（用户自行编写，如 30 分钟隔夜策略）
-
-> **30m 数据来源**：框架订阅 qmt-gateway tick 行情后缓存在内存中，按 30m 窗口聚合为 OHLCV bar。策略通过 `get_bars(frame_type="30m")` 拉取，与日线接口完全一致。
+> **接口定义以 [interfaces.md](./interfaces.md) §1 为准**（签名、类型、错误码）。本节仅列分类与设计意图。
 
 ---
 
@@ -190,20 +168,19 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-风控策略的基类。**与独立策略是结构性差异，不是"共享+约束"关系**：无账户、操作宿主持仓、只算超额收益。
+风控策略的基类，继承自抽象根 `Strategy`。**与独立策略是结构性差异，不是"共享+约束"关系**：无账户、操作宿主持仓、只算超额收益。
 
-- **继承**：`RiskStrategy(BaseStrategy)`
 - **资金账户**：❌ 无。不创建 `portfolio_id`，不持有资金
-- **可回测**：✅。回测时按 story §1 表格"回测方法"列：每日随机生成一批（参数）个股作为"模拟持仓"快照 → 翌日风控按其逻辑决定是否卖出 → 对卖出的个股按 Triple Barrier 计算超额收益；未卖出的直接抛弃。当日再生成另一批，供翌日消耗。**类型仍由 `RiskStrategy` 保证；与 Day/IntraDay 不会混淆**。
+- **可回测**：✅。回测时按 story §1 表格"回测方法"列：每日随机生成一批（参数）个股作为"模拟持仓"快照 → 翌日风控按其逻辑决定是否卖出 → 对卖出的个股按 Triple Barrier 计算超额收益；未卖出的直接抛弃。当日再生成另一批，供翌日消耗
 - **不可独立 paper/live**：无宿主即无可监控的持仓；仅在宿主进入 paper/live 时由 FR-250 自动激活跟随。用户若想在 paper/live 阶段验证风控策略，必须先挂载到宿主
-- **宿主挂载**：每个 `RiskStrategy` 实例绑定一个宿主（`DayStrategy` 或 `IntraDayStrategy`）。宿主进入 paper/live 时，其关联的 `RiskStrategy` 自动激活（FR-250）
+- **宿主挂载**：每个 `RiskStrategy` 实例绑定一个宿主 `BaseStrategy`（独立策略）。宿主进入 paper/live 时，其关联的 `RiskStrategy` 自动激活（FR-250）。绑定关系在运行配置中建立（可热调），不在策略代码中以类属性声明
 - **可随时停止和重新启动**：停止后不再监控宿主持仓，已发出的订单不撤回；重新启动后开启新的"开启区间"，新开启区间的超额收益独立计算（见下方）
 - **持仓视图**：只读访问**宿主**的持仓（不可访问自身，因无账户）
-- **交易接口**：不继承 Day/IntraDay 的买卖接口。提供专用接口：
+- **交易接口**：与 `BaseStrategy` 完全不重叠。提供专用接口：
   - `sell_host_position(asset, shares, reason)` — 卖出宿主持仓；订单写入**宿主** `portfolio_id`（资金从宿主扣减），不改变持仓归属（FR-130）；同时记一条风控触发事件（标的、触发价、原因）
-  - 不提供买入接口（风控只卖不买）
-- **数据接口**：`get_ticks(asset, count)` / `get_prices(assets)` — 获取 tick 级行情数据，数据来源为 qmt-gateway 订阅消息的当日缓存
-- **驱动契约**：见 FR-125（tick 级独立驱动）。`on_day_open` 读取前一日可卖持仓，交易时段内每个 tick 触发 `on_check`
+  - 无买入接口（风控只卖不买，由继承结构保证而非运行时拦截）
+- **数据接口**：`get_bars` / `get_ticks(asset, count)` / `get_prices(assets)` — 获取历史日线行情、 tick 级行情数据（paper/live）.
+- **驱动契约**：见 FR-125（事件驱动）。`on_check(positions, tm)` 由框架在每个 tick（paper/live）| bar （回测）触发，`positions` 为宿主当日可卖持仓快照（只读）
 - **评估指标**：FR-360 仅超额收益 + 触发次数/原因统计；超额收益按"开启区间"独立累计（见下方）
 - **内置实现**：`DrawbackSellStrategy`（FR-100）、`CostStopStrategy`（FR-110）
 
@@ -214,13 +191,12 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 > 2. 价格下跌到 `P_sell * (1 − down_threshold)` → 贡献 `+down_threshold`
 > 3. 直到 `T_n` 日，上述条件均未满足 → 按当日收盘价 `Close_n` 退出，贡献 `P_sell / Close_n − 1`
 >
-> **日线（回测）**：用当日 high/low 判断是否触发屏障；若一日内两屏障同时触发，以开盘价最近者为准（开盘更接近上屏障则属条件 1；更接近下屏障则属条件 2）。
+> **日线（回测）**：用当日 high/low 判断是否触发屏障；若一日内两屏障同时触发，以开盘价最近者为准（开盘更接近上屏障则属条件 1；更接近下屏障则属条件 2）。但如果监控参数 **n = 0**，则不使用 high/low 判断，直接以当日收盘价判断。
 > **仿真/实盘**：以 last_price 先到者为准。
 > **N=0** 即当日收盘价。
 >
 > **按"开启区间"独立计算**：风控策略的"开启" = 被激活且正在监控宿主持仓的状态。每发生一次 stop → start（无论自动跟随宿主还是手动重启），记为一个**新开启区间**。每个开启区间内的所有触发事件的收益**单独累计**，不与前一个开启区间合并。指标展示与持久化按"开启区间"维度切分（详见 FR-360）。
 >
-> 与旧版（单期反向收益率 `(sell - close) / sell`）的语义差异：旧版只看卖出后 N 日的反向走势；新版同时考虑上下两个屏障，把"风控是否过早"和"风控是否过晚"都纳入评估。
 
 ---
 
@@ -279,9 +255,9 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 
 #### 枚举目标
 
-- **用户策略**:`BaseStrategy`(FR-010)的所有子类(含 `DayStrategy` / `IntraDayStrategy` / `RiskStrategy`)
-- **内置策略**:Millionaire 自带的 `BaseStrategy` 子类(详见 FR-090/100/110)
-- **非目标**:`BaseStrategy` 自身的抽象类、未继承 `BaseStrategy` 的类、纯数据/工具类
+- **用户策略**:`BaseStrategy` 与 `RiskStrategy`(FR-010)的所有子类
+- **内置策略**:Millionaire 自带的 `BaseStrategy`与 `RiskStrategy`的所有子类(详见 FR-090/100/110)
+- **非目标**:`Strategy` 自身、未继承自 `BaseStrategy`或者 `RiskStrategy` 的类、纯数据/工具类
 
 #### 识别规则
 
@@ -295,16 +271,16 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 
 每个被识别的策略类输出以下结构化元数据:
 
-| 字段              | 类型                                  | 来源                                                      | 说明                                             |
-| ----------------- | ------------------------------------- | --------------------------------------------------------- | ------------------------------------------------ |
-| `strategy_id`     | `str`                                 | `f"{module}.{class_name}"` 全限定名                       | 唯一标识;运行时不可变                            |
-| `name`            | `str`                                 | `cls.__display_name__` 或 `cls.__name__`                  | 展示名                                           |
-| `description`     | `str`                                 | 类 docstring 首行;若空则为空串                            | 描述                                             |
-| `strategy_type`   | `Literal["day", "intra_day", "risk"]` | 由最终基类(DayStrategy/IntraDayStrategy/RiskStrategy)推导 | 用于调度路由(联动 FR-115/120/125)                |
-| `module`          | `str`                                 | 类所在模块路径                                            | 用于定位源代码                                   |
-| `is_builtin`      | `bool`                                | 类是否定义在 Millionaire 框架包内                         | 区分内置/用户策略;**优先级与展示规则见 UI spec** |
-| `default_config`  | `dict[str, ParamSpec]`                | 调用 `BaseStrategy.default_config()`                      | 参数声明;`ParamSpec` 见下                        |
-| `skipped_reasons` | `list[SkippedReason]`                 | 仅**未识别类**有此字段                                    | 用于诊断与 UI 提示                               |
+| 字段              | 类型                             | 来源                                      | 说明                                             |
+| ----------------- | -------------------------------- | ----------------------------------------- | ------------------------------------------------ |
+| `strategy_id`     | `str`                            | `f"{module}.{class_name}"` 全限定名       | 唯一标识;运行时不可变                            |
+| `name`            | `str`                            | `cls.__display_name__` 或 `cls.__name__`  | 展示名                                           |
+| `description`     | `str`                            | 类 docstring 首行;若空则为空串            | 描述                                             |
+| `strategy_type`   | `Literal["independent", "risk"]` | 由最终基类(BaseStrategy/RiskStrategy)推导 | 用于调度路由(联动 FR-115/125)                    |
+| `module`          | `str`                            | 类所在模块路径                            | 用于定位源代码                                   |
+| `is_builtin`      | `bool`                           | 类是否定义在 Millionaire 框架包内         | 区分内置/用户策略;**优先级与展示规则见 UI spec** |
+| `default_config`  | `dict[str, ParamSpec]`           | 调用 `BaseStrategy.default_config()`      | 参数声明;`ParamSpec` 见下                        |
+| `skipped_reasons` | `list[SkippedReason]`            | 仅**未识别类**有此字段                    | 用于诊断与 UI 提示                               |
 
 `ParamSpec`:
 
@@ -347,7 +323,7 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 #### 联动接口
 
 - **FR-010**:`BaseStrategy.default_config()` 是元数据的来源
-- **FR-011/012/013**:`strategy_type` 字段由最终基类推导
+- **FR-013**:`strategy_type` 字段由最终基类(BaseStrategy/RiskStrategy)推导；"independent" = `BaseStrategy` 本身, "risk" = `RiskStrategy`
 - **FR-090/100/110**:内置策略同样参与枚举
 - **FR-200**:运行时参数**不在**枚举元数据中;由 UI spec 单独管理
 - **UI spec**(待建):消费本 FR 的元数据列表,负责渲染、排序、过滤、内置/用户优先级
@@ -390,7 +366,7 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 | ✅        | ✅      | ✅          |
 
 - 回测：T+0 收盘价信号，T+0 收盘价撮合
-- paper/live：T+0 尾盘信号，在尾盘集合竞价（用户可配置时间点，默认 14:57）执行；触发即发单等撮合
+- paper/live：T+0 尾盘信号，在尾盘集合竞价（用户可配置时间点，默认 14:57）执行；触发信号则立即委托，等撮合
 
 ---
 
@@ -432,7 +408,7 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-日线策略（`DayStrategy`）。计算 [fast, slow] 周期均线，fast 上穿 slow → 买入；slow 上穿 fast → 卖出。参数 `[fast, slow]`，默认 `[5, 20]`。回测结果图形化展示：净值、参考线、买入点、卖出点、MA 指标。
+独立策略（`BaseStrategy` 子类，使用日线数据粒度）。计算 [fast, slow] 周期均线，fast 上穿 slow → 买入；slow 上穿 fast → 卖出。参数 `[fast, slow]`，默认 `[5, 20]`。回测结果图形化展示：净值、参考线、买入点、卖出点、MA 指标。
 
 ---
 
@@ -442,7 +418,7 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-`RiskStrategy`（FR-013）的内置实现。个股当天上涨至 m% 后，若 n 分钟内下跌超过 k%，立即卖出。参数 `[m, k]`（均为百分点，如 m=5.0 表示 5%），默认 `[7, 1, 0.5]`。
+`RiskStrategy`（FR-013）的内置实现。个股当天上涨至 m% 后，若 n 分钟内下跌超过 k%，立即卖出。参数中 `[m, k]`（均为百分点，如 m=5.0 表示 5%），默认 `[7, 0.5]`，参数 n 默认为1分钟
 
 ---
 
@@ -454,8 +430,8 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 
 `RiskStrategy`（FR-013）的内置实现。对宿主持仓个股，当 `price ≤ cost_basis × (1 + k/100)` 时触发卖出。
 
-- **参数** `[k]`（百分点，默认 `[-5.0]` 即 -5%）
-- **成本基准** `cost_basis` = 该持仓加权均价（买入时加权平均更新，FR-180）
+- **参数** `[k]`（百分点，默认 `[-5.0]` 即跌破买入价5%时触发）
+- **成本基准** `cost_basis` = 该持仓加权均价（买入时加权平均更新）
 - **触发后行为**：清仓该标的全部**可卖持仓**（受 T+1 约束，在途持仓不可卖）
 - **驱动**：tick 级独立驱动（FR-125），不绑定宿主 `on_bar` 周期。`on_day_open` 读取前一日可卖持仓，交易时段内每个 tick 触发 `on_check`
 - **卖出**：`sell_host_position`，即时市价成交，归属宿主账户
@@ -463,13 +439,13 @@ v0.2 提供可用的 Python SDK（非"仅声明"）：含 `BaseStrategy` 基类�
 
 ---
 
-### FR-115 日线策略驱动契约
+### FR-115 BaseStrategy 驱动契约（独立策略默认）
 
 | 有效需求 | 可测性 | 是否已决定 |
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-`DayStrategy` 的运行时驱动规范。本契约由框架的回测引擎（backtest）/仿真与实盘运行时（paper/live）实现，策略代码只消费回调。
+`BaseStrategy`（独立策略）的运行时驱动规范。本契约由框架的回测引擎（backtest）/仿真与实盘运行时（paper/live）实现，策略代码只消费回调。**数据粒度通过 `get_bars(frame_type=...)` 在调用点声明**（1d/30m 等），与驱动契约本身解耦。
 
 #### 回调时序（单日）
 
@@ -489,28 +465,13 @@ on_day_close(tm=T 15:00)         ← 每个交易日收盘后一次
 | paper | T 日盘后（默认 15:05，可配） | 当日聚合日线         | 信号延迟至 T+1 处理（见 FR-050/060/070） |
 | live  | T 日盘后（默认 15:05，可配） | qmt-gateway 当日行情 | 同 paper                                 |
 
-- **数据约束**：`get_bars` 仅支持 `frame_type="1d"`，传其它周期报错。
+- **数据粒度（1d vs 30m）通过调用点声明**：`get_bars(frame_type="1d")` / `get_bars(frame_type="30m")` 框架按粒度选数据源——1d 走 tushare parquet（可回测）；30m 等仅 live/paper 实时聚合（不可回测）。BacktestRunner 在策略调用 `frame_type="30m"` 等 live-only 粒度时抛 `UnsupportedFrameTypeForBacktest`（运行时检查，比"类型保证"更精确）
 - **"盘后运行"时点**：paper/live 下策略在 T 日收盘后被驱动，默认 15:05（A 股收盘 15:00 后留 5 分钟确保数据完整），可在运行时参数配置。对比 FR-050 cheat-on-close 的 14:57——后者是尾盘集合竞价前，本契约是收盘后，二者不冲突（分属不同下单方式的驱动时点）。
 - **信号与撮合解耦**：`on_bar` 只产生信号（调用交易接口表达意图）；实际撮合时点与价格由下单方式（FR-050/060/070）决定，策略无需感知。
-- **拉取式数据模型**：`on_bar` 不携带行情数据（无 `quote` 参数）；策略通过 `get_bars` 主动拉取所需数据（日线、周线等），框架仅负责时序驱动。
+- **拉取式数据模型**：`on_bar` 不携带行情数据（无 `quote` 参数）；策略通过 `get_bars` 主动拉取所需数据（日线、30m 等），框架仅负责时序驱动。
 
 ---
 
-### FR-120 日内策略驱动契约
-
-| 有效需求 | 可测性 | 是否已决定 |
-| -------- | ------ | ---------- |
-| ✅        | ✅      | ✅          |
-
-`IntraDayStrategy`（FR-012）的运行时驱动规范。仅 paper/live 实现，不实现回测。
-
-- 仅支持 paper/live，不支持回测（类型保证，见 FR-012）
-- 通过 `on_day_open` 与 `on_bar` 驱动
-- `on_bar` 对应 30m/1d 等框架定义周期；30m 等非原始数据由框架基于 qmt-gateway tick 订阅缓存聚合后提供，策略通过 `get_bars` 拉取
-- `on_day_open` 在每个交易日开盘前驱动，用于选股/预处理（如 30 分钟隔夜策略的 day_open 选股）
-- 不直接访问 qmt-gateway 原始接口，仅通过框架 API
-
----
 
 ### FR-125 风控策略驱动契约
 
@@ -522,7 +483,7 @@ on_day_close(tm=T 15:00)         ← 每个交易日收盘后一次
 
 #### 宿主绑定与激活
 
-- 每个 `RiskStrategy` 实例在创建时绑定一个宿主（`DayStrategy` 或 `IntraDayStrategy`）
+- 每个 `RiskStrategy` 实例在创建时绑定一个宿主 `BaseStrategy`（独立策略）
 - 宿主进入 paper/live 时，其绑定的 `RiskStrategy` 自动激活（FR-250）；激活后开始监控宿主持仓
 - 宿主停止时，`RiskStrategy` 一并停止（可随时单独停止，已发订单不撤回）
 
@@ -682,12 +643,13 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 
 ---
 
-### FR-230 日线策略调度路径
+### FR-230 独立策略的回测启动路径
 
 | 有效需求 | 可测性 | 是否已决定 |
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
+- 适用场景：独立策略所需数据粒度可回测（即日线；`get_bars(frame_type="1d")`）
 - 必须从回测开始，才能进入仿真/实盘（使用该回测的参数）
 - 路径 1（顺序）：回测 → 仿真 → 实盘
 - 路径 2（直达）：回测 → 实盘
@@ -696,14 +658,14 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 
 ---
 
-### FR-240 日内策略调度路径
+### FR-240 独立策略的无回测启动路径
 
 | 有效需求 | 可测性 | 是否已决定 |
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-- 不可回测
-- 路径：仿真 → 实盘，或直接实盘
+- 适用场景：独立策略使用 live-only 数据粒度（如 `frame_type="30m"`），无历史数据不可回测
+- 路径：仿真 → 实盘，或直接启动实盘（不经回测）
 - 进入实盘后，原仿真（若有）当日停止，自动创建并行仿真
 
 ---
@@ -807,13 +769,13 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 
 ---
 
-### FR-340 评估指标 — 回测（日线策略）
+### FR-340 评估指标 — 回测（独立策略）
 
 | 有效需求 | 可测性 | 是否已决定 |
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-仅日线策略支持回测。指标：
+独立策略在可回测的数据粒度（日线）下支持回测。指标：
 - 年化收益率
 - 最大回撤
 - Sharpe 比率
@@ -824,6 +786,8 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 - 交易次数
 - 基准对比（如沪深 300，用于判断策略 alpha）
 
+> 风控策略的回测评估见 FR-360（超额收益，Triple Barrier）。
+
 ---
 
 ### FR-350 评估指标 — 实盘/仿真
@@ -832,7 +796,7 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-日线策略与日内策略在实盘/仿真运行时，**使用与 FR-340 相同的指标**进行评估。数据来源为实盘/仿真实际成交记录。
+独立策略（含日线、日内两类用户场景）在实盘/仿真运行时，**使用与 FR-340 相同的指标**进行评估。数据来源为实盘/仿真实际成交记录。
 
 ---
 
@@ -966,7 +930,7 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-1000 个 A 股日线、5 年区间、纯 Python 实现下，回测端到端（含撮合）耗时 < 60s（CI 标准机）。
+1000 个 A 股日线、3 年区间、纯 Python 实现下，双均线回测端到端（含撮合）耗时 < 30s（CI 标准机）。
 
 ---
 
@@ -1122,3 +1086,48 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 > - **FR-130 / FR-250 / FR-360 引用修正**：story §1.8 → §1.9（30分钟隔夜策略 vs 风控超额收益）
 > - **scenario-020 / 030 重写**：实时策略上实盘 → 日内策略上实盘；风控策略叠加场景中描述改为 Triple Barrier
 > - **澄清记录** 至此与最新 story 完全对齐；acceptance.md 与 test-plan.md 待 Aaron 后续按 FR-010~020 范围补齐
+
+> ---
+>
+> **2026-06-17 变更（取消 Day/IntraDay 代码类分裂）**：
+> - **方向**：独立策略（day+intraday）在代码层面合并为单一 `BaseStrategy`。"日线 vs 日内"是**业务场景**（数据粒度），不是**代码类型**。风控策略与独立策略的分裂保留——这是结构性差异（账户有无、交易接口、驱动），不是数据粒度
+> - **story.md §2 重写**：
+>   - 删"独立策略按所要求的数据粒度可分为日线策略和日内策略"
+>   - §2.1 合并为"独立策略"，**调度路径由数据粒度决定**：1d 数据可用 → 必须从回测起（顺序/直达）；30m 等 live-only → 直接 paper/live
+>   - §2.2 风控策略（保留原 §2.3 内容）+ 补"可随时停止和重新启动"
+>   - §2.3 调度总览 mermaid 图合并"日线 / 日内策略"为"独立策略"
+> - **spec FR-010 表格重写**（2 列 vs 旧 3 列）：
+>   - 旧：`DayStrategy` / `IntraDayStrategy` / `RiskStrategy`
+>   - 新：`BaseStrategy`（独立）/ `RiskStrategy`（风控）
+>   - 新增"业务视角见 story §1 表格"映射说明
+>   - "可回测"列：`BaseStrategy` 由数据粒度决定（1d 可；30m 仅 live/paper）；`RiskStrategy` ✅ 每日随机持仓模拟
+> - **spec 删除 FR-011 / FR-012** 整段：`DayStrategy` 和 `IntraDayStrategy` 类不复存在
+> - **spec FR-115 改写**：
+>   - 标题：日线策略驱动契约 → **BaseStrategy 驱动契约（独立策略默认）**
+>   - 内容："`DayStrategy` 的运行时驱动规范" → "`BaseStrategy`（独立策略）的运行时驱动规范"
+>   - "数据约束：1d 报错" → **"数据粒度（1d vs 30m）通过调用点声明"**：1d 走 tushare parquet 可回测；30m 等仅 live/paper 实时聚合不可回测；BacktestRunner 在策略调用 live-only 粒度时抛 `UnsupportedFrameTypeForBacktest`
+>   - "周线" → "30m"
+> - **spec 删除 FR-120 整段**（日内策略驱动契约已并入 FR-115）
+> - **spec FR-020 schema 改**：`Literal["day", "intra_day", "risk"]` → `Literal["independent", "risk"]`；说明改为"independent = BaseStrategy 本身, risk = RiskStrategy"
+> - **spec FR-240 改写**：
+>   - 标题：日内策略调度路径 → **独立策略的无回测启动路径**
+>   - 适用场景改为"使用 live-only 数据粒度（如 30m）"
+> - **spec scenario-020 改**：日内策略上实盘 → 独立策略（30 分钟隔夜）上实盘；`OvernightStrategy(IntraDayStrategy)` → `OvernightStrategy(BaseStrategy)`
+> - **spec US-050 改**：编写日内策略 → 编写使用 30m 等 live-only 数据粒度的独立策略；明确"调用 get_bars(frame_type='30m') 的策略不可回测"
+> - **acceptance 影响**（下一 commit 处理）：
+>   - AC-011 整段删除（FR-011 已删）
+>   - AC-012 整段删除（FR-012 已删）
+>   - AC-020-04 schema 描述更新：strategy_type 取值改 "independent" / "risk"
+>   - AC-125 不动（FR-125 与本变更无关）
+
+> ---
+>
+> **2026-06-17 变更（引入 Strategy 抽象根，确立两类基类的继承结构）**：
+> 上一轮"取消 Day/IntraDay 代码类分裂"把独立策略收敛为单一 `BaseStrategy`，但留下若干自相矛盾的残留（FR-010 引言仍称"三类子类"、生命周期表把 `on_bar` 列进抽象根又注释"on_bar 不在 BaseStrategy"、FR-013 仍写 `RiskStrategy(BaseStrategy)` 等）。本次清理并确立正式的继承结构：
+> - **引入 `Strategy` 抽象根**：`Strategy`（抽象根，用户不直接继承）→ `BaseStrategy`（独立策略）/ `RiskStrategy`（风控策略）两个平级基类。`Strategy` 承载生命周期钩子（`init`/`on_start`/`on_stop`/`on_day_open`/`on_day_close`）+ 声明（`default_config`/`__display_name__`）+ 可观测（`log`/`record`）
+> - **`RiskStrategy` 改为 `BaseStrategy` 的兄弟**（`RiskStrategy(Strategy)`）而非子类——这是关键：兄弟类结构性地拿不到 `buy`/`positions`/`cash`，"风控只卖不买"由继承结构保证而非运行时拦截。若仍是子类，则会继承到 buy，"结构性不能买"为假
+> - **`on_bar` 下移到 `BaseStrategy` 专有接口**：从原抽象根生命周期表移除（消除"on_bar 不在 BaseStrategy"与"on_bar 由 BaseStrategy 提供"的自相矛盾）；新增"BaseStrategy 专有接口"章节，集中声明决策驱动（`on_bar`）、数据（`get_bars`）、交易（buy/sell 全家族）、账户查询（`positions`/`cash`）。`RiskStrategy` 不继承这些接口
+> - **决策驱动钩子不上提到抽象根**：`on_bar`（时序，BaseStrategy 专有）与 `on_check`（事件，RiskStrategy 专有）语义不同，分属两个基类
+> - **宿主绑定改为运行配置**：风控↔宿主的绑定在运行配置中建立（可热调，符合 story 要求），不在策略代码中以类属性声明；FR-013 / FR-125 宿主类型统一为 `BaseStrategy`
+> - **术语残留清理**：FR-010 引言"三类策略子类"→两类基类；FR-020 枚举目标删除 `DayStrategy`/`IntraDayStrategy`；FR-090 双均线"日线策略（`DayStrategy`）"→"独立策略（`BaseStrategy` 子类，日线数据粒度）"；FR-230 标题→"独立策略的回测启动路径"；FR-340 标题→"评估指标 — 回测（独立策略）"；FR-013/FR-125 宿主"DayStrategy 或 IntraDayStrategy"→`BaseStrategy`
+> - **interfaces.md 同步**：类层次图、§1 签名、§6 冲突表（C1/C4 作废）同步更新，见该文件变更记录
