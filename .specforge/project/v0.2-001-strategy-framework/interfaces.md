@@ -217,10 +217,10 @@ class EnumerationResult:
 {
   "strategies": [
     {
-      "strategy_id": "user.MyDayStrategy",
-      "name": "My Day Strategy",
-      "description": "A day strategy",
-      "strategy_type": "day",
+      "strategy_id": "user.MyStrategy",
+      "name": "My Strategy",
+      "description": "An independent strategy",
+      "strategy_type": "independent",
       "module": "user",
       "is_builtin": false,
       "default_config": {
@@ -258,7 +258,7 @@ class EnumerationResult:
 
 ```json
 {
-  "strategy_id": "user.MyDayStrategy",
+  "strategy_id": "user.MyStrategy",
   "default_config": { "fast": 5, "slow": 20 }
 }
 ```
@@ -314,6 +314,18 @@ class EnumerationResult:
   "dates": ["2024-09-30", "2024-10-08", "2024-10-09", "2024-10-10", "2024-10-11"]
 }
 ```
+
+#### 2.3.5 `last_trade_date`
+
+**Endpoint**: `GET /api/calendar/last_trade_date`
+
+**Response 200**:
+
+```json
+{ "date": "2024-12-31" }
+```
+
+`last_trade_date()` 返回"最近一个已结束的交易日",与 `day_shift(<any>, 0)` 语义一致。回测模式下基于仿真时间;paper/live 基于真实时间。早于数据范围时抛 `RangeExhausted`(关联 AC-014-05)。
 
 按日期升序,不含周末与节假日。
 
@@ -376,8 +388,8 @@ class EnumerationResult:
 ```json
 {
   "run_id": "uuid",
-  "strategy_id": "user.MyDayStrategy",
-  "strategy_type": "day",
+  "strategy_id": "user.MyStrategy",
+  "strategy_type": "independent",
   "interval": { "start": "2024-01-01", "end": "2024-12-31" },
   "initial_capital": 1000000.0,
   "final_value": 1150000.0,
