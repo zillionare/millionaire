@@ -100,6 +100,12 @@
 - ⬜ paper/live 中调用日历接口 → 返回基于真实日历的正确结果
 - ⬜ 相同接口、相同参数、不同模式 → 行为一致
 
+#### AC-014-05 最近已结束交易日
+- ⬜ 在回测中调用 `last_trade_date()` → 返回基于仿真时间的"最近一个已结束的交易日"(≤ 当前仿真时间)
+- ⬜ 在 paper/live 中调用 `last_trade_date()` → 返回真实日历的"最近一个已结束的交易日"(≤ 当前真实时间,且 ≤ 数据范围)
+- ⬜ 仿真/实盘时间早于数据范围起点 → 抛出异常(无交易日可返回)
+- ⬜ `last_trade_date()` 与 `day_shift(some_date, 0)` 语义一致(都返回"最近一个已结束的交易日")
+
 ---
 
 ### FR-015 SDK 元数据接口 — 证券列表
@@ -133,10 +139,12 @@
 
 #### AC-020-01 识别规则 — 基类判定
 
-- ✅ 用户目录中存在一个继承 `BaseStrategy` 的具体类 → 该类出现在枚举结果中
-- ✅ 用户目录中存在一个继承 `DayStrategy` / `LiveStrategy` / `RiskStrategy` 之一的类 → 出现在枚举结果中,`strategy_type` 正确标注
-- ✅ 枚举结果中存在一个直接继承 `BaseStrategy`(非三类子类) 的类 → 该类的 `strategy_type` 由运行时实际继承链推导(非"必须是三类之一");**只要是 BaseStrategy 子类即合法**,`strategy_type` 字段值由 MRO 中最近的具体子类决定
+- ✅ 用户目录中存在一个继承 `BaseStrategy` 的具体类 → 该类出现在枚举结果中,`strategy_type == "independent"`
+- ✅ 用户目录中存在一个继承 `RiskStrategy` 的具体类 → 出现在枚举结果中,`strategy_type == "risk"`
+- ✅ 枚举结果中存在一个直接继承 `BaseStrategy`(非三层细分) 的具体类 → 该类出现在枚举结果中,`strategy_type == "independent"`(由最终基类推导,非"MRO 最近具体子类")
+- ✅ 枚举结果中存在一个类 `Strategy` 自身 → **不出现**(抽象根,被排除)
 - ✅ 枚举结果中存在一个类 `BaseStrategy` 自身 → **不出现**(基类是抽象类,被排除)
+- ✅ 枚举结果中存在一个类 `RiskStrategy` 自身 → **不出现**(基类是抽象类,被排除)
 
 #### AC-020-02 识别规则 — 文件范围
 
@@ -158,9 +166,10 @@
 | 字段              | AC                                                                                                                                                                                      |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `strategy_id`     | ✅ `strategy_id == f"{cls.__module__}.{cls.__name__}"`;同一进程内两不同类的 `strategy_id` 不冲突                                                                                         |
+| `strategy_type`   | ✅ `strategy_type ∈ {"independent", "risk"}`;BaseStrategy 子类 → `"independent"`;RiskStrategy 子类 → `"risk"`(由最终基类推导)                                                            |
 | `module`          | ✅ `module == cls.__module__`                                                                                                                                                            |
 | `is_builtin`      | ✅ 当类定义在 Millionaire 框架包内(`quantide.*` 或文档约定的根包名)→ `is_builtin=True`;否则 `False`;判定规则在 acceptance 级别定义为"基于 import 路径前缀",**不依赖运行时 monkey-patch** |
-| `skipped_reasons` | ✅ 仅未通过识别条件的**非 BaseStrategy 类**携带;通过的策略 `skipped_reasons=[]`                                                                                                          |
+| `skipped_reasons` | ✅ 仅未通过识别条件的**非 BaseStrategy / 非 RiskStrategy 类**携带;通过的策略 `skipped_reasons=[]`                                                                                       |
 
 #### AC-020-05 元数据 schema — `default_config` 转 `ParamSpec`
 
@@ -204,7 +213,7 @@
 
 | 场景                                                       | 期望行为                                                    |
 | ---------------------------------------------------------- | ----------------------------------------------------------- |
-| ✅ 类不是 `BaseStrategy` 子类                               | 该类不进入策略列表;原因 = `NotAStrategy`                    |
+| ✅ 类既不是 `BaseStrategy` 子类,也不是 `RiskStrategy` 子类    | 该类不进入策略列表;原因 = `NotAStrategy`                    |
 | ✅ 类是 `BaseStrategy` 子类但 `default_config()` 调用抛异常 | 该类不进入策略列表;原因 = `InvalidConfig`                   |
 | ✅ 多个类共享同一 `strategy_id`(同名模块 + 同名类)          | **全部保留**在策略列表中(枚举不去重);展示层优先级见 UI spec |
 
@@ -225,7 +234,7 @@
 
 #### AC-020-14 排除项(确认不在范围内)
 
-- ✅ 枚举结果**不验证**策略的业务逻辑正确性(回测正确性由 FR-115/120/125 acceptance 负责)
+- ✅ 枚举结果**不验证**策略的业务逻辑正确性(回测正确性由 FR-115 / FR-125 acceptance 负责)
 - ✅ 枚举结果**不执行**回测运行(运行由调度器负责)
 - ✅ 枚举结果**不验证**策略参数的类型/范围(运行时校验由 FR-200 负责)
 - ✅ 枚举结果**不发起**远程网络请求(仅本地 `.py` 文件)
