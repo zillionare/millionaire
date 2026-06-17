@@ -273,7 +273,7 @@
 
 ### FR-125 风控策略驱动契约
 
-> **⏸ 暂缓范围**：本节 AC 中与"风控回测/Triple Barrier"相关的部分暂缓（FR-013 §回测状态未确定）。仅 paper/live 下的行为立即可验证。
+> **不可回测**：v0.2 不支持 RiskStrategy 回测。FR-125 全部 AC 在 paper/live 下验证。
 
 #### AC-125-01 tick 级独立驱动（paper/live）
 - ⬜ 风控策略的 `on_check` 由 tick 触发，与宿主的 `on_bar` 周期无关
@@ -294,10 +294,11 @@
 - ⬜ 风控调用 `sell_host_position` → 即时市价成交，不延迟到次日开盘
 - ⬜ 标的当日跌停 → 卖单提交但无法成交，不阻塞后续标的的风控监控
 
-#### AC-125-05 超额收益记录 — ⏸ 暂缓
-- ⬜ ⏸ Triple Barrier 公式与"按开启区间切分"逻辑暂不固化（FR-013 §回测状态）
-- ⬜ ⏸ N 日窗口回填行为暂不写 acceptance
-- ⬜ ⏸ 等 FR-013 §回测状态确定后，本 AC 重新展开
+#### AC-125-05 超额收益事件记录
+- ⬜ 每次风控触发卖出后,系统记录一条 `excess_return` 事件,字段含 `trigger_price` / `close_price` / `excess_return` / `n_days` / `activation_id`（详见 FR-360 AC-360-01）
+- ⬜ Triple Barrier 公式按 FR-013 计算:`up` 触发记 `−up_threshold`,`down` 触发记 `+down_threshold`,N 日未触发记 `P_sell / Close_N − 1`,N=0 即当日收盘
+- ⬜ N=0: 当日收盘价已知后立即计算并写入
+- ⬜ N>0: 初始记 `null`,N 日后(仿真/实盘时间)有收盘价时回填;数据不足时暂记 `null` 可用后更新（详见 FR-360 AC-360-03）
 
 ---
 
