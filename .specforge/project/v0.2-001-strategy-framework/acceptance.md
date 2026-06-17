@@ -2,11 +2,12 @@
 
 - **Spec ID**: v0.2-001-strategy-framework
 - **创建日期**: 2026-06-15
-- **状态**: 草稿
-- **对应 spec**: [spec.md](./spec.md)
+- **状态**: v0.2 内审中(已对齐 spec + 4 文档同步;spec 已拆 3 分册)
+- **对应 spec**: [spec.md](./spec.md) (含索引, 跳转 spec-strategy.md / spec-trading.md / spec-foundation.md)
 
 > **编号规则**: AC-{FR/NFR编号}-{序号}。每条 AC 对应 spec 中一个 FR 或 NFR 的一个可判定场景。
 > 标记约定: ⬜ 待确认 | ❌ 需回退修改 spec
+> FR 编号不变: 跨分册拆分后, 编号仍指原 FR(FR-011/012 在 v0.2-001 修订中删除, 不写 AC)
 
 ---
 
