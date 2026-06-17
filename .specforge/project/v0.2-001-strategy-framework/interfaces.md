@@ -546,8 +546,8 @@ class EnumerationResult:
 | code | HTTP | 触发场景 | 关联 AC |
 |---|---|---|---|
 | `STRATEGY_NOT_FOUND` | 404 | API 查询不存在 strategy_id | — |
-| `INVALID_FRAME_TYPE` | 400 | `get_bars(frame_type)` 取值不在 `{"1d", "30m"}` 之内 | AC-010-XX |
-| `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` | 400/409 | 回测模式下 `get_bars(frame_type != "1d")` 抛（运行时检查） | AC-010-XX |
+| `INVALID_FRAME_TYPE` | 400 | `get_bars(frame_type)` 取值不在 `{"1d", "30m"}` 之内 | AC-010-03 |
+| `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` | 400/409 | 回测模式下 `get_bars(frame_type != "1d")` 抛（运行时检查） | AC-010-03 |
 | `INVALID_RANGE` | 400 | 交易日历 `start > end` | AC-014-03 |
 | `ASSET_NOT_FOUND` | 404 | `get_name` 资产代码不存在 | — |
 | `RISK_NO_ACCOUNT` | 400/422 | RiskStrategy 访问 `positions` / `cash` | AC-013-01 |

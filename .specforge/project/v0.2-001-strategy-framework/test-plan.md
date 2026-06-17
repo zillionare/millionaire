@@ -496,7 +496,7 @@ tests/e2e/
 
 | Scenario 目录 | 覆盖 FR | 主要 AC |
 |---|---|---|
-| `strategy_discovery/` | FR-010, FR-020 | AC-010-XX, AC-020-01 ~ 15 |
+| `strategy_discovery/` | FR-010, FR-020 | AC-010-01 ~ 04, AC-020-01 ~ 15 |
 | `backtest/` | FR-010 | (回测场景, 已被 acceptance.md FR-010 覆盖) |
 | `live_strategy/` | FR-010 | (实时场景, 已被 acceptance.md FR-010 覆盖) |
 | `risk_strategy/` | FR-013 | AC-013-01 ~ 05 |
