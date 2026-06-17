@@ -134,7 +134,7 @@ class RiskStrategy(Strategy):  # 兄弟类,非 BaseStrategy 子类
 - **无 `portfolio_id`**;`positions` / `cash` 属性访问抛 `AttributeError`
 - 不可独立运行;必须绑定一个宿主 `BaseStrategy`。绑定关系在运行配置中建立（可热调），不在策略代码中以类属性声明
 - 宿主进入 paper/live 时自动激活;宿主停止时一并停止;可随时单独停止/重新启动（每次重启记一个新"开启区间"，超额收益按区间独立累计，FR-013/FR-360）
-- **可回测**：❌ 否。v0.2 不支持 RiskStrategy 回测。BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝（抛 `RiskStrategyNotBacktestable`），关联 AC-013-05
+- **可回测**：❌ 否。v0.2 不支持 RiskStrategy 回测。BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝(抛异常 `RiskStrategyNotBacktestable`,HTTP 错误码 `RISK_STRATEGY_NOT_BACKTESTABLE`),关联 AC-013-05
 
 **关联 AC**: AC-013-01 ~ 05
 
@@ -482,29 +482,34 @@ class EnumerationResult:
 | 列 | 类型 | 说明 |
 |---|---|---|
 | `event_id` | str (PK) | |
+| `activation_id` | str | 所属开启区间(详见 FR-360 AC-360-02) |
 | `risk_strategy_id` | str | 风控策略 |
 | `host_strategy_id` | str | 宿主策略 |
 | `asset` | str | |
 | `trigger_price` | float | 触发价 |
 | `cost_basis` | float | 成本价 |
 | `reason` | str | `cost_stop` / `drawback` / ... |
-| `timestamp` | datetime | |
+| `trigger_ts` | datetime | 触发时间戳(原 `timestamp`,与 FR-360 对齐) |
 
 ### 3.7 超额收益事件(excess_returns)
 
 | 列 | 类型 | 说明 |
 |---|---|---|
 | `event_id` | str (PK) | 与 risk_events.event_id 对应 |
+| `activation_id` | str | 所属开启区间(详见 FR-360 AC-360-02) |
 | `risk_strategy_id` | str | |
 | `host_strategy_id` | str | |
 | `asset` | str | |
-| `sell_price` | float | |
-| `close_price_n` | float \| null | N 日后收盘价(N=0 即当日) |
-| `n_window` | int | 窗口(默认 0) |
-| `excess_return` | float \| null | `(sell_price - close_price_n) / sell_price`;数据不足时 null |
-| `is_final` | bool | false=待回填,true=终值 |
+| `sell_price` | float | 卖出价 `P_sell` |
+| `up_threshold` | float | 上阈值(百分点,如 5.0 表示 5%) |
+| `down_threshold` | float | 下阈值(百分点,如 0.5 表示 0.5%) |
+| `barrier_hit` | `Literal["up", "down", "expire", null]` | 触发的屏障,数据不足时 `null` |
+| `close_price_n` | float \| null | N 日后收盘价(N=0 即当日);未触发屏障时使用 |
+| `n_window` | int | 窗口(默认 0,来自风控策略 `default_config()`) |
+| `excess_return` | float \| null | Triple Barrier 公式(见 FR-013 / story §1.9):<br>• `barrier_hit="up"` → `−1 * up_threshold`<br>• `barrier_hit="down"` → `+1 * down_threshold`<br>• `barrier_hit="expire"` → `P_sell / close_price_n − 1`<br>• 数据不足 → `null` |
+| `is_final` | bool | false=待回填, true=终值 |
 | `created_at` | datetime | |
-| `finalized_at` | datetime \| null | |
+| `finalized_at` | datetime \| null | N=0 时 = `created_at`;N>0 时 = `trigger_ts + n_window` 日 |
 
 ### 3.8 枚举缓存 JSON(枚举结果持久化)
 
@@ -594,7 +599,7 @@ class EnumerationResult:
 | C7 | 策略目录默认 | spec 不硬定路径 | `~/.millionaire/strategies/` | 现有实现保留可配置;spec 兼容(只要默认指向内置示例即满足 AC-020-01) |
 | C8 | SDK 元数据(FR-014/015) | spec 接口 | 已在 `data/models/` 实现 | **对齐**:验证签名/返回类型与 spec 一致 |
 | C9 | `get_prices` / `get_ticks` 归属 | 仅 `RiskStrategy` | 缺 | **新建**于 `RiskStrategy` 专有;**类层不存在**于 `BaseStrategy`(继承结构保证) |
-| C10 | 风控可回测性 | **v0.2 不支持 RiskStrategy 回测** (用户决定) | 缺 | BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝启动 (抛 `RISK_STRATEGY_NOT_BACKTESTABLE`,关联 AC-013-05);风控评估仅在 paper/live 下进行 (FR-360) |
+| C10 | 风控可回测性 | **v0.2 不支持 RiskStrategy 回测** (用户决定) | 缺 | BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝启动 (抛异常 `RiskStrategyNotBacktestable`;HTTP 错误码 `RISK_STRATEGY_NOT_BACKTESTABLE`, 关联 AC-013-05);风控评估仅在 paper/live 下进行 (FR-360) |
 | C11 | `UnsupportedFrameTypeForBacktest` 抛出位置 | BacktestRunner 上下文: `get_bars(frame_type != "1d")` 抛 | 缺 | **新增** 该异常类;BacktestRunner 拦截 |
 | C12 | 测试数据 | spec 要 2023-2025, 105 标的 | 已有(已扩展) | **保留**: `tests/assets/real/` 105 资产 + 69,551 日线 + 3 年真实 tushare 数据 |
 
@@ -629,6 +634,10 @@ class EnumerationResult:
   - §4 异常表加 `RISK_STRATEGY_NOT_BACKTESTABLE` (RiskStrategy 提交给 BacktestRunner)
   - §4 '⏸ 暂缓: 风控回测语义' 段删除
   - §6 C10: '⏸ 暂缓' -> 'v0.2 不支持 RiskStrategy 回测 (用户决定)'
+- **2026-06-17 (本轮 4)**: GLM 评审 8 处遗漏 / 矛盾全部修复
+  - §3.6 risk_events 加 `activation_id` 字段;`timestamp` -> `trigger_ts`(对齐 FR-360)
+  - §3.7 excess_returns 加 `activation_id` / `up_threshold` / `down_threshold` / `barrier_hit`;公式从旧版 `(sell_price - close_price_n)/sell_price` 改为 Triple Barrier 三种退出条件
+  - §1.3 / §6 C10 错误码命名一致:异常类名 `RiskStrategyNotBacktestable`,HTTP 错误码 `RISK_STRATEGY_NOT_BACKTESTABLE`
 - **2026-06-17 (本轮 2)**: 重新核对实现层实际状态后重写 §6
   - 纠正:实现层仅含 `BaseStrategy` 空壳(157 行);"DayStrategy / LiveStrategy 子类"系误判,实际不存在
   - §6.1 现状摘要:列出 BaseStrategy 有/缺什么

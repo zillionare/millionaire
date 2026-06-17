@@ -240,7 +240,7 @@
 | `trigger_ts` | `datetime` | 触发时间戳 |
 | `trigger_price` | `float` | 触发价 |
 | `reason` | `str` | 触发原因（来自 `sell_host_position(reason=...)`） |
-| `excess_return` | `float \| null` | Triple Barrier 算出的超额收益；N=0 时回测/仿真下立即计算；N>0 时等 N 日后回填 |
+| `excess_return` | `float \| null` | Triple Barrier 算出的超额收益；N=0 时仿真/实盘下立即计算；N>0 时等 N 日后回填 |
 | `finalized_at` | `datetime \| null` | 超额收益最终确认时间（n>0 时 N 日后回填；n=0 时 = `trigger_ts`） |
 
 #### 关闭区间的处理
@@ -249,7 +249,7 @@
 - 重新启动 → 分配**新** `activation_id`,新事件归新区间
 - 同一 `activation_id` 内的所有 `excess_return` 求和,作为该区间的总贡献
 
-> **关联 AC**: 见 [acceptance.md FR-360](./acceptance.md) (待补)
+> **关联 AC**: [acceptance.md FR-360 AC-360-01 ~ 03](./acceptance.md)
 
 ---
 
