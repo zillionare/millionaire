@@ -215,14 +215,41 @@
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-⏸ **本 FR 整体暂缓**——风控策略的"可回测"语义未固化（见 FR-013 §回测状态），导致评估指标的具体定义也无法固化。等回测语义确定后，本节再展开：
+风控策略在 paper/live 下产生的评估指标。**仅在 paper/live 下计算**（v0.2 不支持 RiskStrategy 回测，评估自然仅 paper/live）。
 
-- 期望评估维度：
-  - **超额收益**（Triple Barrier 公式，定义见 FR-013 / story §1.9）
-  - 风控触发次数及触发原因统计
-  - **按"开启区间"切分**（activation period）—— 开启区间 = 风控被激活且正在监控宿主持仓的连续时间段，每次 stop → start 都产生一个新区间
+#### 评估维度
 
-> **⏸ 暂缓说明**：v0.2 不固化风控评估指标的具体边界与持久化字段（`activation_id` 等）；等 FR-013 §回测状态确定后再展开。
+| 维度 | 定义 | 来源 |
+| --- | --- | --- |
+| **超额收益** | Triple Barrier 公式（详见 FR-013 / story §1.9） | FR-013 |
+| **触发次数** | 风控策略触发卖出的总次数 | FR-125 |
+| **触发原因分布** | 按 `reason` 字段分组的触发次数（如"跌停"/"破位"等用户自定义标签） | FR-125 |
+| **按开启区间切分** | 每个 stop → start 周期记为一个 `activation_id`;**同一 `activation_id` 内的所有触发事件独立累计**,不与前一个区间合并 | FR-013 / FR-125 |
+
+#### 持久化字段
+
+风控评估表（数据库或 Parquet）至少包含以下字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `activation_id` | `str` (UUID 或自增 id) | 唯一标识一个"开启区间" |
+| `risk_strategy_id` | `str` | 风控策略的 `strategy_id` |
+| `host_strategy_id` | `str` | 宿主独立策略的 `strategy_id` |
+| `event_id` | `str` (PK) | 单次风控触发事件 id |
+| `asset` | `str` | 标的代码 |
+| `trigger_ts` | `datetime` | 触发时间戳 |
+| `trigger_price` | `float` | 触发价 |
+| `reason` | `str` | 触发原因（来自 `sell_host_position(reason=...)`） |
+| `excess_return` | `float \| null` | Triple Barrier 算出的超额收益；N=0 时回测/仿真下立即计算；N>0 时等 N 日后回填 |
+| `finalized_at` | `datetime \| null` | 超额收益最终确认时间（n>0 时 N 日后回填；n=0 时 = `trigger_ts`） |
+
+#### 关闭区间的处理
+
+- 风控被"单独停止" → 当前 `activation_id` 立即关闭,不再接收新事件;已发订单**不撤回**
+- 重新启动 → 分配**新** `activation_id`,新事件归新区间
+- 同一 `activation_id` 内的所有 `excess_return` 求和,作为该区间的总贡献
+
+> **关联 AC**: 见 [acceptance.md FR-360](./acceptance.md) (待补)
 
 ---
 
