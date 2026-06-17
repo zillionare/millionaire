@@ -138,11 +138,11 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 
 ##### 辅助接口
 
-| 方法                                  | 语义                                                   |
-| ------------------------------------- | ------------------------------------------------------ |
-| `default_config()` → `dict[str, Any]` | `@staticmethod`，声明策略参数名与默认值，默认返回 `{}` |
-| `log(msg, level, tm)`                 | 输出日志，时间戳默认为仿真时间                         |
-| `record(key, value, dt)`              | 记录策略指标/信号，`dt` 默认为仿真时间                 |
+| 方法                                                                                              | 语义                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `default_config()` → `dict[str, Any]`                                                             | `@staticmethod`，声明策略参数名与默认值，默认返回 `{}`                                                                                                                                                                                           |
+| `log(msg, level, tm)`                                                                             | 输出日志，时间戳默认为仿真时间                                                                                                                                                                                                                   |
+| `record(key, value, dt)`                                                                          | 记录策略指标/信号，`dt` 默认为仿真时间                                                                                                                                                                                                           |
 | `get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True)` → `pl.DataFrame` | **拉取式数据接口，所有策略可用**。`frame_type` 支持 `"1d"` \| `"30m"`，是运行时参数不是类型。1d 数据四模式可用；30m 等 live-only 粒度仅 paper/live 实时聚合。回测中调用 `frame_type` ≠ `"1d"` 抛 `UnsupportedFrameTypeForBacktest`（运行时检查） |
 
 > **模式无关性约束**
@@ -152,11 +152,11 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 
 `BaseStrategy` 在 `Strategy` 之上扩展账户、交易、决策驱动三类能力。**`get_bars` 在抽象根已定义，独立策略继承即可，不再重复**。
 
-| 类别 | 成员 | 设计要点 |
-|---|---|---|
-| 决策驱动钩子 | `on_bar(tm)` | **唯一决策入口**，async，默认 `pass`。日线模式下每个交易日收盘后触发一次；日内模式下每个 30m bar 边界触发。驱动契约见 FR-115 |
-| 交易 | `buy` / `buy_percent` / `buy_amount` / `sell` / `sell_percent` / `sell_amount` / `cancel_order` / `cancel_all_orders` / `trade_target_pct` | 全部返回 `TradeResult`（含 `qt_oid` 与 `trades`），归属本策略 `portfolio_id` |
-| 账户查询 | `positions`（属性）/ `cash`（属性） | 只反映本账户 |
+| 类别         | 成员                                                                                                                                       | 设计要点                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| 决策驱动钩子 | `on_bar(tm)`                                                                                                                               | **唯一决策入口**，async，默认 `pass`。日线模式下每个交易日收盘后触发一次；日内模式下每个 30m bar 边界触发。驱动契约见 FR-115 |
+| 交易         | `buy` / `buy_percent` / `buy_amount` / `sell` / `sell_percent` / `sell_amount` / `cancel_order` / `cancel_all_orders` / `trade_target_pct` | 全部返回 `TradeResult`（含 `qt_oid` 与 `trades`），归属本策略 `portfolio_id`                                                 |
+| 账户查询     | `positions`（属性）/ `cash`（属性）                                                                                                        | 只反映本账户                                                                                                                 |
 
 > **接口定义以 [interfaces.md](./interfaces.md) §1 为准**（签名、类型、错误码）。本节仅列分类与设计意图。
 
@@ -611,7 +611,7 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 
 | 有效需求 | 可测性 | 是否已决定 |
 | -------- | ------ | ---------- |
-| ✅        | ✅      | ⏸ 算法待定  |
+| ✅        | ✅      | ⏸ 算法待定 |
 
 持仓的"成本基准"用于风控策略（FR-110 成本止损）判断是否触发卖出。**当前问题**：现有框架没有显式记录"持仓成本"，FR-110 仅说"加权均价"，未定义算法细节。
 
@@ -1030,133 +1030,3 @@ on_day_close(tm)                              ← 收盘后停止监控，记录
 ### 推迟到 v0.3 / 后续 spec
 
 - **AI Coding Agent skill**（基于 skill 封装数据/交易接口、生成策略模板）v0.3 实现（FR-010）。**注**：数据接口、交易接口本身属 v0.2 Python SDK（FR-010 已提供），仅 AI Agent 的 skill 封装层推迟
-
-## 澄清记录
-
-> **Sage 状态**: 本 spec 为**重写后**初稿（基于 Aaron IDE 审查反馈的 15 项问题），所有 FR/NFR 直接对应 story 351 行原文。**字数、字段名、约束严格忠实于 story**。
->
-> 上一版（commit `05f0972`）存在 15 项审查问题（E1-E15），本版已全部修正：
-> - E1-E8 缺失项 → 通过 §1.9/§2/§3/§4/§5/§6/§7 全部补齐为 FR-140~440
-> - E9 runtime_params → 改为 FR-200，明确"策略代码不可见"
-> - E10 评估指标 → 改为 FR-340/350/360，与 story 严格对齐（Sortino/Calma/交易次数/基准对比已加回）
-> - E11 运维指标 → 删除（story 未提及）
-> - E12 平均响应时间 → 删除
-> - E13 闪电单/撤单/改单 → 删除（spec 自行扩展）
-> - E14 一键提升至实盘 → 删除（story 无此功能；通过 FR-230/240 调度路径实现）
-> - E15 通知渠道 → 改为 FR-450 微信通知 + 二维码
->
-> 待用户在 IDE 中 review 后，Sage 将进入 Step 3（基于 git diff 进一步追问）。
->
-> ---
->
-> **2026-06-16 变更（策略框架类型分层 + 驱动契约补齐）**：针对审核发现的"三类策略无类型分层、风控驱动契约空白、超额收益公式缺失"问题，本次变更：
-> - **FR-010 重写**：声明策略类型分层（`BaseStrategy` → `DayStrategy` / `IntraDayStrategy` / `RiskStrategy`），类型决定调度行为而非运行时标记——从结构上保证日内策略不被误回测、风控策略不被独立调度
-> - **新增 FR-011/012/013**：三类策略各自的结构契约（继承关系、账户、可回测性、数据/交易接口、评估指标）。**FR-013 内含超额收益公式**（story §1.8，含 N 日窗口），消除 FR-130/360 的循环引用
-> - **新增 FR-115/125**：日线策略与风控策略的驱动契约（此前仅 FR-120 有日内驱动）。FR-125 明确风控的"跟随宿主周期驱动 + `on_check` 回调 + 次日开盘撮合 + 超额收益落账"
-> - **FR-090/100/110 修正**：标注所属策略类型；FR-100（回落卖出，需 tick）元数据改为 ⚠️（v0.2 不可运行）；FR-110（成本止损）补齐成本基准、数量语义、驱动周期等验收细节
-> - **FR-130 修正**：超额收益定义改为引用 FR-013（不再回指 story）
-> - 设计依据：用户指出“三类策略接口与调度方式不同，需在 spec 层面明确”——类型分层使调度器在加载期按类型分发，而非运行时 if 判断
->
-> ---
->
-> **2026-06-17 变更（拉取式数据模型 + tick 级风控驱动）**：
-> - **on_bar / on_check 签名精简**：`on_bar(tm)` 和 `on_check(host_positions, tm)` 不再携带 quote/frame_type 参数；框架只负责时序驱动，策略通过 `get_bars` / `get_ticks` / `get_prices` 拉取数据
-> - **FR-125 重写**：风控策略从“跟随宿主 on_bar 周期”改为 **tick 级独立驱动**。`on_day_open` 读取前一日可卖持仓，交易时段内每个 tick 触发 `on_check`，触发即市价成交
-> - **FR-013 新增数据接口**：`get_ticks(asset, count)` / `get_prices(assets)`，数据来源为 qmt-gateway tick 订阅缓存
-> - **FR-100 从 ⚠️ 改回 ✅**：v0.2 已具备 tick 数据能力，回落卖出可正常运行
-> - **FR-110 更新**：驱动从“跟随宿主周期”改为 tick 级独立驱动，撮合从“次日开盘”改为即时市价成交
-> - **FR-012/120 30m 数据来源明确**：框架基于 qmt-gateway tick 订阅缓存聚合为 30m bar，策略通过 `get_bars` 拉取
-> - **监控列表管理**：风控触发卖出或宿主主动卖出的标的从监控列表移除，但仍纳入超额收益统计
->
-> ---
->
-> **2026-06-17 变更（新增 SDK 元数据接口）**：
-> - **新增 FR-014（交易日历）**：独立只读 SDK 接口——`is_trade_day`、`day_shift`、`count_trading_days`、`get_trade_dates`、`last_trade_date`。不属于策略框架，可在任何地方调用。接口在 backtest/paper/live 模式下相同，数据来源不同
-> - **新增 FR-015（证券列表）**：独立只读 SDK 接口——`stocks_listed`、`is_st`、`days_since_ipo`、`get_name`。与 FR-014 同属 SDK 元数据层，与策略框架解耦
->
-> ---
->
-> **2026-06-17 变更（FR-020 重写 + 抽取 UI spec）**：
-> - **FR-020 重写**：明确为"枚举与元数据契约",删除实现细节(`~/.millionaire/strategies/` 字面量、"扫描"动词、"UI 展示"独占表述),补齐识别条件、元数据 schema(含 `ParamSpec`)、模式无关性、容错策略、联动接口、排除项;内置 vs 用户策略的优先级与展示规则预留指向 UI spec
-> - **新建 [v0.2-002-ui/spec.md](../v0.2-002-ui/spec.md)**:抽出全部 UI 相关 FR(原 260/370/380/390/400/410/420/430/450/460),补齐缺失(策略发现 UI-FR-010、运行时参数编辑 UI-FR-020、调度操作 UI-FR-040、dry-run 视图 UI-FR-060、风控事件可视化 UI-FR-070、回测进度 UI-FR-080)。FR-310/320/330 按"业务规则留 001 + UI 展示入 002"拆分
-> - **本 spec 中原 UI FR 替换为迁移标记**(保留 FR 编号以便历史引用)
->
-> ---
->
-> **2026-06-17 变更（新增 NFR-050 + test-plan.md）**：
-> - **新增 NFR-050（可观测性契约）**：明确凡 acceptance 验证需要的内部状态,实现层必须提供结构化日志 / 数据存盘文件 / 数据库表 / Web API 之一作为可观测出口;此为黑盒测试基础,与 test-plan.md §3.1 观测点清单联动
-> - **新建 [test-plan.md](./test-plan.md)**:策略框架黑盒测试总纲。覆盖范围 FR-010/011/012/013/014/015/020。定义真实数据集(2023-01-01 ~ 2025-12-31,105 个标的)、ground truth 方法(手算 + empyrical)、观测点清单、与 acceptance 的覆盖矩阵、目录结构建议。30m/tick 仅取 2025 年最后 2 个交易日
-
-> ---
->
-> **2026-06-17 变更（对齐新 story 的策略类型重构）**：
-> - **`LiveStrategy` → `IntraDayStrategy`（不留技术债）**：类名、`strategy_type` 字面量（`"live"` → `"intra_day"`）、中文"实时策略"→"日内策略"全文统一；FR-010/011/012/115/120/240/250/020 schema 同步更新
-> - **FR-013 重写（风控可回测 + 不可独立 paper/live + 可重新启动）**：
->   - 改"❌ 不可回测"为"✅ 可回测（用 story §1 表格"随机持仓"方法：每日随机生成一批个股作为模拟持仓）"
->   - 明确"❌ 不可独立 paper/live"（无宿主即无可监控持仓；用户想验证风控应走回测）
->   - 新增"可随时停止和重新启动"——每次重新启动记一个新"开启区间"
-> - **FR-013 / FR-360 嵌入 Triple Barrier 超额收益公式**（替换旧版单期反向收益率 `(sell-close)/sell`）：
->   - 三种退出条件：上涨屏障 / 下跌屏障 / N 日超时
->   - 日线（回测）：用 high/low 判断屏障；一日内两屏障同时触发以开盘价最近者为准
->   - 仿真/实盘：以 last_price 先到者为准
->   - N 日窗口默认 0 = 当日收盘
-> - **FR-360 新增"按开启区间切分"**：超额收益的累计、持久化、UI 展示均按"开启区间"（activation period）分桶；区间内单独累加，跨区间独立比较；持久化字段 `activation_id` 强制
-> - **FR-130 / FR-250 / FR-360 引用修正**：story §1.8 → §1.9（30分钟隔夜策略 vs 风控超额收益）
-> - **scenario-020 / 030 重写**：实时策略上实盘 → 日内策略上实盘；风控策略叠加场景中描述改为 Triple Barrier
-> - **澄清记录** 至此与最新 story 完全对齐；acceptance.md 与 test-plan.md 待 Aaron 后续按 FR-010~020 范围补齐
-
-> ---
->
-> **2026-06-17 变更（取消 Day/IntraDay 代码类分裂）**：
-> - **方向**：独立策略（day+intraday）在代码层面合并为单一 `BaseStrategy`。"日线 vs 日内"是**业务场景**（数据粒度），不是**代码类型**。风控策略与独立策略的分裂保留——这是结构性差异（账户有无、交易接口、驱动），不是数据粒度
-> - **story.md §2 重写**：
->   - 删"独立策略按所要求的数据粒度可分为日线策略和日内策略"
->   - §2.1 合并为"独立策略"，**调度路径由数据粒度决定**：1d 数据可用 → 必须从回测起（顺序/直达）；30m 等 live-only → 直接 paper/live
->   - §2.2 风控策略（保留原 §2.3 内容）+ 补"可随时停止和重新启动"
->   - §2.3 调度总览 mermaid 图合并"日线 / 日内策略"为"独立策略"
-> - **spec FR-010 表格重写**（2 列 vs 旧 3 列）：
->   - 旧：`DayStrategy` / `IntraDayStrategy` / `RiskStrategy`
->   - 新：`BaseStrategy`（独立）/ `RiskStrategy`（风控）
->   - 新增"业务视角见 story §1 表格"映射说明
->   - "可回测"列：`BaseStrategy` 由数据粒度决定（1d 可；30m 仅 live/paper）；`RiskStrategy` ✅ 每日随机持仓模拟
-> - **spec 删除 FR-011 / FR-012** 整段：`DayStrategy` 和 `IntraDayStrategy` 类不复存在
-> - **spec FR-115 改写**：
->   - 标题：日线策略驱动契约 → **BaseStrategy 驱动契约（独立策略默认）**
->   - 内容："`DayStrategy` 的运行时驱动规范" → "`BaseStrategy`（独立策略）的运行时驱动规范"
->   - "数据约束：1d 报错" → **"数据粒度（1d vs 30m）通过调用点声明"**：1d 走 tushare parquet 可回测；30m 等仅 live/paper 实时聚合不可回测；BacktestRunner 在策略调用 live-only 粒度时抛 `UnsupportedFrameTypeForBacktest`
->   - "周线" → "30m"
-> - **spec 删除 FR-120 整段**（日内策略驱动契约已并入 FR-115）
-> - **spec FR-020 schema 改**：`Literal["day", "intra_day", "risk"]` → `Literal["independent", "risk"]`；说明改为"independent = BaseStrategy 本身, risk = RiskStrategy"
-> - **spec FR-240 改写**：
->   - 标题：日内策略调度路径 → **独立策略的无回测启动路径**
->   - 适用场景改为"使用 live-only 数据粒度（如 30m）"
-> - **spec scenario-020 改**：日内策略上实盘 → 独立策略（30 分钟隔夜）上实盘；`OvernightStrategy(IntraDayStrategy)` → `OvernightStrategy(BaseStrategy)`
-> - **spec US-050 改**：编写日内策略 → 编写使用 30m 等 live-only 数据粒度的独立策略；明确"调用 get_bars(frame_type='30m') 的策略不可回测"
-> - **acceptance 影响**（下一 commit 处理）：
->   - AC-011 整段删除（FR-011 已删）
->   - AC-012 整段删除（FR-012 已删）
->   - AC-020-04 schema 描述更新：strategy_type 取值改 "independent" / "risk"
->   - AC-125 不动（FR-125 与本变更无关）
-
-> ---
->
-> **2026-06-17 变更（引入 Strategy 抽象根，确立两类基类的继承结构）**：
-> 上一轮"取消 Day/IntraDay 代码类分裂"把独立策略收敛为单一 `BaseStrategy`，但留下若干自相矛盾的残留（FR-010 引言仍称"三类子类"、生命周期表把 `on_bar` 列进抽象根又注释"on_bar 不在 BaseStrategy"、FR-013 仍写 `RiskStrategy(BaseStrategy)` 等）。本次清理并确立正式的继承结构：
-> - **引入 `Strategy` 抽象根**：`Strategy`（抽象根，用户不直接继承）→ `BaseStrategy`（独立策略）/ `RiskStrategy`（风控策略）两个平级基类。`Strategy` 承载生命周期钩子（`init`/`on_start`/`on_stop`/`on_day_open`/`on_day_close`）+ 声明（`default_config`/`__display_name__`）+ 可观测（`log`/`record`）
-> - **`RiskStrategy` 改为 `BaseStrategy` 的兄弟**（`RiskStrategy(Strategy)`）而非子类——这是关键：兄弟类结构性地拿不到 `buy`/`positions`/`cash`，"风控只卖不买"由继承结构保证而非运行时拦截。若仍是子类，则会继承到 buy，"结构性不能买"为假
-> - **`on_bar` 下移到 `BaseStrategy` 专有接口**：从原抽象根生命周期表移除（消除"on_bar 不在 BaseStrategy"与"on_bar 由 BaseStrategy 提供"的自相矛盾）；新增"BaseStrategy 专有接口"章节，集中声明决策驱动（`on_bar`）、数据（`get_bars`）、交易（buy/sell 全家族）、账户查询（`positions`/`cash`）。`RiskStrategy` 不继承这些接口
-> - **决策驱动钩子不上提到抽象根**：`on_bar`（时序，BaseStrategy 专有）与 `on_check`（事件，RiskStrategy 专有）语义不同，分属两个基类
-> - **宿主绑定改为运行配置**：风控↔宿主的绑定在运行配置中建立（可热调，符合 story 要求），不在策略代码中以类属性声明；FR-013 / FR-125 宿主类型统一为 `BaseStrategy`
-> - **术语残留清理**：FR-010 引言"三类策略子类"→两类基类；FR-020 枚举目标删除 `DayStrategy`/`IntraDayStrategy`；FR-090 双均线"日线策略（`DayStrategy`）"→"独立策略（`BaseStrategy` 子类，日线数据粒度）"；FR-230 标题→"独立策略的回测启动路径"；FR-340 标题→"评估指标 — 回测（独立策略）"；FR-013/FR-125 宿主"DayStrategy 或 IntraDayStrategy"→`BaseStrategy`
-> - **interfaces.md 同步**：类层次图、§1 签名、§6 冲突表（C1/C4 作废）同步更新，见该文件变更记录
->
-> ---
->
-> **2026-06-17 变更（`get_prices` / `get_ticks` 下移到 `RiskStrategy`，`get_bars` 上提到抽象根）**：
-> 上一轮把"独立策略=单一 `BaseStrategy`"定了型，但 3 个数据方法（`get_bars` / `get_prices` / `get_ticks`）的归属未明确。本轮按"是否所有策略都用到"为划分依据：
-> - **`get_bars` 上提到 `Strategy` 抽象根**：所有策略（独立 + 风控）都需拉历史 K 线。在抽象根定义后，`BaseStrategy` 专有接口 / `RiskStrategy` 段不再重复声明。签名 `get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True) → pl.DataFrame`；`frame_type` 是运行时参数，支持 `"1d" | "30m"`，回测中调用非 `"1d"` 抛 `UnsupportedFrameTypeForBacktest`（运行时检查）
-> - **`get_prices` / `get_ticks` 下移到 `RiskStrategy` 专有**：这两个方法在独立策略中没有业务用途（独立策略不主动"看现价"，交易通过 buy/sell 委托），仅风控策略用于判断屏障触发。**类层不存在**于 `BaseStrategy`——兄弟类结构保证独立策略拿不到这两个方法，"独立策略不能调风控数据方法"由继承结构保证（不是运行时拦截）
-> - **`get_prices` / `get_ticks` 在回测下的语义不固化**：风控回测在 v0.2 暂缓（FR-013 §回测状态）。`get_ticks` 回测下从当根 K 线 OHLC 派生（具体派生规则由实现层决定，约束：价格 ∈ [min(O,L,C,H), max(O,L,C,H)]，时间戳 = 当根 K 线时间）；`get_prices` 回测下的语义由实现层决定。**接口签名固定，但回测下的具体行为不写进 spec**
-> - **新增 FR-185（持仓成本基准/加权均价算法）**：当前 FR-110 引用"加权均价"但无算法定义。本 FR 是占位说明，标注这一缺口；待 v0.2 review 时单独决定具体算法
-> - **风控可回测 / Triple Barrier / 按开启区间切分 ⏸ 暂缓**：FR-013 的"可回测"列从"✅"改为"⏸ 暂缓"；FR-130 同步标"⏸ 暂缓"；FR-360 整体标"⏸ 暂缓"。理由：风控回测在 v0.2 不强制；是否回测由风控自身是否依赖 `get_prices`/`get_ticks` 等 live-only 数据决定。等回测语义确定后，再固化 acceptance
-> - **acceptance.md / interfaces.md / test-plan.md 同步更新**：风控相关 AC 标"⏸ 待定"；`get_prices`/`get_ticks` 签名加入 interfaces.md §1；`UnsupportedFrameTypeForBacktest` 加入 §4 异常表
