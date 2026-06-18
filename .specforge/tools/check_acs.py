@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 TEST_DIRS = [REPO_ROOT / "tests" / "unit", REPO_ROOT / "tests" / "e2e"]
 SPEC_ROOT = REPO_ROOT / ".specforge" / "project"
 
@@ -84,7 +84,7 @@ def main() -> int:
     print(f"[check_acs] {len(missing_in_test)} tests missing AC id in docstring (legacy)")
     print(f"[check_acs] {len(unreferenced_acs)} ACs declared but unreferenced")
 
-    legacy = (REPO_ROOT / "tools" / "check_acs.legacy.txt").exists()
+    legacy = (REPO_ROOT / ".specforge" / "tools" / "check_acs.legacy.txt").exists()
     if legacy:
         print(f"[check_acs] legacy baseline present, treating as advisory only")
         return 0

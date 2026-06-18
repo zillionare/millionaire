@@ -15,7 +15,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 TEST_DIRS = [REPO_ROOT / "tests" / "unit", REPO_ROOT / "tests" / "e2e"]
 
 GITHUB_ISSUE_PATTERN = re.compile(
@@ -100,7 +100,7 @@ def main() -> int:
                         f"{py.relative_to(REPO_ROOT)}:{lineno} {code!r} without GitHub issue link in reason"
                     )
 
-    legacy = (REPO_ROOT / "tools" / "check_assertions.legacy.txt").exists()
+    legacy = (REPO_ROOT / ".specforge" / "tools" / "check_assertions.legacy.txt").exists()
     if legacy:
         print(f"[check_assertions] {len(violations)} violations (legacy baseline; advisory)")
         return 0

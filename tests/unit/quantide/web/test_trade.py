@@ -158,7 +158,7 @@ def test_app():
             ),
         )
 
-        static_dir = Path(__file__).resolve().parent.parent.parent / "quantide" / "web" / "static"
+        static_dir = Path(__file__).resolve().parents[4] / "quantide" / "web" / "static"
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
         auth.initialize(app, prefix="/auth")
@@ -674,7 +674,7 @@ class TestPositionNameResolution:
 
         if stock_list.size == 0:
             from pathlib import Path
-            stock_list_path = Path(__file__).resolve().parent.parent.parent / "data" / "stock_list.parquet"
+            stock_list_path = Path(__file__).resolve().parents[4] / "data" / "stock_list.parquet"
             if not stock_list_path.exists():
                 pytest.skip("stock_list.parquet not found in this test env")
             try:
