@@ -48,7 +48,7 @@ class TestTushareFetcher:
         st_df["type"] = "S"
         st_df["type_name"] = "特别处理"
 
-        stock_list_path = Path(__file__).resolve().parents[3] / "data" / "stock_list.parquet"
+        stock_list_path = Path(__file__).resolve().parents[5] / "data" / "stock_list.parquet"
         stock_df = pd.read_parquet(stock_list_path).rename(
             columns={"asset": "ts_code", "pinyin": "cnspell"}
         )

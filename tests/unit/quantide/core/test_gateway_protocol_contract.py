@@ -117,7 +117,7 @@ class TestAuditNoHtmxEndpointsUsed:
     def test_no_htmx_request_patterns_in_quantide_source(self, needle: str) -> None:
         import subprocess
         from pathlib import Path
-        repo_root = Path(__file__).resolve().parent.parent.parent
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
         result = subprocess.run(
             ["grep", "-r", "--exclude-dir=__pycache__", "--exclude-dir=.venv",
              "--exclude-dir=.git", "-l", needle, str(repo_root / "quantide")],

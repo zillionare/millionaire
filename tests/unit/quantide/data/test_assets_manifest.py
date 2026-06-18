@@ -8,7 +8,7 @@ import polars as pl
 import yaml
 
 
-ASSETS_ROOT = Path(__file__).resolve().parents[1] / "assets"
+ASSETS_ROOT = Path(__file__).resolve().parents[3] / "assets"
 MANIFEST_PATH = ASSETS_ROOT / "manifest.yml"
 
 
@@ -30,8 +30,9 @@ def test_manifest_tracks_existing_asset_files() -> None:
     assert manifest["version"] == 1
     assert len(manifest["datasets"]) == 7
 
+    project_root = Path(__file__).resolve().parents[4]
     for dataset in manifest["datasets"]:
-        path = Path("/Users/aaronyang/workspace/quantide") / dataset["file"]
+        path = project_root / dataset["file"]
         assert path.exists(), dataset["file"]
         assert _sha256(path) == dataset["sha256"], dataset["file"]
 

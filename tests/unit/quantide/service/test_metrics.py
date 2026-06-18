@@ -13,7 +13,7 @@ from quantide.service.metrics import bills, metrics
 
 
 BASELINE_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[3]
     / "assets"
     / "baselines"
     / "dual_ma_2024.backtest.json"

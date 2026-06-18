@@ -31,7 +31,7 @@ from quantide.core.enums import BrokerKind
 
 # --- Test data setup ---
 
-ASSETS_ROOT = Path(__file__).resolve().parent.parent / "assets"
+ASSETS_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "assets"
 TEST_BARS_PARQUET = ASSETS_ROOT / "2024_bars.parquet"
 TEST_CALENDAR_PARQUET = ASSETS_ROOT / "baseline_calendar.parquet"
 TEST_ASSET = "688371.SH"  # 出现在测试 parquet 中
@@ -381,7 +381,7 @@ def test_gateway_broker_get_history_includes_forming_bar(pin_today, monkeypatch)
     )
 
     from quantide.core.runtime import gateway_broker as _gb_mod
-    from tests.core.test_gateway_broker_adapter import DummyGatewayClient
+    from tests.unit.quantide.core.test_gateway_broker_adapter import DummyGatewayClient
 
     monkeypatch.setattr(_gb_mod, "daily_bars", MockHistoryProvider())
 
@@ -417,7 +417,7 @@ def test_gateway_broker_get_history_disabled_excludes_forming(pin_today, monkeyp
     )
 
     from quantide.core.runtime import gateway_broker as _gb_mod
-    from tests.core.test_gateway_broker_adapter import DummyGatewayClient
+    from tests.unit.quantide.core.test_gateway_broker_adapter import DummyGatewayClient
 
     monkeypatch.setattr(_gb_mod, "daily_bars", MockHistoryProvider())
 

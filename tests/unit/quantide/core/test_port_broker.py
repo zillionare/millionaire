@@ -3,7 +3,7 @@ import pytest
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.port_broker import PortBackedBroker
-from tests.core.test_gateway_broker_adapter import DummyGatewayClient
+from tests.unit.quantide.core.test_gateway_broker_adapter import DummyGatewayClient
 
 
 def test_port_backed_broker_maps_asset_positions_and_orders():
