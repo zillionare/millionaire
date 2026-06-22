@@ -280,6 +280,70 @@
 
 ---
 
+### FR-090 内置策略 — 双均线（日线策略）
+
+> 双均线契约见 [spec-strategy.md §FR-090](./spec-strategy.md)
+
+#### AC-090-01 默认参数 fast=5, slow=20
+- ⬜ 策略类未传参数时, 框架自动用 `[5, 20]` 初始化
+- ⬜ 验证依据: `quantide/strategies/dual_ma.py` 的 `default_config()` 返回 `{"fast": 5, "slow": 20}`
+
+#### AC-090-02 fast 上穿 slow 触发买入
+- ⬜ T-1 收盘: MA5 < MA20, T 收盘: MA5 > MA20 → 策略在 T 日 `on_bar` 产生买入信号
+- ⬜ 验证依据: 回测跑 1 年, 验证上穿点对应的 `orders` 表 `side=buy` 且 `filled > 0`
+
+#### AC-090-03 slow 上穿 fast 触发卖出
+- ⬜ T-1 收盘: MA5 > MA20, T 收盘: MA5 < MA20 → 策略在 T 日 `on_bar` 产生卖出信号
+- ⬜ 验证依据: 回测跑 1 年, 验证下穿点对应的 `orders` 表 `side=sell` 且 `filled > 0`
+
+#### AC-090-04 回测结果含净值/买卖点/MA 指标
+- ⬜ 回测完成产出 [interfaces.md §4.1 回测结果 JSON](./interfaces.md), 含 `nav_curve` (净值序列) + `trades` (买卖点) + 8 项评估指标
+- ⬜ MA 指标由 UI 渲染层根据 `trades` + `nav_curve` 计算, 框架不内置 MA 渲染
+- ⬜ 验证依据: 跑一次 2022 年双均线回测, 断言 §4.1 JSON 含 `nav_curve[0].date` 是起始日, `trades` 至少有 1 笔
+
+---
+
+### FR-100 内置策略 — 回落卖出（风控）
+
+> 回落卖出契约见 [spec-strategy.md §FR-100](./spec-strategy.md)
+
+#### AC-100-01 默认参数 m=7.0, k=0.5, n=1
+- ⬜ 策略类未传参数时, 框架自动用 `[m=7.0, k=0.5, n=1]` 初始化
+- ⬜ 验证依据: `quantide/strategies/drawback_sell.py` 的 `default_config()` 返回 `{"m": 7.0, "k": 0.5, "n": 1}`
+
+#### AC-100-02 个股当天上涨至 m% 后 n 分钟内下跌超 k% 立即卖出
+- ⬜ T 日 10:00 标的从开盘 10.00 涨至 10.70 (m=7.0%), 10:01 跌至 10.65 (0.5% 内下跌超 k=0.5%) → `on_check` 触发 `sell_host_position`
+- ⬜ 验证依据: `risk_events` 表 [interfaces.md §4.9](./interfaces.md) 新增一条 `reason=drawback`, 订单 `side=sell`
+
+#### AC-100-03 tick 级数据驱动 (FR-125 on_check)
+- ⬜ 回落卖出**不**在 `on_bar` 触发, 而在 `on_check(positions, tm)` 触发 (每 tick 一次)
+- ⬜ 验证依据: 跑 paper E2E, 注入 tick 序列 (10:00 涨 / 10:01 跌), 断言 `on_check` 被调用 1 次, 卖出单在 10:01 提交
+
+---
+
+### FR-110 内置策略 — 成本止损（风控）
+
+> 成本止损契约见 [spec-strategy.md §FR-110](./spec-strategy.md); cost_basis 来自 [spec-strategy.md §FR-185 经典方案 A](./spec-strategy.md) (P1 已解)
+
+#### AC-110-01 默认参数 k=-5.0
+- ⬜ 策略类未传参数时, 框架自动用 `k=-5.0` (跌破买入价 5% 触发) 初始化
+- ⬜ 验证依据: `quantide/strategies/cost_stop.py` 的 `default_config()` 返回 `{"k": -5.0}`
+
+#### AC-110-02 触发条件 last_price <= cost_basis × (1 + k/100)
+- ⬜ 持仓 `cost_basis=10.00, k=-5.0` → `last_price <= 10.00 × (1 + (-5.0)/100) = 9.50` 时触发
+- ⬜ last_price=9.49 (≤ 9.50) 触发; last_price=9.51 (> 9.50) **不**触发
+- ⬜ 验证依据: 跑 paper E2E, 推进虚拟时钟让 last_price 跌到 9.49, 断言 `sell_host_position` 被调用; 推进到 9.51 时**不**调用
+
+#### AC-110-03 触发后清仓该标的可卖持仓 (受 T+1 约束)
+- ⬜ 持仓 `avail=1000, in_transit=200` (T+0 买入 200 在 T+1 才能卖) → 触发后清仓 1000 股, 200 在途不动
+- ⬜ 验证依据: `risk_events.asset_shares=1000`, 订单 `shares=1000`, T+1 后 `avail=200` (在途变可卖)
+
+#### AC-110-04 卖出走 sell_host_position 归属宿主
+- ⬜ 触发时, 框架调 `sell_host_position(asset, shares, reason="cost_stop")` 而非风控自身账户
+- ⬜ 验证依据: 订单 `portfolio_id = host_strategy.portfolio_id` (宿主, 不是风控), `fills.qtoid` 的 owner 链指向宿主
+
+---
+
 ### FR-140 交易规则 — 价格（涨跌停）
 
 > 涨跌停契约见 [spec-trading.md §FR-140](./spec-trading.md); 验证通过 [interfaces.md §4.17 limit_price.up_limit / down_limit](./interfaces.md)
