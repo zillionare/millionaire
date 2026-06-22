@@ -313,7 +313,7 @@
 
 #### AC-100-02 个股当天上涨至 m% 后 n 分钟内下跌超 k% 立即卖出
 - ⬜ T 日 10:00 标的从开盘 10.00 涨至 10.70 (m=7.0%), 10:01 跌至 10.65 (0.5% 内下跌超 k=0.5%) → `on_check` 触发 `sell_host_position`
-- ⬜ 验证依据: `risk_events` 表 [interfaces.md §4.9](./interfaces.md) 新增一条 `reason=drawback`, 订单 `side=sell`
+- ⬜ 验证依据: [interfaces.md §6 日志条目类型](./interfaces.md) 发出 `risk.triggered` event, payload 含 `reason="drawback"`, 订单 `side=sell`
 
 #### AC-100-03 tick 级数据驱动 (FR-125 on_check)
 - ⬜ 回落卖出**不**在 `on_bar` 触发, 而在 `on_check(positions, tm)` 触发 (每 tick 一次)
@@ -336,7 +336,7 @@
 
 #### AC-110-03 触发后清仓该标的可卖持仓 (受 T+1 约束)
 - ⬜ 持仓 `avail=1000, in_transit=200` (T+0 买入 200 在 T+1 才能卖) → 触发后清仓 1000 股, 200 在途不动
-- ⬜ 验证依据: `risk_events.asset_shares=1000`, 订单 `shares=1000`, T+1 后 `avail=200` (在途变可卖)
+- ⬜ 验证依据: 订单 `shares=1000` (清仓可卖, 不动在途), 订单表正确归宿主; [interfaces.md §6](./interfaces.md) `risk.triggered` event 含 `asset=该标的` + `reason="cost_stop"`; T+1 后 `avail=200` (在途变可卖)
 
 #### AC-110-04 卖出走 sell_host_position 归属宿主
 - ⬜ 触发时, 框架调 `sell_host_position(asset, shares, reason="cost_stop")` 而非风控自身账户
@@ -536,7 +536,7 @@
 - ⬜ 风控首次启动 → 分配 `activation_id=uuid1`, 触发事件归 `activation_id=uuid1`
 - ⬜ 风控被"单独停止" → 当前 `activation_id=uuid1` 关闭, 已发订单**不**撤回
 - ⬜ 风控重新启动 → 分配**新** `activation_id=uuid2` (新事件归 `uuid2`, **不**与 `uuid1` 合并)
-- ⬜ 验证依据: [interfaces.md §4.9 risk_events.activation_id](./interfaces.md) 字段在重新启动后是新的 UUID
+- ⬜ 验证依据: [interfaces.md §6 日志条目类型](./interfaces.md) 的 `risk.triggered` event payload `activation_id` 字段在重新启动后是新的 UUID
 
 #### AC-130-03 操作他人持仓不改变持仓归属
 - ⬜ 风控触发 `sell_host_position(asset, shares, reason)` → 订单的 `portfolio_id` = **宿主** `portfolio_id`, **不**是风控自身
@@ -569,7 +569,7 @@
 - ⬜ 标的当日跌停 → 卖单提交但无法成交，不阻塞后续标的的风控监控
 
 #### AC-125-05 超额收益事件记录
-- ⬜ 每次风控触发卖出后,系统记录一条 `excess_return` 事件,字段含 `sell_price` / `close_price_n` / `n_window` / `excess_return` / `activation_id` / `is_final`(字段定义见 [interfaces.md §3.7](./interfaces.md))
+- ⬜ 每次风控触发卖出后,系统记录一条 `excess_return` 事件,字段含 `sell_price` / `close_price_n` / `n_window` / `excess_return` / `activation_id` / `is_final`(字段定义见 [interfaces.md §4.10](./interfaces.md) excess_returns 表 PR3 目标 schema; v0.2 验证依据为 [interfaces.md §6](./interfaces.md) `risk.excess_return.finalized` event payload)
 - ⬜ Triple Barrier 公式按 [spec-trading.md F-TB-1 / F-TB-2 / F-TB-3](./spec-trading.md) 计算:`up` 触发应用 F-TB-1,`down` 触发应用 F-TB-2,未触发应用 F-TB-3;N=0 即当日收盘
 - ⬜ N=0: 当日收盘价已知后立即计算并写入,`is_final = true`
 - ⬜ N>0: 初始记 `null`,N 日后(仿真/实盘时间)有收盘价时回填;`is_final` 在回填时设为 `true`;数据不足时暂记 `null` 可用后更新（详见 FR-360 AC-360-03）
@@ -693,7 +693,7 @@
 
 #### AC-440-01 正在实盘的策略可进入 dry-run: 策略正常运行, 但不实际下单
 - ⬜ 策略在 live 模式运行, 用户点"进入 dry-run" → 策略继续产生信号 (`on_bar` / `on_check` 仍触发), 但 `buy` / `sell` / `sell_host_position` 调**不**落 `orders` 表
-- ⬜ 验证依据: 跑 1 次 live→dry-run 切换, 跑 1 天, 断言 `orders` 表**无**新记录 (dry-run 期间), 但 `risk_events` 仍记录信号 (如果实现支持)
+- ⬜ 验证依据: 跑 1 次 live→dry-run 切换, 跑 1 天, 断言 `orders` 表**无**新记录 (dry-run 期间), 但 [interfaces.md §6](./interfaces.md) `risk.triggered` event 仍按触发条件发出
 
 #### AC-440-02 dry-run 期间策略指标参考其并行仿真实例
 - ⬜ dry-run 期间, 策略的评估指标 (净值/年化收益/Sharpe 等) **参考**其并行仿真实例, 而**不**直接算 dry-run 自身 (因 dry-run 无成交, 算不出指标)
