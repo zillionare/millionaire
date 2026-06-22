@@ -247,6 +247,39 @@
 
 ---
 
+### FR-030 策略参数跨模式透传
+
+> 策略参数跨模式透传契约见 [spec-strategy.md §FR-030](./spec-strategy.md)
+
+#### AC-030-01 回测参数透传到仿真/实盘/dry-run
+- ⬜ 回测启动时 `fast=5, slow=20` → 切到 paper 模式时,这俩参数仍是 5, 20
+- ⬜ 切到 live 模式时,仍是 5, 20
+- ⬜ 切到 dry-run 模式时,仍是 5, 20
+
+#### AC-030-02 仿真/实盘/dry-run 禁止单独修改策略参数
+- ⬜ 切到 paper 模式后,框架不暴露修改 `fast` / `slow` 的入口(无 setter / 无 API / 无 UI 字段)
+- ⬜ 切到 live / dry-run 同上
+- ⬜ 如果用户绕过框架直接改 `default_config()` 返回值,后果自负(此 AC 是框架契约,不是用户行为约束)
+
+---
+
+### FR-040 一次开发四模式无感迁移
+
+> 四模式无感迁移契约见 [spec-strategy.md §FR-040](./spec-strategy.md)
+
+#### AC-040-01 同一代码在四模式跑通
+- ⬜ 同一 `BaseStrategy` 子类,在 backtest / paper / live / dry-run 四模式下分别跑一天,均**无异常**完成
+- ⬜ 四模式产出的 `positions` 表记录**等价**(同一时点、同一价格、同一撮合规则下,持仓结构一致)
+- ⬜ 跨模式切换不需重启策略实例(同一 `strategy_id` 实例可被复用)
+
+#### AC-040-02 策略不可感知运行模式
+- ⬜ 策略代码内调 `self.get_mode()` 抛 `AttributeError`(基类不暴露)
+- ⬜ 调 `self.is_backtest()` / `self.is_paper()` / `self.is_live()` / `self.is_dry_run()` 同上
+- ⬜ 策略代码内 inspect `runtime` / `mode` 等属性(通过 `self.context.mode` 之类),值是 None 或抛错(无 mode 探测入口)
+- ⬜ 4 模式的 `on_bar(tm)` / `on_day_open(tm)` 行为**完全一致**(参数语义、调用时序、返回值)
+
+---
+
 ### FR-360 评估指标 — 风控策略
 
 > 评估仅在 paper/live 下进行(v0.2 不支持 RiskStrategy 回测)。
