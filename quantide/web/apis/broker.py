@@ -457,7 +457,7 @@ async def list_strategies(req):
         is_builtin = bool(info.file_path and info.file_path.startswith(builtin_dir))
 
         strategies.append({
-            "strategy_id": info.name,
+            "strategy_id": f"{info.module_path}.{info.name}",
             "name": info.name,
             "description": info.description or "",
             "strategy_type": info.strategy_type or "independent",
@@ -467,6 +467,7 @@ async def list_strategies(req):
             "skipped_reasons": [],
         })
 
+    # diagnostics 暂固定 []: enumerate_strategies() 的真实填充待 PR2/3 (接口契约见 interfaces.md §2.4).
     return {"strategies": strategies, "diagnostics": []}
 
 
