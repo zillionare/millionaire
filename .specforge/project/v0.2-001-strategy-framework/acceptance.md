@@ -725,8 +725,8 @@
 
 ## 运行时可注入性验收 (NFR-060 联动)
 
-> **范围**: 本节 AC 验证 [spec-foundation.md NFR-060](./spec-foundation.md) 的运行时可注入契约, 是 [test-plan.md §5](./test-plan.md) L1/L2 E2E 测试的前置条件。
-> **关联 test-plan 章节**: §5.4.1 (虚拟时钟), §5.4.5 (装配器), §5.4.6 (可测试性回退)
+> **范围**: 本节 AC 验证 [spec-foundation.md NFR-060](./spec-foundation.md) 的运行时可注入契约, 是 [test-plan.md §6](./test-plan.md) L1/L2 E2E 测试的前置条件。
+> **关联 test-plan 章节**: §6.4.1 (虚拟时钟), §6.4.5 (装配器), §6.4.6 (可测试性回退)
 > **FR 编号决策**: 本节不绑定单一 FR, 而是为 NFR-060 提供可判定场景。编号 AC-CLOCK-INJ-N (N=01~06)。
 
 ### AC-CLOCK-INJ-01 RuntimeContext 暴露 clock 字段

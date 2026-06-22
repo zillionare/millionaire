@@ -945,7 +945,7 @@ class EnumerationResult:
 
 > **范围**: 本节声明 NFR-060 涉及的 3 个装配点的可观测出口, 仅供测试侧在不依赖实现细节的前提下验证装配是否生效。
 > **关联 spec**: [spec-foundation.md NFR-060](./spec-foundation.md)
-> **关联 test-plan**: [test-plan.md §5.4](./test-plan.md) — L1/L2 E2E 测试的前置
+> **关联 test-plan**: [test-plan.md §6.4](./test-plan.md) — L1/L2 E2E 测试的前置
 > **关联 acceptance**: [acceptance.md AC-CLOCK-INJ-01 ~ 06](./acceptance.md)
 
 #### 7.0.1. 装配点 1: 虚拟时钟 (ClockPort)
@@ -981,7 +981,7 @@ class EnumerationResult:
 **可观测出口**:
 
 - 框架启动时, 解析 `Settings.gateway_url` 失败 → 启动失败并报错 (无静默回退)
-- 框架运行中, 网关断开 → [test-plan.md §5.4.4](./test-plan.md) 假网关 / 真网关断开 → 触发 FR-450 #5 通知事件
+- 框架运行中, 网关断开 → [test-plan.md §6.4.4](./test-plan.md) 假网关 / 真网关断开 → 触发 FR-450 #5 通知事件
 
 ## 8. 变更记录
 
@@ -990,7 +990,7 @@ class EnumerationResult:
   - §2 Web API(基于 FastAPI 惯例推断,需实现层确认 URL)
   - §3 数据 schema(从 acceptance 推断)
   - §4 异常表(集中 spec 散落的错误场景)
-  - §5 日志条目(细化 test-plan §3.1.3)
+  - §6 日志条目(细化 test-plan §3.1.3)
   - §6 冲突清单(基线 8 项)
 - **2026-06-17 (本轮 1)**: 对齐 spec.md 的"数据方法上提 / 下移"决策
   - §1.1 `Strategy` 加 `get_bars` 签名
@@ -1018,5 +1018,5 @@ class EnumerationResult:
     - C4 措辞调整(明确"兄弟类")
     - 新增 C11(`UnsupportedFrameTypeForBacktest` 抛出位置)
     - C12 取代原 C8(测试数据已扩展完成,标"保留"而非"扩展中")
-  - §5 日志条目 FR 引用: FR-011/012 → FR-010(因 FR-011/012 已删除)
+  - §6 日志条目 FR 引用: FR-011/012 → FR-010(因 FR-011/012 已删除)
   - §6.3 待跟踪清单补 FR-115 钩子顺序

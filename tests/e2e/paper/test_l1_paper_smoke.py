@@ -1,6 +1,6 @@
 """L1 paper E2E smoke (P3 Step 2-D 2/3).
 
-按 P3 推进计划 + test-plan §5.4.6 边界铁律:
+按 P3 推进计划 + test-plan §6.4.6 边界铁律:
 - 用 VirtualClock + make_paper_runtime (公共 support)
 - 不 mock.patch 内部符号, 不调私有方法
 - 本 smoke 验证公共 support 装配 + VirtualClock 推进; 完整 paper E2E 跑策略待 PR2 暴露 PaperBroker 公开 on_quote/on_limit API 后推进.
@@ -55,7 +55,7 @@ def test_l1_paper_smoke_virtual_clock_advances():
 @pytest.mark.e2e
 @pytest.mark.e2e_paper
 def test_l1_paper_smoke_calendar_frames_loadable():
-    """验证 calendar fixture 加载后, 可推进到下一帧 (test-plan §5.4.2 '回放行情源' 依赖)."""
+    """验证 calendar fixture 加载后, 可推进到下一帧 (test-plan §6.4.2 '回放行情源' 依赖)."""
     db.init(":memory:")
     calendar_model.load(ASSETS_ROOT / "baseline_calendar.parquet")
 
