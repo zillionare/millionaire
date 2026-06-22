@@ -935,8 +935,8 @@ class EnumerationResult:
 | `order.submitted`              | `strategy_id, asset, side, shares, price`                                    | INFO    | FR-010     |
 | `order.filled`                 | `strategy_id, asset, filled_qty, fill_price, ts`                             | INFO    | FR-010/013 |
 | `order.cancelled`              | `strategy_id, order_id, reason`                                              | INFO    | FR-013     |
-| `risk.triggered`               | `risk_strategy_id, host_strategy_id, asset, trigger_price, cost, reason, ts` | INFO    | FR-013/125 |
-| `risk.excess_return.finalized` | `event_id, excess_return`                                                    | INFO    | FR-013/360 |
+| `risk.triggered`               | `event_id, activation_id, risk_strategy_id, host_strategy_id, asset, trigger_price, cost_basis, reason, trigger_ts` | INFO    | FR-013/125 |
+| `risk.excess_return.finalized` | `event_id, activation_id, risk_strategy_id, host_strategy_id, asset, sell_price, up_threshold, down_threshold, barrier_hit, close_price_n, n_window, excess_return, is_final, created_at, finalized_at` | INFO    | FR-013/360 |
 | `backtest.started`             | `strategy_id, params, interval`                                              | INFO    | FR-010     |
 | `backtest.progress`            | `strategy_id, current_day, total_days, pct`                                  | INFO    | FR-010     |
 | `backtest.completed`           | `strategy_id, metrics`                                                       | INFO    | FR-010     |
