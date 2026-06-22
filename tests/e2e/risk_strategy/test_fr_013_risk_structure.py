@@ -152,13 +152,13 @@ class TestHostLifecycleV2:
         """AC-013-05-03: 单独停止 RiskStrategy → 已发订单不撤回
         框架层行为(FR-125), 单元不可测
         """
-        pytest.skip("see FR-125 (e2e test)")
+        pytest.skip("see FR-125 (e2e test); tracker: .dev/memory/26-06-22.md#L11")
 
     def test_restart_new_activation(self):
         """AC-013-05-04: 重新启动后开启新"开启区间"
         activation_id 由 framework 分配(FR-360 AC-360-02)
         """
-        pytest.skip("see FR-360 AC-360-02 (e2e test)")
+        pytest.skip("see FR-360 AC-360-02 (e2e test); tracker: .dev/memory/26-06-22.md#L12")
 
 
 class TestKnownGapsV2:
@@ -166,4 +166,4 @@ class TestKnownGapsV2:
 
     def test_backtest_runner_not_yet_extended(self):
         """BacktestRunner 拒测逻辑待 impl"""
-        pytest.skip("backtest runner reject logic pending impl")
+        pytest.skip("backtest runner reject logic pending impl; tracker: .dev/memory/26-06-22.md#L13")

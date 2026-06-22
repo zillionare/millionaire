@@ -92,7 +92,7 @@ class TestTickData:
         """synthetic tick fixture 存在"""
         path = Path(__file__).resolve().parents[2] / "assets" / "synthetic" / "synthetic_ticks.parquet"
         if not path.exists():
-            pytest.skip("synthetic ticks fixture not generated")
+            pytest.skip("synthetic ticks fixture not generated; tracker: .dev/memory/26-06-22.md#L13")
         df = pl.read_parquet(path)
         assert df.shape[0] > 0
         # tick 数据每行一个事件

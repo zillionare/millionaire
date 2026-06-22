@@ -29,7 +29,7 @@ CAL_FIXTURE = REAL_CAL if REAL_CAL.exists() else SYNTH_CAL
 def cal():
     """加载测试用交易日历(优先真实 tushare 数据)"""
     if not CAL_FIXTURE.exists():
-        pytest.skip(f"calendar fixture missing: {CAL_FIXTURE}")
+        pytest.skip(f"calendar fixture missing: {CAL_FIXTURE}; tracker: .dev/memory/26-06-22.md#L2")
     c = Calendar()
     c.load(CAL_FIXTURE)
     return c

@@ -34,7 +34,7 @@ def cal():
     )
     cal_file = asset_dir / "baseline_calendar.parquet"
     if not cal_file.exists():
-        pytest.skip(f"calendar fixture missing: {cal_file}")
+        pytest.skip(f"calendar fixture missing: {cal_file}; tracker: .dev/memory/26-06-22.md#L10")
     c = Calendar()
     c.load(cal_file)
     return c

@@ -156,13 +156,13 @@ class TestStrategiesEndpoint:
         with api_client(monkeypatch) as client:
             r = client.get("/broker/strategies")
             if r.status_code != 200 or not r.content:
-                pytest.skip(f"/broker/strategies returned {r.status_code} (not implemented)")
+                pytest.skip(f"/broker/strategies returned {r.status_code} (not implemented); tracker: .dev/memory/26-06-22.md#L3")
             try:
                 data = r.json()
             except Exception:
-                pytest.skip("response not JSON")
+                pytest.skip("response not JSON; tracker: .dev/memory/26-06-22.md#L4")
             if not isinstance(data, list) or len(data) == 0:
-                pytest.skip("response not a non-empty list")
+                pytest.skip("response not a non-empty list; tracker: .dev/memory/26-06-22.md#L5")
             entry = data[0]
             assert "name" in entry
             assert "doc" in entry

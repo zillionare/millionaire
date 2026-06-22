@@ -79,7 +79,7 @@ class TestMultiFrameData:
         """synthetic 30m fixture 存在(test-plan §1.1.2 要求)"""
         path = Path(__file__).resolve().parents[2] / "assets" / "synthetic" / "synthetic_30m_bars.parquet"
         if not path.exists():
-            pytest.skip("synthetic 30m fixture not generated; run generate_synthetic.py")
+            pytest.skip("synthetic 30m fixture not generated; run generate_synthetic.py; tracker: .dev/memory/26-06-22.md#L1")
         df = pl.read_parquet(path)
         assert df.shape[0] > 0
         # 验证 30m bar:同一天有多行

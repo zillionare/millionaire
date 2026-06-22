@@ -134,7 +134,7 @@ class TestFixtureIntegration:
             universe = pd.read_parquet(SYNTH_DIR / "synthetic_universe.parquet")
             return bars, universe, "synthetic"
         else:
-            pytest.skip("neither real nor synthetic fixtures generated")
+            pytest.skip("neither real nor synthetic fixtures generated; tracker: .dev/memory/26-06-22.md#L6")
 
     def test_fixture_assets_cover_boundary_categories(self, fixture_loaded):
         """fixture 包含所有 test-plan §1.2 边界类别
@@ -166,7 +166,7 @@ class TestFixtureIntegration:
         _, universe, _ = fixture_loaded
         st_assets = universe[universe["category"] == "st"]
         if len(st_assets) == 0:
-            pytest.skip("no ST assets in fixture")
+            pytest.skip("no ST assets in fixture; tracker: .dev/memory/26-06-22.md#L7")
         # real fixture 通过名称含 "ST" 标识(framework is_st 行为);
         # synthetic fixture 可能有独立 is_st 列
         if "is_st" in universe.columns:
@@ -181,10 +181,10 @@ class TestFixtureIntegration:
         """
         bars, universe, source = fixture_loaded
         if source != "synthetic":
-            pytest.skip("zero-volume day injection only in synthetic fixture")
+            pytest.skip("zero-volume day injection only in synthetic fixture; tracker: .dev/memory/26-06-22.md#L8")
         susp_assets = universe[universe["category"] == "suspended"]["asset"].tolist()
         if not susp_assets:
-            pytest.skip("no suspended assets in fixture")
+            pytest.skip("no suspended assets in fixture; tracker: .dev/memory/26-06-22.md#L9")
         susp_bars = bars[bars["asset"].isin(susp_assets)]
         zero_vol = susp_bars[susp_bars["volume"] == 0]
         assert len(zero_vol) > 0, "suspended assets should have zero-volume days"
