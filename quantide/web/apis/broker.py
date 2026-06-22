@@ -441,40 +441,33 @@ async def load_backtest(request):
 
 @rt("/strategies", methods=["GET"])
 async def list_strategies(req):
-    """列出所有可用策略"""
-    strategies = strategy_loader.load_from_cache()
+    """GET /broker/strategies -> interfaces.md §3.1 schema."""
+    import json
 
-    result = []
-    for name, cls in strategies.items():
-        # 获取策略参数定义
-        params = getattr(cls, "PARAMS", {})
+    info_list = strategy_loader.list_strategies()
+    builtin_dir = strategy_loader.get_builtin_scan_directory()
 
-        # 获取回测历史
-        portfolios = db.get_portfolios_by_strategy(name)
-        history = []
-        if not portfolios.is_empty():
-            # select columns: portfolio_id, start, end, info, metrics (need to fetch metrics separately or from info?)
-            # metrics are not in portfolio table. We might need to fetch them.
-            # For summary, maybe just basic info.
-            history_df = portfolios.select(["portfolio_id", "start", "end", "info"])
+    strategies = []
+    for info in info_list:
+        try:
+            default_config = json.loads(info.params) if info.params else {}
+        except Exception:
+            default_config = {}
 
-            # Fetch metrics for each portfolio? That might be slow.
-            # Let's just return basic info for now.
-            history = history_df.to_dicts()
+        is_builtin = bool(info.file_path and info.file_path.startswith(builtin_dir))
 
-            # Enrich with metrics if possible (maybe just sharpe or total return)
-            # StrategyLog? No.
-            # We can use metrics() function but that calculates on the fly.
-            # Ideally metrics should be stored.
-            # But for now, let's just return what we have.
-
-        result.append({
-            "name": name,
-            "doc": cls.__doc__ or "",
-            "params": params,
-            "history": history
+        strategies.append({
+            "strategy_id": info.name,
+            "name": info.name,
+            "description": info.description or "",
+            "strategy_type": info.strategy_type or "independent",
+            "module": info.module_path or "",
+            "is_builtin": is_builtin,
+            "default_config": default_config,
+            "skipped_reasons": [],
         })
-    return result
+
+    return {"strategies": strategies, "diagnostics": []}
 
 
 @rt("/grid_search/run", methods=["POST"])
