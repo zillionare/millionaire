@@ -6,7 +6,9 @@ from typing import Any, Literal
 from quantide.config.settings import get_settings
 from quantide.core.enums import BrokerKind
 from quantide.core.ports import MarketDataPort
+from quantide.core.ports.clock import ClockPort
 from quantide.core.runtime.adapter_registry import AdapterRegistry
+from quantide.core.runtime.clock_bridge import SystemClockAdapter
 from quantide.core.runtime.gateway_broker import (
     GatewayBrokerAdapter,
     GatewayBrokerWrapper,
@@ -34,6 +36,7 @@ class RuntimeContext:
     registry: BrokerRegistry
     adapters: AdapterRegistry
     market_data: MarketDataPort
+    clock: ClockPort
 
     def register_legacy_broker(
         self,
@@ -87,13 +90,16 @@ class RuntimeContext:
 class RuntimeBootstrap:
     """运行时装配器."""
 
-    def __init__(self, mode: RuntimeMode | None = None):
+    def __init__(self, mode: RuntimeMode | None = None, clock: ClockPort | None = None):
         """初始化装配器.
 
         Args:
             mode: 指定运行模式，不传则自动解析。
+            clock: 时钟端口 (NFR-060), 不传则默认注入 `SystemClockAdapter` (生产语义: 返回墙钟).
+                  测试侧可传入 `VirtualClock` (见 tests/e2e/support/virtual_clock.py) 替换时间.
         """
         self._mode = mode or self._resolve_mode()
+        self._clock = clock if clock is not None else SystemClockAdapter()
 
     def bootstrap(self) -> RuntimeContext:
         """执行运行时装配."""
@@ -110,6 +116,7 @@ class RuntimeBootstrap:
             registry=registry,
             adapters=adapters,
             market_data=market_data,
+            clock=self._clock,
         )
 
     def _resolve_mode(self) -> RuntimeMode:
