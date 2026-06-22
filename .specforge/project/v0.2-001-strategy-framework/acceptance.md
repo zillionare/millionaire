@@ -280,6 +280,130 @@
 
 ---
 
+### FR-140 交易规则 — 价格（涨跌停）
+
+> 涨跌停契约见 [spec-trading.md §FR-140](./spec-trading.md); 验证通过 [interfaces.md §4.17 limit_price.up_limit / down_limit](./interfaces.md)
+
+#### AC-140-01 限价买单超出 up_limit 被拒
+- ⬜ 标的当前 `up_limit = 11.00`,框架收到 `buy(asset, shares=100, price=11.01)` → 下单**被拒**,`orders.status = rejected`,`status_msg` 包含"price > up_limit"语义
+- ⬜ 验证依据: `orders` 表新增记录但 `filled = 0` 且 `status = rejected`
+
+#### AC-140-02 限价卖单低于 down_limit 被拒
+- ⬜ 标的当前 `down_limit = 9.00`,框架收到 `sell(asset, shares=100, price=8.99)` → 下单**被拒**,`status = rejected`
+- ⬜ 验证依据: `orders` 表新增记录但 `filled = 0` 且 `status = rejected`
+
+#### AC-140-03 开盘即涨停的标的, 买单不撮合
+- ⬜ T+0 09:30 标的以 `open == high == up_limit` 开盘 → 任何买单 (`buy` / `buy_percent` / `buy_amount`) **不撮合**,`orders.status = rejected`,`status_msg` 含"limit up"
+- ⬜ 验证依据: `fills` 表**无**新记录; `positions` 表**无**买入变化
+
+#### AC-140-04 开盘即跌停的标的, 卖单不撮合
+- ⬜ T+0 09:30 标的以 `open == low == down_limit` 开盘 → 任何卖单 (`sell` / `sell_percent` / `sell_amount`) **不撮合**,`orders.status = rejected`,`status_msg` 含"limit down"
+- ⬜ 验证依据: `fills` 表**无**新记录; `positions.shares` / `avail` 不变
+
+#### AC-140-05 is_st=true 的标的, 框架不做下单限制
+- ⬜ 标的 `is_st = true`, 涨跌幅按数据 ±5% → 限价单价格在 ±5% 边界**内**时正常撮合;**不**因 `is_st` 拒绝
+- ⬜ 验证依据: `fills` 表按 ±5% 数据计算成交价; 框架**不**因 `is_st` 增加拒绝逻辑(策略自行决定是否过滤 ST)
+
+---
+
+### FR-150 交易规则 — 数量
+
+> 数量契约见 [spec-trading.md §FR-150](./spec-trading.md)
+
+#### AC-150-01 买入非整百股自动向下取整
+- ⬜ 框架收到 `buy(asset, shares=250, price=10.00)` → 实际撮合 `shares=200`(250 向下取整到 100 整倍数)
+- ⬜ 验证依据: `fills.shares = 200`, `orders.shares = 250`(委托数量, 撮合后 filled=200)
+
+#### AC-150-02 买入不足 100 股下单失败
+- ⬜ 框架收到 `buy(asset, shares=50, price=10.00)` → 50 向下取整为 0 → 下单**失败**,`orders.status = rejected`,`status_msg` 含"shares < 100 after floor"
+- ⬜ 验证依据: `fills` 表**无**新记录
+
+#### AC-150-03 清仓卖出不受 100 整倍数限制
+- ⬜ 持仓 `shares=1000`, 框架收到 `sell(asset, shares=1000, ...)` → 正常撮合 1000 股
+- ⬜ 验证依据: `fills.shares = 1000`, 卖出后 `positions.shares = 0` (清仓)
+
+#### AC-150-04 零股卖出不受 100 整倍数限制
+- ⬜ 持仓 `shares=150`, 框架收到 `sell(asset, shares=50, ...)` → 正常撮合 50 股(零股例外)
+- ⬜ 验证依据: `fills.shares = 50`, 卖出后 `positions.shares = 100`
+
+#### AC-150-05 回测订单要么全成要么作废
+- ⬜ 回测模式下, 任何委托**不部分成交**: `orders.filled ∈ {0, orders.shares}`(全成或全废)
+- ⬜ 验证依据: 跑一组混合订单的回测, 断言 `orders` 表的 `filled` 字段全部为 0 或等于 `shares`
+
+---
+
+### FR-160 交易规则 — 时间
+
+> 时间契约见 [spec-trading.md §FR-160](./spec-trading.md); T+1 验证通过 [interfaces.md §4.4 positions.avail](./interfaces.md)
+
+#### AC-160-01 T+1 约束 — 当日买入当日不可卖
+- ⬜ T+0 09:35 买入 100 股 → T+0 14:55 调用 `positions(asset).avail` 返回 0
+- ⬜ 验证依据: `positions.shares = 100, positions.avail = 0` (按 T+1 规则)
+
+#### AC-160-02 T+1 约束 — 次日起可卖
+- ⬜ T+0 09:35 买入 100 股, 推进虚拟时钟到 T+1 09:30 → `positions(asset).avail` 返回 100
+- ⬜ 验证依据: 跨日后 `positions.avail = positions.shares = 100`
+
+#### AC-160-03 非交易时段发单顺延
+- ⬜ T+0 11:45 (午休时段) 框架收到买单 → 实际下单时间推迟到 T+0 13:00 (下午开盘)
+- ⬜ 周末 / 节假日 (calendar.is_open = 0) 框架收到任何订单 → 顺延到下一交易日
+- ⬜ 验证依据: `orders.tm` 字段反映顺延后的实际下单时间, 而非策略信号触发的原始时间
+
+---
+
+### FR-170 交易规则 — 特殊状态（停牌）
+
+> 停牌契约见 [spec-trading.md §FR-170](./spec-trading.md)
+
+#### AC-170-01 停牌标的不可下单
+- ⬜ 标的 `volume = 0` (停牌) → 框架收到 `buy` / `sell` → 下单**被拒**,`status = rejected`,`status_msg` 含"suspended"
+- ⬜ 验证依据: `orders.status = rejected`, `fills` 表**无**新记录
+
+#### AC-170-02 持仓中停牌标的按停牌前最后收盘价估值
+- ⬜ 持仓 `shares=100` 的标的在 T+0 14:00 进入停牌 → 估值用 `daily_bars.close` 在停牌前最后一日的值
+- ⬜ 验证依据: `positions.price` (持仓成本, FR-185 维护) 不变; `assets.market_value = shares × daily_bars.close[最后非停牌日]`
+
+---
+
+### FR-180 交易规则 — 资金
+
+> 资金契约见 [spec-trading.md §FR-180](./spec-trading.md); 资金校验通过 [interfaces.md §4.5 assets.cash / principal / frozen_cash](./interfaces.md)
+
+#### AC-180-01 卖出回款当日可用于买入
+- ⬜ T+0 09:35 卖出 1000 股 @ 10.00, T+0 14:00 买入 500 股 @ 10.00 → 资金即时可用, 不需等 T+1
+- ⬜ 验证依据: T+0 14:00 资金校验 `assets.cash` 含卖出回款 (扣减佣金后), 足够覆盖买入 500 股 @ 10.00
+
+#### AC-180-02 买入资金不足下单被拒
+- ⬜ `assets.cash = 5000`, 框架收到 `buy(asset, shares=100, price=100.00)` (需 10000 + 佣金) → 下单**被拒**,`status = rejected`,`status_msg` 含"insufficient cash"
+- ⬜ 验证依据: `assets.cash` 不变 (无扣减), `orders.status = rejected`
+
+#### AC-180-03 印花税仅卖方收
+- ⬜ 买入 100 股 @ 10.00 → `fills.amount = 1000`, 佣金扣减, **无**印花税扣减
+- ⬜ 卖出 100 股 @ 10.00 → `fills.amount = 1000`, 佣金 + 印花税(按 FR-200 配置比率) 扣减
+- ⬜ 验证依据: 跑一组买卖对, 断言 `assets.cash` 扣减差额 = 佣金(双方) + 印花税(仅卖方)
+
+#### AC-180-04 佣金按 FR-200 配置比率 + 单笔最低佣金保底
+- ⬜ 佣金率 = 0.025% (FR-200 配置), 单笔最低 = 5.00 元
+- ⬜ 买入 100 股 @ 1.00 (成交额 100) → 理论佣金 0.025 元 < 5.00 → 实际扣 5.00
+- ⬜ 买入 1000 股 @ 100.00 (成交额 100000) → 理论佣金 25.00 > 5.00 → 实际扣 25.00
+- ⬜ 验证依据: `fills.fee` 字段 (interfaces §4.3 trades.fee) 反映保底后金额
+
+---
+
+### FR-190 交易规则 — 回测 vs 实盘差异
+
+> 跨模式差异契约见 [spec-trading.md §FR-190](./spec-trading.md); 与 [spec-strategy.md §FR-080 跨模式回测-实盘差异](./spec-strategy.md) 合并覆盖
+
+#### AC-190-01 回测模式下框架仿真所有规则
+- ⬜ 回测时 FR-140~180 全部由框架实施 (涨跌停/数量/T+1/停牌/资金)
+- ⬜ 验证依据: 跑一组故意违反规则的订单, 断言回测行为与 spec 描述完全一致(全部被拒 / 全部约束)
+
+#### AC-190-02 仿真/实盘框架只做预校验
+- ⬜ paper/live 时, 框架**不**仿真涨跌停/数量/T+1(由交易所/柜台强制); 仅在下单前做明显错误预校验(限价超 [low, high] 拒绝, 资金不足拒绝)
+- ⬜ 验证依据: paper 模式跑同一组订单, 行为应**几乎**与回测一致(涨跌停/数量/停牌靠柜台, 不靠框架), 但限价/资金预校验仍由框架做
+
+---
+
 ### FR-360 评估指标 — 风控策略
 
 > 评估仅在 paper/live 下进行(v0.2 不支持 RiskStrategy 回测)。
