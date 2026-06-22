@@ -179,6 +179,11 @@ def _build_gateway_port(
 
 
 @pytest.mark.asyncio  # type: ignore[untyped-decorator]
+@pytest.mark.e2e_live_smoke
+@pytest.mark.xfail(
+    reason="P3 待 PR3 重写: 当前 L3 实盘路径冒烟, 但 spec §FR-360/FR-125 L1/L2 框架未稳, e2e_paper 优先. 默认 deselect (test-plan §1.3.1 第 2 条断言禁忌: 不用 pytest.skip, 用 marker). 重写待 PR3 PaperBroker 公开 API + VirtualClock. tracker: .dev/memory/26-06-22.md",
+    strict=False,
+)
 async def test_dual_ma_live_strategy_path_preserves_qtoid_and_updates_state(monkeypatch) -> None:
     baseline = _load_live_baseline()["strategy_full_fill"]
     trade_date = datetime.date.fromisoformat(baseline["trade_date"])

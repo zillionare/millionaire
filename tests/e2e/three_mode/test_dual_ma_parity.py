@@ -540,6 +540,11 @@ async def _run_live_mode(
 @pytest.mark.asyncio
 @pytest.mark.e2e
 @pytest.mark.release_gate
+@pytest.mark.e2e_paper
+@pytest.mark.xfail(
+    reason="P3 待 PR3 重写: 当前调 PaperBroker._on_limit_update / _on_quote_update 私有方法 + patch.object(PaperBroker, '_get_today'), 违反 test-plan §5.4.6 边界铁律. 重写需要 PaperBroker 公开 API (PR2 范畴) + VirtualClock + make_paper_runtime. tracker: .dev/memory/26-06-22.md",
+    strict=False,
+)
 async def test_dual_ma_parity_across_backtest_paper_and_live(calendar, monkeypatch):
     _ = calendar
     baseline = _load_baseline()

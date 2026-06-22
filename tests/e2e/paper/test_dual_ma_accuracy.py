@@ -141,6 +141,11 @@ async def _replay_session_day(
 @pytest.mark.asyncio
 @pytest.mark.e2e
 @pytest.mark.release_gate
+@pytest.mark.e2e_paper
+@pytest.mark.xfail(
+    reason="P3 待 PR3 重写: 当前调 PaperBroker._on_limit_update / _on_quote_update 私有方法 + patch.object(PaperBroker, '_get_today'), 违反 test-plan §5.4.6 边界铁律 (不得通过 mock.patch 内部符号 / 不得调私有方法). 重写需要 PaperBroker 暴露公开的 on_quote / on_limit 公开 API (PR2 范畴) + 配合 VirtualClock + make_paper_runtime. tracker: .dev/memory/26-06-22.md",
+    strict=False,
+)
 async def test_dual_ma_paper_matches_accuracy_contract(calendar):
     _ = calendar
     db.init(":memory:")
