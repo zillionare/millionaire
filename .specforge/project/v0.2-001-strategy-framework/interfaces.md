@@ -321,23 +321,23 @@ class EnumerationResult:
 
 ### 4.2. 委托表 (`orders`)
 
-| 列              | 类型             | 说明                                            |
-| --------------- | ---------------- | ----------------------------------------------- |
-| `qtoid`         | str (PK)         | 框架生成, UUID                                  |
-| `portfolio_id`  | str (FK → `portfolios.portfolio_id`) | 归属策略 / 组合 |
-| `asset`         | str              | 标的代码                                        |
-| `side`          | str (`OrderSide` enum) | `buy` / `sell`                            |
-| `shares`        | float            | 委托数量 (调用者需保证符合交易要求)              |
-| `price`         | float            | 限价 (`0` 表示市价)                              |
-| `bid_type`      | str (`BidType` enum) | 委托类型 (限价 / 市价)                       |
-| `tm`            | datetime         | 委托时间 (仿真时间)                              |
-| `filled`        | float            | 已成交量 (默认 `0`)                              |
-| `foid`          | str \| null      | 外部订单 id (QMT 等) — 透传, 用于排错             |
-| `cid`           | str \| null      | 券商柜台合约 id                                  |
-| `status`        | str (`OrderStatus` enum) | `unreported` / `pending` / `filled` / `rejected` / `cancelled` |
-| `status_msg`    | str              | 委托状态描述 (如废单原因)                        |
-| `error`         | str              | 报单错误 (错误码:错误信息, `:` 分隔)              |
-| `extra`         | str (JSON)       | 额外信息                                         |
+| 列             | 类型                                 | 说明                                                           |
+| -------------- | ------------------------------------ | -------------------------------------------------------------- |
+| `qtoid`        | str (PK)                             | 框架生成, UUID                                                 |
+| `portfolio_id` | str (FK → `portfolios.portfolio_id`) | 归属策略 / 组合                                                |
+| `asset`        | str                                  | 标的代码                                                       |
+| `side`         | str (`OrderSide` enum)               | `buy` / `sell`                                                 |
+| `shares`       | float                                | 委托数量 (调用者需保证符合交易要求)                            |
+| `price`        | float                                | 限价 (`0` 表示市价)                                            |
+| `bid_type`     | str (`BidType` enum)                 | 委托类型 (限价 / 市价)                                         |
+| `tm`           | datetime                             | 委托时间 (仿真时间)                                            |
+| `filled`       | float                                | 已成交量 (默认 `0`)                                            |
+| `foid`         | str \| null                          | 外部订单 id (QMT 等) — 透传, 用于排错                          |
+| `cid`          | str \| null                          | 券商柜台合约 id                                                |
+| `status`       | str (`OrderStatus` enum)             | `unreported` / `pending` / `filled` / `rejected` / `cancelled` |
+| `status_msg`   | str                                  | 委托状态描述 (如废单原因)                                      |
+| `error`        | str                                  | 报单错误 (错误码:错误信息, `:` 分隔)                           |
+| `extra`        | str (JSON)                           | 额外信息                                                       |
 
 **索引**:
 - 唯一索引: (`qtoid`, `tm`)
@@ -346,20 +346,20 @@ class EnumerationResult:
 
 ### 4.3. 成交表 (`trades`)
 
-| 列            | 类型     | 说明     |
-| ------------- | -------- | -------- |
-| `tid`         | str (PK) | 成交 id; 可使用代理 (QMT) 返回值 |
-| `qtoid`       | str (FK → `orders.qtoid`) | 委托 id (quantide 内部 id) |
-| `portfolio_id` | str (FK → `portfolios.portfolio_id`) | 归属策略 |
-| `foid`        | str      | 外部订单 id (QMT 等) |
-| `asset`       | str      | 标的代码 |
-| `shares`      | float    | 成交数量 |
-| `price`       | float    | 成交价 |
-| `amount`      | float    | 成交金额 = 成交数量 × 成交价 |
-| `tm`          | datetime | 成交时间 (仿真时间) |
-| `side`        | str (`OrderSide` enum) | 成交方向 |
-| `cid`         | str      | 柜台合同编号 (应与同 `qtoid` 的 `orders.cid` 一致) |
-| `fee`         | float    | 本笔交易手续费 (默认 `0`) |
+| 列             | 类型                                 | 说明                                               |
+| -------------- | ------------------------------------ | -------------------------------------------------- |
+| `tid`          | str (PK)                             | 成交 id; 可使用代理 (QMT) 返回值                   |
+| `qtoid`        | str (FK → `orders.qtoid`)            | 委托 id (quantide 内部 id)                         |
+| `portfolio_id` | str (FK → `portfolios.portfolio_id`) | 归属策略                                           |
+| `foid`         | str                                  | 外部订单 id (QMT 等)                               |
+| `asset`        | str                                  | 标的代码                                           |
+| `shares`       | float                                | 成交数量                                           |
+| `price`        | float                                | 成交价                                             |
+| `amount`       | float                                | 成交金额 = 成交数量 × 成交价                       |
+| `tm`           | datetime                             | 成交时间 (仿真时间)                                |
+| `side`         | str (`OrderSide` enum)               | 成交方向                                           |
+| `cid`          | str                                  | 柜台合同编号 (应与同 `qtoid` 的 `orders.cid` 一致) |
+| `fee`          | float                                | 本笔交易手续费 (默认 `0`)                          |
 
 **索引**:
 - 唯一索引: (`tid`, `tm`)
@@ -372,16 +372,16 @@ class EnumerationResult:
 
 ### 4.4. 持仓表 (`positions`)
 
-| 列                | 类型          | 说明               |
-| ----------------- | ------------- | ------------------ |
-| `portfolio_id`    | str (PK part, FK → `portfolios.portfolio_id`) | |
-| `dt`              | date (PK part) | 持仓快照日期 |
-| `asset`           | str (PK part) | 标的代码 |
-| `shares`          | float         | 总持仓 |
-| `avail`           | float         | 可卖持仓 (T+1 约束) — 原 spec 名为 `sellable_shares` |
-| `price`           | float         | 持仓成本 (加权均价) — 原 spec 名为 `cost_basis` |
-| `profit`          | float         | 盈亏 — 实盘快速查询用, 回测/仿真不写 |
-| `mv`              | float         | 市值 |
+| 列             | 类型                                          | 说明                                                 |
+| -------------- | --------------------------------------------- | ---------------------------------------------------- |
+| `portfolio_id` | str (PK part, FK → `portfolios.portfolio_id`) |                                                      |
+| `dt`           | date (PK part)                                | 持仓快照日期                                         |
+| `asset`        | str (PK part)                                 | 标的代码                                             |
+| `shares`       | float                                         | 总持仓                                               |
+| `avail`        | float                                         | 可卖持仓 (T+1 约束) — 原 spec 名为 `sellable_shares` |
+| `price`        | float                                         | 持仓成本 (加权均价) — 原 spec 名为 `cost_basis`      |
+| `profit`       | float                                         | 盈亏 — 实盘快速查询用, 回测/仿真不写                 |
+| `mv`           | float                                         | 市值                                                 |
 
 **索引**:
 - 非唯一索引: (`portfolio_id`, `asset`, `dt`)
@@ -392,30 +392,30 @@ class EnumerationResult:
 
 > **修订说明**: 原 spec 误为 `accounts` 表, PK 是 `strategy_id` 单列, 字段是 `cash` / `total_value` / `as_of`. 实际表名是 `assets`, PK 是 `(portfolio_id, dt)`, 字段是 `principal` / `cash` / `frozen_cash` / `market_value` / `total`, `total = cash + market_value`.
 
-| 列                | 类型          | 说明               |
-| ----------------- | ------------- | ------------------ |
-| `portfolio_id`    | str (PK part, FK → `portfolios.portfolio_id`) | |
-| `dt`              | date (PK part) | 资产快照日期 |
-| `principal`       | float         | 初始本金 (必填) |
-| `cash`            | float         | 可用资金 |
-| `frozen_cash`     | float         | 冻结资金 (委托占用等) |
-| `market_value`    | float         | 持仓市值 |
-| `total`           | float         | 总资产 = `cash + market_value` |
+| 列             | 类型                                          | 说明                           |
+| -------------- | --------------------------------------------- | ------------------------------ |
+| `portfolio_id` | str (PK part, FK → `portfolios.portfolio_id`) |                                |
+| `dt`           | date (PK part)                                | 资产快照日期                   |
+| `principal`    | float                                         | 初始本金 (必填)                |
+| `cash`         | float                                         | 可用资金                       |
+| `frozen_cash`  | float                                         | 冻结资金 (委托占用等)          |
+| `market_value` | float                                         | 持仓市值                       |
+| `total`        | float                                         | 总资产 = `cash + market_value` |
 
 **索引**:
 - 唯一索引: (`portfolio_id`, `dt`)
 
 ### 4.6. 组合表 (`portfolios`)
 
-| 列                | 类型          | 说明               |
-| ----------------- | ------------- | ------------------ |
-| `portfolio_id`    | str (PK)      | 组合 id (= strategy_id 的实例) |
-| `kind`            | str (`BrokerKind` enum) | backtest / paper / live / dry-run |
-| `start`           | date          | 启动日期 |
-| `name`            | str           | 显示名 (默认 `""`) |
-| `info`            | str           | 描述信息 (默认 `""`) |
-| `end`             | date \| null  | 结束日期 |
-| `status`          | bool          | 启用状态 (默认 `true`) |
+| 列             | 类型                    | 说明                              |
+| -------------- | ----------------------- | --------------------------------- |
+| `portfolio_id` | str (PK)                | 组合 id (= strategy_id 的实例)    |
+| `kind`         | str (`BrokerKind` enum) | backtest / paper / live / dry-run |
+| `start`        | date                    | 启动日期                          |
+| `name`         | str                     | 显示名 (默认 `""`)                |
+| `info`         | str                     | 描述信息 (默认 `""`)              |
+| `end`          | date \| null            | 结束日期                          |
+| `status`       | bool                    | 启用状态 (默认 `true`)            |
 
 **索引**:
 - 唯一索引: (`portfolio_id`)
@@ -424,13 +424,13 @@ class EnumerationResult:
 
 ### 4.7. 策略日志 (`strategy_logs`)
 
-| 列                | 类型          | 说明               |
-| ----------------- | ------------- | ------------------ |
-| `portfolio_id`    | str (PK part, FK → `portfolios.portfolio_id`) | |
-| `dt`              | datetime (PK part) | |
-| `key`             | str (PK part) | 日志键 (策略 `record(key, value)` 的 `key`) |
-| `value`           | float         | |
-| `extra`           | str (JSON)    | 额外字段 |
+| 列             | 类型                                          | 说明                                        |
+| -------------- | --------------------------------------------- | ------------------------------------------- |
+| `portfolio_id` | str (PK part, FK → `portfolios.portfolio_id`) |                                             |
+| `dt`           | datetime (PK part)                            |                                             |
+| `key`          | str (PK part)                                 | 日志键 (策略 `record(key, value)` 的 `key`) |
+| `value`        | float                                         |                                             |
+| `extra`        | str (JSON)                                    | 额外字段                                    |
 
 **索引**:
 - 唯一索引: (`portfolio_id`, `dt`, `key`)
@@ -439,53 +439,53 @@ class EnumerationResult:
 
 > **新增 (2026-06-21)**: 原 spec §4 缺此表, 实际 `quantide/data/sqlite.py` 有 `BacktestLogEntry` dataclass.
 
-| 列                | 类型          | 说明               |
-| ----------------- | ------------- | ------------------ |
-| `event_id`        | str (PK)      | |
-| `portfolio_id`    | str (FK → `portfolios.portfolio_id`) | |
-| `dt`              | datetime      | |
-| `level`           | str           | INFO / WARNING / ERROR |
-| `source`          | str           | 源码位置 (如 `quantide.service.sim_broker`) |
-| `message`         | str           | 日志消息 |
-| `extra`           | str (JSON)    | 额外字段 |
+| 列             | 类型                                 | 说明                                        |
+| -------------- | ------------------------------------ | ------------------------------------------- |
+| `event_id`     | str (PK)                             |                                             |
+| `portfolio_id` | str (FK → `portfolios.portfolio_id`) |                                             |
+| `dt`           | datetime                             |                                             |
+| `level`        | str                                  | INFO / WARNING / ERROR                      |
+| `source`       | str                                  | 源码位置 (如 `quantide.service.sim_broker`) |
+| `message`      | str                                  | 日志消息                                    |
+| `extra`        | str (JSON)                           | 额外字段                                    |
 
 **索引**:
 - 非唯一索引: (`portfolio_id`, `dt`)
 
 ### 4.9. 风控触发事件 (`risk_events`) — spec 保留, 实现待定
 
-| 列                 | 类型     | 说明                                      |
-| ------------------ | -------- | ----------------------------------------- |
-| `event_id`         | str (PK) |                                           |
-| `activation_id`    | str      | 所属开启区间 (详见 FR-360 AC-360-02)      |
-| `risk_strategy_id` | str      | 风控策略                                  |
-| `host_strategy_id` | str      | 宿主策略                                  |
-| `asset`            | str      |                                           |
-| `trigger_price`    | float    | 触发价                                    |
-| `cost_basis`       | float    | 成本价                                    |
-| `reason`           | str      | `cost_stop` / `drawback` / ...            |
-| `trigger_ts`       | datetime | 触发时间戳                                |
+| 列                 | 类型     | 说明                                 |
+| ------------------ | -------- | ------------------------------------ |
+| `event_id`         | str (PK) |                                      |
+| `activation_id`    | str      | 所属开启区间 (详见 FR-360 AC-360-02) |
+| `risk_strategy_id` | str      | 风控策略                             |
+| `host_strategy_id` | str      | 宿主策略                             |
+| `asset`            | str      |                                      |
+| `trigger_price`    | float    | 触发价                               |
+| `cost_basis`       | float    | 成本价                               |
+| `reason`           | str      | `cost_stop` / `drawback` / ...       |
+| `trigger_ts`       | datetime | 触发时间戳                           |
 
 ### 4.10. 超额收益事件 (`excess_returns`) — spec 保留, 实现待定
 
 > **状态**: 同 §4.9, FR-360 实现 PR 时落库. 期间通过 `risk.excess_return.finalized` 日志条目记录 (见 §6).
 
-| 列                 | 类型                                    | 说明                                                                                                                                                                                                                                    |
-| ------------------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `event_id`         | str (PK)                                | 与 `risk_events.event_id` 对应                                                                                                                                                                                                            |
+| 列                 | 类型                                    | 说明                                                                                                                                                                                                                                     |
+| ------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event_id`         | str (PK)                                | 与 `risk_events.event_id` 对应                                                                                                                                                                                                           |
 | `activation_id`    | str                                     | 所属开启区间 (详见 FR-360 AC-360-02)                                                                                                                                                                                                     |
-| `risk_strategy_id` | str                                     |                                                                                                                                                                                                                                         |
-| `host_strategy_id` | str                                     |                                                                                                                                                                                                                                         |
-| `asset`            | str                                     |                                                                                                                                                                                                                                         |
-| `sell_price`       | float                                   | 卖出价 `P_sell`                                                                                                                                                                                                                         |
-| `up_threshold`     | float                                   | 上阈值 (百分点, 如 5.0 表示 5%)                                                                                                                                                                                                           |
-| `down_threshold`   | float                                   | 下阈值 (百分点, 如 0.5 表示 0.5%)                                                                                                                                                                                                         |
+| `risk_strategy_id` | str                                     |                                                                                                                                                                                                                                          |
+| `host_strategy_id` | str                                     |                                                                                                                                                                                                                                          |
+| `asset`            | str                                     |                                                                                                                                                                                                                                          |
+| `sell_price`       | float                                   | 卖出价 `P_sell`                                                                                                                                                                                                                          |
+| `up_threshold`     | float                                   | 上阈值 (百分点, 如 5.0 表示 5%)                                                                                                                                                                                                          |
+| `down_threshold`   | float                                   | 下阈值 (百分点, 如 0.5 表示 0.5%)                                                                                                                                                                                                        |
 | `barrier_hit`      | `Literal["up", "down", "expire", null]` | 触发的屏障, 数据不足时 `null`                                                                                                                                                                                                            |
-| `close_price_n`    | float \| null                           | N 日后收盘价 (N=0 即当日); 未触发屏障时使用                                                                                                                                                                                               |
-| `n_window`         | int                                     | 窗口 (默认 0, 来自风控策略 `default_config()`)                                                                                                                                                                                            |
+| `close_price_n`    | float \| null                           | N 日后收盘价 (N=0 即当日); 未触发屏障时使用                                                                                                                                                                                              |
+| `n_window`         | int                                     | 窗口 (默认 0, 来自风控策略 `default_config()`)                                                                                                                                                                                           |
 | `excess_return`    | float \| null                           | Triple Barrier 公式 (详见 [spec-trading.md F-TB-1 / F-TB-2 / F-TB-3](./spec-trading.md)):<br>• `barrier_hit="up"` → 应用 F-TB-1<br>• `barrier_hit="down"` → 应用 F-TB-2<br>• `barrier_hit="expire"` → 应用 F-TB-3<br>• 数据不足 → `null` |
-| `is_final`         | bool                                    | false=待回填, true=终值                                                                                                                                                                                                                 |
-| `created_at`       | datetime                                |                                                                                                                                                                                                                                         |
+| `is_final`         | bool                                    | false=待回填, true=终值                                                                                                                                                                                                                  |
+| `created_at`       | datetime                                |                                                                                                                                                                                                                                          |
 | `finalized_at`     | datetime \| null                        | N=0 时 = `created_at`; N>0 时 = `trigger_ts + n_window` 日                                                                                                                                                                               |
 
 ### 4.11. 枚举缓存 JSON (枚举结果持久化)
@@ -503,69 +503,69 @@ class EnumerationResult:
 
 > **修订说明 (2026-06-21)**: 原 spec 写的是 `(date, is_trade_day, exchange)`, 但 `tests/assets/unit/scripts/build_env.py` 实际生成的是 `(exchange, date, is_open, pretrade_date)`. 字段名 `is_trade_day` → `is_open`, 多了 `pretrade_date` 字段. **完全照现有实现**.
 
-| 列             | 类型      | 说明                                      |
-| -------------- | --------- | ----------------------------------------- |
-| `exchange`     | str       | 交易所代码 (SSE / SZSE / BSE)             |
-| `date`         | str (YYYYMMDD, PK) |  |
-| `is_open`      | int (0/1) | 是否交易日                                |
-| `pretrade_date`| str (YYYYMMDD) | 前一交易日 (用于回测时 `day_shift(-1)` 查询) |
+| 列              | 类型               | 说明                                         |
+| --------------- | ------------------ | -------------------------------------------- |
+| `exchange`      | str                | 交易所代码 (SSE / SZSE / BSE)                |
+| `date`          | str (YYYYMMDD, PK) |                                              |
+| `is_open`       | int (0/1)          | 是否交易日                                   |
+| `pretrade_date` | str (YYYYMMDD)     | 前一交易日 (用于回测时 `day_shift(-1)` 查询) |
 
 ### 4.13. 证券列表 (`universe.json`)
 
-| 列            | 类型         | 说明 |
-| ------------- | ------------ | ---- |
-| `asset`       | str          | 标的代码 (如 `000001.SZ`) |
-| `name`        | str          | 中文名 (如 `平安银行`) |
-| `category`    | str          | 类别 (ordinary / st / ipo / delisted / chinext_star / suspended / dividend_adjust) |
-| `list_date`   | int (YYYYMMDD) | 上市日期 |
-| `delist_date` | int \| null  | 退市日期 (未退市为 null) |
-| `exchange`    | str          | 交易所 |
+| 列            | 类型           | 说明                                                                               |
+| ------------- | -------------- | ---------------------------------------------------------------------------------- |
+| `asset`       | str            | 标的代码 (如 `000001.SZ`)                                                          |
+| `name`        | str            | 中文名 (如 `平安银行`)                                                             |
+| `category`    | str            | 类别 (ordinary / st / ipo / delisted / chinext_star / suspended / dividend_adjust) |
+| `list_date`   | int (YYYYMMDD) | 上市日期                                                                           |
+| `delist_date` | int \| null    | 退市日期 (未退市为 null)                                                           |
+| `exchange`    | str            | 交易所                                                                             |
 
 ### 4.14. 日线行情 Parquet (`daily_bars.parquet`)
 
 > **新增 (2026-06-21)**: 原 spec §4 缺日线行情 parquet 规范. 按 `build_env.py` 实际补齐.
 
-| 列            | 类型         | 说明 |
-| ------------- | ------------ | ---- |
-| `asset`       | str          | 标的代码 |
-| `date`        | str (YYYYMMDD) | 交易日 |
-| `open`        | float        | 开盘价 |
-| `high`        | float        | 最高价 |
-| `low`         | float        | 最低价 |
-| `close`       | float        | 收盘价 |
-| `volume`      | float        | 成交量 (手) |
-| `amount`      | float        | 成交额 (元) |
+| 列       | 类型           | 说明        |
+| -------- | -------------- | ----------- |
+| `asset`  | str            | 标的代码    |
+| `date`   | str (YYYYMMDD) | 交易日      |
+| `open`   | float          | 开盘价      |
+| `high`   | float          | 最高价      |
+| `low`    | float          | 最低价      |
+| `close`  | float          | 收盘价      |
+| `volume` | float          | 成交量 (手) |
+| `amount` | float          | 成交额 (元) |
 
 ### 4.15. 复权因子 Parquet (`adj_factor.parquet`)
 
 > **新增 (2026-06-21)**: 同 §4.14.
 
-| 列            | 类型         | 说明 |
-| ------------- | ------------ | ---- |
-| `asset`       | str          | 标的代码 |
-| `date`        | str (YYYYMMDD) | 交易日 |
-| `adj_factor`  | float        | 复权因子 |
+| 列           | 类型           | 说明     |
+| ------------ | -------------- | -------- |
+| `asset`      | str            | 标的代码 |
+| `date`       | str (YYYYMMDD) | 交易日   |
+| `adj_factor` | float          | 复权因子 |
 
 ### 4.16. ST 标记 Parquet (`st_info.parquet`)
 
 > **新增 (2026-06-21)**: 同 §4.14.
 
-| 列            | 类型         | 说明 |
-| ------------- | ------------ | ---- |
-| `asset`       | str          | 标的代码 |
-| `date`        | str (YYYYMMDD) | 交易日 |
-| `is_st`       | int (0/1)    | 是否 ST (含 *ST) |
+| 列      | 类型           | 说明             |
+| ------- | -------------- | ---------------- |
+| `asset` | str            | 标的代码         |
+| `date`  | str (YYYYMMDD) | 交易日           |
+| `is_st` | int (0/1)      | 是否 ST (含 *ST) |
 
 ### 4.17. 涨跌停价 Parquet (`limit_price.parquet`)
 
 > **新增 (2026-06-21)**: 同 §4.14.
 
-| 列            | 类型         | 说明 |
-| ------------- | ------------ | ---- |
-| `asset`       | str          | 标的代码 |
-| `date`        | str (YYYYMMDD) | 交易日 |
-| `up_limit`    | float        | 涨停价 |
-| `down_limit`  | float        | 跌停价 |
+| 列           | 类型           | 说明     |
+| ------------ | -------------- | -------- |
+| `asset`      | str            | 标的代码 |
+| `date`       | str (YYYYMMDD) | 交易日   |
+| `up_limit`   | float          | 涨停价   |
+| `down_limit` | float          | 跌停价   |
 
 ## 5. 异常 / 错误码表
 
@@ -607,7 +607,7 @@ class EnumerationResult:
 > **关联 test-plan**: [test-plan.md §5.4](./test-plan.md) — L1/L2 E2E 测试的前置
 > **关联 acceptance**: [acceptance.md AC-CLOCK-INJ-01 ~ 06](./acceptance.md)
 
-#### 7.4.1. 装配点 1: 虚拟时钟 (ClockPort)
+#### 7.0.1. 装配点 1: 虚拟时钟 (ClockPort)
 
 **协议定义** (`quantide/core/ports/clock.py`):
 
@@ -621,7 +621,7 @@ class EnumerationResult:
 - 行情事件的 `timestamp` 字段 == 推送时刻的 `context.clock.now()`
 - 日志条目 (`order.submitted` / `order.filled` / `risk.triggered`) 的 `ts` 字段 == 事件发生时刻的 `context.clock.now()`
 
-#### 7.4.2. 装配点 2: 实时行情源 (MarketDataPort)
+#### 7.0.2. 装配点 2: 实时行情源 (MarketDataPort)
 
 **协议定义** (`quantide/core/ports/market_data.py`):
 
@@ -633,7 +633,7 @@ class EnumerationResult:
 - 撮合结果 (orders / fills 表) 的成交价 == 撮合时刻的 `market_data.snapshot([asset])[asset].price`
 - 委托回报的 `filled_at` 字段 == 撮合时刻的 `context.clock.now()`
 
-#### 7.4.3. 装配点 3: 网关地址
+#### 7.0.3. 装配点 3: 网关地址
 
 **配置路径**: `Settings.gateway_url` (已存在, 由 PR2 验证暴露)
 
