@@ -98,6 +98,9 @@ convention = "pep257"
 markers = [
     "e2e: HTTP-level end-to-end tests organized by user journey",
     "release_gate: QA release-gate evidence tracked in the three-mode acceptance checklist",
+    "e2e_paper: L1 paper E2E (test-plan §5.3, §6.3.1) — 默认 CI 跑 (虚拟时钟 + 公共 support)",
+    "e2e_gateway: L2 网关契约仿真 E2E (test-plan §5.3, §6.3.2) — 默认 CI 跑 (假网关 + 公共 support)",
+    "e2e_live_smoke: L3 实盘路径冒烟 E2E (test-plan §5.3, §6.3.3) — **默认 deselect**, 仅在 Windows+QMT 真机环境跑",
 ]
 
 [dependency-groups]
