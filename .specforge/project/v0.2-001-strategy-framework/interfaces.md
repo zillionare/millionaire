@@ -270,6 +270,55 @@ class EnumerationResult:
 
 **关联 AC**: AC-010-03
 
+### 3.3. 模式切换与调度（运行控制 API）
+
+> **范围**: 本节定义回测/paper/live/dry-run 启动与停止、风控绑定/解绑等"模式切换与调度"控制 API. **测试工程师** 据此写 L1/L2 编排; **实现层** 据此暴露 HTTP endpoint. 详细 request/response schema 在 PR2 实现时细化, 本节先冻结 endpoint 名称 + 关键参数 + 关联 AC.
+>
+> **本节不是 UI 契约** — 调度 UI 在 [v0.2-002-ui/spec.md UI-FR-040 / UI-FR-260](../v0.2-002-ui/spec.md). 本节只冻结"任何 UI 都要调用的 HTTP endpoint"层.
+
+#### 3.3.1. 回测
+
+| Endpoint | Method | 关键参数 (摘要)                                                | 关联 AC          |
+| -------- | ------ | ------------------------------------------------------------- | ---------------- |
+| `/broker/backtests` | POST | `strategy_id, parameters, initial_capital, start_date, end_date, slippage, commission` | AC-230-01/02/03 |
+| `/broker/backtests/{backtest_id}` | GET | —                                                             | AC-230-04       |
+| `/broker/backtests/{backtest_id}/result` | GET | — (返回 [§4.1 回测结果 JSON](./interfaces.md)) | AC-340/350      |
+
+> **30 个回测结果上限** (AC-230-04): 由后端 LRU 淘汰 (无清理 endpoint), 每次 GET 返回当前 30 个最新结果.
+
+#### 3.3.2. paper / live / dry-run 启动与停止
+
+| Endpoint | Method | 关键参数 (摘要)                                                | 关联 AC          |
+| -------- | ------ | ------------------------------------------------------------- | ---------------- |
+| `/broker/{strategy_id}/paper` | POST | `initial_capital, slippage, commission, parameters` (parameters 来自 FR-030 透传) | AC-230-02/03, AC-240-02 |
+| `/broker/{strategy_id}/live` | POST | `initial_capital, slippage, commission, gateway_url`          | AC-230-02/03     |
+| `/broker/{strategy_id}/dry-run` | POST | `{}` (沿用 live 的资金/滑点/commission, 不实际下单) | AC-440-01     |
+| `/broker/{strategy_id}/stop` | POST | — (适用于 paper / live / dry-run 三种模式) | AC-440-XX, FR-250 |
+
+> **并行仿真**: 当 live 启动时, 若原 paper 在跑, **当日**停止 paper 并自动创建并行仿真 (FR-230 末尾说明). 框架内部调度, 无需 UI 触发.
+
+#### 3.3.3. 风控策略绑定/解绑
+
+| Endpoint | Method | 关键参数 (摘要)                                | 关联 AC          |
+| -------- | ------ | ----------------------------------------------- | ---------------- |
+| `/broker/risk-strategies/{risk_strategy_id}/bind` | POST | `host_strategy_id, parameters` | AC-250-01, AC-130-02 |
+| `/broker/risk-strategies/{risk_strategy_id}/unbind` | POST | —                                                | FR-013 生命周期 |
+
+> **自动激活 (AC-250-01)**: 宿主进 paper/live 时, 关联风控**自动**激活, 不需要显式 bind. bind endpoint 是"显式预绑定"或"在宿主进 paper 前配置风控参数"用.
+
+#### 3.3.4. 错误码
+
+| HTTP | code                          | 触发                                                                       |
+| ---- | ----------------------------- | -------------------------------------------------------------------------- |
+| 409  | `STRATEGY_NOT_BACKTESTED`     | 独立策略未跑过回测, 直接尝试进 paper ([AC-230-01](./acceptance.md)) |
+| 409  | `RISK_STRATEGY_NOT_BACKTESTABLE` | BacktestRunner 检测到 RiskStrategy 实例 ([AC-130-01](./acceptance.md)) |
+| 409  | `ALREADY_RUNNING`             | 策略已在 paper/live/dry-run 某模式运行, 启动被拒                      |
+| 404  | `BACKTEST_NOT_FOUND`          | `GET /broker/backtests/{backtest_id}` 找不到                              |
+
+> **关联 AC**: AC-230-01 / AC-130-01 / AC-230-02/03 / AC-440-01 (本节完整覆盖了 §6.6 断言依据清单中"模式切换/调度"的可观测入口)
+
+**关联 AC**: AC-010-03
+
 
 ## 4. 数据文件 / 数据库 schema
 
