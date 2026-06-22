@@ -96,6 +96,8 @@
 
 每个独立策略在 live/paper 中运行时拥有一个虚拟账户，配置独立本金作为资金上限。所有虚拟账户共享真实账户的总资金（用户自行保证各策略本金之和 ≤ 真实账户可用资金；Millionaire 不做跨虚拟账户资金分配校验）。Millionaire 为每个独立策略维护按 `qtoid` 归因的虚拟账本，用于策略级资产/持仓/委托/成交/收益评估/dry-run/并行仿真。除非特别说明，系统中的"策略账户"均指这套虚拟账本，而非柜台原始总账户。
 
+> **AC**: 无（行为由 [test-plan.md §1.3 L1 paper E2E + §3.4 评估指标 ground truth](./test-plan.md) 覆盖；虚拟账本存储见 [interfaces.md §4.5 assets / §4.4 positions / §4.2 orders / §4.3 trades](./interfaces.md) 全部按 `portfolio_id` 隔离）
+
 ---
 
 ### FR-220 手工交易/补单/风控卖出的归属
@@ -105,6 +107,8 @@
 | ✅        | ✅      | ✅          |
 
 手工交易、补单和风控卖出都必须归属到某个独立策略账户，并写入该策略的虚拟账本。柜台原始账户信息主要用于总览和排障，不直接替代策略级归因结果。
+
+> **AC**: 无（行为由 [test-plan.md §1.3 L1 paper E2E](./test-plan.md) 覆盖；归属字段见 [interfaces.md §4.2 orders.portfolio_id](./interfaces.md)）
 
 ---
 ### FR-270 数据源 — 行情（tushare）
@@ -349,6 +353,8 @@
 
 允许正在实盘的策略进入 dry-run:策略正常运行但**不实际下单**。期间交易信号被记录,但策略指标无法计算。dry-run 期间的策略指标**参考其并行仿真实例**。
 
+> **AC**: 无（行为由 [test-plan.md §1.3 L1 paper E2E + §6.4 调度契约](./test-plan.md) 覆盖；UI 表现已迁移 [v0.2-002-ui/spec.md UI-FR-060](../v0.2-002-ui/spec.md)）
+
 ---
 
 ### FR-450 消息通知（微信）— 事件定义
@@ -368,6 +374,8 @@
 | 3   | 委托失败         |
 | 4   | 成交失败         |
 | 5   | 实盘交易网关断开 |
+
+> **AC**: 无（事件定义见本 FR；通知配置 UI 已迁移 [v0.2-002-ui/spec.md UI-FR-450](../v0.2-002-ui/spec.md)；运行时通过 [interfaces.md §6 日志条目类型](./interfaces.md) `order.submitted` / `order.filled` / `order.rejected` / `risk.triggered` / `gateway.disconnected` 触发）
 
 ---
 
