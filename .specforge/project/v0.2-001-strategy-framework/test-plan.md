@@ -750,7 +750,7 @@ L1/L2 测试的断言**只能**落在 [interfaces.md](./interfaces.md) 已定义
 | --------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------ |
 | 委托/成交的产生与字段       | [§4.2](./interfaces.md) orders 表 / [§4.3](./interfaces.md) trades 表                                 | FR-010 / FR-150 / FR-160 |
 | 虚拟账本资金/持仓/可卖持仓  | [§4.5](./interfaces.md) assets 表 / [§4.4](./interfaces.md) positions 表 (`avail` 验 T+1)          | FR-160 / FR-210 / FR-220 |
-| 风控触发与超额收益          | [§4.9](./interfaces.md) risk_events 表 / [§4.10](./interfaces.md) excess_returns 表                  | FR-013 / FR-125 / FR-360 |
+| 风控触发与超额收益          | **v0.2**: [§6](./interfaces.md) 日志事件 `risk.triggered` / `risk.excess_return.finalized` (event payload 字段见 [interfaces.md §4.9 / §4.10](./interfaces.md) 表 schema); **PR3** (FR-360 阶段): 升级为 [§4.9](./interfaces.md) risk_events 表 / [§4.10](./interfaces.md) excess_returns 表 | FR-013 / FR-125 / FR-360 |
 | 策略生命周期与订单事件      | [§6](./interfaces.md) 日志条目类型(`order.submitted` / `order.filled` / `risk.triggered` / `risk.excess_return.finalized`) | FR-010 / FR-013          |
 | 回测/运行结果               | [§4.1](./interfaces.md) 回测结果 JSON                                                                 | FR-340 / FR-350          |
 | 日历/证券元数据(模式无关性) | SDK `Calendar` / `StockList` 直接调用(按 §1.3 白盒单元测试, 对账 env fixture 加载的 parquet)         | AC-014-04 / AC-015-04    |
