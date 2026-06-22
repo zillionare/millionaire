@@ -162,9 +162,13 @@ class TestModeAgnosticV2:
     def test_is_st_deterministic(self, stocks):
         """AC-015-04-01: is_st 多次调用结果一致"""
         d = datetime.date(2024, 1, 2)
-        assert stocks.is_st("600165.SH", d) == stocks.is_st("600165.SH", d)
+        result = stocks.is_st("600165.SH", d)
+        assert isinstance(result, bool)
+        assert result == stocks.is_st("600165.SH", d)
 
     def test_stocks_listed_deterministic(self, stocks):
         """AC-015-04-02: stocks_listed 多次调用结果一致"""
         d = datetime.date(2024, 1, 2)
-        assert stocks.stocks_listed(d, True) == stocks.stocks_listed(d, True)
+        result = stocks.stocks_listed(d, True)
+        assert isinstance(result, list)
+        assert result == stocks.stocks_listed(d, True)

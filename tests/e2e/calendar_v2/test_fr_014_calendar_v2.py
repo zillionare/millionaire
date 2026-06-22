@@ -168,7 +168,7 @@ class TestModeAgnosticV2:
     def test_idempotent_day_shift(self, cal):
         """AC-014-04-02: day_shift(d, 0) 幂等"""
         d = datetime.date(2024, 9, 30)
-        assert cal.day_shift(d, 0) == cal.day_shift(d, 0) == d
+        assert cal.day_shift(d, 0) == d
 
 
 # ───────────────────────── AC-014-05 最近交易日 ─────────────────────────
