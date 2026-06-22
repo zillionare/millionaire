@@ -574,7 +574,6 @@ class EnumerationResult:
 | `STRATEGY_NOT_FOUND`                  | 404     | API 查询不存在 strategy_id                                 | —         |
 | `INVALID_FRAME_TYPE`                  | 400     | `get_bars(frame_type)` 取值不在 `{"1d", "30m"}` 之内       | AC-010-03 |
 | `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` | 400/409 | 回测模式下 `get_bars(frame_type != "1d")` 抛（运行时检查） | AC-010-03 |
-| `INVALID_RANGE`                       | 400     | 交易日历 `start > end`                                     | AC-014-03 |
 | `ASSET_NOT_FOUND`                     | 404     | `get_name` 资产代码不存在                                  | —         |
 | `RISK_NO_ACCOUNT`                     | 400/422 | RiskStrategy 访问 `positions` / `cash`                     | AC-013-01 |
 | `RISK_NOT_BOUND`                      | 422     | RiskStrategy 启动时未绑定宿主                              | AC-013-05 |
@@ -630,7 +629,7 @@ class EnumerationResult:
 
 **可观测出口**:
 
-- 撮合结果 (orders / fills 表) 的成交价 == 撮合时刻的 `market_data.snapshot([asset])[asset].price`
+- 撮合结果 (orders / trades 表) 的成交价 == 撮合时刻的 `market_data.snapshot([asset])[asset].price`
 - 委托回报的 `filled_at` 字段 == 撮合时刻的 `context.clock.now()`
 
 #### 7.0.3. 装配点 3: 网关地址

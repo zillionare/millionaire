@@ -631,7 +631,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 - FR-013 / FR-125 / FR-360(风控策略:**spec 明确 paper-only**,不可回测,只能落在 L1)
 - AC-014-04 / AC-015-04 / AC-020-07(模式无关性:同一代码 paper 下行为与其它模式一致)
 - FR-160 T+1、FR-140 涨跌停、FR-150 数量取整、FR-180 资金校验(仿真撮合侧的外部可观测结果)
-- FR-210 / FR-220 虚拟账本归属(通过 [interfaces.md §3.2~3.5](./interfaces.md) 的 orders/fills/accounts/positions 表断言)
+- FR-210 / FR-220 虚拟账本归属(通过 [interfaces.md §4.2~§4.5](./interfaces.md) 的 orders / trades / assets / positions 表断言)
 
 **不覆盖**(交给 L2):任何依赖 qmt-gateway 协议本身的行为(下单参数透传、网关推送、网关断开通知 FR-450 #5)。
 
@@ -642,7 +642,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 **覆盖的 AC**:
 - FR-300 实时行情接入、FR-410~430 paper/live 账户与交易界面背后的网关交互
 - FR-450 #5 实盘交易网关断开通知
-- qtoid 全链路贯通(下单→假网关收件→回报→落库,断言见 [interfaces.md §3.2/§3.3](./interfaces.md))
+- qtoid 全链路贯通(下单→假网关收件→回报→落库,断言见 [interfaces.md §4.2/§4.3](./interfaces.md))
 - live 模式下委托/撤单/成交回报的解析
 
 **不覆盖**(交给 L3):真柜台的真实成交规则差异(成交量随机、滑点等)。
@@ -675,16 +675,16 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 
 #### 6.4.2. 回放行情源(替换"qmt-gateway 实时行情")
 
-**职责**: 在测试中扮演 paper/live 下的行情来源,从 §2.4 固化的 parquet 中按虚拟时钟的推进喂出行情,使被测框架的撮合/风控监控有真实可回放的数据驱动。
+**职责**: 在测试中扮演 paper/live 下的行情来源,从 §2.4 + §2.5 固化的 parquet 中按虚拟时钟的推进喂出行情,使被测框架的撮合/风控监控有真实可回放的数据驱动。
 
 **外部可观测要求**:
-- 行情**只来自 §2.4 固化的数据**,零网络、可重现。
+- 行情**只来自 §2.4 + §2.5 固化的数据**(§2.4 = 日线/复权/ST/涨跌停/日历, §2.5 = 合成的 ticks + 30m),零网络、可重现。
 - 必须能驱动框架的撮合与 tick 级监控(FR-125 `on_check`):即虚拟时钟推进时,框架应能观测到对应时刻的行情并据此产生成交/风控事件(具体驱动机制由实现层决定,测试只断言**外部结果**)。
 - 必须支持 spec 要求的数据粒度:`frame_type="1d"`(日线)与 `"30m"`(日内策略,见 story §1.8、US-050)。
 
 #### 6.4.3. 订单观察器(可选,非撮合替身)
 
-**职责**: 仅在需要独立核对订单/成交流的场景使用(如验证风控 `sell_host_position` 是否按 spec 发出卖出、归属是否正确)。它是**只读观察者**,读取 [interfaces.md §3.2/§3.3](./interfaces.md) 的 orders/fills 表与结构化日志,**不接管撮合**。
+**职责**: 仅在需要独立核对订单/成交流的场景使用(如验证风控 `sell_host_position` 是否按 spec 发出卖出、归属是否正确)。它是**只读观察者**,读取 [interfaces.md §4.2/§4.3](./interfaces.md) 的 orders / trades 表与结构化日志,**不接管撮合**。
 
 **约束**(与 §3 ground truth 隔离一致):
 - 禁止 import 框架撮合/调度实现;只读外部可观测出口(数据库表、日志)。
@@ -696,7 +696,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 
 **外部可观测要求**:
 - 框架发出的订单应**原样到达**假网关(可断言收到的订单字段与框架提交一致)。
-- 假网关的回报应使框架落库的 orders/fills 记录满足 [interfaces.md §3.2/§3.3](./interfaces.md) 的 schema。
+- 假网关的回报应使框架落库的 orders / trades 记录满足 [interfaces.md §4.2/§4.3](./interfaces.md) 的 schema。
 - 行为边界 = gateway 协议文档;**不**模拟真柜台成交随机性(那是 L3 范畴)。
 
 #### 6.4.5. 测试编排器(assembly)
@@ -748,13 +748,13 @@ L1/L2 测试的断言**只能**落在 [interfaces.md](./interfaces.md) 已定义
 
 | 被测行为                    | 断言依据(interfaces 章节)                                                                             | 关联 AC                  |
 | --------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------ |
-| 委托/成交的产生与字段       | §3.2 orders 表 / §3.3 fills 表                                                                        | FR-010 / FR-150 / FR-160 |
-| 虚拟账本资金/持仓/可卖持仓  | §3.4 accounts 表 / §3.5 positions 表(`sellable_shares` 验 T+1)                                        | FR-160 / FR-210 / FR-220 |
-| 风控触发与超额收益          | §3.6 risk_events 表 / §3.7 excess_returns 表                                                          | FR-013 / FR-125 / FR-360 |
-| 策略生命周期与订单事件      | §5 结构化日志(`order.submitted` / `order.filled` / `risk.triggered` / `risk.excess_return.finalized`) | FR-010 / FR-013          |
-| 回测/运行结果               | §3.1 回测结果 JSON                                                                                    | FR-340 / FR-350          |
-| 日历/证券元数据(模式无关性) | §2.3 / §2.4 Web API                                                                                   | AC-014-04 / AC-015-04    |
-| qtoid 贯通(L2)              | §3.2 orders.`order_id` 与 §3.3 fills.`order_id` 外键一致                                              | FR-300 / FR-410          |
+| 委托/成交的产生与字段       | [§4.2](./interfaces.md) orders 表 / [§4.3](./interfaces.md) trades 表                                 | FR-010 / FR-150 / FR-160 |
+| 虚拟账本资金/持仓/可卖持仓  | [§4.5](./interfaces.md) assets 表 / [§4.4](./interfaces.md) positions 表 (`avail` 验 T+1)          | FR-160 / FR-210 / FR-220 |
+| 风控触发与超额收益          | [§4.9](./interfaces.md) risk_events 表 / [§4.10](./interfaces.md) excess_returns 表                  | FR-013 / FR-125 / FR-360 |
+| 策略生命周期与订单事件      | [§6](./interfaces.md) 日志条目类型(`order.submitted` / `order.filled` / `risk.triggered` / `risk.excess_return.finalized`) | FR-010 / FR-013          |
+| 回测/运行结果               | [§4.1](./interfaces.md) 回测结果 JSON                                                                 | FR-340 / FR-350          |
+| 日历/证券元数据(模式无关性) | SDK `Calendar` / `StockList` 直接调用(按 §1.3 白盒单元测试, 对账 env fixture 加载的 parquet)         | AC-014-04 / AC-015-04    |
+| qtoid 贯通(L2)              | [§4.2](./interfaces.md) orders.`qtoid` 与 [§4.3](./interfaces.md) trades.`qtoid` 外键一致            | FR-300 / FR-410          |
 
 > 若某条 AC 需要的状态在 interfaces.md 中**没有**对应可观测出口,这是可观测性缺口(违反 NFR-050),应回退修订 interfaces/acceptance 补齐出口,而非在测试中窥探内部状态。
 
