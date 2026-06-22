@@ -278,6 +278,7 @@ async def test_dual_ma_live_strategy_path_preserves_qtoid_and_updates_state(monk
 
 
 @pytest.mark.asyncio  # type: ignore[untyped-decorator]
+@pytest.mark.e2e_gateway
 async def test_live_gateway_partial_fill_then_cancel_keeps_state_single_applied() -> None:
     baseline = _load_live_baseline()["partial_cancel"]
     scenario = GatewayScenario(
@@ -357,6 +358,7 @@ async def test_live_gateway_partial_fill_then_cancel_keeps_state_single_applied(
 
 
 @pytest.mark.asyncio  # type: ignore[untyped-decorator]
+@pytest.mark.e2e_gateway
 async def test_live_gateway_reject_leaves_queries_unchanged() -> None:
     baseline = _load_live_baseline()["reject"]
     scenario = GatewayScenario(asset=_initial_asset(200000.0), reject_next_orders=[baseline["error"]])
@@ -390,6 +392,7 @@ async def test_live_gateway_reject_leaves_queries_unchanged() -> None:
 
 
 @pytest.mark.asyncio  # type: ignore[untyped-decorator]
+@pytest.mark.e2e_gateway
 async def test_live_gateway_out_of_order_replay_recovers_qtoid_after_reconnect() -> None:
     baseline = _load_live_baseline()["out_of_order_replay"]
     scenario = GatewayScenario(
@@ -457,6 +460,7 @@ async def test_live_gateway_out_of_order_replay_recovers_qtoid_after_reconnect()
     assert round(float(asset_twice.total), 6) == baseline["asset_after"]["total"]
 
 
+@pytest.mark.e2e_gateway
 def test_live_gateway_mapping_break_raises_block_candidate() -> None:
     baseline = _load_live_baseline()["mapping_break"]
     scenario = GatewayScenario(orders=baseline["orders"])

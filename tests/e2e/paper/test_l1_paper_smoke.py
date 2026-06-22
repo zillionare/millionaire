@@ -28,6 +28,14 @@ TEST_DATE = datetime.date(2024, 6, 3)
 @pytest.mark.e2e
 @pytest.mark.e2e_paper
 def test_l1_paper_smoke_virtual_clock_advances():
+    """AC-CLOCK-INJ-01: RuntimeContext 暴露 clock 字段 + VirtualClock 可推进/不可回退.
+
+    验证 NFR-060 装配契约:
+    - RuntimeContext.clock is VirtualClock (装配正确, 无 wall clock 污染)
+    - VirtualClock.advance_to(now) 单向推进
+    - VirtualClock.advance_to(t < now) 抛 ValueError (不回退, 满足 §6.4.1 '快进跨越日界' 语义)
+    - VirtualClock.advance(seconds) 接受负值 (回放场景需要回退非时钟)
+    """
     db.init(":memory:")
     calendar_model.load(ASSETS_ROOT / "baseline_calendar.parquet")
     daily_bars.load(ASSETS_ROOT / "2024_bars_ext_cols.parquet")
@@ -55,7 +63,11 @@ def test_l1_paper_smoke_virtual_clock_advances():
 @pytest.mark.e2e
 @pytest.mark.e2e_paper
 def test_l1_paper_smoke_calendar_frames_loadable():
-    """验证 calendar fixture 加载后, 可推进到下一帧 (test-plan §6.4.2 '回放行情源' 依赖)."""
+    """AC-CLOCK-INJ-04: 行情时间戳读 context.clock.
+
+    验证 VirtualClock.advance_to_next_frame(FrameType.DAY) 可推进到下一日.
+    是 test-plan §6.4.2 '回放行情源' 依赖.
+    """
     db.init(":memory:")
     calendar_model.load(ASSETS_ROOT / "baseline_calendar.parquet")
 
