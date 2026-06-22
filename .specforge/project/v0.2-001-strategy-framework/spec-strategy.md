@@ -372,6 +372,8 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 
 独立策略（`BaseStrategy` 子类，使用日线数据粒度）。计算 [fast, slow] 周期均线，fast 上穿 slow → 买入；slow 上穿 fast → 卖出。参数 `[fast, slow]`，默认 `[5, 20]`。回测结果图形化展示：净值、参考线、买入点、卖出点、MA 指标。
 
+> **AC**: 无（行为由 [test-plan.md §3.3 回测 ground truth + §6.4 L1 paper E2E](./test-plan.md) 覆盖）
+
 ---
 
 ### FR-100 内置策略 — 回落卖出（风控）
@@ -381,6 +383,8 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 | ✅        | ✅      | ✅          |
 
 `RiskStrategy`（FR-013）的内置实现。个股当天上涨至 m% 后，若 n 分钟内下跌超过 k%，立即卖出。参数中 `[m, k]`（均为百分点，如 m=5.0 表示 5%），默认 `[7, 0.5]`，参数 n 默认为1分钟
+
+> **AC**: 无（行为由 [test-plan.md §3.5 风控 ground truth + §6.4 L1 paper E2E](./test-plan.md) 覆盖）
 
 ---
 
@@ -398,6 +402,8 @@ story 同时列举了日线策略（§1.6）与日内策略（§1.7）两个用�
 - **驱动**：tick 级独立驱动（FR-125），不绑定宿主 `on_bar` 周期。`on_day_open` 读取前一日可卖持仓，交易时段内每个 tick 触发 `on_check`
 - **卖出**：`sell_host_position`，即时市价成交，归属宿主账户
 - **超额收益**：按 FR-013 公式记录（N=0 即当日收盘）
+
+> **AC**: 无（行为由 [test-plan.md §3.5 风控 ground truth + §6.4 L1 paper E2E](./test-plan.md) 覆盖；cost_basis 来自 [spec-strategy.md §FR-185 经典方案 A](./spec-strategy.md)）
 
 ---
 
