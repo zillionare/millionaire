@@ -331,7 +331,7 @@
 
 ### AC-CLOCK-INJ-05 虚拟时钟下 T+1 跨日结算可观测
 - ⬜ 测试场景: T0 买入 → T0 当日 sellable=0; 推进虚拟时钟到 T1 → T1 当日 sellable=持仓数
-- ⬜ 断言依据: [interfaces.md §3.5 positions 表](./interfaces.md) 的 `sellable_shares` 字段
+- ⬜ 断言依据: [interfaces.md §4.4 positions 表](./interfaces.md) 的 `avail` 字段
 - ⬜ 框架**不**需要知道这是测试场景; 走的是生产 T+1 结算代码路径
 
 ### AC-CLOCK-INJ-06 装配点违规检测 (反测试)

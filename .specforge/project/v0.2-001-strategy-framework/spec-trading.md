@@ -221,11 +221,11 @@
 
 **F-TB-1** up 屏障触发后的超额收益
 - 触发条件: `barrier_hit = "up"`(价格先触达上界)
-- 公式: `excess_return = −1 * up_threshold`
+- 公式: `excess_return = −1 * (up_threshold / 100)`
 
 **F-TB-2** down 屏障触发后的超额收益
 - 触发条件: `barrier_hit = "down"`(价格先触达下界)
-- 公式: `excess_return = +1 * down_threshold`
+- 公式: `excess_return = +1 * (down_threshold / 100)`
 
 **F-TB-3** 观察期到但未触发任何屏障
 - 触发条件: `barrier_hit = "expire"`(N 日内未触达任何屏障,按 T_n 日收盘价退出)

@@ -4,7 +4,7 @@
 - **位置**: 与 [spec.md](./spec.md) (含索引)/ [acceptance.md](./acceptance.md) / [test-plan.md](./test-plan.md) 同源
 - **性质**: 外部可观测契约清单 — 测试工程师据此写黑盒测试,实现层据此暴露 API/数据 schema
 - **基线**: 严格对齐 [spec-strategy.md](./spec-strategy.md) 已确定部分(FR-010 ~ FR-020);NFR 引用 [spec-foundation.md NFR-050](./spec-foundation.md)
-- **范围外**: FR > 020 未确定的 FR,本文件不涉及
+- **范围外**: FR > 020 未确定的 FR,本文件**不主动新增契约**;但 §4.6-§4.10 (portfolios / strategy_logs / backtest_logs / risk_events / excess_returns) 与 §6 运行时装配契约 (NFR-060 联动) 是 spec-trading.md FR-210 ~ FR-360 + NFR-060 的**可观测接口契约**, 作为 FR > 020 的"接口承接表"
 
 > **本文件不是实现设计,是从 spec 推导出的"接口冻结"清单**。实现层如发现接口无法实现,需回退到 spec 修订而非本文件。
 
@@ -207,7 +207,7 @@ class EnumerationResult:
 
 ### 3.1. 策略枚举 API
 
-**Endpoint**: `GET /api/strategies`
+**Endpoint**: `GET /broker/strategies`
 
 **Request**: 无请求体。可选 query:`include_builtin=true`(默认 true)、`root=<path>`(默认 None)
 
@@ -252,7 +252,7 @@ class EnumerationResult:
 
 ### 3.2. 策略参数查询 API
 
-**Endpoint**: `GET /api/strategies/{strategy_id}/config`
+**Endpoint**: `GET /broker/strategies/{strategy_id}/config`
 
 **Response 200**:
 
