@@ -920,7 +920,7 @@ class EnumerationResult:
 | `RISK_NO_ACCOUNT`                     | 400/422 | RiskStrategy 访问 `positions` / `cash`                     | AC-013-01 |
 | `RISK_NOT_BOUND`                      | 422     | RiskStrategy 启动时未绑定宿主                              | AC-013-05 |
 | `RISK_NO_BUY_API`                     | 400/422 | RiskStrategy 调用 buy 类方法                               | AC-013-02 |
-| `RISK_STRATEGY_NOT_BACKTESTABLE`      | 422     | RiskStrategy 提交给 BacktestRunner                         | AC-013-05 |
+| `RISK_STRATEGY_NOT_BACKTESTABLE`      | 409     | RiskStrategy 提交给 BacktestRunner                         | AC-013-05 |
 | `ENUMERATION_FAILED`                  | 500     | 不可恢复的枚举错误                                         | AC-020-12 |
 
 > 注:`UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` 是 `RuntimeError` 子类，仅在 BacktestRunner 上下文抛出；paper/live 不受影响。

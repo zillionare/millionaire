@@ -70,7 +70,7 @@
 - ⬜ 宿主停止 → RiskStrategy 一并停止
 - ⬜ 单独停止 RiskStrategy → 不再监控，已发订单不撤回；重新启动后开启新"开启区间"，超额收益按区间独立累计
 - ⬜ 尝试不带宿主账户直接启动 RiskStrategy → 抛出异常，提示必须绑定宿主
-- ⬜ 将 RiskStrategy 实例提交给 BacktestRunner → BacktestRunner 启动时检测到 RiskStrategy 子类, **拒绝启动**(抛异常 `RiskStrategyNotBacktestable`;HTTP 错误码见 [interfaces.md §4 `RISK_STRATEGY_NOT_BACKTESTABLE`](./interfaces.md))
+- ⬜ 将 RiskStrategy 实例提交给 BacktestRunner → BacktestRunner 启动时检测到 RiskStrategy 子类, **拒绝启动**(抛异常 `RiskStrategyNotBacktestable`;HTTP 错误码见 [interfaces.md §5 `RISK_STRATEGY_NOT_BACKTESTABLE`](./interfaces.md))
 
 ---
 
