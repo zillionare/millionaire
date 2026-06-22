@@ -344,6 +344,37 @@
 
 ---
 
+### FR-115 BaseStrategy 驱动契约
+
+> 驱动契约见 [spec-strategy.md §FR-115](./spec-strategy.md)
+
+#### AC-115-01 回调时序 (单日)
+- ⬜ 一个交易日按 `on_day_open(tm=T 09:30) → on_bar(tm=T) → on_day_close(tm=T 15:00)` 顺序驱动
+- ⬜ 验证依据: 跑 paper E2E 一天, 断言 3 个回调按顺序触发, 且 `tm` 字段为对应时刻
+
+#### AC-115-02 frame_type="1d" 在 4 模式均可用
+- ⬜ 策略调 `get_bars(asset, count, frame_type="1d")` 在 backtest/paper/live/dry-run 均返回 `pl.DataFrame` (≥ 1 行)
+- ⬜ 验证依据: 跑 4 模式各 1 天, 断言 4 次调用都成功
+
+#### AC-115-03 frame_type="30m" 仅 paper/live 可用, 回测抛异常
+- ⬜ paper/live 调 `get_bars(asset, count, frame_type="30m")` → 成功
+- ⬜ backtest 调同样接口 → 抛 `UnsupportedFrameTypeForBacktest` (HTTP 错误码 `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST`)
+- ⬜ 验证依据: 跑 1 次回测调用, 断言异常; 跑 1 次 paper 调用, 断言成功
+
+#### AC-115-04 on_bar 不携带 quote 参数, 策略通过 get_bars 拉取
+- ⬜ 策略 `on_bar(tm)` 方法签名**只有** `tm` 参数 (无 `quote` / `bars` / 等行情参数)
+- ⬜ 验证依据: 策略基类 `BaseStrategy.on_bar` 反射签名, 断言只有 `self` + `tm` 2 个参数
+
+#### AC-115-05 paper/live 默认 15:05 触发 (盘后 5 分钟)
+- ⬜ paper/live 下 `on_bar` 在 T 日 15:05 触发 (默认配置, 可配)
+- ⬜ 验证依据: 跑 paper E2E 一天, 断言 `on_bar.tm.hour == 15 and on_bar.tm.minute == 5`
+
+#### AC-115-06 信号与撮合解耦 (FR-050/060/070 决定撮合)
+- ⬜ 策略在 `on_bar` 调 `buy(...)` 仅产生**信号**; 实际撮合时点与价格由下单方式决定
+- ⬜ 验证依据: cheat-on-close 模式下, `on_bar` 在 15:05 触发, 订单 `tm` 在 14:57 (FR-050 撮合时点); 次日开盘模式下, 订单 `tm` 在 T+1 09:30
+
+---
+
 ### FR-140 交易规则 — 价格（涨跌停）
 
 > 涨跌停契约见 [spec-trading.md §FR-140](./spec-trading.md); 验证通过 [interfaces.md §4.17 limit_price.up_limit / down_limit](./interfaces.md)
@@ -489,6 +520,28 @@
 - ⬜ `n = 0` 时,`excess_return` 在 `trigger_ts` 当日(仿真/实盘时间)的收盘价已知后立即计算并写入
 - ⬜ `n > 0` 时,`excess_return` 初始写入 `null`,N 日后(仿真/实盘时间)有收盘价时回填
 - ⬜ N 日窗口内数据不足(如接近年末、尚未有 N 日收盘数据)→ 暂记 `null`,数据可用后更新最终值
+
+---
+
+### FR-130 风控策略契约
+
+> 风控策略契约见 [spec-strategy.md §FR-130](./spec-strategy.md); 账户/不可回测/不可独立启动 已在 AC-013 段, 本节只补 AC-013 外的 3 条新行为
+
+#### AC-130-01 BacktestRunner 启动时检测到 RiskStrategy 拒绝
+- ⬜ 启动回测任务时, 若传入的策略类型是 `RiskStrategy` (或子类), BacktestRunner 抛 `RiskStrategyNotBacktestable` 异常
+- ⬜ HTTP 入口返回 `code=RISK_STRATEGY_NOT_BACKTESTABLE, status=409` (参见 [interfaces.md §5 异常错误码表](./interfaces.md))
+- ⬜ 验证依据: 跑 1 次 `BacktestRunner.run(strategy=RiskStrategy_instance)` → 断言异常; 跑 1 次 HTTP POST 启动 → 断言 409
+
+#### AC-130-02 重新启动记新 activation_id (按开启区间独立累计)
+- ⬜ 风控首次启动 → 分配 `activation_id=uuid1`, 触发事件归 `activation_id=uuid1`
+- ⬜ 风控被"单独停止" → 当前 `activation_id=uuid1` 关闭, 已发订单**不**撤回
+- ⬜ 风控重新启动 → 分配**新** `activation_id=uuid2` (新事件归 `uuid2`, **不**与 `uuid1` 合并)
+- ⬜ 验证依据: [interfaces.md §4.9 risk_events.activation_id](./interfaces.md) 字段在重新启动后是新的 UUID
+
+#### AC-130-03 操作他人持仓不改变持仓归属
+- ⬜ 风控触发 `sell_host_position(asset, shares, reason)` → 订单的 `portfolio_id` = **宿主** `portfolio_id`, **不**是风控自身
+- ⬜ 宿主 `assets.cash` 在成交后被扣减 (回款归宿主, 风控无账户), 风控**无** `assets` 表记录
+- ⬜ 验证依据: 跑 paper E2E, 触发后查 `orders.portfolio_id` 等于宿主, 查 `assets.portfolio_id` 不含风控
 
 ---
 
