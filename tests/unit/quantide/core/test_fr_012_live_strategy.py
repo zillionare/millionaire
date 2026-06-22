@@ -1,9 +1,8 @@
-"""E2E 黑盒测试 — FR-012 LiveStrategy 结构契约
+"""白盒结构契约测试 — FR-012 LiveStrategy 结构契约 (从 tests/e2e 迁出)
 
-按 test-plan.md §4.1 scenarios/live_strategy/ 设计:
-- 验证 LiveStrategy 不被 BacktestRunner 接受(类型层)
-- 数据接口支持多周期('30m' | '1d')
-- 与 acceptance.md AC-012-01 ~ 04 对齐
+按 test-plan.md §6.5.1 marker 管控规则, paper/live E2E 才需标 e2e_paper/e2e_gateway/e2e_live_smoke.
+本测试用 inspect.signature/hasattr 验证 LiveStrategy/BaseStrategy/BacktestRunner/Broker 的类型签名,
+不调 broker / 不起 HTTP / 不依赖 fixtures, 属于白盒单测, 应在 tests/unit/.
 """
 
 from __future__ import annotations
@@ -27,7 +26,7 @@ class TestNotBacktestable:
     """AC-012-01: LiveStrategy 不被 BacktestRunner 接受"""
 
     def test_backtest_runner_inspects_strategy_type(self):
-        """BacktestRunner 实现类型检查(若策略标记为 live 则拒绝)"""
+        """AC-012-01: BacktestRunner.run 接受 strategy_cls 参数."""
         # spec: 类型层拒绝,而非运行时检查
         # 当前 impl: BacktestRunner 直接接受 BaseStrategy 子类,无类型区分
         # 这是 spec 与 impl 的缺口(spec 要求 LiveStrategy 子类,但目前
@@ -39,7 +38,7 @@ class TestNotBacktestable:
         assert "strategy_cls" in sig.parameters or len(sig.parameters) >= 2
 
     def test_strategy_subclass_is_live_or_day_marked(self):
-        """spec: 策略类应有类型标记(live/day/risk),通过 final 基类区分"""
+        """AC-012-01: BaseStrategy 在 DualMAStrategy.__mro__ 中 (子类继承)."""
         # 当前所有 BaseStrategy 子类都被 BacktestRunner 同等对待
         # spec 要求:
         # - DayStrategy(BaseStrategy) → BacktestRunner 接受
@@ -62,7 +61,7 @@ class TestMultiFrameData:
     """AC-012-02: get_bars 支持 '30m' | '1d'"""
 
     def test_get_bars_accepts_30m_string(self):
-        """get_bars 接受 frame_type='30m'(spec 接口契约)"""
+        """AC-012-02: get_history/get_bars 接受 frame_type 参数."""
         # spec: LiveStrategy get_bars 接受 '30m' 或 '1d'
         # 当前 BaseStrategy.get_history 接受任意 frame_type 字符串
         # 验证参数存在
@@ -76,8 +75,8 @@ class TestMultiFrameData:
         assert "frame_type" in sig.parameters
 
     def test_synthetic_30m_fixture_exists(self):
-        """synthetic 30m fixture 存在(test-plan §1.1.2 要求)"""
-        path = Path(__file__).resolve().parents[2] / "assets" / "synthetic" / "synthetic_30m_bars.parquet"
+        """AC-012-02: synthetic 30m fixture 存在 (test-plan §1.1.2 要求)."""
+        path = Path(__file__).resolve().parents[2] / "tests" / "assets" / "synthetic" / "synthetic_30m_bars.parquet"
         if not path.exists():
             pytest.skip("synthetic 30m fixture not generated; run generate_synthetic.py; tracker: .dev/memory/26-06-22.md#L1")
         df = pl.read_parquet(path)
@@ -94,7 +93,7 @@ class TestOnDayOpen:
     """AC-012-03: on_day_open 在 on_bar 之前调用,用于选股"""
 
     def test_on_day_open_signature(self):
-        """on_day_open 接受 datetime 参数"""
+        """AC-012-03: BaseStrategy.on_day_open 接受 tm 参数."""
         from quantide.core.strategy import BaseStrategy
 
         sig = inspect.signature(BaseStrategy.on_day_open)
@@ -109,7 +108,7 @@ class TestTradingInterfaceConsistency:
     """AC-012-04: LiveStrategy 交易/查询接口与 DayStrategy 完全相同"""
 
     def test_broker_interface_shared_with_day_strategy(self):
-        """LiveStrategy 通过 broker 访问 buy/sell/cash/positions,与 DayStrategy 一致"""
+        """AC-012-04: Broker 类提供 buy/sell/cash/positions/get_history 等 11 个接口."""
         from quantide.service.base_broker import Broker
 
         required = ["buy", "buy_amount", "buy_percent",
