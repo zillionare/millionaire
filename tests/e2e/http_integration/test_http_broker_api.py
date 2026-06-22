@@ -143,31 +143,25 @@ class TestStrategiesEndpoint:
     """AC-020: 策略枚举 endpoint"""
 
     def test_strategies_endpoint_reachable(self, monkeypatch):
-        """GET /broker/strategies 可达(200 JSON 或 303 重定向); 5xx 视为实现缺口但端点存在."""
+        """AC-020-04: GET /broker/strategies 严格返回 200."""
         with api_client(monkeypatch) as client:
             r = client.get("/broker/strategies")
-            if r.status_code in (200, 303):
-                return
-            if 500 <= r.status_code < 600:
-                pytest.skip(
-                    f"/broker/strategies returned {r.status_code} (5xx 实现缺口, 端点存在); "
-                    f"tracker: .dev/memory/26-06-22.md#L3"
-                )
-            pytest.fail(f"unexpected status {r.status_code}: {r.text[:200]}")
+            assert r.status_code == 200, (
+                f"expected 200 per §3.1 contract, got {r.status_code}: {r.text[:200]}"
+            )
 
     def test_strategy_entry_has_required_fields(self, monkeypatch):
-        """策略条目含 name/doc/params(若端点返回 JSON)"""
+        """AC-020-08~12: 响应是 §3.1 schema dict, strategies[0] 含 8 字段."""
         with api_client(monkeypatch) as client:
             r = client.get("/broker/strategies")
-            if r.status_code != 200 or not r.content:
-                pytest.skip(f"/broker/strategies returned {r.status_code} (not implemented); tracker: .dev/memory/26-06-22.md#L3")
-            try:
-                data = r.json()
-            except Exception:
-                pytest.skip("response not JSON; tracker: .dev/memory/26-06-22.md#L4")
-            if not isinstance(data, list) or len(data) == 0:
-                pytest.skip("response not a non-empty list; tracker: .dev/memory/26-06-22.md#L5")
-            entry = data[0]
+            assert r.status_code == 200, f"got {r.status_code}: {r.text[:200]}"
+            data = r.json()
+            assert isinstance(data, dict), f"response not §3.1 dict, got {type(data).__name__}"
+            assert "strategies" in data, "response missing 'strategies' key"
+            assert isinstance(data["strategies"], list), "'strategies' is not a list"
+            if not data["strategies"]:
+                pytest.skip("no strategies discovered; enumeration fixture 待 PR3 补齐")
+            entry = data["strategies"][0]
             assert "strategy_id" in entry
             assert "name" in entry
             assert "description" in entry
