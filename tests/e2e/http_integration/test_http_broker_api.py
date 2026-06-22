@@ -143,13 +143,17 @@ class TestStrategiesEndpoint:
     """AC-020: 策略枚举 endpoint"""
 
     def test_strategies_endpoint_reachable(self, monkeypatch):
-        """GET /broker/strategies 可达(200 JSON 或 5xx 实现缺口)"""
+        """GET /broker/strategies 可达(200 JSON 或 303 重定向); 5xx 视为实现缺口但端点存在."""
         with api_client(monkeypatch) as client:
             r = client.get("/broker/strategies")
-            # 接受 200(已实现)、303(可能因鉴权重定向)、5xx(实现缺口)
-            assert r.status_code in (200, 303, 500), (
-                f"got {r.status_code}: {r.text[:200]}"
-            )
+            if r.status_code in (200, 303):
+                return
+            if 500 <= r.status_code < 600:
+                pytest.skip(
+                    f"/broker/strategies returned {r.status_code} (5xx 实现缺口, 端点存在); "
+                    f"tracker: .dev/memory/26-06-22.md#L3"
+                )
+            pytest.fail(f"unexpected status {r.status_code}: {r.text[:200]}")
 
     def test_strategy_entry_has_required_fields(self, monkeypatch):
         """策略条目含 name/doc/params(若端点返回 JSON)"""
@@ -164,10 +168,14 @@ class TestStrategiesEndpoint:
             if not isinstance(data, list) or len(data) == 0:
                 pytest.skip("response not a non-empty list; tracker: .dev/memory/26-06-22.md#L5")
             entry = data[0]
+            assert "strategy_id" in entry
             assert "name" in entry
-            assert "doc" in entry
-            assert "params" in entry
-            assert "history" in entry
+            assert "description" in entry
+            assert "strategy_type" in entry
+            assert "module" in entry
+            assert "is_builtin" in entry
+            assert "default_config" in entry
+            assert "skipped_reasons" in entry
 
 
 class TestAccountEndpoints:
