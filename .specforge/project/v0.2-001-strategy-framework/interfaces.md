@@ -452,7 +452,25 @@ class EnumerationResult:
 **索引**:
 - 非唯一索引: (`portfolio_id`, `dt`)
 
-### 4.9. 风控触发事件 (`risk_events`) — spec 保留, 实现待定
+### 4.9. 风控触发事件 (`risk_events`) — v0.2 走 §6 日志, PR3 升级为表
+
+| 阶段       | 实现路径                                                                 |
+| ---------- | ------------------------------------------------------------------------ |
+| **v0.2**   | ✅ 走 [§6 日志条目类型](./interfaces.md) 的 `risk.triggered` event (payload 字段见下) |
+| **PR3**    | ⏸ 升级为 `risk_events` 数据库表 (schema 见下), 供 L1/L2 E2E 跨会话查询       |
+
+> **v0.2 验证依据** (acceptance 引用): `[§6](./interfaces.md) 日志条目类型 \`risk.triggered\``, event payload 字段:
+> - `event_id` (UUID, 风控事件唯一标识)
+> - `activation_id` (UUID, 所属开启区间)
+> - `risk_strategy_id` (风控策略)
+> - `host_strategy_id` (宿主策略)
+> - `asset` (标的代码)
+> - `trigger_price` (触发价)
+> - `cost_basis` (成本基准, 由 FR-185 经典方案 A 维护)
+> - `reason` (`cost_stop` / `drawback` / ...)
+> - `trigger_ts` (触发时间戳, ISO 8601)
+
+#### PR3 目标 schema (FR-360 阶段升级, 当前 v0.2 不实现)
 
 | 列                 | 类型     | 说明                                 |
 | ------------------ | -------- | ------------------------------------ |
@@ -466,9 +484,25 @@ class EnumerationResult:
 | `reason`           | str      | `cost_stop` / `drawback` / ...       |
 | `trigger_ts`       | datetime | 触发时间戳                           |
 
-### 4.10. 超额收益事件 (`excess_returns`) — spec 保留, 实现待定
+### 4.10. 超额收益事件 (`excess_returns`) — v0.2 走 §6 日志, PR3 升级为表
 
-> **状态**: 同 §4.9, FR-360 实现 PR 时落库. 期间通过 `risk.excess_return.finalized` 日志条目记录 (见 §6).
+| 阶段       | 实现路径                                                                              |
+| ---------- | --------------------------------------------------------------------------------- |
+| **v0.2**   | ✅ 走 [§6 日志条目类型](./interfaces.md) 的 `risk.excess_return.finalized` event |
+| **PR3**    | ⏸ 升级为 `excess_returns` 数据库表 (schema 见下), 供 L1/L2 E2E 跨会话查询                |
+
+> **v0.2 验证依据** (acceptance 引用): `[§6](./interfaces.md) 日志条目类型 \`risk.excess_return.finalized\``, event payload 字段:
+> - `event_id` (UUID, 与 `risk.triggered.event_id` 对应)
+> - `activation_id` (UUID, 所属开启区间)
+> - `risk_strategy_id` / `host_strategy_id` / `asset`
+> - `sell_price` (卖出价 `P_sell`)
+> - `up_threshold` / `down_threshold` (百分点, 如 5.0 表示 5%)
+> - `barrier_hit` (`"up"` / `"down"` / `"expire"` / `null`)
+> - `close_price_n` (N 日后收盘价)
+> - `n_window` (窗口, 默认 0)
+> - `excess_return` (按 [spec-trading.md F-TB-1/2/3](./spec-trading.md) 公式, 数据不足时 `null`)
+> - `is_final` (false=待回填, true=终值)
+> - `created_at` / `finalized_at` (N=0 时 `finalized_at = created_at`; N>0 时 = `trigger_ts + n_window` 日)
 
 | 列                 | 类型                                    | 说明                                                                                                                                                                                                                                     |
 | ------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
