@@ -76,7 +76,7 @@ class TestMultiFrameData:
 
     def test_synthetic_30m_fixture_exists(self):
         """AC-012-02: synthetic 30m fixture 存在 (test-plan §1.1.2 要求)."""
-        path = Path(__file__).resolve().parents[2] / "tests" / "assets" / "synthetic" / "synthetic_30m_bars.parquet"
+        path = Path(__file__).resolve().parents[3] / "assets" / "synthetic" / "synthetic_30m_bars.parquet"
         if not path.exists():
             pytest.skip("synthetic 30m fixture not generated; run generate_synthetic.py; tracker: .dev/memory/26-06-22.md#L1")
         df = pl.read_parquet(path)
