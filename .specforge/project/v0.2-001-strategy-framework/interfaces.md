@@ -8,16 +8,16 @@
 
 > **本文件不是实现设计,是从 spec 推导出的"接口冻结"清单**。实现层如发现接口无法实现,需回退到 spec 修订而非本文件。
 
-## 0. 文档约定
+## 1. 文档约定
 
-| 字段 | 含义 |
-|---|---|
-| **Endpoint** | HTTP method + 路径;FastAPI 风格 |
-| **Request** | 请求体/参数 schema(字段名 + 类型 + 必填) |
-| **Response** | 响应 schema;成功/失败各列 |
-| **状态码** | HTTP 状态码 + 业务语义 |
-| **观测点** | 该接口数据最终落盘的位置(供测试断言) |
-| **关联 AC** | 引用的 acceptance.md 条目 |
+| 字段         | 含义                                     |
+| ------------ | ---------------------------------------- |
+| **Endpoint** | HTTP method + 路径;FastAPI 风格          |
+| **Request**  | 请求体/参数 schema(字段名 + 类型 + 必填) |
+| **Response** | 响应 schema;成功/失败各列                |
+| **状态码**   | HTTP 状态码 + 业务语义                   |
+| **观测点**   | 该接口数据最终落盘的位置(供测试断言)     |
+| **关联 AC**  | 引用的 acceptance.md 条目                |
 
 错误响应统一约定:
 
@@ -33,7 +33,7 @@
 
 错误码命名:`{域}_{细分}`,全大写,下划线分隔。
 
-## 1. 策略框架外部契约(策略编写视角)
+## 2. 策略框架外部契约(策略编写视角)
 
 策略**编写者**使用的接口(spec FR-010/013/020 直接约束)。用户视角只有两个可继承基类：`BaseStrategy`（独立策略）与 `RiskStrategy`（风控策略）；二者均继承自抽象根 `Strategy`（用户不直接继承）。
 
@@ -55,7 +55,7 @@
 
 > `RiskStrategy` 是 `BaseStrategy` 的**兄弟**而非子类——结构性地拿不到 `buy`/`positions`/`cash`，"风控只卖不买"由继承结构保证。
 
-### 1.1 `Strategy`(抽象根, FR-010)
+### 2.1. `Strategy`(抽象根, FR-010)
 
 抽象根，承载所有策略共享的契约。用户不直接继承此类（可设为 ABC）。`BaseStrategy` 与 `RiskStrategy` 均继承自它。
 
@@ -88,7 +88,7 @@ class Strategy(ABC):
 
 > **决策驱动钩子不在抽象根**：`on_bar`（时序，BaseStrategy 专有）与 `on_check`（事件，RiskStrategy 专有）语义不同，分属两个基类，不上提。
 
-### 1.2 `BaseStrategy`(独立策略, FR-010)
+### 2.2. `BaseStrategy`(独立策略, FR-010)
 
 独立策略基类。在 `Strategy` 之上扩展账户、交易、决策驱动三类能力。**`get_bars` 在抽象根已定义，独立策略继承即可，不再重复**。
 
@@ -114,7 +114,7 @@ class BaseStrategy(Strategy):
 
 **关联 AC**: AC-010-01 ~ 04
 
-### 1.3 `RiskStrategy`(风控策略, FR-013)
+### 2.3. `RiskStrategy`(风控策略, FR-013)
 
 风控策略基类，`BaseStrategy` 的**兄弟**（均继承自 `Strategy`）。**不继承 BaseStrategy**，因此类层无 `buy` / `positions` / `cash`(`get_bars` 从抽象根 `Strategy` 继承,**不**算 RiskStrategy 自有)。
 
@@ -138,7 +138,7 @@ class RiskStrategy(Strategy):  # 兄弟类,非 BaseStrategy 子类
 
 **关联 AC**: AC-013-01 ~ 05
 
-### 1.4 枚举契约(FR-020)
+### 2.4. 枚举契约(FR-020)
 
 枚举函数(框架内部,黑盒测试通过 §2 API 触发):
 
@@ -201,11 +201,11 @@ class EnumerationResult:
 
 **关联 AC**: AC-020-01 ~ 15
 
-## 2. Web API 契约(框架 HTTP 暴露)
+## 3. Web API 契约(框架 HTTP 暴露)
 
 > **状态**: spec 未硬定 URL。本节按 FastAPI 惯例与 v0.2-002-ui 需求推断。**最终 URL 由实现层在启动时确认并冻结**,但**响应 schema 是契约,不可变**。
 
-### 2.1 策略枚举 API
+### 3.1. 策略枚举 API
 
 **Endpoint**: `GET /api/strategies`
 
@@ -243,14 +243,14 @@ class EnumerationResult:
 
 **错误码**:
 
-| HTTP | code | 触发 |
-|---|---|---|
-| 200 | — | 正常 |
-| 500 | `ENUMERATION_FAILED` | 枚举过程发生不可恢复错误(目前不应触发,所有失败均进入 diagnostics) |
+| HTTP | code                 | 触发                                                              |
+| ---- | -------------------- | ----------------------------------------------------------------- |
+| 200  | —                    | 正常                                                              |
+| 500  | `ENUMERATION_FAILED` | 枚举过程发生不可恢复错误(目前不应触发,所有失败均进入 diagnostics) |
 
 **关联 AC**: AC-020-04, AC-020-08 ~ 12
 
-### 2.2 策略参数查询 API
+### 3.2. 策略参数查询 API
 
 **Endpoint**: `GET /api/strategies/{strategy_id}/config`
 
@@ -270,125 +270,12 @@ class EnumerationResult:
 
 **关联 AC**: AC-010-03
 
-### 2.3 交易日历 API(FR-014)
 
-#### 2.3.1 `is_trade_day`
+## 4. 数据文件 / 数据库 schema
 
-**Endpoint**: `GET /api/calendar/is_trade_day?date=YYYY-MM-DD`
+> **范围**: 本节定义所有**外部可观测**的数据契约 — 单元测试 / 集成测试均通过这些契约验证行为. **字段名、类型、必填为契约, 不可变**; 落盘位置(数据库表 vs parquet 文件) 由实现层在 PR2 决定.
 
-**Response 200**:
-
-```json
-{ "date": "2024-09-30", "is_trade_day": true }
-```
-
-#### 2.3.2 `day_shift`
-
-**Endpoint**: `GET /api/calendar/day_shift?date=YYYY-MM-DD&offset=N`
-
-**Response 200**:
-
-```json
-{ "input_date": "2024-09-30", "offset": 1, "result_date": "2024-10-08" }
-```
-
-`offset=0` → 返回最近已结束的交易日(根据 test 数据 2025-12-31 计算)
-
-#### 2.3.3 `count_trading_days`
-
-**Endpoint**: `GET /api/calendar/count?start=YYYY-MM-DD&end=YYYY-MM-DD`
-
-**Response 200**:
-
-```json
-{ "start": "2024-09-30", "end": "2024-10-11", "count": 8 }
-```
-
-`start > end` → 400 + `code="INVALID_RANGE"`
-
-#### 2.3.4 `get_trade_dates`
-
-**Endpoint**: `GET /api/calendar/dates?start=YYYY-MM-DD&end=YYYY-MM-DD`
-
-**Response 200**:
-
-```json
-{
-  "start": "2024-09-30",
-  "end": "2024-10-11",
-  "dates": ["2024-09-30", "2024-10-08", "2024-10-09", "2024-10-10", "2024-10-11"]
-}
-```
-
-#### 2.3.5 `last_trade_date`
-
-**Endpoint**: `GET /api/calendar/last_trade_date`
-
-**Response 200**:
-
-```json
-{ "date": "2024-12-31" }
-```
-
-`last_trade_date()` 返回"最近一个已结束的交易日",与 `day_shift(<any>, 0)` 语义一致。回测模式下基于仿真时间;paper/live 基于真实时间。早于数据范围时抛 `RangeExhausted`(关联 AC-014-05)。
-
-按日期升序,不含周末与节假日。
-
-**关联 AC**: AC-014-01 ~ 05
-
-### 2.4 证券列表 API(FR-015)
-
-#### 2.4.1 `stocks_listed`
-
-**Endpoint**: `GET /api/securities/listed?date=YYYY-MM-DD&exclude_st=true`
-
-**Response 200**:
-
-```json
-{ "date": "2024-09-30", "exclude_st": true, "stocks": ["000001.SZ", "000002.SZ", "..."] }
-```
-
-#### 2.4.2 `is_st`
-
-**Endpoint**: `GET /api/securities/is_st?asset=000001.SZ&date=YYYY-MM-DD`
-
-**Response 200**:
-
-```json
-{ "asset": "000001.SZ", "date": "2024-09-30", "is_st": false }
-```
-
-#### 2.4.3 `days_since_ipo`
-
-**Endpoint**: `GET /api/securities/days_since_ipo?asset=000001.SZ&date=YYYY-MM-DD`
-
-**Response 200**:
-
-```json
-{ "asset": "000001.SZ", "date": "2024-09-30", "days": 1234 }
-```
-
-`date < ipo_date` → 0
-
-#### 2.4.4 `get_name`
-
-**Endpoint**: `GET /api/securities/name?asset=000001.SZ`
-
-**Response 200**:
-
-```json
-{ "asset": "000001.SZ", "name": "平安银行" }
-```
-
-资产不存在 → 404 + `code="ASSET_NOT_FOUND"`
-
-**关联 AC**: AC-015-01 ~ 04
-
-## 3. 数据文件 / 数据库 schema
-
-> 实施时落盘位置由实现层确定;**字段名、类型、必填为契约,不可变**。
-
-### 3.1 回测结果 JSON(回测完成后落盘)
+### 4.1. 回测结果 JSON(回测完成后落盘)
 
 ```json
 {
@@ -426,97 +313,182 @@ class EnumerationResult:
       "order_id": "qt_xxx"
     }
   ],
-  "skipped_days": ["2024-04-19"],   // 停牌/数据缺失
+  "skipped_days": ["2024-04-19"],
   "completed_at": "2024-04-20T16:30:00"
 }
 ```
 
-### 3.2 委托表(orders)
 
-| 列 | 类型 | 说明 |
-|---|---|---|
-| `order_id` | str (PK) | 框架生成,`qt_` 前缀 |
-| `strategy_id` | str | 归属策略 |
-| `asset` | str | 标的代码 |
-| `side` | str | `buy` / `sell` |
-| `shares` | int | 委托数量 |
-| `price` | float | 限价(`0` 表示市价) |
-| `status` | str | `pending` / `filled` / `rejected` / `cancelled` |
-| `created_at` | datetime | 委托时间(仿真时间) |
-| `filled_at` | datetime \| null | 成交时间 |
-| `filled_price` | float \| null | 成交价 |
-| `reject_reason` | str \| null | 拒绝原因 |
+### 4.2. 委托表 (`orders`)
 
-### 3.3 成交表(fills)
+| 列              | 类型             | 说明                                            |
+| --------------- | ---------------- | ----------------------------------------------- |
+| `qtoid`         | str (PK)         | 框架生成, UUID                                  |
+| `portfolio_id`  | str (FK → `portfolios.portfolio_id`) | 归属策略 / 组合 |
+| `asset`         | str              | 标的代码                                        |
+| `side`          | str (`OrderSide` enum) | `buy` / `sell`                            |
+| `shares`        | float            | 委托数量 (调用者需保证符合交易要求)              |
+| `price`         | float            | 限价 (`0` 表示市价)                              |
+| `bid_type`      | str (`BidType` enum) | 委托类型 (限价 / 市价)                       |
+| `tm`            | datetime         | 委托时间 (仿真时间)                              |
+| `filled`        | float            | 已成交量 (默认 `0`)                              |
+| `foid`          | str \| null      | 外部订单 id (QMT 等) — 透传, 用于排错             |
+| `cid`           | str \| null      | 券商柜台合约 id                                  |
+| `status`        | str (`OrderStatus` enum) | `unreported` / `pending` / `filled` / `rejected` / `cancelled` |
+| `status_msg`    | str              | 委托状态描述 (如废单原因)                        |
+| `error`         | str              | 报单错误 (错误码:错误信息, `:` 分隔)              |
+| `extra`         | str (JSON)       | 额外信息                                         |
 
-| 列 | 类型 | 说明 |
-|---|---|---|
-| `fill_id` | str (PK) | |
-| `order_id` | str (FK) | 关联委托 |
-| `strategy_id` | str | |
-| `asset` | str | |
-| `side` | str | |
-| `shares` | int | 成交数量 |
-| `price` | float | 成交价 |
-| `commission` | float | 佣金 |
-| `tax` | float | 印花税 |
-| `timestamp` | datetime | 成交时间 |
+**索引**:
+- 唯一索引: (`qtoid`, `tm`)
 
-### 3.4 虚拟账本快照(accounts)
+**关联 AC**: AC-010-01 ~ 04, AC-013-*
 
-| 列 | 类型 | 说明 |
-|---|---|---|
-| `strategy_id` | str (PK) | |
-| `cash` | float | 可用资金 |
-| `total_value` | float | 总资产(含持仓市值) |
-| `as_of` | datetime | 快照时间 |
+### 4.3. 成交表 (`trades`)
 
-### 3.5 持仓表(positions)
+| 列            | 类型     | 说明     |
+| ------------- | -------- | -------- |
+| `tid`         | str (PK) | 成交 id; 可使用代理 (QMT) 返回值 |
+| `qtoid`       | str (FK → `orders.qtoid`) | 委托 id (quantide 内部 id) |
+| `portfolio_id` | str (FK → `portfolios.portfolio_id`) | 归属策略 |
+| `foid`        | str      | 外部订单 id (QMT 等) |
+| `asset`       | str      | 标的代码 |
+| `shares`      | float    | 成交数量 |
+| `price`       | float    | 成交价 |
+| `amount`      | float    | 成交金额 = 成交数量 × 成交价 |
+| `tm`          | datetime | 成交时间 (仿真时间) |
+| `side`        | str (`OrderSide` enum) | 成交方向 |
+| `cid`         | str      | 柜台合同编号 (应与同 `qtoid` 的 `orders.cid` 一致) |
+| `fee`         | float    | 本笔交易手续费 (默认 `0`) |
 
-| 列 | 类型 | 说明 |
-|---|---|---|
-| `strategy_id` | str (PK part) | |
-| `asset` | str (PK part) | |
-| `shares` | int | 总持仓 |
-| `sellable_shares` | int | 可卖持仓(T+1 约束) |
-| `cost_basis` | float | 加权均价 |
-| `as_of` | datetime | 快照时间 |
+**索引**:
+- 唯一索引: (`tid`, `tm`)
 
-### 3.6 风控触发事件(risk_events)
+**外键**:
+- `qtoid` → `orders.qtoid`
+- `portfolio_id` → `portfolios.portfolio_id`
 
-| 列 | 类型 | 说明 |
-|---|---|---|
-| `event_id` | str (PK) | |
-| `activation_id` | str | 所属开启区间(详见 FR-360 AC-360-02) |
-| `risk_strategy_id` | str | 风控策略 |
-| `host_strategy_id` | str | 宿主策略 |
-| `asset` | str | |
-| `trigger_price` | float | 触发价 |
-| `cost_basis` | float | 成本价 |
-| `reason` | str | `cost_stop` / `drawback` / ... |
-| `trigger_ts` | datetime | 触发时间戳(原 `timestamp`,与 FR-360 对齐) |
+**关联 AC**: AC-010-01 ~ 04, AC-360-*
 
-### 3.7 超额收益事件(excess_returns)
+### 4.4. 持仓表 (`positions`)
 
-| 列 | 类型 | 说明 |
-|---|---|---|
-| `event_id` | str (PK) | 与 risk_events.event_id 对应 |
-| `activation_id` | str | 所属开启区间(详见 FR-360 AC-360-02) |
-| `risk_strategy_id` | str | |
-| `host_strategy_id` | str | |
-| `asset` | str | |
-| `sell_price` | float | 卖出价 `P_sell` |
-| `up_threshold` | float | 上阈值(百分点,如 5.0 表示 5%) |
-| `down_threshold` | float | 下阈值(百分点,如 0.5 表示 0.5%) |
-| `barrier_hit` | `Literal["up", "down", "expire", null]` | 触发的屏障,数据不足时 `null` |
-| `close_price_n` | float \| null | N 日后收盘价(N=0 即当日);未触发屏障时使用 |
-| `n_window` | int | 窗口(默认 0,来自风控策略 `default_config()`) |
-| `excess_return` | float \| null | Triple Barrier 公式(详见 [spec-trading.md F-TB-1 / F-TB-2 / F-TB-3](./spec-trading.md)):<br>• `barrier_hit="up"` → 应用 F-TB-1<br>• `barrier_hit="down"` → 应用 F-TB-2<br>• `barrier_hit="expire"` → 应用 F-TB-3<br>• 数据不足 → `null` |
-| `is_final` | bool | false=待回填, true=终值 |
-| `created_at` | datetime | |
-| `finalized_at` | datetime \| null | N=0 时 = `created_at`;N>0 时 = `trigger_ts + n_window` 日 |
+| 列                | 类型          | 说明               |
+| ----------------- | ------------- | ------------------ |
+| `portfolio_id`    | str (PK part, FK → `portfolios.portfolio_id`) | |
+| `dt`              | date (PK part) | 持仓快照日期 |
+| `asset`           | str (PK part) | 标的代码 |
+| `shares`          | float         | 总持仓 |
+| `avail`           | float         | 可卖持仓 (T+1 约束) — 原 spec 名为 `sellable_shares` |
+| `price`           | float         | 持仓成本 (加权均价) — 原 spec 名为 `cost_basis` |
+| `profit`          | float         | 盈亏 — 实盘快速查询用, 回测/仿真不写 |
+| `mv`              | float         | 市值 |
 
-### 3.8 枚举缓存 JSON(枚举结果持久化)
+**索引**:
+- 非唯一索引: (`portfolio_id`, `asset`, `dt`)
+
+**关联 AC**: AC-010-01 ~ 04, AC-160-*
+
+### 4.5. 资产表 (`assets`)
+
+> **修订说明**: 原 spec 误为 `accounts` 表, PK 是 `strategy_id` 单列, 字段是 `cash` / `total_value` / `as_of`. 实际表名是 `assets`, PK 是 `(portfolio_id, dt)`, 字段是 `principal` / `cash` / `frozen_cash` / `market_value` / `total`, `total = cash + market_value`.
+
+| 列                | 类型          | 说明               |
+| ----------------- | ------------- | ------------------ |
+| `portfolio_id`    | str (PK part, FK → `portfolios.portfolio_id`) | |
+| `dt`              | date (PK part) | 资产快照日期 |
+| `principal`       | float         | 初始本金 (必填) |
+| `cash`            | float         | 可用资金 |
+| `frozen_cash`     | float         | 冻结资金 (委托占用等) |
+| `market_value`    | float         | 持仓市值 |
+| `total`           | float         | 总资产 = `cash + market_value` |
+
+**索引**:
+- 唯一索引: (`portfolio_id`, `dt`)
+
+### 4.6. 组合表 (`portfolios`)
+
+| 列                | 类型          | 说明               |
+| ----------------- | ------------- | ------------------ |
+| `portfolio_id`    | str (PK)      | 组合 id (= strategy_id 的实例) |
+| `kind`            | str (`BrokerKind` enum) | backtest / paper / live / dry-run |
+| `start`           | date          | 启动日期 |
+| `name`            | str           | 显示名 (默认 `""`) |
+| `info`            | str           | 描述信息 (默认 `""`) |
+| `end`             | date \| null  | 结束日期 |
+| `status`          | bool          | 启用状态 (默认 `true`) |
+
+**索引**:
+- 唯一索引: (`portfolio_id`)
+
+**关联 AC**: AC-010-01 ~ 04
+
+### 4.7. 策略日志 (`strategy_logs`)
+
+| 列                | 类型          | 说明               |
+| ----------------- | ------------- | ------------------ |
+| `portfolio_id`    | str (PK part, FK → `portfolios.portfolio_id`) | |
+| `dt`              | datetime (PK part) | |
+| `key`             | str (PK part) | 日志键 (策略 `record(key, value)` 的 `key`) |
+| `value`           | float         | |
+| `extra`           | str (JSON)    | 额外字段 |
+
+**索引**:
+- 唯一索引: (`portfolio_id`, `dt`, `key`)
+
+### 4.8. 回测文本日志 (`backtest_logs`)
+
+> **新增 (2026-06-21)**: 原 spec §4 缺此表, 实际 `quantide/data/sqlite.py` 有 `BacktestLogEntry` dataclass.
+
+| 列                | 类型          | 说明               |
+| ----------------- | ------------- | ------------------ |
+| `event_id`        | str (PK)      | |
+| `portfolio_id`    | str (FK → `portfolios.portfolio_id`) | |
+| `dt`              | datetime      | |
+| `level`           | str           | INFO / WARNING / ERROR |
+| `source`          | str           | 源码位置 (如 `quantide.service.sim_broker`) |
+| `message`         | str           | 日志消息 |
+| `extra`           | str (JSON)    | 额外字段 |
+
+**索引**:
+- 非唯一索引: (`portfolio_id`, `dt`)
+
+### 4.9. 风控触发事件 (`risk_events`) — spec 保留, 实现待定
+
+| 列                 | 类型     | 说明                                      |
+| ------------------ | -------- | ----------------------------------------- |
+| `event_id`         | str (PK) |                                           |
+| `activation_id`    | str      | 所属开启区间 (详见 FR-360 AC-360-02)      |
+| `risk_strategy_id` | str      | 风控策略                                  |
+| `host_strategy_id` | str      | 宿主策略                                  |
+| `asset`            | str      |                                           |
+| `trigger_price`    | float    | 触发价                                    |
+| `cost_basis`       | float    | 成本价                                    |
+| `reason`           | str      | `cost_stop` / `drawback` / ...            |
+| `trigger_ts`       | datetime | 触发时间戳                                |
+
+### 4.10. 超额收益事件 (`excess_returns`) — spec 保留, 实现待定
+
+> **状态**: 同 §4.9, FR-360 实现 PR 时落库. 期间通过 `risk.excess_return.finalized` 日志条目记录 (见 §6).
+
+| 列                 | 类型                                    | 说明                                                                                                                                                                                                                                    |
+| ------------------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event_id`         | str (PK)                                | 与 `risk_events.event_id` 对应                                                                                                                                                                                                            |
+| `activation_id`    | str                                     | 所属开启区间 (详见 FR-360 AC-360-02)                                                                                                                                                                                                     |
+| `risk_strategy_id` | str                                     |                                                                                                                                                                                                                                         |
+| `host_strategy_id` | str                                     |                                                                                                                                                                                                                                         |
+| `asset`            | str                                     |                                                                                                                                                                                                                                         |
+| `sell_price`       | float                                   | 卖出价 `P_sell`                                                                                                                                                                                                                         |
+| `up_threshold`     | float                                   | 上阈值 (百分点, 如 5.0 表示 5%)                                                                                                                                                                                                           |
+| `down_threshold`   | float                                   | 下阈值 (百分点, 如 0.5 表示 0.5%)                                                                                                                                                                                                         |
+| `barrier_hit`      | `Literal["up", "down", "expire", null]` | 触发的屏障, 数据不足时 `null`                                                                                                                                                                                                            |
+| `close_price_n`    | float \| null                           | N 日后收盘价 (N=0 即当日); 未触发屏障时使用                                                                                                                                                                                               |
+| `n_window`         | int                                     | 窗口 (默认 0, 来自风控策略 `default_config()`)                                                                                                                                                                                            |
+| `excess_return`    | float \| null                           | Triple Barrier 公式 (详见 [spec-trading.md F-TB-1 / F-TB-2 / F-TB-3](./spec-trading.md)):<br>• `barrier_hit="up"` → 应用 F-TB-1<br>• `barrier_hit="down"` → 应用 F-TB-2<br>• `barrier_hit="expire"` → 应用 F-TB-3<br>• 数据不足 → `null` |
+| `is_final`         | bool                                    | false=待回填, true=终值                                                                                                                                                                                                                 |
+| `created_at`       | datetime                                |                                                                                                                                                                                                                                         |
+| `finalized_at`     | datetime \| null                        | N=0 时 = `created_at`; N>0 时 = `trigger_ts + n_window` 日                                                                                                                                                                               |
+
+### 4.11. 枚举缓存 JSON (枚举结果持久化)
 
 ```json
 {
@@ -527,98 +499,150 @@ class EnumerationResult:
 }
 ```
 
-### 3.9 交易日历 Parquet(test-plan §1.1.1)
+### 4.12. 交易日历 Parquet (`calendar.parquet`)
 
-| 列 | 类型 | 说明 |
-|---|---|---|
-| `date` | date (PK) | |
-| `is_trade_day` | bool | |
-| `exchange` | str | 交易所代码(预留,统一 SSE/SZSE 时为 `ALL`) |
+> **修订说明 (2026-06-21)**: 原 spec 写的是 `(date, is_trade_day, exchange)`, 但 `tests/assets/unit/scripts/build_env.py` 实际生成的是 `(exchange, date, is_open, pretrade_date)`. 字段名 `is_trade_day` → `is_open`, 多了 `pretrade_date` 字段. **完全照现有实现**.
 
-### 3.10 证券列表 Parquet
+| 列             | 类型      | 说明                                      |
+| -------------- | --------- | ----------------------------------------- |
+| `exchange`     | str       | 交易所代码 (SSE / SZSE / BSE)             |
+| `date`         | str (YYYYMMDD, PK) |  |
+| `is_open`      | int (0/1) | 是否交易日                                |
+| `pretrade_date`| str (YYYYMMDD) | 前一交易日 (用于回测时 `day_shift(-1)` 查询) |
 
-| 列 | 类型 | 说明 |
-|---|---|---|
-| `asset` | str (PK) | |
-| `name` | str | |
-| `pinyin` | str | |
-| `list_date` | date | |
-| `delist_date` | date \| null | |
-| `exchange` | str | |
+### 4.13. 证券列表 (`universe.json`)
 
-## 4. 异常 / 错误码表
+| 列            | 类型         | 说明 |
+| ------------- | ------------ | ---- |
+| `asset`       | str          | 标的代码 (如 `000001.SZ`) |
+| `name`        | str          | 中文名 (如 `平安银行`) |
+| `category`    | str          | 类别 (ordinary / st / ipo / delisted / chinext_star / suspended / dividend_adjust) |
+| `list_date`   | int (YYYYMMDD) | 上市日期 |
+| `delist_date` | int \| null  | 退市日期 (未退市为 null) |
+| `exchange`    | str          | 交易所 |
 
-| code | HTTP | 触发场景 | 关联 AC |
-|---|---|---|---|
-| `STRATEGY_NOT_FOUND` | 404 | API 查询不存在 strategy_id | — |
-| `INVALID_FRAME_TYPE` | 400 | `get_bars(frame_type)` 取值不在 `{"1d", "30m"}` 之内 | AC-010-03 |
+### 4.14. 日线行情 Parquet (`daily_bars.parquet`)
+
+> **新增 (2026-06-21)**: 原 spec §4 缺日线行情 parquet 规范. 按 `build_env.py` 实际补齐.
+
+| 列            | 类型         | 说明 |
+| ------------- | ------------ | ---- |
+| `asset`       | str          | 标的代码 |
+| `date`        | str (YYYYMMDD) | 交易日 |
+| `open`        | float        | 开盘价 |
+| `high`        | float        | 最高价 |
+| `low`         | float        | 最低价 |
+| `close`       | float        | 收盘价 |
+| `volume`      | float        | 成交量 (手) |
+| `amount`      | float        | 成交额 (元) |
+
+### 4.15. 复权因子 Parquet (`adj_factor.parquet`)
+
+> **新增 (2026-06-21)**: 同 §4.14.
+
+| 列            | 类型         | 说明 |
+| ------------- | ------------ | ---- |
+| `asset`       | str          | 标的代码 |
+| `date`        | str (YYYYMMDD) | 交易日 |
+| `adj_factor`  | float        | 复权因子 |
+
+### 4.16. ST 标记 Parquet (`st_info.parquet`)
+
+> **新增 (2026-06-21)**: 同 §4.14.
+
+| 列            | 类型         | 说明 |
+| ------------- | ------------ | ---- |
+| `asset`       | str          | 标的代码 |
+| `date`        | str (YYYYMMDD) | 交易日 |
+| `is_st`       | int (0/1)    | 是否 ST (含 *ST) |
+
+### 4.17. 涨跌停价 Parquet (`limit_price.parquet`)
+
+> **新增 (2026-06-21)**: 同 §4.14.
+
+| 列            | 类型         | 说明 |
+| ------------- | ------------ | ---- |
+| `asset`       | str          | 标的代码 |
+| `date`        | str (YYYYMMDD) | 交易日 |
+| `up_limit`    | float        | 涨停价 |
+| `down_limit`  | float        | 跌停价 |
+
+## 5. 异常 / 错误码表
+
+| code                                  | HTTP    | 触发场景                                                   | 关联 AC   |
+| ------------------------------------- | ------- | ---------------------------------------------------------- | --------- |
+| `STRATEGY_NOT_FOUND`                  | 404     | API 查询不存在 strategy_id                                 | —         |
+| `INVALID_FRAME_TYPE`                  | 400     | `get_bars(frame_type)` 取值不在 `{"1d", "30m"}` 之内       | AC-010-03 |
 | `UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` | 400/409 | 回测模式下 `get_bars(frame_type != "1d")` 抛（运行时检查） | AC-010-03 |
-| `INVALID_RANGE` | 400 | 交易日历 `start > end` | AC-014-03 |
-| `ASSET_NOT_FOUND` | 404 | `get_name` 资产代码不存在 | — |
-| `RISK_NO_ACCOUNT` | 400/422 | RiskStrategy 访问 `positions` / `cash` | AC-013-01 |
-| `RISK_NOT_BOUND` | 422 | RiskStrategy 启动时未绑定宿主 | AC-013-05 |
-| `RISK_NO_BUY_API` | 400/422 | RiskStrategy 调用 buy 类方法 | AC-013-02 |
-| `RISK_STRATEGY_NOT_BACKTESTABLE` | 422 | RiskStrategy 提交给 BacktestRunner | AC-013-05 |
-| `ENUMERATION_FAILED` | 500 | 不可恢复的枚举错误 | AC-020-12 |
+| `INVALID_RANGE`                       | 400     | 交易日历 `start > end`                                     | AC-014-03 |
+| `ASSET_NOT_FOUND`                     | 404     | `get_name` 资产代码不存在                                  | —         |
+| `RISK_NO_ACCOUNT`                     | 400/422 | RiskStrategy 访问 `positions` / `cash`                     | AC-013-01 |
+| `RISK_NOT_BOUND`                      | 422     | RiskStrategy 启动时未绑定宿主                              | AC-013-05 |
+| `RISK_NO_BUY_API`                     | 400/422 | RiskStrategy 调用 buy 类方法                               | AC-013-02 |
+| `RISK_STRATEGY_NOT_BACKTESTABLE`      | 422     | RiskStrategy 提交给 BacktestRunner                         | AC-013-05 |
+| `ENUMERATION_FAILED`                  | 500     | 不可恢复的枚举错误                                         | AC-020-12 |
 
 > 注:`UNSUPPORTED_FRAME_TYPE_FOR_BACKTEST` 是 `RuntimeError` 子类，仅在 BacktestRunner 上下文抛出；paper/live 不受影响。
 
-## 5. 日志条目类型(从 test-plan §3.1.3 细化)
+## 6. 日志条目类型(从 test-plan §3.1.3 细化)
 
-| event | 字段 | level | 关联 FR |
-|---|---|---|---|
-| `strategy.enumerated` | `strategy_id, is_builtin, default_config_size` | INFO | FR-020 |
-| `strategy.skipped` | `path, class_name, reason, detail` | WARNING | FR-020 |
-| `strategy.lifecycle` | `strategy_id, hook, tm` | DEBUG | FR-010 |
-| `order.submitted` | `strategy_id, asset, side, shares, price` | INFO | FR-010 |
-| `order.filled` | `strategy_id, asset, filled_qty, fill_price, ts` | INFO | FR-010/013 |
-| `order.cancelled` | `strategy_id, order_id, reason` | INFO | FR-013 |
-| `risk.triggered` | `risk_strategy_id, host_strategy_id, asset, trigger_price, cost, reason, ts` | INFO | FR-013/125 |
-| `risk.excess_return.finalized` | `event_id, excess_return` | INFO | FR-013/360 |
-| `backtest.started` | `strategy_id, params, interval` | INFO | FR-010 |
-| `backtest.progress` | `strategy_id, current_day, total_days, pct` | INFO | FR-010 |
-| `backtest.completed` | `strategy_id, metrics` | INFO | FR-010 |
+| event                          | 字段                                                                         | level   | 关联 FR    |
+| ------------------------------ | ---------------------------------------------------------------------------- | ------- | ---------- |
+| `strategy.enumerated`          | `strategy_id, is_builtin, default_config_size`                               | INFO    | FR-020     |
+| `strategy.skipped`             | `path, class_name, reason, detail`                                           | WARNING | FR-020     |
+| `strategy.lifecycle`           | `strategy_id, hook, tm`                                                      | DEBUG   | FR-010     |
+| `order.submitted`              | `strategy_id, asset, side, shares, price`                                    | INFO    | FR-010     |
+| `order.filled`                 | `strategy_id, asset, filled_qty, fill_price, ts`                             | INFO    | FR-010/013 |
+| `order.cancelled`              | `strategy_id, order_id, reason`                                              | INFO    | FR-013     |
+| `risk.triggered`               | `risk_strategy_id, host_strategy_id, asset, trigger_price, cost, reason, ts` | INFO    | FR-013/125 |
+| `risk.excess_return.finalized` | `event_id, excess_return`                                                    | INFO    | FR-013/360 |
+| `backtest.started`             | `strategy_id, params, interval`                                              | INFO    | FR-010     |
+| `backtest.progress`            | `strategy_id, current_day, total_days, pct`                                  | INFO    | FR-010     |
+| `backtest.completed`           | `strategy_id, metrics`                                                       | INFO    | FR-010     |
 
-## 6. 与现有实现的冲突与处理
+## 7. 运行时装配契约 (NFR-060 联动)
 
-### 6.1 现状摘要
+> **范围**: 本节声明 NFR-060 涉及的 3 个装配点的可观测出口, 仅供测试侧在不依赖实现细节的前提下验证装配是否生效。
+> **关联 spec**: [spec-foundation.md NFR-060](./spec-foundation.md)
+> **关联 test-plan**: [test-plan.md §5.4](./test-plan.md) — L1/L2 E2E 测试的前置
+> **关联 acceptance**: [acceptance.md AC-CLOCK-INJ-01 ~ 06](./acceptance.md)
 
-实现层 `quantide/core/strategy.py` 当前**只含 `BaseStrategy` 一个空壳类**(157 行):
-- 有: `__init__`, `init`, `on_start`, `on_stop`, `on_day_open`, `on_day_close`, `default_config`, `get_history`, `log`, `record`
-- 缺: `Strategy` 抽象根, `RiskStrategy`, `on_bar`, `on_check`, `get_bars`(叫 `get_history`), `get_prices`, `get_ticks`, 账户接口(`buy`/`sell`/`positions`/`cash`/`sell_host_position`)
-- 缺: 回测端点(`backtest.started` 等日志触发点)
-- 缺: 风控触发 / 超额收益日志触发点
+#### 7.4.1. 装配点 1: 虚拟时钟 (ClockPort)
 
-> 之前记录的"DayStrategy / LiveStrategy 子类已存在"是**误判** — 实际不存在。本节冲突表按实际空壳重写。
+**协议定义** (`quantide/core/ports/clock.py`):
 
-### 6.2 已识别冲突(基于实际代码核对)
+- `ClockPort.now() -> datetime` — 框架读"当前时刻"用
+- `ClockPort.set_now(tm: datetime) -> None` — 测试侧快进用
+- `ClockPort.iter_frames(start, end, frame_type) -> Iterable` — 回测遍历
 
-| # | 冲突点 | spec 决定 | 现有实现 | 处理 |
-|---|---|---|---|---|
-| C1 | `on_bar` 缺失 | `BaseStrategy` 子类专有, 签名 `on_bar(tm)` | 缺 | **新增** `on_bar(tm)` 到 BaseStrategy(默认 pass) |
-| C2 | `on_check` 缺失 | `RiskStrategy` 专有, 签名 `on_check(positions, tm)` | 缺; RiskStrategy 整个缺 | **新增** `RiskStrategy` 类 + `on_check` 默认实现 |
-| C3 | 数据方法名 | `get_bars(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True) → pl.DataFrame` 在 `Strategy` 抽象根 | 现有 `get_history(asset, count, end_dt=None, frame_type="1d", include_forming_bar=True) → pl.DataFrame` in BaseStrategy | **重命名** `get_history` → `get_bars`;**上移**到新 `Strategy` 抽象根 |
-| C4 | 策略类分层 | 三层: `Strategy`(抽象根) / `BaseStrategy`(独立) / `RiskStrategy`(风控);`BaseStrategy` 与 `RiskStrategy` **兄弟**,均继承 `Strategy` | 仅 `BaseStrategy` | **新增** `Strategy` 抽象根 + `RiskStrategy`(兄弟类,非 BaseStrategy 子类);`BaseStrategy(Strategy)` |
-| C5 | 账户接口 | `BaseStrategy` 子类有 `buy` / `sell` / `positions` / `cash`;`RiskStrategy` 有 `sell_host_position`,**类层无** `buy` / `positions` / `cash` | 全部缺 | **新增** 全部账户接口;`RiskStrategy` 继承 `Strategy` 而非 `BaseStrategy` 保证拿不到 buy/positions/cash(类层缺失) |
-| C6 | `default_config` UI 展示字段 | spec 要求元数据 schema | 现有仅返回原始 dict | **增强**:在枚举时把 dict 转 `dict[str, ParamSpec]` |
-| C7 | 策略目录默认 | spec 不硬定路径 | `~/.millionaire/strategies/` | 现有实现保留可配置;spec 兼容(只要默认指向内置示例即满足 AC-020-01) |
-| C8 | SDK 元数据(FR-014/015) | spec 接口 | 已在 `data/models/` 实现 | **对齐**:验证签名/返回类型与 spec 一致 |
-| C9 | `get_prices` / `get_ticks` 归属 | 仅 `RiskStrategy` | 缺 | **新建**于 `RiskStrategy` 专有;**类层不存在**于 `BaseStrategy`(继承结构保证) |
-| C10 | 风控可回测性 | **v0.2 不支持 RiskStrategy 回测** (用户决定) | 缺 | BacktestRunner 启动时检测到 RiskStrategy 实例则拒绝启动 (抛异常 `RiskStrategyNotBacktestable`;HTTP 错误码 `RISK_STRATEGY_NOT_BACKTESTABLE`, 关联 AC-013-05);风控评估仅在 paper/live 下进行 (FR-360) |
-| C11 | `UnsupportedFrameTypeForBacktest` 抛出位置 | BacktestRunner 上下文: `get_bars(frame_type != "1d")` 抛 | 缺 | **新增** 该异常类;BacktestRunner 拦截 |
-| C12 | 测试数据 | spec 要 2023-2025, 105 标的 | 已有(已扩展) | **保留**: `tests/assets/real/` 105 资产 + 69,551 日线 + 3 年真实 tushare 数据 |
+**可观测出口**:
 
-### 6.3 未识别冲突(实施时跟踪)
+- 任意策略钩子 (`on_day_open` / `on_bar` / `on_day_close`) 收到的 `tm` 参数 == `context.clock.now()` 调用结果
+- 行情事件的 `timestamp` 字段 == 推送时刻的 `context.clock.now()`
+- 日志条目 (`order.submitted` / `order.filled` / `risk.triggered`) 的 `ts` 字段 == 事件发生时刻的 `context.clock.now()`
 
-实现层 PR review 时需对照 spec 逐项核对,标记以下信息:
+#### 7.4.2. 装配点 2: 实时行情源 (MarketDataPort)
 
-- [ ] FR-010 钩子默认值(`pass`)
-- [ ] FR-010 不可知运行模式(无 `get_mode` / `is_backtest`)
-- [ ] FR-013 风控策略的 `__init__` 强制绑定宿主参数
-- [ ] FR-020 模式无关性(枚举结果在 4 模式下一致)
-- [ ] FR-115 钩子调用顺序(已写进 AC-010-02)
+**协议定义** (`quantide/core/ports/market_data.py`):
 
-## 7. 变更记录
+- `MarketDataPort.snapshot(symbols) -> dict[str, QuoteSnapshot]`
+- `MarketDataPort.subscribe / unsubscribe / start / stop / stream`
+
+**可观测出口**:
+
+- 撮合结果 (orders / fills 表) 的成交价 == 撮合时刻的 `market_data.snapshot([asset])[asset].price`
+- 委托回报的 `filled_at` 字段 == 撮合时刻的 `context.clock.now()`
+
+#### 7.4.3. 装配点 3: 网关地址
+
+**配置路径**: `Settings.gateway_url` (已存在, 由 PR2 验证暴露)
+
+**可观测出口**:
+
+- 框架启动时, 解析 `Settings.gateway_url` 失败 → 启动失败并报错 (无静默回退)
+- 框架运行中, 网关断开 → [test-plan.md §5.4.4](./test-plan.md) 假网关 / 真网关断开 → 触发 FR-450 #5 通知事件
+
+## 8. 变更记录
 
 - **2026-06-17 初稿**:
   - §1 策略框架契约(从 spec FR-010/011/012/013/020 推导)

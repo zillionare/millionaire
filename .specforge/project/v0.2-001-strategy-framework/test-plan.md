@@ -43,7 +43,7 @@
 | 7   | 硬编码期望值         | assert result == 0.15 只因当前 impl 输出 0.15      | 未发生                                                       |
 | 8   | trivial pass         | assert True / assert 1 == 1                        | 未发生                                                       |
 
-#### 防护机制
+#### 1.3.1. 防护机制
 
 仅靠 review 不足以阻挡上述作伪模式，需要以下强制机制（CI 校验 + PR 流程）：
 
@@ -95,7 +95,7 @@
 
 - 文件:`test_<场景>__<子场景>.py`,例如 `test_enumerate__syntax_error.py`
 - 函数:`test_<AC-id>_<子场景>`,例如 `test_ac_020_08_empty_directory`
-- 跨场景的共享工具放 `tests/assets/*/conftest.py` 或 `tests/assets/*/utils/`
+- 跨场景的共享工具放 `tests/assets/*/conftest.py` 或 `tests/assets/*/utils/`，'*' 的取值为`unit|e2e`.
 
 ### 2.3. 执行
 
@@ -143,9 +143,135 @@
 | **合计**                                   | **105** | —                                          |
 
 
-### 2.5. 环境构建
+### 2.5. tick 与 30m 合成数据规范 (FR-270-A 联动)
 
-#### 2.5.1. 拉取脚本
+| 有效需求 | 可测性 | 是否已决定 |
+| -------- | ------ | ---------- |
+| ✅        | ✅      | ✅          |
+
+> **范围声明**: 本节是 FR-270 的**回放 fixture 专用扩展**, 仅约束 `tests/assets/**/fixtures/data/` 下的合成 parquet 文件, **不**约束生产数据。生产 tick / 30m 数据通过 qmt-gateway 实时获得 (FR-300), 无 fixture 要求。
+> **关联 spec**: spec-trading.md FR-270 (本节是其回放 fixture 扩展, 不进 FR-270-A 子节, 避免与产品数据规范混在一起)
+
+#### 2.5.1. 数据范围
+
+- 标的范围: 与 §2.4.2 的 universe 一致 (105 个标的)
+- 时间范围: **仅 2022 年最后 2 个交易日** (test-plan §2.4.1 声明)
+- 频率:
+  - **tick**: 任意时刻, 每日数千至数万笔 (按合成算法决定)
+  - **30m**: 每日 8 根 (9:30~11:30 / 13:00~15:00, A 股交易时段)
+
+#### 2.5.2. tick 字段契约
+
+| 字段     | 类型             | 说明                                                  |
+| -------- | ---------------- | ----------------------------------------------------- |
+| `asset`  | `str`            | 标的代码, 与日线 `asset` 同 schema                    |
+| `date`   | `str` (YYYYMMDD) | 交易日, 与日线 `date` 同 schema                       |
+| `time`   | `str` (HHMMSS)   | tick 时刻, 精确到秒 (范围 09:30:00 ~ 15:00:00)       |
+| `price`  | `float64`        | tick 价                                              |
+| `volume` | `float64`        | 累计成交量 (自开盘起); 单笔增量 = 当前 - 前一 tick    |
+| `amount` | `float64`        | 累计成交额 (自开盘起); 单笔增量 = 当前 - 前一 tick    |
+
+> 累计 volume/amount 模式 (而非单笔模式) — 简化 R0 一致性约束 (日终值直接等于日线).
+
+#### 2.5.3. 30m 字段契约 (从 tick 聚合)
+
+| 字段     | 类型             | 说明                                                                |
+| -------- | ---------------- | ------------------------------------------------------------------- |
+| `asset`  | `str`            | 标的代码, 与日线 `asset` 同 schema                                  |
+| `date`   | `str` (YYYYMMDD) | 交易日, 与日线 `date` 同 schema                                     |
+| `time`   | `str` (HHMM)     | 30m bar 起始时刻 (0930, 1000, 1030, 1100, 1130, 1300, 1400, 1500)   |
+| `open`   | `float64`        | bar 内第一笔 tick 的 price                                          |
+| `high`   | `float64`        | bar 内所有 tick 的 max(price)                                       |
+| `low`    | `float64`        | bar 内所有 tick 的 min(price)                                       |
+| `close`  | `float64`        | bar 内最后一笔 tick 的 price                                        |
+| `volume` | `float64`        | bar 内 tick 累计 volume 的增量                                      |
+| `amount` | `float64`        | bar 内 tick 累计 amount 的增量                                      |
+
+> **30m 不是独立合成的** — 是 `聚合(ticks)`. 任何 tick 合成的修改, 自动反映到 30m. 二者天然一致 (R1 自动满足).
+
+#### 2.5.4. 一致性约束 (硬规则, 合成算法必须满足)
+
+**R0 — tick 与日线一致性** (用户决策原文: "无论是 ticks 还是 30m, 都要与真实获得的日线数据不抵触"):
+
+```
+∀ asset, day ∈ last_2_trading_days:
+    tick[asset, day, FIRST].price  == day_open(asset, day)
+    tick[asset, day, LAST].price   == day_close(asset, day)
+    min(tick[asset, day, *].price) == day_low(asset, day)
+    max(tick[asset, day, *].price) == day_high(asset, day)
+    tick[asset, day, LAST].volume  == day_volume(asset, day)   # 允许 ±0.5% 误差
+    tick[asset, day, LAST].amount  == day_amount(asset, day)   # 允许 ±0.5% 误差
+```
+
+**R1 — 30m 与 tick 聚合一致性** (R0 的推论, 不引入新约束):
+
+```
+∀ asset, day, t (30m bar 起始时刻):
+    30m(asset, day, t).open   == tick[asset, day, FIRST in 30m_window].price
+    30m(asset, day, t).high   == max(tick[asset, day, t_window].price)
+    30m(asset, day, t).low    == min(tick[asset, day, t_window].price)
+    30m(asset, day, t).close  == tick[asset, day, LAST in 30m_window].price
+    30m(asset, day, t).volume == tick[asset, day, END_WINDOW].volume
+                              - tick[asset, day, START_WINDOW_PREV].volume
+    30m(asset, day, t).amount == tick[asset, day, END_WINDOW].amount
+                              - tick[asset, day, START_WINDOW_PREV].amount
+```
+
+> R1 由"30m 严格聚合 tick"决定, 只要 tick 合成满足 R0, R1 自动满足. validate_env.py 仍要校验 R1 (防止聚合函数 bug).
+
+**R2 — 涨跌停约束** (与 R0 配套):
+
+```
+∀ tick (因此 ∀ 30m bar):
+    tick[asset, day, *].price >= day_down_limit(asset, day)
+    tick[asset, day, *].price <= day_up_limit(asset, day)
+    # is_st 标的放宽到 ±5% (按 FR-140)
+```
+
+**R3 — 时间窗口约束** (原 R4 重新编号):
+
+```
+∀ tick:
+    tick[asset, day, *].time ∈ [09:30:00, 11:30:00] ∪ [13:00:00, 15:00:00]
+∀ 30m bar:
+    bar.time ∈ {0930, 1000, 1030, 1100, 1130, 1300, 1400, 1500}
+    1100→1300 间隔 2 小时 (午休), 其它间隔 30 分钟
+```
+
+> **R3 (原"内在波动合理性") 已删除** — ticks 是源, 30m 是聚合, "单根 30m 波动合理性" 不是合成层约束, 而由 tick 序列自然决定. A 股真实市场偶尔单边 (涨跌停 / 消息面) 不应被"≤5 根同向"等规则过拟合. 3 个具体阈值 (3% / 5 根 / 1 根反向) 也没有 spec 来源, 属于凭直觉拍的规则.
+
+#### 2.5.5. 合成算法契约 (实现层必须遵循, 不规定实现细节)
+
+满足 R0+R2+R3 的合成算法由实现层自行决定。算法输出**确定性**: 同一 universe + 同一日线数据 → 同一 tick 数据 (无随机种子依赖, 或使用固定种子)。
+
+**推荐路径** (非强制):
+
+1. **先合成 ticks** (核心步骤):
+   - 以日线 open/close 为锚, 在 [open, close] 区间内用**泊松到达过程 + 几何布朗运动**生成 tick 序列
+   - tick.price 用 1 分钟级粒度 (避免 R0 high/low/open/close 失真)
+   - tick.volume 按"日内成交量均匀分布" + 局部扰动 (±10% 局部噪声), 末笔累计值 = day_volume
+   - 在 day_high / day_low 附近安排"接近触及涨跌停"的事件 (满足 R2)
+2. **再聚合 30m** (确定性函数, 不需算法选择):
+   - 严格按 §2.5.3 字段定义, 从 tick 序列聚合
+   - 30m 是 tick 数据的"副产物", **不独立合成**, 也不需要单独的算法契约
+3. **整体确定性**: 同一 universe + 同一日线 → 同一 tick; tick → 30m (聚合函数无随机性); 整体可重现
+
+#### 2.5.6. 验证脚本
+
+`tests/assets/*/scripts/validate_env.py` 必须新增 tick + 30m 校验逻辑:
+
+- 加载 `ticks.parquet` (若存在) + `30m_bars.parquet` (若存在) + 对应日线
+- 验证 R0 全部 6 个等式 (允许 volume/amount ±0.5%)
+- 验证 R1 全部 6 个等式 (聚合一致性, 即使理论上由 R0 推论, 仍要校验以防聚合函数 bug)
+- 验证 R2 涨跌停约束
+- 验证 R3 时间窗口与 30m 边界
+- **校验完成后, 计算所有 fixture parquet 的 SHA-256, 写入 `env_manifest.json` 的 `data_checksum` 字段** (详见 §2.6.3)
+
+校验失败 → CI 红, 阻塞 PR 合并。
+
+### 2.6. 环境构建
+
+#### 2.6.1. 拉取脚本
 
 位置:`tests/assets/*/scripts/build_env.py`
 
@@ -155,7 +281,7 @@
 - 写入本地 parquet / 数据库
 - 输出 `env_manifest.json` 记录:数据范围、标的清单、生成时间(用于追溯)
 
-#### 2.5.2. 校验脚本
+#### 2.6.2. 校验脚本
 
 位置:`tests/assets/*/scripts/validate_env.py`
 
@@ -165,15 +291,74 @@
 - 范围:数据起止日期在预期范围内
 - 抽样:对随机 5 个标的随机抽 5 天,人工核对(tushare 网页版/行情软件)
 
-#### 2.5.3. 快照与版本
+#### 2.6.3. 快照与版本
 
 - 数据存储在 `tests/assets/*/fixtures/data/`
 - `env_manifest.json` 记录版本,CI 中校验 "测试数据版本 = 预期版本"
 - 数据不可变;更新数据需新版本号 + 重新走 §2.5 环境构建流程
 
-### 2.6. 环境使用接口
+##### 2.6.3.1. 基准数据完整性校验 (data_checksum 字段)
 
-#### 2.6.1. 测试代码加载环境
+**目的**: 在 `env_manifest.json` 生成后, 任何对 fixture parquet 的"手改"或"中途损坏"必须被 `env` fixture (即 `tests/unit/conftest.py` 的 `TestEnv` session fixture) 在加载时立即 fail, 不让"看似通过"的数据进入测试。
+
+**`env_manifest.json` 新增字段**:
+
+```json
+{
+  "version": 1,
+  "data_source": "...",
+  "date_range": [...],
+  "row_counts": {...},
+  "data_checksum": {
+    "algorithm": "sha256",
+    "computed_at": "2026-06-21T12:00:00Z",
+    "files": {
+      "daily_bars.parquet":  "abc123...def",  // hex SHA-256
+      "calendar.parquet":    "012abc...789",
+      "adj_factor.parquet":  "...",
+      "st_info.parquet":     "...",
+      "limit_price.parquet": "...",
+      "30m_bars.parquet":    "...",   // 若存在
+      "ticks.parquet":       "..."    // 若存在
+    }
+  }
+}
+```
+
+**写入时机** (在 `build_env.py` 完成 §2.6.1 数据落盘后):
+
+1. 遍历 `fixtures/data/` 全部 `.parquet` 文件
+2. 用 `hashlib.sha256()` 计算每个文件的 hex digest
+3. 加上 `computed_at` 时间戳和 `algorithm: "sha256"` 标记
+4. 序列化到 `env_manifest.json` 的 `data_checksum` 字段
+
+**校验时机** (在 `tests/unit/conftest.py` 的 `env` fixture 加载时):
+
+1. 读 `env_manifest.json` 的 `data_checksum.files`
+2. 对每个声明的文件, **重新计算** SHA-256
+3. 与 manifest 记录对比:
+   - 全部一致 → 通过
+   - 任一不一致 → **fail-fast**, 报 `DataCorrupted: file X has sha256=Y, manifest says Z`
+4. 报错信息明确指出"该问题不是测试 bug, 而是 fixture 损坏, 请重新跑 build_env.py"
+
+**对 `validate_env.py` 的衔接**: §2.5.6 校验脚本运行完成且无错后, 才计算并写入 `data_checksum`. 也就是说 `data_checksum` 标记的是"通过 §2.5.6 R0~R3 校验的"数据集.
+
+##### 2.6.3.2. 与 `env` fixture 的协作
+
+```python
+# tests/unit/conftest.py (伪代码, 仅描述契约)
+@pytest.fixture(scope="session")
+def env() -> TestEnv:
+    manifest = _load_manifest()
+    _verify_data_checksum(manifest)  # ← 新增: 失败则 fail-fast
+    return TestEnv(...)
+```
+
+测试代码无需感知 checksum 校验, 失败时直接得到清晰报错.
+
+### 2.7. 环境使用接口
+
+#### 2.7.1. 测试代码加载环境
 
 测试代码通过 fixture 加载环境(伪代码示例):
 
@@ -196,7 +381,7 @@ def strategy_env():
 | 30m/tick 数据 | `env.get_bars(asset, "30m", date)` / `env.get_ticks(asset, date)`            |
 | 已加载策略    | `env.strategies`(由 §3 中 ground truth 使用)                                 |
 
-#### 2.6.2. 环境生命周期
+#### 2.7.2. 环境生命周期
 
 | 阶段 | 行为                                             |
 | ---- | ------------------------------------------------ |
@@ -223,7 +408,7 @@ Ground Truth 脚本由测试工程师完成。
 
 > 关键设计:ground truth 是**可重算的脚本**,不是文档化的固定值。测试运行时调用同一份数据 + ground truth 脚本,与框架输出对比。
 
-#### Ground Truth 隔离（强制规则）
+#### 3.1.1. Ground Truth 隔离（强制规则）
 
 为防止"期望值 = 被测实现的输出"导致的循环验证（§1.3 作伪模式 #6），ground truth 脚本必须满足以下强制约束：
 
@@ -347,7 +532,7 @@ return final_pnl, trades
 
 ---
 
-## 测试范围
+## 4. 测试范围
 
 本测试计划对应同级目录下 spec.md 文档、以及它导入的其它同级 spec 文档中，所有『有效需求』、『可测试性』和『是否已决定』均为绿灯的需求。
 
@@ -357,7 +542,7 @@ return final_pnl, trades
 
 ---
 
-## 验收标准
+## 5. 验收标准
 
 1. 单元测试覆盖率95%以上
 2. Story和 Spec 中的用户场景全覆盖并且通过。
@@ -367,15 +552,15 @@ return final_pnl, trades
 ---
 
 
-## 5. Paper / Live 端到端测试策略
+## 6. Paper / Live 端到端测试策略
 
 > **范围说明**: §2 定义了"离线、确定、可重现"的数据环境,解决了**回测**的可测性。但 spec/story 中存在大量**仅在 paper/live 下生效**的需求,它们在 §2 环境下无法直接运行。本节专门解决这类需求的端到端测试问题。
 >
 > **方法论声明**: 本节是**规范的一部分**,依据 spec / story / acceptance / interfaces 编写,描述测试**要观测什么外部行为**,不描述框架**内部如何实现**。框架内部的时间推进机制、撮合触发方式、类层次等均不属于本节范围——它们由实现层自行决定,测试只通过 [interfaces.md](./interfaces.md) 定义的外部可观测契约(数据库表 schema、结构化日志、Web API、回测/运行结果文件)来断言。若某条 AC 因实现层缺少公开装配点而无法测试,按 §5.4.6 的可测试性回退流程处理。
 
-### 5.1. 问题由来 — 为何 paper/live E2E 是一个难题
+### 6.1. 问题由来 — 为何 paper/live E2E 是一个难题
 
-#### 5.1.1. paper/live 的运行时定义
+#### 6.1.1. paper/live 的运行时定义
 
 依据 [story §1.5 / §2 调度总览](./story.md)、[spec-trading.md FR-190 / FR-300](./spec-trading.md) 与 [架构文档 §2.1 / §4.1](../../specs/00-architecture.md):
 
@@ -387,7 +572,7 @@ return final_pnl, trades
 
 即:**paper/live 在定义上同时依赖 qmt-gateway 进程和真实交易日历推进**。
 
-#### 5.1.2. 三个不可回避的约束
+#### 6.1.2. 三个不可回避的约束
 
 | #   | 约束                           | 根因(规范依据)                                                                            | 后果                                                |
 | --- | ------------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------- |
@@ -395,7 +580,7 @@ return final_pnl, trades
 | C2  | **不能等真实时间**             | story §1.12 T+1 跨日;FR-360 风控 N 日窗口;FR-125 `on_check` 为 tick 级监控                | 一个完整策略周期要跑真实日历数日至数周,测试不可承受 |
 | C3  | **不能 mock 框架内部**         | 本文件 §2.1:E2E 不允许 mock 框架实现;§1.3 作伪模式 #5 "mock 过度"                         | 不能靠替换/打补丁框架内部撮合、调度来绕过           |
 
-#### 5.1.3. 矛盾点
+#### 6.1.3. 矛盾点
 
 paper/live 的可测性需求,与 C1/C2/C3 在三个维度上正面冲突:
 
@@ -405,9 +590,9 @@ paper/live 的可测性需求,与 C1/C2/C3 在三个维度上正面冲突:
 
 > 仅靠 §2 的离线数据环境,无法让 paper/live 跑起来——本节即为此而设。
 
-### 5.2. 核心解法 — 替换外部依赖,不碰框架内部
+### 6.2. 核心解法 — 替换外部依赖,不碰框架内部
 
-#### 5.2.1. 立场:可控化 vs mock
+#### 6.2.1. 立场:可控化 vs mock
 
 paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gateway 行情**、**qmt-gateway 真柜台**——都是 quantide 的**外部依赖**,不是 quantide 自身的实现。本节的解法是:**为这三个外部依赖各提供一个确定性的测试侧替身,框架自身的策略生命周期、交易规则实施、虚拟账本一律原样运行**。
 
@@ -418,7 +603,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 
 > **边界铁律**: 任何情况下,**不得**为"让测试通过"而替换或绕过框架自身的撮合、调度、T+1/涨跌停/资金等交易规则实施。这些是**被测对象**。若测试发现必须绕过它们才能跑通,说明 AC 的可观测性设计有误(参见 §5.4.6),应回退修订 acceptance / interfaces,而非在测试侧打补丁。
 
-#### 5.2.2. 三类外部依赖的测试侧替身
+#### 6.2.2. 三类外部依赖的测试侧替身
 
 | 外部依赖           | 生产形态          | 测试侧替身(本节定义职责)   | 替身的可观测边界                   |
 | ------------------ | ----------------- | -------------------------- | ---------------------------------- |
@@ -428,7 +613,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 
 > 三类替身替换的是**外部源**;框架的**仿真撮合**在 paper 下属于被测对象,**不替换**(live 下成交走假网关,属替身范畴)。
 
-### 5.3. 三层测试金字塔
+### 6.3. 三层测试金字塔
 
 按真实度/代价/速度,分三层。各层覆盖的 AC 互不重叠,由 test marker 严格区分运行时机(见 §5.5)。
 
@@ -438,7 +623,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 | **L2** | 网关契约仿真 | 虚拟时钟 | 回放         | 假网关(L2 替身)    | 秒级        | gateway 协议 / qtoid / 通知类 AC | ✅ CI 默认         |
 | **L3** | 实盘路径冒烟 | 真实日历 | 真实 gateway | 真柜台             | 真实(≤1 笔) | 跨模式运行 / dry-run 冒烟        | ❌ 仅 nightly/手动 |
 
-#### 5.3.1. L1 — 确定性仿真(Deterministic Paper)
+#### 6.3.1. L1 — 确定性仿真(Deterministic Paper)
 
 **原理**:paper 模式的成交由框架自身仿真撮合(story §1.5),本就是被测对象;只需把"时间推进"和"行情来源"两个外部源换成确定性版本,即可在秒级跑完原本需数日的策略周期。
 
@@ -450,7 +635,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 
 **不覆盖**(交给 L2):任何依赖 qmt-gateway 协议本身的行为(下单参数透传、网关推送、网关断开通知 FR-450 #5)。
 
-#### 5.3.2. L2 — 网关契约仿真(Gateway-Contract Paper)
+#### 6.3.2. L2 — 网关契约仿真(Gateway-Contract Paper)
 
 **原理**:qmt-gateway 在生产中是独立进程,只与 quantide 共享协议(架构文档 §2.1)。测试起一个**遵守同一协议的假网关**,框架的网关客户端指向它;假网关用 L1 的虚拟时钟+回放行情驱动推送与回报。
 
@@ -462,7 +647,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 
 **不覆盖**(交给 L3):真柜台的真实成交规则差异(成交量随机、滑点等)。
 
-#### 5.3.3. L3 — 实盘路径冒烟(Live Smoke)
+#### 6.3.3. L3 — 实盘路径冒烟(Live Smoke)
 
 **原理**:证明"无替身路径真的通"。**不做完整策略周期真测**(C2 不允许),只做**单次往返冒烟**。
 
@@ -473,11 +658,11 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 
 **约束**:用 1 只低价股 100 股的最小代价,一次冒烟 < 1 分钟,资金当日内可冲销(买入→卖出回款,不跨日 T+1)。**仅在有 Windows+QMT 真机的环境运行**,默认 deselect,见 §5.5。
 
-### 5.4. 测试基础设施的职责契约
+### 6.4. 测试基础设施的职责契约
 
 > 本节定义 L1/L2 测试基础设施中各组件的**职责与外部可观测边界**,供测试工程师实现。**不规定内部实现细节**(具体类名、方法签名、数据结构由实现层自行决定),只规定"它必须对外提供什么、受什么约束"。所有组件置于 `tests/e2e/support/`(见 §5.7)。
 
-#### 5.4.1. 虚拟时钟(替换"真实墙钟")
+#### 6.4.1. 虚拟时钟(替换"真实墙钟")
 
 **职责**: 在测试中扮演"当前交易日历时刻",使被测框架读到的时间可被测试任意快进,从而把数日的策略周期压缩到秒级。
 
@@ -488,7 +673,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 **约束**:
 - 不得通过全进程 mock 系统时间(如 freezegun)实现——会污染框架内 asyncio / 数据库客户端等所有时间依赖,引入非被测行为的异常。必须走框架对外暴露的"当前时间"装配点(见 §5.4.6)。
 
-#### 5.4.2. 回放行情源(替换"qmt-gateway 实时行情")
+#### 6.4.2. 回放行情源(替换"qmt-gateway 实时行情")
 
 **职责**: 在测试中扮演 paper/live 下的行情来源,从 §2.4 固化的 parquet 中按虚拟时钟的推进喂出行情,使被测框架的撮合/风控监控有真实可回放的数据驱动。
 
@@ -497,7 +682,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 - 必须能驱动框架的撮合与 tick 级监控(FR-125 `on_check`):即虚拟时钟推进时,框架应能观测到对应时刻的行情并据此产生成交/风控事件(具体驱动机制由实现层决定,测试只断言**外部结果**)。
 - 必须支持 spec 要求的数据粒度:`frame_type="1d"`(日线)与 `"30m"`(日内策略,见 story §1.8、US-050)。
 
-#### 5.4.3. 订单观察器(可选,非撮合替身)
+#### 6.4.3. 订单观察器(可选,非撮合替身)
 
 **职责**: 仅在需要独立核对订单/成交流的场景使用(如验证风控 `sell_host_position` 是否按 spec 发出卖出、归属是否正确)。它是**只读观察者**,读取 [interfaces.md §3.2/§3.3](./interfaces.md) 的 orders/fills 表与结构化日志,**不接管撮合**。
 
@@ -505,7 +690,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 - 禁止 import 框架撮合/调度实现;只读外部可观测出口(数据库表、日志)。
 - 规则正确性的期望值由 §3 手算脚本提供,不由观察器提供(避免 §1.3 作伪模式 #6 "ground truth 用 impl")。
 
-#### 5.4.4. 假网关(替换"qmt-gateway 真柜台",L2 用)
+#### 6.4.4. 假网关(替换"qmt-gateway 真柜台",L2 用)
 
 **职责**: 作为独立进程,实现 quantide↔gateway 的协议(架构文档 §2.1 第 3 条:实时行情推送 / 下单 / 撤单 / 资产·持仓·订单·成交查询),供框架的网关客户端连接。内部用虚拟时钟+回放行情产生推送与回报。
 
@@ -514,7 +699,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 - 假网关的回报应使框架落库的 orders/fills 记录满足 [interfaces.md §3.2/§3.3](./interfaces.md) 的 schema。
 - 行为边界 = gateway 协议文档;**不**模拟真柜台成交随机性(那是 L3 范畴)。
 
-#### 5.4.5. 测试编排器(assembly)
+#### 6.4.5. 测试编排器(assembly)
 
 **职责**: 把虚拟时钟 + 回放行情源(+ 假网关)与被测框架组装成一个可驱动的测试运行上下文,并对外暴露"推进时间 / 触发一个交易日生命周期"的操作。
 
@@ -522,7 +707,7 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 - 组装**只走框架对外公开的装配点**,不 `mock.patch` 任何内部符号,不依赖 `quantide/` 包私有 API(符合 §2.1)。
 - 编排器只负责"提供外部源 + 推进时间",**不**代框架执行撮合、结算、调度——这些都是被测对象的行为。
 
-#### 5.4.6. 可测试性回退流程(当实现层缺少公开装配点时)
+#### 6.4.6. 可测试性回退流程(当实现层缺少公开装配点时)
 
 本节所有替身都假设框架对外暴露了"可注入时间源 / 行情源 / 网关地址"的公开装配点。若实现层当前**未提供**这样的公开点,导致某条 paper/live AC 无法在不碰内部实现的前提下测试,则:
 
@@ -530,11 +715,11 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 2. 应作为**框架侧的可测试性需求**登记(类比 [spec-foundation.md NFR-050](./spec-foundation.md) 可观测契约的思路:实现层必须为可测试性提供公开出口),由实现层补公开装配点后,测试再据此实现。
 3. 该缺口在补齐前,对应 AC 标记为"受阻于可测试性缺口",并在 §1.3 防护机制下挂 issue 跟踪。
 
-### 5.5. Test Marker 与运行控制
+### 6.5. Test Marker 与运行控制
 
 三层结构必须用 pytest marker 严格区分,**禁止**默认运行 L3。
 
-#### 5.5.1. Marker 定义
+#### 6.5.1. Marker 定义
 
 | Marker           | 层  | 默认选中? | 运行条件                    | 说明                          |
 | ---------------- | --- | --------- | --------------------------- | ----------------------------- |
@@ -542,12 +727,12 @@ paper/live 运行所依赖的三个外部源——**真实墙钟**、**qmt-gatew
 | `e2e_gateway`    | L2  | ✅         | 需可起 localhost 假网关进程 | 网关契约,CI 每次 push 必跑    |
 | `e2e_live_smoke` | L3  | ❌         | 需 Windows+QMT+真实账户     | 默认 deselect;仅 nightly/手动 |
 
-#### 5.5.2. CI 选择策略
+#### 6.5.2. CI 选择策略
 
 - **默认 CI**(`pytest`):选中 `e2e_paper` + `e2e_gateway`,deselect `e2e_live_smoke`。
 - **Nightly / 手动**:在带 QMT 的 Windows runner 上 `pytest -m e2e_live_smoke`。
 
-#### 5.5.3. 与 §1.3 断言禁忌的衔接
+#### 6.5.3. 与 §1.3 断言禁忌的衔接
 
 L3 的"默认不运行"必须以**合法方式**实现,不得违反 §1.3 第 2 条"禁止无 issue 的 skip":
 
@@ -557,7 +742,7 @@ L3 的"默认不运行"必须以**合法方式**实现,不得违反 §1.3 第 2 
 
 > 建议:为 `e2e_live_smoke` 建立一个长期 GitHub issue 跟踪其运行环境(nightly runner 配置),满足 §1.3 的可追溯要求。
 
-### 5.6. 断言依据 — 外部可观测契约清单
+### 6.6. 断言依据 — 外部可观测契约清单
 
 L1/L2 测试的断言**只能**落在 [interfaces.md](./interfaces.md) 已定义的外部可观测出口上,不得依赖框架内部状态。各层典型断言依据:
 
@@ -573,7 +758,7 @@ L1/L2 测试的断言**只能**落在 [interfaces.md](./interfaces.md) 已定义
 
 > 若某条 AC 需要的状态在 interfaces.md 中**没有**对应可观测出口,这是可观测性缺口(违反 NFR-050),应回退修订 interfaces/acceptance 补齐出口,而非在测试中窥探内部状态。
 
-### 5.7. 测试基础设施目录
+### 6.7. 测试基础设施目录
 
 ```
 tests/e2e/support/      # paper/live E2E 测试基础设施(L1/L2 替身 + 编排器)
@@ -586,7 +771,7 @@ tests/e2e/support/      # paper/live E2E 测试基础设施(L1/L2 替身 + 编�
 
 > 隔离规则:该目录下所有模块属于**测试基础设施**,治理标准与 `tests/ground_truth/`(§3.1)一致——禁止为绕过被测行为而 import 框架的撮合/调度/规则实现;只允许经由框架**对外公开**的装配点与契约(interfaces.md 定义的数据 schema、公开 API)与之交互。
 
-### 5.8. 落地优先级
+### 6.8. 落地优先级
 
 1. **Phase 1(L1)**:虚拟时钟 + 回放行情源 + 编排器 → 跑通双均线 paper 全生命周期,与 §3 ground truth 对账。优先级最高,因风控类 AC(FR-013/125/360)spec 明确 paper-only,**只能**落在 L1。
 2. **Phase 2(L2)**:假网关 → 覆盖网关协议 / qtoid / 通知类 AC。
@@ -595,7 +780,7 @@ tests/e2e/support/      # paper/live E2E 测试基础设施(L1/L2 替身 + 编�
 ---
 
 
-## 6. 附录 — 相关文档
+## 7. 附录 — 相关文档
 
 - [spec.md](./spec.md) — 策略框架 spec
 - [acceptance.md](./acceptance.md) — 验收标准

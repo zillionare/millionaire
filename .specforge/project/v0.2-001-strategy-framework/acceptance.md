@@ -77,22 +77,22 @@
 ### FR-014 SDK 元数据接口 — 交易日历
 
 #### AC-014-01 交易日判断
-- ⬜ 传入一个已知的交易日（如周二）→ 返回 true
+- ⬜ 传入一个已知的交易日 → 返回 true
 - ⬜ 传入一个周末 → 返回 false
-- ⬜ 传入一个法定节假日（如春节）→ 返回 false
+- ⬜ 传入一个法定节假日 → 返回 false
 - ⬜ 传入超出数据范围的日期 → 抛出异常
 
 #### AC-014-02 交易日移位
-- ⬜ 从一个交易日向后移 1 天 → 返回下一个交易日（跨周末自动跳过）
+- ⬜ 从一个交易日向后移 1 天 → 返回下一个交易日(跨周末自动跳过)
 - ⬜ 从一个交易日向前移 1 天 → 返回上一个交易日
-- ⬜ 移位偏移量为 0（无论当日是否为交易日）→ 返回最近已结束的交易日
+- ⬜ 移位偏移量为 0(无论当日是否为交易日)→ 返回最近已结束的交易日
 - ⬜ 移位结果超出数据范围 → 抛出异常
 
 #### AC-014-03 交易日计数与列表
 - ⬜ 查询一个跨越周末的区间 → 返回的交易日数不含周末和节假日
 - ⬜ start == end 且为交易日 → 返回 1
 - ⬜ start == end 且为非交易日 → 返回 0
-- ⬜ 查询某月所有交易日 → 结果中不含非交易日，按日期升序排列
+- ⬜ 查询某月所有交易日 → 结果中不含非交易日, 按日期升序排列
 - ⬜ start > end → 抛出异常
 
 #### AC-014-04 模式无关性
@@ -299,6 +299,45 @@
 - ⬜ Triple Barrier 公式按 [spec-trading.md F-TB-1 / F-TB-2 / F-TB-3](./spec-trading.md) 计算:`up` 触发应用 F-TB-1,`down` 触发应用 F-TB-2,未触发应用 F-TB-3;N=0 即当日收盘
 - ⬜ N=0: 当日收盘价已知后立即计算并写入,`is_final = true`
 - ⬜ N>0: 初始记 `null`,N 日后(仿真/实盘时间)有收盘价时回填;`is_final` 在回填时设为 `true`;数据不足时暂记 `null` 可用后更新（详见 FR-360 AC-360-03）
+
+---
+
+## 运行时可注入性验收 (NFR-060 联动)
+
+> **范围**: 本节 AC 验证 [spec-foundation.md NFR-060](./spec-foundation.md) 的运行时可注入契约, 是 [test-plan.md §5](./test-plan.md) L1/L2 E2E 测试的前置条件。
+> **关联 test-plan 章节**: §5.4.1 (虚拟时钟), §5.4.5 (装配器), §5.4.6 (可测试性回退)
+> **FR 编号决策**: 本节不绑定单一 FR, 而是为 NFR-060 提供可判定场景。编号 AC-CLOCK-INJ-N (N=01~06)。
+
+### AC-CLOCK-INJ-01 RuntimeContext 暴露 clock 字段
+- ⬜ `RuntimeContext` 实例具有公开属性 `clock: ClockPort` (类型注解存在, 可读)
+- ⬜ 默认注入的 `clock` 是 `SystemClockAdapter` (生产语义: 返回墙钟)
+- ⬜ 测试侧可构造 `RuntimeContext(clock=VirtualClock())` 替换为测试时钟, **不**抛异常
+
+### AC-CLOCK-INJ-02 RuntimeBootstrap 接线
+- ⬜ `RuntimeBootstrap.bootstrap()` 返回的 `RuntimeContext` 实例的 `clock` 字段非 None
+- ⬜ 未显式传入 clock 时, `context.clock` 是 `SystemClockAdapter` 实例 (生产默认)
+- ⬜ 显式传入 `RuntimeBootstrap(clock=...)` 时, `context.clock` 是传入的实例 (测试注入)
+
+### AC-CLOCK-INJ-03 paper/live 运行时读 context.clock
+- ⬜ 构造一个 `StrategyRuntime` 在 paper 模式下运行一个空策略一天
+- ⬜ 在运行前 `set_now(T0)` 到一个测试时刻 T0
+- ⬜ 策略的 `on_day_open(tm)` 收到的 `tm` 等于 T0 (而非墙钟)
+- ⬜ 类似地, `on_day_close` / `on_bar` 收到的 `tm` 与 `context.clock.now()` 一致
+
+### AC-CLOCK-INJ-04 行情时间戳读 context.clock
+- ⬜ 构造一个 `LiveQuoteMarketDataAdapter` 注入测试时钟
+- ⬜ 调用 `start()` + `subscribe([asset])` + 模拟推送一次行情
+- ⬜ 行情事件 (从 msg_hub / stream 消费) 的时间戳 == `context.clock.now()`, 而非墙钟
+
+### AC-CLOCK-INJ-05 虚拟时钟下 T+1 跨日结算可观测
+- ⬜ 测试场景: T0 买入 → T0 当日 sellable=0; 推进虚拟时钟到 T1 → T1 当日 sellable=持仓数
+- ⬜ 断言依据: [interfaces.md §3.5 positions 表](./interfaces.md) 的 `sellable_shares` 字段
+- ⬜ 框架**不**需要知道这是测试场景; 走的是生产 T+1 结算代码路径
+
+### AC-CLOCK-INJ-06 装配点违规检测 (反测试)
+- ⬜ 扫描 `quantide/service/strategy_runtime.py` 与 `quantide/core/runtime/market_bridge.py`, **不应**出现 `datetime.datetime.now()` 调用 (排除注释/字符串)
+- ⬜ 扫描 `quantide/service/sim_broker.py` 的 `PaperBroker._now()` 与 `quantide/core/runtime/gateway_broker.py` 的 `GatewayBrokerAdapter._now()`, **不应**出现 `datetime.datetime.now()` 兜底分支
+- ⬜ 此 AC 由 CI 自动扫描保证 (PR2 在 pyproject.toml 或 CI workflow 中加 grep 规则)
 
 ---
 

@@ -34,7 +34,7 @@
 | -------- | ------ | ---------- |
 | ✅        | ✅      | ✅          |
 
-每个方法 ≤ 50 行、最长 ≤ 120 行（不含 docstring 与注释）。
+每个方法 ≤ 50 行、最长 ≤ 120 行（docstring 与注释不统计在内）。
 
 ---
 
@@ -73,6 +73,36 @@
 - [acceptance.md](./acceptance.md) — 每条 AC 应明确"通过哪个观测点验证"
 - [test-plan.md](./test-plan.md) §3.1 — 维护一份**完整观测点清单**,作为实现层 PR 评审 checklist
 - v0.2-002-ui — UI 渲染的可观测性另由 UI spec 覆盖
+
+---
+
+### NFR-060 运行时可注入性（test-plan §5 可测试性基础）
+
+| 有效需求 | 可测性 | 是否已决定 |
+| -------- | ------ | ---------- |
+| ✅        | ✅      | ✅          |
+
+凡 test-plan §5 涉及的 paper/live 运行时组件,实现层必须为**外部依赖**(墙钟、行情源、网关地址)提供**公开装配点**,使测试侧可在不修改框架内部实现、不 `mock.patch` 框架内部符号的前提下注入测试替身。
+
+#### 必须暴露的装配点
+
+| 装配点 | 当前实现位置 | 公开契约 | 默认值 |
+| --- | --- | --- | --- |
+| 虚拟时钟 | 新增 `RuntimeContext.clock: ClockPort` | `quantide.core.ports.ClockPort` 协议 (`now()`, `set_now()`, `iter_frames()`) | `SystemClockAdapter` (墙钟) |
+| 实时行情源 | `PaperBroker(market_data=...)` (已存在) | `quantide.core.ports.MarketDataPort` 协议 | 生产: `LiveQuoteMarketDataAdapter`; 测试: 替身 |
+| 网关地址 | `Settings.gateway_url` (已存在,需 PR2 验证) | 配置项, 公开可读 | 生产: 真实 qmt-gateway URL; 测试: `fake_gateway.py` 的 localhost URL |
+
+#### 边界铁律
+
+- 任何"为让测试通过"而修改框架撮合、调度、T+1/涨跌停/资金校验等**被测对象**实现的尝试, **直接 reject**(等同 test-plan §5.2.1 边界铁律)。
+- 装配点必须**只**通过 `quantide.core.ports.*` 公开协议暴露;**禁止**通过 `mock.patch` 内部类方法(例: `mock.patch(PaperBroker._get_today)`)达成测试目的。
+- 测试侧如发现"必须 mock 内部符号才能测", 应作为**可测试性 NFR 缺口**回归本 NFR, 由实现层补装配点。
+
+#### 联动
+
+- [acceptance.md](./acceptance.md) — AC-CLOCK-INJ-01 ~ 06
+- [test-plan.md](./test-plan.md) §5.4.1, §5.4.2, §5.4.5, §5.4.6
+- [interfaces.md](./interfaces.md) §6.5 — ClockPort / MarketDataPort 协议的可观测出口
 
 ## 已知约束与排除项
 
