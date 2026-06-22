@@ -576,6 +576,153 @@
 
 ---
 
+### FR-200 运行时参数（框架管理，策略不可见）
+
+> 运行时参数契约见 [spec-strategy.md §FR-200](./spec-strategy.md); 本金存储见 [interfaces.md §4.5 assets.principal](./interfaces.md)
+
+#### AC-200-01 三类运行时参数 (本金/滑点/手续费) 在 4 模式均存在
+- ⬜ 启动回测/paper/live/dry-run 时, 用户必须显式提供 `initial_capital` / `slippage` / `commission` 三类参数
+- ⬜ 验证依据: 4 模式各跑 1 次启动, 断言配置接口要求这三类参数, 缺则报错
+
+#### AC-200-02 策略代码不可见运行时参数
+- ⬜ `BaseStrategy` / `RiskStrategy` 不暴露 `get_initial_capital()` / `get_slippage()` / `get_commission()` / `get_tax_rate()` 等 API
+- ⬜ 验证依据: 反射策略基类, 断言无上述方法名
+
+#### AC-200-03 切换模式允许重设, 不被回测结果锁定
+- ⬜ 回测 A 跑完后, 用户能在仿真/实盘启动时改 `initial_capital` / `slippage` / `commission` (即不被回测结果锁定)
+- ⬜ 验证依据: 跑一次回测后, 改 `initial_capital` 启动 paper → 启动成功, paper 的 `assets.principal` = 新值
+
+#### AC-200-04 本金持久化到 assets.principal
+- ⬜ 回测/仿真/实盘启动时, 用户设的 `initial_capital` 写入 `assets.principal` ([interfaces.md §4.5](./interfaces.md))
+- ⬜ 验证依据: 跑 1 次 paper, 设 `initial_capital=1000000`, 断言 `assets.principal = 1000000` 在 T 日落库
+
+---
+
+### FR-210 虚拟账本（按 qtoid 归因）
+
+> 虚拟账本契约见 [spec-trading.md §FR-210](./spec-trading.md); 存储见 [interfaces.md §4.5 assets / §4.4 positions / §4.2 orders / §4.3 trades](./interfaces.md)
+
+#### AC-210-01 每个独立策略有独立虚拟账户
+- ⬜ 同一 base strategy class 实例化 2 次 (不同 `strategy_id`), 在 live/paper 各起一个 → 2 个 `portfolio_id` 各有独立 `assets` 表
+- ⬜ 验证依据: 跑 paper E2E, 2 个策略实例 → `assets` 表 2 条记录, 各自 `cash` / `principal` 独立
+
+#### AC-210-02 跨虚拟账户资金分配由用户自保证
+- ⬜ Millionaire **不**做跨策略的 `assets.principal` 总和 ≤ 真实账户可用资金的校验
+- ⬜ 验证依据: 设 2 个策略 `principal=1000000` 总和 2000000, 真实账户只有 1500000 → 启动不报错 (用户自负责)
+
+#### AC-210-03 策略级数据按 portfolio_id 隔离
+- ⬜ `orders` / `trades` / `positions` / `assets` 全部表/文件的 `portfolio_id` 字段与策略实例一一对应, 不串
+- ⬜ 验证依据: 跑 2 个策略实例各起 paper, 跑 1 天 → 断言 `orders.portfolio_id` 仅出现在该策略对应的记录里, 跨策略查询为空
+
+---
+
+### FR-220 手工交易/补单/风控卖出的归属
+
+> 手工/补单/风控卖出归属契约见 [spec-trading.md §FR-220](./spec-trading.md); 归属字段见 [interfaces.md §4.2 orders.portfolio_id](./interfaces.md)
+
+#### AC-220-01 手工交易/补单/风控卖出必须归属到独立策略账户
+- ⬜ 手工交易 UI 提交时, 用户必须选目标策略 (宿主); 提交后订单的 `portfolio_id` = 该宿主
+- ⬜ 补单 (手动补) 同上: 必须关联到某个独立策略
+- ⬜ 风控卖出由 FR-110 触发的 `sell_host_position` 自动归属宿主 (已在 AC-110-04 覆盖)
+- ⬜ 验证依据: 跑 1 次手工交易, 选策略 X → 断言 `orders.portfolio_id = X.portfolio_id`
+
+#### AC-220-02 写入该策略的虚拟账本
+- ⬜ 归属到独立策略账户的订单, 成交后写入该策略的 `assets` / `positions` (按 `portfolio_id` 关联, 见 AC-210-03)
+- ⬜ 验证依据: 跑 1 次手工交易 + 1 次补单, 成交后查 `assets.cash` 和 `positions` 表, 都按 `portfolio_id` 隔离
+
+---
+
+### FR-230 独立策略的回测启动路径
+
+> 回测启动路径契约见 [spec-strategy.md §FR-230](./spec-strategy.md)
+
+#### AC-230-01 必须从回测开始, 才能进入仿真/实盘
+- ⬜ 独立策略 (数据粒度可回测) 未跑过回测, 直接尝试进 paper → 报错 (`STRATEGY_NOT_BACKTESTED` 或类似)
+- ⬜ 验证依据: 1 次"绕回测直接 paper" 调用, 断言报错
+
+#### AC-230-02 路径 1 (顺序) 回测 → 仿真 → 实盘
+- ⬜ 跑完回测 A, 进 paper B (用 A 的参数), 再从 paper B 进 live C → 3 个运行记录, 共享参数 `fast=5, slow=20`
+- ⬜ 验证依据: 跑 1 次顺序路径, 断言 live `principal` 来自 paper (paper 来自回测), 不要求用户重设参数
+
+#### AC-230-03 路径 2 (直达) 回测 → 实盘
+- ⬜ 跑完回测 A, 直接进 live B (跳过 paper) → live 用 A 的参数
+- ⬜ 验证依据: 跑 1 次直达路径, 断言 live 用回测的 `fast=5, slow=20`, 不要求用户重设
+
+#### AC-230-04 每个策略最多保留 30 个回测结果
+- ⬜ 同一策略跑 31 次回测 → 第 31 次报错或自动清理第 1 次
+- ⬜ 验证依据: 跑 31 次, 断言最后一次 fail, 或前 1 次被清理 (策略仍可访问 30 个)
+
+---
+
+### FR-240 独立策略的无回测启动路径
+
+> 无回测启动路径契约见 [spec-strategy.md §FR-240](./spec-strategy.md)
+
+#### AC-240-01 适用场景: 独立策略用 live-only 数据粒度
+- ⬜ 独立策略声明 `frame_type="30m"` 等 live-only 粒度 → 不需回测
+- ⬜ 验证依据: 跑 1 次"30m 策略直接进 paper" 调用, 启动成功 (不要求先回测)
+
+#### AC-240-02 路径: 仿真 → 实盘, 或直接启动实盘
+- ⬜ 30m 策略可经路径 "paper → live" 或直接 "live" 启动
+- ⬜ 验证依据: 跑 1 次 30m 策略 paper→live 顺序, 跑 1 次直接 live, 都成功
+
+---
+
+### FR-250 风控策略调度
+
+> 风控策略调度契约见 [spec-strategy.md §FR-250](./spec-strategy.md); AC-013-XX 已涵盖风控生命周期
+
+#### AC-250-01 风控无独立调度, 跟随宿主自动激活
+- ⬜ 宿主独立策略进 paper → 关联风控**自动**激活 (无需手动启动风控)
+- ⬜ 宿主进 live → 风控自动激活; 宿主停止 → 风控停止
+- ⬜ 验证依据: 跑 1 次宿主 + 风控组合启动, 断言风控在宿主 paper 启动时**自动**进 paper, 不需要单独调度
+
+---
+
+### FR-260 调度 UI
+
+> 调度 UI 已迁移到 [v0.2-002-ui/spec.md UI-FR-040](../v0.2-002-ui/spec.md); 行为规则在 001-FR-230/240/250
+
+> **AC**: 无（UI 契约已迁移；本 FR 仅作引用占位）
+
+---
+
+### FR-440 dry-run 模式
+
+> dry-run 行为契约见 [spec-trading.md §FR-440](./spec-trading.md); UI 表现已迁移 [v0.2-002-ui/spec.md UI-FR-060](../v0.2-002-ui/spec.md)
+
+#### AC-440-01 正在实盘的策略可进入 dry-run: 策略正常运行, 但不实际下单
+- ⬜ 策略在 live 模式运行, 用户点"进入 dry-run" → 策略继续产生信号 (`on_bar` / `on_check` 仍触发), 但 `buy` / `sell` / `sell_host_position` 调**不**落 `orders` 表
+- ⬜ 验证依据: 跑 1 次 live→dry-run 切换, 跑 1 天, 断言 `orders` 表**无**新记录 (dry-run 期间), 但 `risk_events` 仍记录信号 (如果实现支持)
+
+#### AC-440-02 dry-run 期间策略指标参考其并行仿真实例
+- ⬜ dry-run 期间, 策略的评估指标 (净值/年化收益/Sharpe 等) **参考**其并行仿真实例, 而**不**直接算 dry-run 自身 (因 dry-run 无成交, 算不出指标)
+- ⬜ 验证依据: 跑 1 次 live + 并行 paper 组合, 切到 dry-run, 断言指标 UI 显示的是 paper 数据, 不是 dry-run 的 (空) 数据
+
+---
+
+### FR-450 消息通知（微信）— 事件定义
+
+> 通知事件定义见 [spec-trading.md §FR-450](./spec-trading.md); 通知配置 UI 已迁移 [v0.2-002-ui/spec.md UI-FR-450](../v0.2-002-ui/spec.md)
+
+#### AC-450-01 5 个事件触发微信通知 (若用户已启用)
+- ⬜ 委托提交 (`order.submitted`) → 通知
+- ⬜ 成交 (`order.filled`) → 通知
+- ⬜ 委托失败 (`order.rejected`) → 通知
+- ⬜ 成交失败 (`order.failed`) → 通知 (若框架支持该事件)
+- ⬜ 实盘交易网关断开 (`gateway.disconnected`) → 通知
+- ⬜ 验证依据: 跑 1 次全链路 paper E2E, 断言 5 个事件都触发微信 webhook (mock 微信接收, 验证 5 个 payload)
+
+#### AC-450-02 若用户未启用通知, 不触发
+- ⬜ 通知配置 UI 关闭全部事件后, 5 个事件**不**触发微信 webhook
+- ⬜ 验证依据: 跑 1 次 paper E2E, 通知配置全关, 断言 5 个事件**不**触发 webhook (mock 接收 0 payload)
+
+#### AC-450-03 通知失败不应阻塞策略运行
+- ⬜ 微信 webhook 调用失败 (超时 / 5xx) → 策略继续运行, 仅记录日志 `notification.failed`
+- ⬜ 验证依据: mock 微信返回 500, 跑 1 次成交, 断言成交仍落 `fills` 表, 策略指标照常计算, 日志含 `notification.failed`
+
+---
+
 ## 运行时可注入性验收 (NFR-060 联动)
 
 > **范围**: 本节 AC 验证 [spec-foundation.md NFR-060](./spec-foundation.md) 的运行时可注入契约, 是 [test-plan.md §5](./test-plan.md) L1/L2 E2E 测试的前置条件。
