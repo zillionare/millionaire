@@ -14,8 +14,8 @@
 ## 功能验收标准
 
 <a id="fr-010"></a>
-### FR-010 策略对象模型与 SDK 暴露
 <a id="ac-fr-010"></a>
+### FR-010 策略对象模型与 SDK 暴露
 
 #### AC-010-01 策略类型分层可被识别
 - ⬜ 用户编写一个继承 `BaseStrategy`（独立策略）或 `RiskStrategy`（风控策略）并实现 `default_config()` 的类 → 框架扫描后识别为合法策略
@@ -47,8 +47,8 @@
 - ⬜ 策略可达对象（Strategy、BaseStrategy、RiskStrategy、Context、Broker）上不存在任何返回当前运行模式的方法（如 get_mode、is_backtest）
 
 <a id="fr-013"></a>
-### FR-013 RiskStrategy 结构契约（风控策略）
 <a id="ac-fr-013"></a>
+### FR-013 RiskStrategy 结构契约（风控策略）
 
 > **不可回测**：v0.2 不支持 RiskStrategy 回测。仅 paper/live 下验证。
 
@@ -79,8 +79,8 @@
 ---
 
 <a id="fr-014"></a>
-### FR-014 SDK 元数据接口 — 交易日历
 <a id="ac-fr-014"></a>
+### FR-014 SDK 元数据接口 — 交易日历
 
 #### AC-014-01 交易日判断
 - ⬜ 传入一个已知的交易日 → 返回 true
@@ -115,8 +115,8 @@
 ---
 
 <a id="fr-015"></a>
-### FR-015 SDK 元数据接口 — 证券列表
 <a id="ac-fr-015"></a>
+### FR-015 SDK 元数据接口 — 证券列表
 
 #### AC-015-01 已上市证券列表
 - ⬜ 查询某日已上市证券 → 不包含该日尚未上市的证券
@@ -141,8 +141,8 @@
 ---
 
 <a id="fr-020"></a>
-### FR-020 自动发现策略
 <a id="ac-fr-020"></a>
+### FR-020 自动发现策略
 
 > **范围说明**:本节仅覆盖**枚举契约**(识别规则、元数据 schema、模式无关性、容错、安全前提)。
 > 内置 vs 用户策略的展示优先级/排序/过滤/搜索等 UI 行为见 [v0.2-002-ui/spec.md](../v0.2-002-ui/spec.md) UI-FR-010 的 acceptance。
@@ -258,8 +258,8 @@
 ---
 
 <a id="fr-030"></a>
-### FR-030 策略参数跨模式透传
 <a id="ac-fr-030"></a>
+### FR-030 策略参数跨模式透传
 
 > 策略参数跨模式透传契约见 [spec-strategy.md §FR-030](./spec-strategy.md)
 
@@ -276,8 +276,8 @@
 ---
 
 <a id="fr-040"></a>
-### FR-040 一次开发四模式无感迁移
 <a id="ac-fr-040"></a>
+### FR-040 一次开发四模式无感迁移
 
 > 四模式无感迁移契约见 [spec-strategy.md §FR-040](./spec-strategy.md)
 
@@ -295,8 +295,8 @@
 ---
 
 <a id="fr-090"></a>
-### FR-090 内置策略 — 双均线（日线策略）
 <a id="ac-fr-090"></a>
+### FR-090 内置策略 — 双均线（日线策略）
 
 > 双均线契约见 [spec-strategy.md §FR-090](./spec-strategy.md)
 
@@ -320,8 +320,8 @@
 ---
 
 <a id="fr-100"></a>
-### FR-100 内置策略 — 回落卖出（风控）
 <a id="ac-fr-100"></a>
+### FR-100 内置策略 — 回落卖出（风控）
 
 > 回落卖出契约见 [spec-strategy.md §FR-100](./spec-strategy.md)
 
@@ -340,8 +340,8 @@
 ---
 
 <a id="fr-110"></a>
-### FR-110 内置策略 — 成本止损（风控）
 <a id="ac-fr-110"></a>
+### FR-110 内置策略 — 成本止损（风控）
 
 > 成本止损契约见 [spec-strategy.md §FR-110](./spec-strategy.md); cost_basis 来自 [spec-strategy.md §FR-185 经典方案 A](./spec-strategy.md) (P1 已解)
 
@@ -365,8 +365,8 @@
 ---
 
 <a id="fr-115"></a>
-### FR-115 BaseStrategy 驱动契约
 <a id="ac-fr-115"></a>
+### FR-115 BaseStrategy 驱动契约
 
 > 驱动契约见 [spec-strategy.md §FR-115](./spec-strategy.md)
 
@@ -398,8 +398,8 @@
 ---
 
 <a id="fr-140"></a>
-### FR-140 交易规则 — 价格（涨跌停）
 <a id="ac-fr-140"></a>
+### FR-140 交易规则 — 价格（涨跌停）
 
 > 涨跌停契约见 [spec-trading.md §FR-140](./spec-trading.md); 验证通过 [interfaces.md §4.17 limit_price.up_limit / down_limit](./interfaces.md)
 
@@ -426,8 +426,8 @@
 ---
 
 <a id="fr-150"></a>
-### FR-150 交易规则 — 数量
 <a id="ac-fr-150"></a>
+### FR-150 交易规则 — 数量
 
 > 数量契约见 [spec-trading.md §FR-150](./spec-trading.md)
 
@@ -454,8 +454,8 @@
 ---
 
 <a id="fr-160"></a>
-### FR-160 交易规则 — 时间
 <a id="ac-fr-160"></a>
+### FR-160 交易规则 — 时间
 
 > 时间契约见 [spec-trading.md §FR-160](./spec-trading.md); T+1 验证通过 [interfaces.md §4.4 positions.avail](./interfaces.md)
 
@@ -475,8 +475,8 @@
 ---
 
 <a id="fr-170"></a>
-### FR-170 交易规则 — 特殊状态（停牌）
 <a id="ac-fr-170"></a>
+### FR-170 交易规则 — 特殊状态（停牌）
 
 > 停牌契约见 [spec-trading.md §FR-170](./spec-trading.md)
 
@@ -491,8 +491,8 @@
 ---
 
 <a id="fr-180"></a>
-### FR-180 交易规则 — 资金
 <a id="ac-fr-180"></a>
+### FR-180 交易规则 — 资金
 
 > 资金契约见 [spec-trading.md §FR-180](./spec-trading.md); 资金校验通过 [interfaces.md §4.5 assets.cash / principal / frozen_cash](./interfaces.md)
 
@@ -518,8 +518,8 @@
 ---
 
 <a id="fr-190"></a>
-### FR-190 交易规则 — 回测 vs 实盘差异
 <a id="ac-fr-190"></a>
+### FR-190 交易规则 — 回测 vs 实盘差异
 
 > 跨模式差异契约见 [spec-trading.md §FR-190](./spec-trading.md); 与 [spec-strategy.md §FR-080 跨模式回测-实盘差异](./spec-strategy.md) 合并覆盖
 
@@ -534,8 +534,8 @@
 ---
 
 <a id="fr-360"></a>
-### FR-360 评估指标 — 风控策略
 <a id="ac-fr-360"></a>
+### FR-360 评估指标 — 风控策略
 
 > 评估仅在 paper/live 下进行(v0.2 不支持 RiskStrategy 回测)。
 
@@ -560,8 +560,8 @@
 ---
 
 <a id="fr-130"></a>
-### FR-130 风控策略契约
 <a id="ac-fr-130"></a>
+### FR-130 风控策略契约
 
 > 风控策略契约见 [spec-strategy.md §FR-130](./spec-strategy.md); 账户/不可回测/不可独立启动 已在 AC-013 段, 本节只补 AC-013 外的 3 条新行为
 
@@ -584,8 +584,8 @@
 ---
 
 <a id="fr-125"></a>
-### FR-125 风控策略驱动契约
 <a id="ac-fr-125"></a>
+### FR-125 风控策略驱动契约
 
 > **不可回测**：v0.2 不支持 RiskStrategy 回测。FR-125 全部 AC 在 paper/live 下验证。
 
@@ -617,8 +617,8 @@
 ---
 
 <a id="fr-200"></a>
-### FR-200 运行时参数（框架管理，策略不可见）
 <a id="ac-fr-200"></a>
+### FR-200 运行时参数（框架管理，策略不可见）
 
 > 运行时参数契约见 [spec-strategy.md §FR-200](./spec-strategy.md); 本金存储见 [interfaces.md §4.5 assets.principal](./interfaces.md)
 
@@ -641,8 +641,8 @@
 ---
 
 <a id="fr-210"></a>
-### FR-210 虚拟账本（按 qtoid 归因）
 <a id="ac-fr-210"></a>
+### FR-210 虚拟账本（按 qtoid 归因）
 
 > 虚拟账本契约见 [spec-trading.md §FR-210](./spec-trading.md); 存储见 [interfaces.md §4.5 assets / §4.4 positions / §4.2 orders / §4.3 trades](./interfaces.md)
 
@@ -661,8 +661,8 @@
 ---
 
 <a id="fr-220"></a>
-### FR-220 手工交易/补单/风控卖出的归属
 <a id="ac-fr-220"></a>
+### FR-220 手工交易/补单/风控卖出的归属
 
 > 手工/补单/风控卖出归属契约见 [spec-trading.md §FR-220](./spec-trading.md); 归属字段见 [interfaces.md §4.2 orders.portfolio_id](./interfaces.md)
 
@@ -679,8 +679,8 @@
 ---
 
 <a id="fr-230"></a>
-### FR-230 独立策略的回测启动路径
 <a id="ac-fr-230"></a>
+### FR-230 独立策略的回测启动路径
 
 > 回测启动路径契约见 [spec-strategy.md §FR-230](./spec-strategy.md)
 
@@ -703,8 +703,8 @@
 ---
 
 <a id="fr-240"></a>
-### FR-240 独立策略的无回测启动路径
 <a id="ac-fr-240"></a>
+### FR-240 独立策略的无回测启动路径
 
 > 无回测启动路径契约见 [spec-strategy.md §FR-240](./spec-strategy.md)
 
@@ -719,8 +719,8 @@
 ---
 
 <a id="fr-250"></a>
-### FR-250 风控策略调度
 <a id="ac-fr-250"></a>
+### FR-250 风控策略调度
 
 > 风控策略调度契约见 [spec-strategy.md §FR-250](./spec-strategy.md); AC-013-XX 已涵盖风控生命周期
 
@@ -732,8 +732,8 @@
 ---
 
 <a id="fr-260"></a>
-### FR-260 调度 UI
 <a id="ac-fr-260"></a>
+### FR-260 调度 UI
 
 > 调度 UI 已迁移到 [v0.2-002-ui/spec.md UI-FR-040](../v0.2-002-ui/spec.md); 行为规则在 001-FR-230/240/250
 
@@ -742,8 +742,8 @@
 ---
 
 <a id="fr-440"></a>
-### FR-440 dry-run 模式
 <a id="ac-fr-440"></a>
+### FR-440 dry-run 模式
 
 > dry-run 行为契约见 [spec-trading.md §FR-440](./spec-trading.md); UI 表现已迁移 [v0.2-002-ui/spec.md UI-FR-060](../v0.2-002-ui/spec.md)
 
@@ -758,8 +758,8 @@
 ---
 
 <a id="fr-450"></a>
-### FR-450 消息通知（微信）— 事件定义
 <a id="ac-fr-450"></a>
+### FR-450 消息通知（微信）— 事件定义
 
 > 通知事件定义见 [spec-trading.md §FR-450](./spec-trading.md); 通知配置 UI 已迁移 [v0.2-002-ui/spec.md UI-FR-450](../v0.2-002-ui/spec.md)
 
