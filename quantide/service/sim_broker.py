@@ -17,6 +17,7 @@ from quantide.core.errors import (
     InsufficientPosition,
     NonMultipleOfLotSize,
     PriceOutOfLimit,
+    TradingHaltedError,
 )
 from quantide.core.message import msg_hub
 from quantide.core.ports import MarketDataPort
@@ -474,6 +475,20 @@ class PaperBroker(AbstractBroker):
             return self._clock.date()
         return datetime.date.today()
 
+    def _is_halted(self, asset: str) -> bool:
+        """FR-170: 判定 asset 是否停牌 (volume == 0).
+
+        quote 不存在视为未 setup (paper/live 推送前), 不阻止下单.
+        只在显式 volume == 0 时判定为停牌.
+        看 snap.volume 而非 quote["volume"] (后者经 `or 0` 把 None 转 0).
+        """
+        if self._market_data is None:
+            return False
+        snap = self._market_data.snapshot([asset]).get(asset)
+        if snap is None:
+            return False
+        return snap.volume == 0
+
     @staticmethod
     def _floor_lot_size(shares: float) -> int:
         """买入数量向下取整到 100 整倍数 (FR-150).
@@ -870,6 +885,9 @@ class PaperBroker(AbstractBroker):
             if up_limit > 0 and down_limit > 0:
                 if price > up_limit or price < down_limit:
                     raise PriceOutOfLimit(asset, price, down_limit, up_limit)
+
+        if self._is_halted(asset):
+            raise TradingHaltedError(asset)
 
         est_price = price
         if est_price == 0:

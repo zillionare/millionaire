@@ -30,6 +30,7 @@ class TradeErrors(IntEnum):
     ERROR_INSUF_POSITION = 11       # 委卖时，持仓不足或者没有持仓
     ERROR_LIMIT_PRICE = 12          # 委托时，价格超出涨跌停
     ERROR_PRICE_NOT_MET = 13        # 委托时，价格不满足要求
+    ERROR_HALT = 14                # 委托时，标的停牌（数据缺失或成交量为 0）
     ERROR_NO_DATA = 14              # 撮合时缺少数据
     ERROR_BAD_PERCENT = 15          # 委托时，percent 不在 (0, 1] 范围内
 
@@ -215,6 +216,23 @@ class PriceOutOfLimit(TradeError):
             TradeErrors.ERROR_LIMIT_PRICE,
             "限价单价格 %s 超出涨跌停范围 [%s, %s] for %s",
             price, down_limit, up_limit, security,
+        )
+
+
+class TradingHaltedError(TradeError):
+    """停牌标的不可下单 (FR-170).
+
+    停牌判定: 数据缺失 (quote 为空) 或 volume == 0.
+    持仓中的停牌标的按停牌前最后收盘价估值, 不阻止卖单 (但实际业务中可能拒绝).
+    """
+
+    def __init__(self, security: str, reason: str = "数据缺失或成交量为 0"):
+        self.security = security
+        self.reason = reason
+        super().__init__(
+            TradeErrors.ERROR_HALT,
+            "停牌标的 %s 不可下单: %s",
+            security, reason,
         )
 
 
