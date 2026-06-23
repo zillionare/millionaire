@@ -825,3 +825,86 @@
 本文件中每条 AC 的验证,需通过 [spec-foundation.md NFR-050](./spec-foundation.md) 定义的可观测点(结构化日志 / 数据存盘文件 / 数据库表 / Web API)完成。完整的观测点清单见 [test-plan.md §3.1](./test-plan.md)。
 
 凡 AC 涉及的内部状态,实现层**必须**提供对应可观测出口;此为 PR 评审的强制 checklist。
+
+<a id="fr-050"></a>
+<a id="ac-fr-050"></a>
+### FR-050 下单方式 — cheat-on-close
+
+> **范围**: 撮合行为由 [test-plan.md §3.2 撮合 ground truth](./test-plan.md) 覆盖 (Qwen 第六轮 audit F5 决策).
+> 跟 spec-strategy.md §FR-050 "下单方式 — cheat-on-close" 一致.
+
+#### AC-050-01 撮合 ground truth 覆盖
+
+- ⬜ 行为由 acceptance.md 不单独列 AC, 见 [test-plan.md §3.2 撮合 ground truth](./test-plan.md)
+
+---
+
+<a id="fr-060"></a>
+<a id="ac-fr-060"></a>
+### FR-060 下单方式 — 次日开盘（正常模式）
+
+> **范围**: 撮合行为由 [test-plan.md §3.2 撮合 ground truth](./test-plan.md) 覆盖 (Qwen F5 决策).
+> 跟 spec-strategy.md §FR-060 一致.
+
+#### AC-060-01 撮合 ground truth 覆盖
+
+- ⬜ 行为由 [test-plan.md §3.2 撮合 ground truth](./test-plan.md) 覆盖
+
+---
+
+<a id="fr-070"></a>
+<a id="ac-fr-070"></a>
+### FR-070 下单方式 — 次日限价
+
+> **范围**: 撮合行为由 [test-plan.md §3.2 撮合 ground truth](./test-plan.md) 覆盖 (Qwen F5 决策).
+> 跟 spec-strategy.md §FR-070 一致.
+
+#### AC-070-01 撮合 ground truth 覆盖
+
+- ⬜ 行为由 [test-plan.md §3.2 撮合 ground truth](./test-plan.md) 覆盖
+
+---
+
+<a id="fr-080"></a>
+<a id="ac-fr-080"></a>
+### FR-080 跨模式回测-实盘差异（声明性）
+
+> **范围**: 声明性 FR, 不单独 AC. 见 [test-plan.md §6.3 跨模式差异测试](./test-plan.md) + [story.md §1.5](./story.md) 末尾说明 (Qwen F5 决策).
+> 跟 spec-strategy.md §FR-080 一致.
+
+#### AC-080-01 跨模式差异测试覆盖
+
+- ⬜ 行为由 [test-plan.md §6.3 三层测试金字塔跨模式差异测试](./test-plan.md) 覆盖
+
+---
+
+<a id="fr-185"></a>
+<a id="ac-fr-185"></a>
+### FR-185 持仓成本基准（加权均价 — 经典方案 A, P1 已解）
+
+> **算法**: 加权均价经典方案 A (P1 已解, 2026-06-22), 见 [spec-strategy.md §FR-185](./spec-strategy.md).
+> 4 条公式:
+> - F-CB-1 买入时加权更新: new_price = (old_qty × old + buy_qty × buy) / new_qty
+> - F-CB-2 部分卖出时成本不变: cost_basis ← old_cost_basis
+> - F-CB-3 全部卖出时清仓: 删除持仓记录
+> - F-CB-4 首次建仓: cost_basis ← buy_price
+> 存储: [interfaces.md §4.4 positions 表](./interfaces.md) 的 `price` 字段.
+> 与 FR-110 引用: cost_basis 即 '买入价', 触发 last_price <= cost_basis × (1 − k%).
+
+#### AC-185-01 加权均价算法按 F-CB-1 实现
+
+- ⬜ 买入时加权更新: new_price = (old_qty × old + buy_qty × buy) / new_qty
+
+#### AC-185-02 部分卖出时成本不变
+
+- ⬜ 部分卖出时 cost_basis 保持不变, 仅 shares 减少
+
+#### AC-185-03 全部卖出时清仓
+
+- ⬜ shares 降到 0 时, 持仓记录从 [interfaces.md §4.4 positions 表](./interfaces.md) 删除
+
+#### AC-185-04 首次建仓初始化 cost_basis
+
+- ⬜ 首次建仓时 cost_basis ← buy_price (不是 0 也不是均值)
+
+---
