@@ -44,6 +44,7 @@ class PaperBroker(AbstractBroker):
         commission: float = 1e-4,
         stamp_tax: float = 0.001,
         slippage: float = 0.0,
+        dry_run: bool = False,
         portfolio_name: str = "simulation",
         info: str = "",
         market_value_update_interval: float = 10.0,
@@ -57,6 +58,7 @@ class PaperBroker(AbstractBroker):
             commission: 佣金费率 (默认 1e-4 = 0.01%, A 股双边)
             stamp_tax: 印花税率 (默认 0.001 = 0.1%, A 股仅卖方, FR-180)
             slippage: 滑点 (比率, 默认 0.0, FR-200)
+            dry_run: dry-run 模式 (默认 False, FR-440): True 时 buy/sell 记录信号不实际下单
             portfolio_name: 账户名称
             info: 账户描述信息
             market_value_update_interval: 持仓市值更新间隔（秒），默认10秒
@@ -80,6 +82,8 @@ class PaperBroker(AbstractBroker):
         self._market_data = market_data
         self._stamp_tax = stamp_tax
         self._slippage = slippage
+        self._dry_run = dry_run
+        self._dry_run_signals: list[dict] = []
         self._limits: dict[str, dict[str, float]] = {}
         self._clock: datetime.datetime | None = None
 
@@ -881,11 +885,21 @@ class PaperBroker(AbstractBroker):
             timeout: 超时时间（秒）
 
         Returns:
-            成交结果
+            成交结果. dry-run 模式下返回空 TradeResult, 信号记录到 _dry_run_signals.
 
         Raises:
             InsufficientCash: 资金不足
         """
+        if self._dry_run:
+            self._dry_run_signals.append({
+                "side": OrderSide.BUY,
+                "asset": asset,
+                "shares": shares,
+                "price": price,
+                "tm": order_time or self._now(),
+            })
+            return TradeResult(qt_oid="dry-run", trades=[])
+
         if shares % 100 != 0:
             floored = self._floor_lot_size(shares)
             if floored <= 0:
@@ -960,12 +974,22 @@ class PaperBroker(AbstractBroker):
             timeout: 超时时间（秒）
 
         Returns:
-            成交结果
+            成交结果. dry-run 模式下返回空 TradeResult, 信号记录到 _dry_run_signals.
 
         Raises:
             InsufficientPosition: 持仓不足
             NonMultipleOfLotSize: 卖出数量不符合手数限制（非清仓时）
         """
+        if self._dry_run:
+            self._dry_run_signals.append({
+                "side": OrderSide.SELL,
+                "asset": asset,
+                "shares": shares,
+                "price": price,
+                "tm": order_time or self._now(),
+            })
+            return TradeResult(qt_oid="dry-run", trades=[])
+
         # 1. 检查持仓
         if asset not in self._positions:
             raise InsufficientPosition(security=asset, amount=shares)
