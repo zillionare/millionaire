@@ -16,6 +16,7 @@ from quantide.core.errors import (
     InsufficientCash,
     InsufficientPosition,
     NonMultipleOfLotSize,
+    PriceOutOfLimit,
 )
 from quantide.core.message import msg_hub
 from quantide.core.ports import MarketDataPort
@@ -843,6 +844,12 @@ class PaperBroker(AbstractBroker):
         if int(shares) % 100 != 0:
             raise NonMultipleOfLotSize(asset, shares)
 
+        if price != 0:
+            down_limit, up_limit = self._get_price_limits(asset)
+            if up_limit > 0 and down_limit > 0:
+                if price > up_limit or price < down_limit:
+                    raise PriceOutOfLimit(asset, price, down_limit, up_limit)
+
         est_price = price
         if est_price == 0:
             _, up_limit = self._get_price_limits(asset)
@@ -913,6 +920,12 @@ class PaperBroker(AbstractBroker):
             raise InsufficientPosition(security=asset, amount=shares)
         pos = self._positions[asset]
         self._validate_sell_shares(pos, shares)
+
+        if price != 0:
+            down_limit, up_limit = self._get_price_limits(asset)
+            if up_limit > 0 and down_limit > 0:
+                if price > up_limit or price < down_limit:
+                    raise PriceOutOfLimit(asset, price, down_limit, up_limit)
 
         # 2. 创建订单
         order = Order(

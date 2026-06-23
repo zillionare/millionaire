@@ -199,6 +199,25 @@ class InsufficientPosition(TradeError):
         )
 
 
+class PriceOutOfLimit(TradeError):
+    """限价单价格超出涨跌停范围 (FR-140).
+
+    限价单指定价必须落在 [down_limit, up_limit] 内, 否则下单直接拒绝.
+    市价单 (price == 0) 不受此校验.
+    """
+
+    def __init__(self, security: str, price: float, down_limit: float, up_limit: float):
+        self.security = security
+        self.price = price
+        self.down_limit = down_limit
+        self.up_limit = up_limit
+        super().__init__(
+            TradeErrors.ERROR_LIMIT_PRICE,
+            "限价单价格 %s 超出涨跌停范围 [%s, %s] for %s",
+            price, down_limit, up_limit, security,
+        )
+
+
 class UnsupportedFrameTypeForBacktest(RuntimeError):
     def __init__(self, frame_type: str):
         super().__init__(f"Unsupported frame_type '{frame_type}' for backtest")
