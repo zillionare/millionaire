@@ -1,4 +1,5 @@
 import datetime
+import inspect
 import uuid
 from typing import Any
 
@@ -261,7 +262,7 @@ class BacktestRunner:
         Returns:
             Dict[str, Any]: 回测结果，包含 metrics 和 portfolio_id
         """
-        if issubclass(strategy_cls, RiskStrategy):
+        if inspect.isclass(strategy_cls) and issubclass(strategy_cls, RiskStrategy):
             raise RiskStrategyNotBacktestable(getattr(strategy_cls, "__name__", ""))
 
         start_date, end_date = self._align_backtest_dates(start_date, end_date)
