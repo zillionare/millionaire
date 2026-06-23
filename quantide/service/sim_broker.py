@@ -483,6 +483,15 @@ class PaperBroker(AbstractBroker):
         """
         return (int(shares) // 100) * 100
 
+    def settle_t1(self) -> None:
+        """T+1 结算: 当日买入的 in-transit 持仓 (shares > avail) 在 day_end 后转为 avail (FR-160).
+
+        维护 avail (可卖) + shares (总持仓) 分别记账; 调用此方法 (一般 day_end scheduler 触发) 把当日 buy 的 in-transit shares 转入 avail.
+        """
+        for asset, pos in self._positions.items():
+            if pos.shares > pos.avail:
+                pos.avail = pos.shares
+
     def _init_or_sync_state(self):
         """初始化或同步账户状态。
 
