@@ -249,11 +249,11 @@
 - 语义: 收盘价比卖出价低 → 风控取得**正**收益(避开了下跌);收盘价比卖出价高 → **负**收益(错过了上涨)
 
 **F-TB-4** up 屏障触发判断(日线 / 回测)
-- `high ≥ P_sell * (1 + up_threshold)` → 屏障触发
+- `high ≥ P_sell * (1 + up_threshold / 100)` → 屏障触发
 - 一日内同时触达上界和下界: 以开盘价更接近者为准(见 FR-013 / story §1.9)
 
 **F-TB-5** down 屏障触发判断(日线 / 回测)
-- `low ≤ P_sell * (1 − down_threshold)` → 屏障触发
+- `low ≤ P_sell * (1 − down_threshold / 100)` → 屏障触发
 
 **变量定义**:
 - `P_sell`: 卖出价
