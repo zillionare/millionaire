@@ -29,6 +29,8 @@ Millionaire 通过适配外部数据源，提供统一的历史数据和实时�
 
 **风控策略在回测**时，将每日随机生成一批（参数）个股，次日风控策略生效，决定是否卖出：对卖出的个股，按 Triple Barrier 方法计算 n 日（参数）卖出时的超额收益；对没卖出的个股则直接抛弃。当日再随机生成另一批个股，供第风控策略第二天消耗。
 
+> **v0.2 范围说明**: 上表 + 上述段落描述的 RiskStrategy 随机持仓回测方法, v0.2 暂不实现。详见 [spec-strategy.md §FR-013](./spec-strategy.md) 的"可回测: ❌ 否"。风控策略仅在 paper/live 下生效; 评估走 [interfaces.md §6](./interfaces.md) 的 `risk.triggered` / `risk.excess_return.finalized` 日志事件 (v0.2 走日志, PR3 升级为表)。
+
 
 ### 1.1. 作为SDK
 
