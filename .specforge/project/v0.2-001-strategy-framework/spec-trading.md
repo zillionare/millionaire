@@ -18,7 +18,6 @@
 - 开盘即涨停的标的买入单不撮合；开盘即跌停的标的卖出单不撮合
 - `is_st=true` 股票不做下单限制（策略自行过滤）
 
-> **AC**: 无（行为由 [test-plan.md §1.13 限制声明 + §1.3 L1 paper E2E 边界值](./test-plan.md) 覆盖）
 
 ---
 
@@ -33,7 +32,6 @@
 - 仿真/实盘实际成交数量受涨跌停/停牌/成交量约束，可能少于委托
 - 回测中订单要么全成交，要么作废（不考虑成交量）
 
-> **AC**: 无（行为由 [test-plan.md §1.13 限制声明 + §1.3 L1 paper E2E 边界值](./test-plan.md) 覆盖）
 
 ---
 
@@ -46,7 +44,6 @@
 - **T+1**：当日买入的持仓当日不可卖；次日起方可卖。框架按"可卖持仓"与"在途持仓"分别记账
 - 非交易时段（含午休、周末、节假日）生成的信号，订单顺延至下一交易时点（具体行为由 FR-050/060/070 决定）
 
-> **AC**: 无（行为由 [test-plan.md §1.13 限制声明 + §1.3 L1 paper E2E](./test-plan.md) 覆盖；T+1 验证见 [interfaces.md §4.4 positions.avail](./interfaces.md)）
 
 ---
 
@@ -58,7 +55,6 @@
 
 停牌股票（数据缺失或 `volume=0`）不可下单；持仓中的停牌股票按停牌前最后收盘价估值。
 
-> **AC**: 无（行为由 [test-plan.md §1.13 限制声明 + §1.3 L1 paper E2E](./test-plan.md) 覆盖）
 
 ---
 
@@ -72,7 +68,6 @@
 - 印花税（卖方收取，按比率）、佣金（按比率，不低于单笔最低佣金）按 FR-200 配置扣除，扣减发生在成交后立即结算
 - 资金校验在虚拟账户层进行：买入下单时检查虚拟账户可用资金是否足以覆盖（成交金额 + 佣金）
 
-> **AC**: 无（行为由 [test-plan.md §1.13 限制声明 + §1.3 L1 paper E2E](./test-plan.md) 覆盖；资金校验见 [interfaces.md §4.5 assets.cash](./interfaces.md)）
 
 ---
 
@@ -84,7 +79,6 @@
 
 回测时上述规则由框架仿真全部实施；仿真/实盘时，时间/价格/数量规则由交易所/柜台强制保证，框架只在下单前做预校验以避免明显错误委托被发出。撮合差异见 FR-080。
 
-> **AC**: 无（声明性 FR，与 [spec-strategy.md §FR-080 跨模式差异](./spec-strategy.md) 合并覆盖）
 
 ---
 
@@ -96,7 +90,6 @@
 
 每个独立策略在 live/paper 中运行时拥有一个虚拟账户，配置独立本金作为资金上限。所有虚拟账户共享真实账户的总资金（用户自行保证各策略本金之和 ≤ 真实账户可用资金；Millionaire 不做跨虚拟账户资金分配校验）。Millionaire 为每个独立策略维护按 `qtoid` 归因的虚拟账本，用于策略级资产/持仓/委托/成交/收益评估/dry-run/并行仿真。除非特别说明，系统中的"策略账户"均指这套虚拟账本，而非柜台原始总账户。
 
-> **AC**: 无（行为由 [test-plan.md §1.3 L1 paper E2E + §3.4 评估指标 ground truth](./test-plan.md) 覆盖；虚拟账本存储见 [interfaces.md §4.5 assets / §4.4 positions / §4.2 orders / §4.3 trades](./interfaces.md) 全部按 `portfolio_id` 隔离）
 
 ---
 
@@ -108,7 +101,6 @@
 
 手工交易、补单和风控卖出都必须归属到某个独立策略账户，并写入该策略的虚拟账本。柜台原始账户信息主要用于总览和排障，不直接替代策略级归因结果。
 
-> **AC**: 无（行为由 [test-plan.md §1.3 L1 paper E2E](./test-plan.md) 覆盖；归属字段见 [interfaces.md §4.2 orders.portfolio_id](./interfaces.md)）
 
 ---
 ### FR-270 数据源 — 行情（tushare）
@@ -353,7 +345,6 @@
 
 允许正在实盘的策略进入 dry-run:策略正常运行但**不实际下单**。期间交易信号被记录,但策略指标无法计算。dry-run 期间的策略指标**参考其并行仿真实例**。
 
-> **AC**: 无（行为由 [test-plan.md §1.3 L1 paper E2E + §6.4 调度契约](./test-plan.md) 覆盖；UI 表现已迁移 [v0.2-002-ui/spec.md UI-FR-060](../v0.2-002-ui/spec.md)）
 
 ---
 
@@ -375,7 +366,6 @@
 | 4   | 成交失败         |
 | 5   | 实盘交易网关断开 |
 
-> **AC**: 无（事件定义见本 FR；通知配置 UI 已迁移 [v0.2-002-ui/spec.md UI-FR-450](../v0.2-002-ui/spec.md)；运行时通过 [interfaces.md §6 日志条目类型](./interfaces.md) `order.submitted` / `order.filled` / `order.rejected` / `risk.triggered` / `gateway.disconnected` 触发）
 
 ---
 
