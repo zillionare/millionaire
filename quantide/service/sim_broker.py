@@ -42,6 +42,7 @@ class PaperBroker(AbstractBroker):
         portfolio_id: str,
         principal: float = 1_000_000,
         commission: float = 1e-4,
+        stamp_tax: float = 0.001,
         portfolio_name: str = "simulation",
         info: str = "",
         market_value_update_interval: float = 10.0,
@@ -52,7 +53,8 @@ class PaperBroker(AbstractBroker):
         Args:
             portfolio_id: 账户ID
             principal: 初始资金
-            commission: 佣金费率
+            commission: 佣金费率 (默认 1e-4 = 0.01%, A 股双边)
+            stamp_tax: 印花税率 (默认 0.001 = 0.1%, A 股仅卖方, FR-180)
             portfolio_name: 账户名称
             info: 账户描述信息
             market_value_update_interval: 持仓市值更新间隔（秒），默认10秒
@@ -74,6 +76,7 @@ class PaperBroker(AbstractBroker):
         self._market_value_update_interval = market_value_update_interval
         self._last_mv_update_time = 0.0
         self._market_data = market_data
+        self._stamp_tax = stamp_tax
         self._limits: dict[str, dict[str, float]] = {}
         self._clock: datetime.datetime | None = None
 
@@ -791,19 +794,22 @@ class PaperBroker(AbstractBroker):
             fee=0 # 暂不计算手续费
         )
         # 计算手续费
-        trade.fee = self._calculate_commission(trade.amount)
+        trade.fee = self._calculate_fee(trade.amount, order.side)
         return matched_shares, trade
 
-    def _calculate_commission(self, amount: float) -> float:
-        """计算手续费。
+    def _calculate_fee(self, amount: float, side: OrderSide) -> float:
+        """计算手续费 (FR-180).
 
         Args:
             amount: 成交金额
+            side: 订单方向
 
         Returns:
-            手续费
+            fee = 佣金 (max(5.0, amount * commission)) + 印花税 (仅卖方, amount * stamp_tax)
         """
-        return max(5.0, amount * self._commission)
+        commission = max(5.0, amount * self._commission)
+        stamp = amount * self._stamp_tax if side == OrderSide.SELL else 0.0
+        return commission + stamp
 
     def _apply_trade_to_portfolio(self, trade: Trade):
         """应用成交到投资组合（仅更新内存状态）。
