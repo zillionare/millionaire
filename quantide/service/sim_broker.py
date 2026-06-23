@@ -43,6 +43,7 @@ class PaperBroker(AbstractBroker):
         principal: float = 1_000_000,
         commission: float = 1e-4,
         stamp_tax: float = 0.001,
+        slippage: float = 0.0,
         portfolio_name: str = "simulation",
         info: str = "",
         market_value_update_interval: float = 10.0,
@@ -55,6 +56,7 @@ class PaperBroker(AbstractBroker):
             principal: 初始资金
             commission: 佣金费率 (默认 1e-4 = 0.01%, A 股双边)
             stamp_tax: 印花税率 (默认 0.001 = 0.1%, A 股仅卖方, FR-180)
+            slippage: 滑点 (比率, 默认 0.0, FR-200)
             portfolio_name: 账户名称
             info: 账户描述信息
             market_value_update_interval: 持仓市值更新间隔（秒），默认10秒
@@ -77,6 +79,7 @@ class PaperBroker(AbstractBroker):
         self._last_mv_update_time = 0.0
         self._market_data = market_data
         self._stamp_tax = stamp_tax
+        self._slippage = slippage
         self._limits: dict[str, dict[str, float]] = {}
         self._clock: datetime.datetime | None = None
 
@@ -760,6 +763,9 @@ class PaperBroker(AbstractBroker):
 
         # 价格判断
         match_price = last_price
+        if self._slippage > 0:
+            direction = 1 if order.side == OrderSide.BUY else -1
+            match_price = round(last_price * (1.0 + self._slippage * direction), 4)
         if order.bid_type == BidType.FIXED:
             if order.side == OrderSide.BUY and order.price < last_price:
                 return 0.0, None
