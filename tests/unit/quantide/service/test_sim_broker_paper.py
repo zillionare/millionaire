@@ -134,7 +134,7 @@ async def test_paper_broker_error_and_cancel_paths(paper_broker):
         await paper_broker.buy(asset, 20000, price=10.0)
 
     with pytest.raises(NonMultipleOfLotSize):
-        await paper_broker.buy(asset, 150, price=10.0)
+        await paper_broker.buy(asset, 50, price=10.0)
 
     with pytest.raises(InsufficientPosition):
         await paper_broker.sell(asset, 100, price=10.0)

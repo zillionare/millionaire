@@ -134,24 +134,27 @@ class AbstractBroker(Broker):
     def _validate_sell_shares(
         self, pos: Position, shares: float
     ) ->None:
-        """卖出时，如果是清仓，则不限制卖出数量；否则必须以100的整数倍为单位"""
+        """卖出时，如果是清仓或零股 (不足一手的零散股) 则不限 100 整倍数；否则必须以 100 整数倍为单位 (FR-150)."""
         # 1. 基础检查：没有可用持仓
         if pos.avail == 0:
             raise InsufficientPosition(pos.asset, shares)
 
-        # 2. 清仓判断：
-        # 条件：请求卖出的数量接近可用持仓量，且可用持仓量接近总持仓量（即全仓可卖）
-        # 允许微小误差
+        # 2. 清仓判断:
+        # 请求卖出的数量接近可用持仓量, 且可用持仓量接近总持仓量 (即全仓可卖)
         is_clearance = (abs(pos.shares - pos.avail) < 1e-7) and (abs(shares - pos.avail) < 1e-7)
-
         if is_clearance:
             return
 
-        # 3. 数量检查：非清仓情况下，卖出量不能超过可用量
+        # 3. 零股判断 (FR-150 允许例外): 卖出数量 < 100 (零散股), 持仓 >= shares 即可
+        # 例: 持仓 150 卖 50 (零股允许), 持仓 100 卖 50 不允许 (非清仓, 非零股)
+        if shares < 100 and shares <= pos.avail:
+            return
+
+        # 4. 数量检查: 非清仓情况下, 卖出量不能超过可用量
         if shares > pos.avail:
              raise InsufficientPosition(pos.asset, shares)
 
-        # 4. 整手检查
+        # 5. 整手检查
         if shares % 100 != 0 or shares == 0:
             raise NonMultipleOfLotSize(pos.asset, shares)
 

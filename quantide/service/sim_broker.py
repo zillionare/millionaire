@@ -474,6 +474,15 @@ class PaperBroker(AbstractBroker):
             return self._clock.date()
         return datetime.date.today()
 
+    @staticmethod
+    def _floor_lot_size(shares: float) -> int:
+        """买入数量向下取整到 100 整倍数 (FR-150).
+
+        Returns:
+            floor(shares / 100) * 100, 或 0 当 shares < 100.
+        """
+        return (int(shares) // 100) * 100
+
     def _init_or_sync_state(self):
         """初始化或同步账户状态。
 
@@ -841,8 +850,11 @@ class PaperBroker(AbstractBroker):
         Raises:
             InsufficientCash: 资金不足
         """
-        if int(shares) % 100 != 0:
-            raise NonMultipleOfLotSize(asset, shares)
+        if shares % 100 != 0:
+            floored = self._floor_lot_size(shares)
+            if floored <= 0:
+                raise NonMultipleOfLotSize(asset, shares)
+            shares = floored
 
         if price != 0:
             down_limit, up_limit = self._get_price_limits(asset)
