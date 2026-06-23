@@ -841,4 +841,13 @@
 - FR-080 (跨模式差异): 声明性 FR, 跨模式差异由 [test-plan.md §6.3 三层测试金字塔跨模式差异测试](./test-plan.md) 覆盖
 - FR-185 (加权均价经典方案 A, P1 已解): 算法定义见 [spec-strategy.md §FR-185 F-CB-1/2/3/4 公式](./spec-strategy.md); 存储 [interfaces.md §4.4 positions.price](./interfaces.md)
 
+### NFR — 非功能需求
+
+- NFR-010 (性能): AC 由 [test-plan.md §3.4 评估指标 ground truth (empyrical-reloaded)](./test-plan.md) + CI 性能基准保证
+- NFR-020 (类型完备): AC 由 ruff mypy strict CI 保证
+- NFR-030 (单一职责): AC 由 code review + 架构图验证保证
+- NFR-040 (不留冗余): AC 由 code review + coverage ≥ 95% 保证
+- NFR-050 (可观测性): AC 由 L1 paper E2E 黑盒断言间接保证 (见 [interfaces.md §4-6 数据表 + 日志](./interfaces.md))
+- NFR-060 (运行时可注入): AC 见下方 '运行时可注入性验收 (NFR-060 联动)' 节 (AC-CLOCK-INJ-01~06); 此处列 '无' 是因 acceptance.md 无 ac-nfr-060 锚点
+
 > **Lex 阶段一审核依据**: 这些 FR 的 acceptance 来源 (test-plan §3.2 / spec FR 章节) 已由 spec 阶段锁定, Lex 验证 spec.md + test-plan.md 引用完整后, 视为 AC 已落地. 不需 acceptance.md 占位章节.
