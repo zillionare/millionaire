@@ -403,7 +403,7 @@ Ground Truth 脚本由测试工程师完成。
 | 类型                                                                 | 独立脚本来源                                |
 | -------------------------------------------------------------------- | ------------------------------------------- |
 | 算法正确(双均线交叉、风控触发、撮合成交价、T+1、涨跌停)              | **手算**:编写显式的小脚本(如 §3.2/3.3/3.5)  |
-| 评估指标(Sharpe / Sortino / Calma / 最大回撤 / 胜率 / 盈亏比 / 年化) | **第三方库 empyrical**(独立实现,非参考实现) |
+| 评估指标(Sharpe / Sortino / Calma / 最大回撤 / 胜率 / 盈亏比 / 年化) | **第三方库 `empyrical-reloaded` >= 0.5.12** (社区 fork, 保持 empyrical 原 API 兼容; 原 empyrical 已停维) |
 | 简单规则(是否 ST、是否交易日)                                        | **数据本身**:tushare 历史数据作为单一真相源 |
 
 > 关键设计:ground truth 是**可重算的脚本**,不是文档化的固定值。测试运行时调用同一份数据 + ground truth 脚本,与框架输出对比。
@@ -414,7 +414,7 @@ Ground Truth 脚本由测试工程师完成。
 
 1. **代码位置**：所有 ground truth 脚本统一存放于 `tests/ground_truth/` 目录（unit/e2e 共享）
 2. **导入禁忌**：`tests/ground_truth/**/*.py` **禁止** `import quantide.*`（含子模块）；CI 静态检查违反则阻塞 merge
-3. **允许依赖**：仅可使用 `polars` / `pandas` / `numpy` / `empyrical` / 标准库 / 测试数据文件（parquet / json）
+3. **允许依赖**：仅可使用 `polars` / `pandas` / `numpy` / `empyrical-reloaded` (>= 0.5.12) / 标准库 / 测试数据文件（parquet / json）
 4. **数据访问**：通过直接读取 `tests/assets/*/fixtures/data/` 中的 parquet 文件获得行情/日历/证券，**不**经由被测框架的 SDK
 5. **审查归口**：ground truth 脚本变更需由测试负责人审查；与对应 AC 的语义一致性是审查重点
 
@@ -471,17 +471,17 @@ return final_pnl, trades
 
 | 指标     | 来源                                                          |
 | -------- | ------------------------------------------------------------- |
-| Sharpe   | empyrical.sharpe_ratio(returns)                               |
-| Sortino  | empyrical.sortino_ratio(returns)                              |
-| Calma    | empyrical.calmar_ratio(returns)                               |
-| 最大回撤 | empyrical.max_drawdown(returns)                               |
+| Sharpe   | empyrical_reloaded.sharpe_ratio(returns)                      |
+| Sortino  | empyrical_reloaded.sortino_ratio(returns)                     |
+| Calma    | empyrical_reloaded.calmar_ratio(returns)                      |
+| 最大回撤 | empyrical_reloaded.max_drawdown(returns)                      |
 | 胜率     | 手算:盈利交易数 / 总交易数                                    |
 | 盈亏比   | 手算:平均盈利 / 平均亏损                                      |
-| 年化收益 | empyrical.annual_return(returns) 或手算 `(1+total)^(252/n)-1` |
+| 年化收益 | empyrical_reloaded.annual_return(returns) 或手算 `(1+total)^(252/n)-1` |
 
 **测试做法**:
 - 跑框架回测,捕获 returns 序列(由框架导出,可从回测结果 JSON 读取)
-- 调用 empyrical 计算各项指标
+- 调用 empyrical-reloaded (>= 0.5.12) 计算各项指标
 - 对比框架计算的指标值
 - 容差:相对误差 < 1e-6
 

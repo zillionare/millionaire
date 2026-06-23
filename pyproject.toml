@@ -36,6 +36,7 @@ tenacity = "^9.1.2"
 sqlite-utils = "^3.39"
 polars = "^1.36.1"
 polars-talib = "^0.1.5"
+empyrical-reloaded = "^0.5.12"  # v0.2 评估指标第三方库 (empyrical 已停维, 用 reloaded fork)
 pandas = "^2.3.3"
 pyarrow = "^22.0.0"
 monsterui = "^1.0.36"
