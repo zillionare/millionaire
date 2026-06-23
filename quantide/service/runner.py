@@ -8,7 +8,8 @@ from quantide.config.settings import get_cheat_on_close_time
 from quantide.core.enums import FrameType
 from quantide.core.ports import ClockPort
 from quantide.core.runtime.clock_bridge import BacktestClockAdapter
-from quantide.core.strategy import BaseStrategy
+from quantide.core.strategy import BaseStrategy, RiskStrategy
+from quantide.core.errors import RiskStrategyNotBacktestable
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
@@ -260,7 +261,11 @@ class BacktestRunner:
         Returns:
             Dict[str, Any]: 回测结果，包含 metrics 和 portfolio_id
         """
+        if issubclass(strategy_cls, RiskStrategy):
+            raise RiskStrategyNotBacktestable(getattr(strategy_cls, "__name__", ""))
+
         start_date, end_date = self._align_backtest_dates(start_date, end_date)
+
         portfolio_id, broker, strategy = self._init_backtest(
             strategy_cls,
             config,
