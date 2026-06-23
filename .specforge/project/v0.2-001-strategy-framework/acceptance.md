@@ -825,3 +825,20 @@
 本文件中每条 AC 的验证,需通过 [spec-foundation.md NFR-050](./spec-foundation.md) 定义的可观测点(结构化日志 / 数据存盘文件 / 数据库表 / Web API)完成。完整的观测点清单见 [test-plan.md §3.1](./test-plan.md)。
 
 凡 AC 涉及的内部状态,实现层**必须**提供对应可观测出口;此为 PR 评审的强制 checklist。
+---
+
+## No Acceptance
+
+按 specforge 0.5.1 L7 三模式 (v0.5-006): 字面值 "无" + acceptance.md ## No Acceptance 列表.
+
+以下 FR 无专属 acceptance 章节 (AC 在 spec 章节中描述, 或由 test-plan / CI 静态扫描覆盖):
+
+### FR — 撮合/算法/声明性
+
+- **FR-050** (cheat-on-close): AC 由 [test-plan.md §3.2 撮合 ground truth](./test-plan.md) 覆盖, 行为依赖 cheat-on-close 撮合规则
+- **FR-060** (次日开盘): 同上, 撮合规则为 T0 收盘价信号 → T1 开盘价成交
+- **FR-070** (次日限价): 同上, 撮合规则为 T0 收盘价信号 → T1 限价成交
+- **FR-080** (跨模式差异): 声明性 FR, 跨模式差异由 [test-plan.md §6.3 三层测试金字塔跨模式差异测试](./test-plan.md) 覆盖
+- **FR-185** (加权均价经典方案 A, P1 已解): 算法定义见 [spec-strategy.md §FR-185 F-CB-1/2/3/4 公式](./spec-strategy.md); 存储 [interfaces.md §4.4 positions.price](./interfaces.md)
+
+> **Lex 阶段一审核依据**: 这些 FR 的 acceptance 来源 (test-plan §3.2 / spec FR 章节) 已由 spec 阶段锁定, Lex 验证 spec.md + test-plan.md 引用完整后, 视为 AC 已落地. 不需 acceptance.md 占位章节.
