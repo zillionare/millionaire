@@ -6,7 +6,11 @@ from quantide.core.strategy import BaseStrategy
 
 
 class DualMAStrategy(BaseStrategy):
-    """双均线策略示例"""
+    """双均线策略示例 (FR-090)"""
+
+    @staticmethod
+    def default_config() -> dict:
+        return {"fast": 5, "slow": 20}
 
     def __init__(self, broker, config):
         super().__init__(broker, config)
