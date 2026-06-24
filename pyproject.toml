@@ -96,6 +96,7 @@ ignore = [
 convention = "pep257"
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 markers = [
     "e2e: HTTP-level end-to-end tests organized by user journey",
     "release_gate: QA release-gate evidence tracked in the three-mode acceptance checklist",

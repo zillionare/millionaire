@@ -186,8 +186,14 @@ class RiskStrategy(Strategy):
             except Exception:
                 price = 0.0
         cost_basis = None
-        if asset in (self.broker.positions or {}):
-            pos = self.broker.positions[asset]
+        positions = self.broker.positions
+        if isinstance(positions, dict):
+            pos = positions.get(asset)
+        elif isinstance(positions, list):
+            pos = next((p for p in positions if getattr(p, "asset", None) == asset), None)
+        else:
+            pos = None
+        if pos is not None:
             cost_basis = getattr(pos, "price", None)
         emit_risk_triggered(
             activation_id=self.activation_id,

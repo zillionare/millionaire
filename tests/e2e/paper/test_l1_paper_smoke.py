@@ -15,13 +15,13 @@ import pytest
 
 from quantide.data.models.calendar import calendar as calendar_model
 from quantide.data.models.daily_bars import daily_bars
-from quantide.data.models.limit_price import limit_price
 from quantide.data.sqlite import db
 
 from tests.e2e.support.runtime_factory import make_paper_runtime
 from tests.e2e.support.virtual_clock import VirtualClock
 
 ASSETS_ROOT = Path(__file__).resolve().parents[2] / "assets"
+MINIMAL_ASSETS_ROOT = Path(__file__).resolve().parent.parent / "fixtures" / "minimal_assets"
 TEST_DATE = datetime.date(2024, 6, 3)
 
 
