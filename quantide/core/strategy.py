@@ -154,6 +154,13 @@ class BaseStrategy(Strategy):
 
 
 class RiskStrategy(Strategy):
+    def __init__(self, broker, config: dict):
+        super().__init__(broker, config)
+        import uuid
+        self.activation_id: str = str(uuid.uuid4())
+        self.host_strategy_id: str = getattr(broker, "portfolio_id", "")
+        self.risk_strategy_id: str = f"{type(self).__module__}.{type(self).__name__}"
+
     async def on_check(self, positions: dict[str, Any],
                        tm: datetime.datetime) -> None:
         pass
@@ -170,4 +177,27 @@ class RiskStrategy(Strategy):
 
     async def sell_host_position(self, asset: str, shares: int,
                                   reason: str = "") -> TradeResult:
+        from quantide.core.risk_events import BarrierHit, emit_risk_triggered
+        price = 0.0
+        if hasattr(self.broker, "get_prices"):
+            try:
+                prices = self.broker.get_prices([asset])
+                price = float(prices.get(asset, 0.0) or 0.0)
+            except Exception:
+                price = 0.0
+        cost_basis = None
+        if asset in (self.broker.positions or {}):
+            pos = self.broker.positions[asset]
+            cost_basis = getattr(pos, "price", None)
+        emit_risk_triggered(
+            activation_id=self.activation_id,
+            risk_strategy_id=self.risk_strategy_id,
+            host_strategy_id=self.host_strategy_id,
+            asset=asset,
+            trigger_price=price,
+            cost_basis=cost_basis,
+            reason=reason,
+            trigger_ts=getattr(self, "_current_time", None) or datetime.datetime.now(),
+            barrier_hit=BarrierHit.EXPIRE,
+        )
         return await self.broker.sell(asset, shares, price=0)

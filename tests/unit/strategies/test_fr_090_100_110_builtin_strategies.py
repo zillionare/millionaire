@@ -118,7 +118,7 @@ def test_fr_110_cost_stop_loss_triggers_on_price_drop():
     asyncio.run(strategy.on_day_open(AC_TEST_DATE))
     asyncio.run(strategy.on_check(positions, AC_TEST_DATE))
     strategy.sell_host_position.assert_called_with(
-        "000001.SZ", 100, reason="cost_stop_loss"
+        "000001.SZ", 100, reason="cost_stop"
     )
 
 

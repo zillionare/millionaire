@@ -59,5 +59,5 @@ class CostStopLossStrategy(RiskStrategy):
                 if shares is None:
                     shares = getattr(pos, "shares", 0)
                 if shares and shares > 0:
-                    await self.sell_host_position(asset, shares, reason="cost_stop_loss")
+                    await self.sell_host_position(asset, shares, reason="cost_stop")
                 self._triggered.add(asset)

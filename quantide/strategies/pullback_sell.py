@@ -87,6 +87,6 @@ class PullbackSellStrategy(RiskStrategy):
                     if shares is None:
                         shares = getattr(pos, "shares", 0)
                     if shares and shares > 0:
-                        await self.sell_host_position(asset, shares, reason="pullback")
+                        await self.sell_host_position(asset, shares, reason="drawback")
                     self._triggered.add(asset)
                     self._monitoring.discard(asset)
