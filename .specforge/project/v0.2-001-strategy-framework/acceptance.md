@@ -327,7 +327,7 @@
 
 #### AC-100-01 默认参数 m=7.0, k=0.5, n=1
 - ⬜ 策略类未传参数时, 框架自动用 `[m=7.0, k=0.5, n=1]` 初始化
-- ⬜ 验证依据: `quantide/strategies/drawback_sell.py` 的 `default_config()` 返回 `{"m": 7.0, "k": 0.5, "n": 1}`
+- ⬜ 验证依据: `quantide/strategies/pullback_sell.py` 的 `default_config()` 返回 `{"m": 7.0, "k": 0.5, "n": 1}`
 
 #### AC-100-02 个股当天上涨至 m% 后 n 分钟内下跌超 k% 立即卖出
 - ⬜ T 日 10:00 标的从开盘 10.00 涨至 10.70 (m=7.0%), 10:01 跌至 10.65 (0.5% 内下跌超 k=0.5%) → `on_check` 触发 `sell_host_position`
@@ -347,7 +347,7 @@
 
 #### AC-110-01 默认参数 k=-5.0
 - ⬜ 策略类未传参数时, 框架自动用 `k=-5.0` (跌破买入价 5% 触发) 初始化
-- ⬜ 验证依据: `quantide/strategies/cost_stop.py` 的 `default_config()` 返回 `{"k": -5.0}`
+- ⬜ 验证依据: `quantide/strategies/cost_stop_loss.py` 的 `default_config()` 返回 `{"k": -5.0}`
 
 #### AC-110-02 触发条件 last_price <= cost_basis × (1 + k/100)
 - ⬜ 持仓 `cost_basis=10.00, k=-5.0` → `last_price <= 10.00 × (1 + (-5.0)/100) = 9.50` 时触发
