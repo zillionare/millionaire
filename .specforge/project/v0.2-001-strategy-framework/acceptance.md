@@ -762,22 +762,13 @@
 ### FR-450 消息通知（微信）— 事件定义
 
 > 通知事件定义见 [spec-trading.md §FR-450](./spec-trading.md); 通知配置 UI 已迁移 [v0.2-002-ui/spec.md UI-FR-450](../v0.2-002-ui/spec.md)
+>
+> **本 FR 仅定义事件枚举** (5 个事件: 委托提交 / 成交 / 委托失败 / 成交失败 / 网关断开); 通知触发 / 发送 / 用户配置 UI 等行为 AC 已迁移到 [v0.2-002-ui/spec.md UI-FR-450](../v0.2-002-ui/spec.md).
 
-#### AC-450-01 5 个事件触发微信通知 (若用户已启用)
-- ⬜ 委托提交 (`order.submitted`) → 通知
-- ⬜ 成交 (`order.filled`) → 通知
-- ⬜ 委托失败 (`order.rejected`) → 通知
-- ⬜ 成交失败 (`order.failed`) → 通知 (若框架支持该事件)
-- ⬜ 实盘交易网关断开 (`gateway.disconnected`) → 通知
-- ⬜ 验证依据: 跑 1 次全链路 paper E2E, 断言 5 个事件都触发微信 webhook (mock 微信接收, 验证 5 个 payload)
-
-#### AC-450-02 若用户未启用通知, 不触发
-- ⬜ 通知配置 UI 关闭全部事件后, 5 个事件**不**触发微信 webhook
-- ⬜ 验证依据: 跑 1 次 paper E2E, 通知配置全关, 断言 5 个事件**不**触发 webhook (mock 接收 0 payload)
-
-#### AC-450-03 通知失败不应阻塞策略运行
-- ⬜ 微信 webhook 调用失败 (超时 / 5xx) → 策略继续运行, 仅记录日志 `notification.failed`
-- ⬜ 验证依据: mock 微信返回 500, 跑 1 次成交, 断言成交仍落 `fills` 表, 策略指标照常计算, 日志含 `notification.failed`
+#### AC-450-01 事件枚举与 NotificationEvent 映射 (v0.2 范围)
+- ⬜ 5 个事件在 `quantide/core/notifications.py:NotificationEvent` 枚举中, 值与 spec §FR-450 表格一致
+- ⬜ 验证依据: 5 个枚举常量存在 + 值 (snake_case strings)
+- 行为 AC (通知触发 / 发送 / 配置 UI): 迁移到 [v0.2-002-ui/spec.md UI-FR-450](../v0.2-002-ui/spec.md)
 
 ---
 
