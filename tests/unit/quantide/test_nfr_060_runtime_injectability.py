@@ -90,10 +90,13 @@ def test_nfr_060_paper_broker_market_data_injectable():
             return True
 
     db.init(":memory:")
+    injected = _FakeMarketData()
     broker = PaperBroker(
-        portfolio_id="nfr060-md", principal=100_000, market_data=_FakeMarketData()  # type: ignore[arg-type]
+        portfolio_id="nfr060-md", principal=100_000, market_data=injected  # type: ignore[arg-type]
     )
-    assert broker._market_data is not None
+    assert broker._market_data is injected, (
+        "PaperBroker.market_data 注入后, broker._market_data 应保留同一实例引用"
+    )
 
 
 def test_nfr_060_backtest_runner_accepts_clock():
@@ -106,7 +109,9 @@ def test_nfr_060_backtest_runner_accepts_clock():
 def test_nfr_060_backtest_runner_default_clock():
     """AC-NFR-060: BacktestRunner 默认有 ClockPort (非 None)."""
     runner = BacktestRunner()
-    assert runner._clock is not None
+    assert callable(getattr(runner._clock, "now", None)), (
+        "BacktestRunner 默认 clock 必须实现 ClockPort.now() 可调用接口"
+    )
 
 
 def test_nfr_060_e2e_paper_parity_test_exists():
