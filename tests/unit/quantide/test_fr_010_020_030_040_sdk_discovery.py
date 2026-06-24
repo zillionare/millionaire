@@ -127,13 +127,14 @@ def test_fr_015_security_list_sdk_search():
 
 
 def test_fr_015_security_list_sdk_is_st():
-    """AC-FR-015: SecurityListSDK.is_st 返回是否 ST."""
+    """AC-FR-015: SecurityListSDK.is_st(asset, date) 返回是否 ST."""
     sdk = SecurityListSDK()
     sdk.register(Security(symbol="000001.SZ", name="平安银行", is_st=False))
     sdk.register(Security(symbol="000002.SZ", name="ST 测试", is_st=True))
-    assert sdk.is_st("000001.SZ") is False
-    assert sdk.is_st("000002.SZ") is True
-    assert sdk.is_st("999999.SZ") is False  # 不存在
+    d = datetime.date(2024, 6, 1)
+    assert sdk.is_st("000001.SZ", d) is False
+    assert sdk.is_st("000002.SZ", d) is True
+    assert sdk.is_st("999999.SZ", d) is False  # 不存在
 
 
 def test_fr_020_discovery_returns_builtin_strategies():
@@ -147,7 +148,7 @@ def test_fr_020_discovery_returns_builtin_strategies():
     )
     results_cost = StrategyDiscovery.discover(Path(cost_stop_loss.__file__).parent)
 
-    all_results = results_ma + results_pullback + results_cost
+    all_results = list(results_ma) + list(results_pullback) + list(results_cost)
     ids = {r.strategy_id for r in all_results}
     assert any("DualMAStrategy" in sid for sid in ids)
     assert any("PullbackSellStrategy" in sid for sid in ids)
@@ -159,8 +160,8 @@ def test_fr_020_discovery_schema_fields():
     from quantide.strategies.example import dual_ma
 
     results = StrategyDiscovery.discover(Path(dual_ma.__file__).parent)
-    assert len(results) >= 1
-    r = results[0]
+    assert len(results.strategies) >= 1
+    r = results.strategies[0]
     assert r.strategy_id
     assert r.name
     assert r.strategy_type in ("independent", "risk")
@@ -174,7 +175,7 @@ def test_fr_020_discovery_skips_non_strategies():
     from quantide.strategies.example import dual_ma
 
     results = StrategyDiscovery.discover(Path(dual_ma.__file__).parent)
-    for r in results:
+    for r in results.strategies:
         assert r.strategy_type in ("independent", "risk")
 
 
@@ -183,15 +184,16 @@ def test_fr_020_discovery_skips_abstract_classes():
     from quantide.strategies.example import dual_ma
 
     results = StrategyDiscovery.discover(Path(dual_ma.__file__).parent)
-    ids = {r.strategy_id for r in results}
+    ids = {r.strategy_id for r in results.strategies}
     assert not any("BaseStrategy" == sid.split(".")[-1] for sid in ids)
     assert not any("RiskStrategy" == sid.split(".")[-1] for sid in ids)
 
 
 def test_fr_020_discovery_nonexistent_dir_returns_empty():
-    """AC-FR-020: 目录不存在返回空列表 (无错误)."""
+    """AC-FR-020: 目录不存在返回 EnumerationResult 含 diagnostics (无错误)."""
     results = StrategyDiscovery.discover("/nonexistent/path")
-    assert results == []
+    assert results.strategies == []
+    assert any(d.reason.value == "PermissionDenied" for d in results.diagnostics)
 
 
 def test_fr_030_backtest_runner_accepts_config():
@@ -225,18 +227,16 @@ def test_fr_040_base_strategy_strategy_type_independent():
     """AC-FR-040: BaseStrategy 独立策略 mode 不影响 (FR-020 strategy_type=independent)."""
     from quantide.strategies.example import dual_ma
 
-    results = StrategyDiscovery.discover(Path(dual_ma.__file__).parent / "example")
-    assert all(r.strategy_type == "independent" for r in results)
+    results = StrategyDiscovery.discover(Path(dual_ma.__file__).parent)
+    assert all(r.strategy_type == "independent" for r in results.strategies)
 
 
 def test_fr_040_risk_strategy_strategy_type_risk():
     """AC-FR-040: RiskStrategy 子类 strategy_type=risk."""
     from quantide.strategies import pullback_sell, cost_stop_loss
 
-    results = (
-        StrategyDiscovery.discover(Path(pullback_sell.__file__).parent)
-        + StrategyDiscovery.discover(Path(cost_stop_loss.__file__).parent)
-    )
+    results = list(StrategyDiscovery.discover(Path(pullback_sell.__file__).parent))
+    results += list(StrategyDiscovery.discover(Path(cost_stop_loss.__file__).parent))
     assert all(r.strategy_type == "risk" for r in results)
 
 

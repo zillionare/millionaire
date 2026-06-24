@@ -75,7 +75,13 @@ class CalendarSDK:
 class SecurityListSDK:
     """证券列表 SDK (FR-015).
 
-    声明性 stub, 完整实现留作 e2e. v0.2 通过 quantide.data.models.stocks 实现.
+    按 spec §FR-015 4 接口契约:
+    - stocks_listed(date, exclude_st=True) -> list[str]
+    - is_st(asset, date) -> bool
+    - days_since_ipo(asset, date) -> int
+    - get_name(asset) -> str
+
+    兼容旧接口 (search / get_info / is_st_no_date), 数据来源由 quantide.data.models.stocks 注入.
     """
 
     def __init__(self):
@@ -85,8 +91,42 @@ class SecurityListSDK:
         """注册证券 (测试用)."""
         self._securities[security.symbol] = security
 
+    def stocks_listed(self, date: datetime.date, exclude_st: bool = True) -> list[str]:
+        """返回指定日期已上市的所有证券代码 (可选排除 ST) (FR-015)."""
+        results = []
+        for symbol, sec in self._securities.items():
+            if sec.list_date and sec.list_date > date:
+                continue
+            if sec.delist_date and sec.delist_date < date:
+                continue
+            if exclude_st and sec.is_st:
+                continue
+            results.append(symbol)
+        return sorted(results)
+
+    def is_st(self, asset: str, date: datetime.date) -> bool:
+        """判断指定日期是否为 ST (FR-015)."""
+        sec = self._securities.get(asset)
+        return sec.is_st if sec else False
+
+    def days_since_ipo(self, asset: str, date: datetime.date) -> int:
+        """返回证券在指定日期的上市天数 (上市前返回 0) (FR-015)."""
+        sec = self._securities.get(asset)
+        if not sec or not sec.list_date:
+            return 0
+        if sec.list_date > date:
+            return 0
+        return (date - sec.list_date).days
+
+    def get_name(self, asset: str) -> str:
+        """返回证券名称 (FR-015)."""
+        sec = self._securities.get(asset)
+        if sec is None:
+            raise ValueError(f"Unknown security: {asset}")
+        return sec.name
+
     def search(self, query: str) -> list[Security]:
-        """按名字/代码/拼音模糊查询 (FR-015)."""
+        """按名字/代码/拼音模糊查询 (兼容旧接口)."""
         q = query.lower()
         return [
             s
@@ -95,10 +135,10 @@ class SecurityListSDK:
         ]
 
     def get_info(self, symbol: str) -> Security | None:
-        """按代码查询 (FR-015)."""
+        """按代码查询 (兼容旧接口)."""
         return self._securities.get(symbol)
 
-    def is_st(self, symbol: str) -> bool:
-        """是否 ST / *ST (FR-015)."""
+    def is_st_no_date(self, symbol: str) -> bool:
+        """是否 ST / *ST (兼容旧接口, 无 date 参数)."""
         sec = self._securities.get(symbol)
         return sec.is_st if sec else False

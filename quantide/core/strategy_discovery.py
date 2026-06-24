@@ -5,10 +5,11 @@
 - 枚举目标: BaseStrategy / RiskStrategy 的所有子类
 - 内置策略同样参与枚举 (FR-090/100/110)
 - 元数据 schema: strategy_id, name, description, strategy_type, module, is_builtin, default_config
+- EnumerationResult 返回 (含 diagnostics 收集) — 失败 / 跳过 / 冲突等均记录
 
 实施:
 - quantide.core.strategy_discovery.StrategyDiscovery.discover(root_path)
-- 返回 list[StrategyMetadata]
+- 返回 EnumerationResult
 - 不递归子目录; 容错策略按 spec
 """
 
@@ -18,8 +19,30 @@ import importlib
 import importlib.util
 import inspect
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
+
+
+class SkippedReason(str, Enum):
+    """跳过原因 (FR-020 diagnostics)."""
+
+    NotAStrategy = "NotAStrategy"
+    InvalidConfig = "InvalidConfig"
+    SyntaxError = "SyntaxError"
+    ImportError = "ImportError"
+    PermissionDenied = "PermissionDenied"
+    BuiltinOverridden = "BuiltinOverridden"
+
+
+@dataclass(frozen=True)
+class SkippedEntry:
+    """跳过条目 (FR-020 diagnostics)."""
+
+    path: str
+    class_name: str | None
+    reason: SkippedReason
+    detail: str
 
 
 @dataclass(frozen=True)
@@ -35,65 +58,104 @@ class StrategyMetadata:
     default_config: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class EnumerationResult:
+    """枚举结果 (FR-020) — 包含 strategies + diagnostics."""
+
+    strategies: list[StrategyMetadata]
+    diagnostics: list[SkippedEntry] = field(default_factory=list)
+
+    def __len__(self) -> int:
+        return len(self.strategies)
+
+    def __iter__(self):
+        return iter(self.strategies)
+
+
 class StrategyDiscovery:
     """策略发现 (FR-020)."""
 
     @staticmethod
-    def discover(root_path: str | Path) -> list[StrategyMetadata]:
+    def discover(root_path: str | Path) -> EnumerationResult:
         """枚举 root_path 下所有策略类 (不递归子目录, FR-020).
 
         Args:
             root_path: 策略根目录 (用户配置 或 内置 quantide/strategies)
 
         Returns:
-            list[StrategyMetadata]
+            EnumerationResult 含 strategies + diagnostics
         """
         from quantide.core.strategy import BaseStrategy, RiskStrategy
 
         root = Path(root_path)
         if not root.exists():
-            return []
+            return EnumerationResult(strategies=[], diagnostics=[
+                SkippedEntry(
+                    path=str(root),
+                    class_name=None,
+                    reason=SkippedReason.PermissionDenied,
+                    detail=f"directory does not exist: {root}",
+                )
+            ])
 
-        results: list[StrategyMetadata] = []
-        for py_file in root.glob("*.py"):
+        strategies: list[StrategyMetadata] = []
+        diagnostics: list[SkippedEntry] = []
+        for py_file in sorted(root.glob("*.py")):
             if py_file.name.startswith("_"):
                 continue
             try:
-                strategies = StrategyDiscovery._load_strategies_from_file(
-                    py_file, root, BaseStrategy, RiskStrategy
+                file_strategies, file_diags = StrategyDiscovery._load_strategies_from_file(
+                    py_file, BaseStrategy, RiskStrategy
                 )
-                results.extend(strategies)
-            except (SyntaxError, ImportError):
-                continue
-        return results
+                strategies.extend(file_strategies)
+                diagnostics.extend(file_diags)
+            except SyntaxError as e:
+                diagnostics.append(SkippedEntry(
+                    path=str(py_file), class_name=None,
+                    reason=SkippedReason.SyntaxError, detail=str(e),
+                ))
+            except ImportError as e:
+                diagnostics.append(SkippedEntry(
+                    path=str(py_file), class_name=None,
+                    reason=SkippedReason.ImportError, detail=str(e),
+                ))
+        return EnumerationResult(strategies=strategies, diagnostics=diagnostics)
 
     @staticmethod
     def _load_strategies_from_file(
-        py_file: Path, root: Path, base_cls, risk_cls
-    ) -> list[StrategyMetadata]:
-        """从 .py 文件加载策略类.
-
-        Args:
-            py_file: .py 文件路径
-            root: 策略根目录 (用于推导 module 名)
-            base_cls: BaseStrategy 类
-            risk_cls: RiskStrategy 类
-
-        Returns:
-            该文件中所有策略元数据
-        """
+        py_file: Path, base_cls, risk_cls
+    ) -> tuple[list[StrategyMetadata], list[SkippedEntry]]:
+        """从 .py 文件加载策略类, 返回 (strategies, diagnostics)."""
+        importlib.invalidate_caches()
         spec = importlib.util.spec_from_file_location(
-            f"_strategy_{py_file.stem}", py_file
+            f"_strategy_{py_file.stem}_{id(py_file)}", py_file
         )
         if spec is None or spec.loader is None:
-            return []
+            return [], [SkippedEntry(
+                path=str(py_file), class_name=None,
+                reason=SkippedReason.ImportError, detail="spec_from_file_location returned None",
+            )]
         module = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(module)  # type: ignore[union-attr]
-        except Exception:
-            return []
+        except SyntaxError as e:
+            return [], [SkippedEntry(
+                path=str(py_file), class_name=None,
+                reason=SkippedReason.SyntaxError, detail=str(e),
+            )]
+        except ImportError as e:
+            return [], [SkippedEntry(
+                path=str(py_file), class_name=None,
+                reason=SkippedReason.ImportError, detail=str(e),
+            )]
+        except Exception as e:
+            return [], [SkippedEntry(
+                path=str(py_file), class_name=None,
+                reason=SkippedReason.ImportError, detail=f"{type(e).__name__}: {e}",
+            )]
 
-        results: list[StrategyMetadata] = []
+        strategies: list[StrategyMetadata] = []
+        diagnostics: list[SkippedEntry] = []
         for name, obj in inspect.getmembers(module, inspect.isclass):
             if obj.__module__ != module.__name__:
                 continue
@@ -104,6 +166,11 @@ class StrategyDiscovery:
             elif issubclass(obj, base_cls):
                 strategy_type = "independent"
             else:
+                diagnostics.append(SkippedEntry(
+                    path=str(py_file), class_name=obj.__name__,
+                    reason=SkippedReason.NotAStrategy,
+                    detail=f"class {obj.__name__} does not inherit BaseStrategy/RiskStrategy",
+                ))
                 continue
 
             display_name = getattr(obj, "__display_name__", None) or obj.__name__
@@ -114,11 +181,22 @@ class StrategyDiscovery:
 
             try:
                 default_cfg = obj.default_config()
-            except Exception:
+                if not isinstance(default_cfg, dict):
+                    diagnostics.append(SkippedEntry(
+                        path=str(py_file), class_name=obj.__name__,
+                        reason=SkippedReason.InvalidConfig,
+                        detail=f"default_config() returned non-dict: {type(default_cfg).__name__}",
+                    ))
+                    default_cfg = {}
+            except Exception as e:
+                diagnostics.append(SkippedEntry(
+                    path=str(py_file), class_name=obj.__name__,
+                    reason=SkippedReason.InvalidConfig, detail=str(e),
+                ))
                 default_cfg = {}
 
             strategy_id = f"{module_path}.{obj.__name__}"
-            results.append(
+            strategies.append(
                 StrategyMetadata(
                     strategy_id=strategy_id,
                     name=display_name,
@@ -129,22 +207,18 @@ class StrategyDiscovery:
                     default_config=default_cfg,
                 )
             )
-        return results
+        return strategies, diagnostics
 
     @staticmethod
-    def discover_builtin() -> list[StrategyMetadata]:
-        """发现内置策略 (FR-090/100/110).
-
-        Returns:
-            内置策略元数据列表
-        """
+    def discover_builtin() -> EnumerationResult:
+        """发现内置策略 (FR-090/100/110) — 合并多个目录的 EnumerationResult."""
         from quantide.strategies.example import dual_ma
         from quantide.strategies import pullback_sell, cost_stop_loss
 
-        return StrategyDiscovery.discover(dual_ma.__file__).__class__ == list and (
-            StrategyDiscovery.discover(dual_ma.__file__)
-            + StrategyDiscovery.discover(pullback_sell.__file__)
-            + StrategyDiscovery.discover(cost_stop_loss.__file__)
-        ) or (  # simplify: just merge all
-            []
-        )
+        all_strategies: list[StrategyMetadata] = []
+        all_diags: list[SkippedEntry] = []
+        for path in (dual_ma.__file__, pullback_sell.__file__, cost_stop_loss.__file__):
+            res = StrategyDiscovery.discover(Path(path).parent)
+            all_strategies.extend(res.strategies)
+            all_diags.extend(res.diagnostics)
+        return EnumerationResult(strategies=all_strategies, diagnostics=all_diags)
