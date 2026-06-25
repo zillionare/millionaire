@@ -30,7 +30,7 @@ from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.stocks import stock_list
-from quantide.data.sqlite import Order, Position
+from quantide.data.models import Order, Position
 from quantide.service.livequote import live_quote
 from quantide.service.registry import BrokerRegistry
 from quantide.web.components.asset_label import resolve_asset_name

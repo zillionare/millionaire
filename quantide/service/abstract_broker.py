@@ -18,7 +18,8 @@ from quantide.core.ports.broker import (
     OrderView,
     PositionView,
 )
-from quantide.data.sqlite import Position, StrategyLog, Trade, db
+from quantide.data.models import Position, StrategyLog, Trade
+from quantide.data.sqlite import db
 from quantide.service.backtest_logs import record_backtest_log
 
 

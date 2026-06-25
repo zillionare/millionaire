@@ -9,7 +9,7 @@ from loguru import logger
 from monsterui.all import *
 
 from quantide.core.enums import BrokerKind
-from quantide.data.sqlite import Asset, Position
+from quantide.data.models import Asset, Position
 from quantide.web.components.asset_label import resolve_asset_name
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme

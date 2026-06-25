@@ -128,14 +128,14 @@ class GridSearch:
         logger.info(f"Starting grid search with {len(configs)} combinations...")
 
         results = []
-        from quantide.data.sqlite import (
+        from quantide.data.models import (
             Asset,
             Portfolio,
             Position,
             StrategyLog,
             Trade,
-            db,
         )
+        from quantide.data.sqlite import db
 
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_config = {

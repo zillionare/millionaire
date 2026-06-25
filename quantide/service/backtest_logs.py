@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from quantide.config.paths import get_backtest_log_path
-from quantide.data.sqlite import BacktestLogEntry, db
+from quantide.data.models import BacktestLogEntry
+from quantide.data.sqlite import db
 
 _FILE_FAILURE_WARNED: set[str] = set()
 

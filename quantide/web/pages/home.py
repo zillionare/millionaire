@@ -10,7 +10,7 @@ from starlette.responses import RedirectResponse
 
 from quantide.config.branding import get_branding
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
-from quantide.data.sqlite import Position
+from quantide.data.models import Position
 from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
 from quantide.web.apis.broker import build_asset_overview

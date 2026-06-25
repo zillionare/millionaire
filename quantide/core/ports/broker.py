@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 from quantide.core.enums import BidType, OrderSide
 
 if TYPE_CHECKING:
-    from quantide.data.sqlite import Trade
+    from quantide.data.models import Trade
 
 OrderStyle = Literal["shares", "amount", "percent", "target_pct"]
 

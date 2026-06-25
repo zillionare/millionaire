@@ -8,7 +8,7 @@ import datetime
 
 from quantide.core.enums import OrderSide
 from quantide.core.ports.broker import ExecutionResult
-from quantide.data.sqlite import Position
+from quantide.data.models import Position
 
 
 class Broker:

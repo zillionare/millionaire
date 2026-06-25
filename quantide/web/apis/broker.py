@@ -7,7 +7,8 @@ from quantide.config.branding import get_runtime_version
 from quantide.config.settings import get_settings
 from quantide.core.enums import FrameType
 from quantide.core.errors import TradeError, TradeErrors
-from quantide.data.sqlite import Asset, db
+from quantide.data.models import Asset
+from quantide.data.sqlite import db
 from quantide.service.discovery import strategy_loader
 from quantide.service.grid_search import GridSearch
 from quantide.service.runner import BacktestRunner

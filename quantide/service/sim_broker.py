@@ -25,7 +25,8 @@ from quantide.core.ports.broker import ExecutionResult
 from quantide.data.helper import qfq_adjustment
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
-from quantide.data.sqlite import Asset, Order, Portfolio, Position, Trade, db
+from quantide.data.models import Asset, Order, Portfolio, Position, Trade
+from quantide.data.sqlite import db
 from quantide.service.abstract_broker import AbstractBroker
 from quantide.service.livequote import live_quote
 

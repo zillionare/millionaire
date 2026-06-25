@@ -5,7 +5,7 @@ from typing import Any
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
 from quantide.core.ports import BrokerPort
-from quantide.data.sqlite import Asset, Order, Position
+from quantide.data.models import Asset, Order, Position
 
 
 class PortBackedBroker:
