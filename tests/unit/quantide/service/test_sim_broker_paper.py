@@ -10,7 +10,8 @@ from quantide.core.errors import (
     InsufficientPosition,
     NonMultipleOfLotSize,
 )
-from quantide.data.sqlite import Position, db
+from quantide.data.models import Position
+from quantide.data.sqlite import db
 from quantide.service.sim_broker import PaperBroker
 
 

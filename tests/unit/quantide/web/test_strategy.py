@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from fasthtml.common import to_xml
 
-from quantide.data.sqlite import Portfolio
+from quantide.data.models import Portfolio
 from quantide.web.pages import strategy as strategy_page
 from tests.e2e.support.system_settings_session import system_settings_e2e_session
 

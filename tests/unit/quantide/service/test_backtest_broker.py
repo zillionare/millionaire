@@ -20,7 +20,8 @@ from quantide.core.errors import (
     NonMultipleOfLotSize,
     PriceNotMeet,
 )
-from quantide.data.sqlite import Position, db
+from quantide.data.models import Position
+from quantide.data.sqlite import db
 from quantide.service.backtest_broker import BacktestBroker
 
 cfg = SimpleNamespace(TIMEZONE=DEFAULT_TIMEZONE)

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
-from quantide.data.sqlite import (
+from quantide.data.models import (
     Asset,
     BacktestLogEntry,
     Entity,
@@ -19,8 +19,8 @@ from quantide.data.sqlite import (
     Position,
     StrategyLog,
     Trade,
-    db,
 )
+from quantide.data.sqlite import db
 
 
 @pytest.fixture(scope="function")

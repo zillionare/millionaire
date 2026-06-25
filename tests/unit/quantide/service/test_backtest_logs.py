@@ -10,7 +10,7 @@ from quantide.config.paths import (
     set_app_config_dir_override,
 )
 from quantide.core.enums import BrokerKind
-from quantide.data.sqlite import Portfolio
+from quantide.data.models import Portfolio
 from quantide.service import backtest_logs as backtest_logs_service
 
 

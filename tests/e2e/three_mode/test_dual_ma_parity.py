@@ -13,11 +13,15 @@ import pytest
 from quantide.core.domain import QuoteSnapshot
 from quantide.core.enums import BrokerKind, FrameType, OrderSide
 from quantide.core.runtime.adapter_registry import AdapterRegistry
-from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter, GatewayBrokerWrapper
+from quantide.core.runtime.gateway_broker import (
+    GatewayBrokerAdapter,
+    GatewayBrokerWrapper,
+)
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.core.runtime.registration import register_port_backed_broker
+from quantide.data.models import Asset
 from quantide.data.models.calendar import calendar as calendar_model
-from quantide.data.sqlite import Asset, db
+from quantide.data.sqlite import db
 from quantide.service import runner as runner_module
 from quantide.service.metrics import metrics
 from quantide.service.registry import BrokerRegistry
@@ -25,8 +29,11 @@ from quantide.service.runner import BacktestRunner
 from quantide.service.sim_broker import PaperBroker
 from quantide.service.strategy_runtime import StrategyBrokerProxy
 from quantide.strategies.example.dual_ma import DualMAStrategy
-from tests.e2e.support.gateway_stub import GatewayScenario, GatewaySubmitScript, running_gateway_stub
-
+from tests.e2e.support.gateway_stub import (
+    GatewayScenario,
+    GatewaySubmitScript,
+    running_gateway_stub,
+)
 
 ASSETS_ROOT = Path(__file__).resolve().parents[2] / "assets"
 BASELINE_PATH = ASSETS_ROOT / "baselines" / "dual_ma_2024.backtest.json"

@@ -4,7 +4,8 @@ from types import SimpleNamespace
 from quantide.core.domain import QuoteSnapshot
 from quantide.core.enums import BrokerKind
 from quantide.core.runtime import modes as runtime_modes
-from quantide.data.sqlite import Asset, Portfolio, db
+from quantide.data.models import Asset, Portfolio
+from quantide.data.sqlite import db
 
 
 class DummyGatewayMarketData:

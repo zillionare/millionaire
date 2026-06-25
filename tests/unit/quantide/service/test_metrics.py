@@ -8,9 +8,9 @@ import polars as pl
 import pytest
 
 from quantide.core.enums import BidType, OrderSide
-from quantide.data.sqlite import Asset, Order, Position, Trade, db
+from quantide.data.models import Asset, Order, Position, Trade
+from quantide.data.sqlite import db
 from quantide.service.metrics import bills, metrics
-
 
 BASELINE_PATH = (
     Path(__file__).resolve().parents[3]

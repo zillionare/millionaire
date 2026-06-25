@@ -19,7 +19,7 @@ from starlette.testclient import TestClient
 import quantide.web.middleware_feature as middleware_feature
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
 from quantide.core.ports.broker import ExecutionResult
-from quantide.data.sqlite import Order, Position
+from quantide.data.models import Order, Position
 from quantide.data.sqlite import db as _db
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import SimulationBroker
@@ -752,7 +752,7 @@ class TestPositionNameResolution:
 
     def test_today_orders_table_renders_name_column(self):
         from quantide.core.enums import BidType, OrderSide, OrderStatus
-        from quantide.data.sqlite import Order
+        from quantide.data.models import Order
         from quantide.web.pages.trade_main import TodayOrdersTable
 
         order = Order(
@@ -1559,7 +1559,7 @@ class TestLoginRoutes:
 
     def test_trade_panel_supports_position_sell_prefill_markup(self):
         """验证持仓行暴露卖出预填所需的 DOM 标记。"""
-        from quantide.data.sqlite import Position
+        from quantide.data.models import Position
         from quantide.web.pages.trade_main import PositionTable
 
         table = PositionTable(
