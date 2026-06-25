@@ -265,7 +265,7 @@ async def test_dual_ma_live_strategy_path_preserves_qtoid_and_updates_state(monk
     assert int(orders[0].shares) == baseline["shares"]
     assert round(float(orders[0].price), 6) == baseline["price"]
     assert len(trades) == 1
-    assert trades[0].order_id == baseline["qtoid"]
+    assert trades[0].qtoid == baseline["qtoid"]
     assert round(float(trades[0].amount), 6) == baseline["amount"]
     assert round(float(asset.cash), 6) == baseline["asset_after"]["cash"]
     assert round(float(asset.market_value), 6) == baseline["asset_after"]["market_value"]
@@ -453,7 +453,7 @@ async def test_live_gateway_out_of_order_replay_recovers_qtoid_after_reconnect()
         asset_twice = second.query_assets()
 
     assert ack.order_id == baseline["qtoid"]
-    assert trades[0].order_id == baseline["qtoid"]
+    assert trades[0].qtoid == baseline["qtoid"]
     assert orders[0].order_id == baseline["qtoid"]
     assert round(float(asset_once.total), 6) == baseline["asset_after"]["total"]
     assert round(float(asset_twice.total), 6) == baseline["asset_after"]["total"]

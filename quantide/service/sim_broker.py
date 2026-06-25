@@ -21,12 +21,12 @@ from quantide.core.errors import (
 )
 from quantide.core.message import msg_hub
 from quantide.core.ports import MarketDataPort
+from quantide.core.ports.broker import ExecutionResult
 from quantide.data.helper import qfq_adjustment
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Order, Portfolio, Position, Trade, db
 from quantide.service.abstract_broker import AbstractBroker
-from quantide.service.base_broker import TradeResult
 from quantide.service.livequote import live_quote
 
 
@@ -697,7 +697,7 @@ class PaperBroker(AbstractBroker):
 
         # 唤醒等待的协程，返回所有成交记录
         all_trades = self._order_trades.pop(order.qtoid)
-        self.awake(order.qtoid, TradeResult(order.qtoid, all_trades))
+        self.awake(order.qtoid, ExecutionResult(order_id=order.qtoid, trades=all_trades))
 
     def _handle_order_partial(self, order: Order):
         """处理订单部分成交。"""
@@ -874,7 +874,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """买入指令。
 
         Args:
@@ -885,7 +885,7 @@ class PaperBroker(AbstractBroker):
             timeout: 超时时间（秒）
 
         Returns:
-            成交结果. dry-run 模式下返回空 TradeResult, 信号记录到 _dry_run_signals.
+            成交结果. dry-run 模式下返回空 ExecutionResult, 信号记录到 _dry_run_signals.
 
         Raises:
             InsufficientCash: 资金不足
@@ -898,7 +898,7 @@ class PaperBroker(AbstractBroker):
                 "price": price,
                 "tm": order_time or self._now(),
             })
-            return TradeResult(qt_oid="dry-run", trades=[])
+            return ExecutionResult(order_id="dry-run", trades=[])
 
         if shares % 100 != 0:
             floored = self._floor_lot_size(shares)
@@ -953,7 +953,7 @@ class PaperBroker(AbstractBroker):
         if res is None:
             # 超时，返回已有的部分成交记录（如果有）
             partial_trades = self._order_trades.get(order.qtoid, [])
-            return TradeResult(order.qtoid, list(partial_trades))
+            return ExecutionResult(order_id=order.qtoid, trades=list(partial_trades))
         return res
 
     async def sell(
@@ -963,7 +963,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """卖出指令。
 
         Args:
@@ -974,7 +974,7 @@ class PaperBroker(AbstractBroker):
             timeout: 超时时间（秒）
 
         Returns:
-            成交结果. dry-run 模式下返回空 TradeResult, 信号记录到 _dry_run_signals.
+            成交结果. dry-run 模式下返回空 ExecutionResult, 信号记录到 _dry_run_signals.
 
         Raises:
             InsufficientPosition: 持仓不足
@@ -988,7 +988,7 @@ class PaperBroker(AbstractBroker):
                 "price": price,
                 "tm": order_time or self._now(),
             })
-            return TradeResult(qt_oid="dry-run", trades=[])
+            return ExecutionResult(order_id="dry-run", trades=[])
 
         # 1. 检查持仓
         if asset not in self._positions:
@@ -1021,7 +1021,7 @@ class PaperBroker(AbstractBroker):
         if res is None:
             # 超时，返回已有的部分成交记录（如果有）
             partial_trades = self._order_trades.get(order.qtoid, [])
-            return TradeResult(order.qtoid, list(partial_trades))
+            return ExecutionResult(order_id=order.qtoid, trades=list(partial_trades))
         return res
 
     async def buy_percent(
@@ -1031,7 +1031,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按总资产比例买入。
 
         Args:
@@ -1047,7 +1047,7 @@ class PaperBroker(AbstractBroker):
         # 计算数量
         quote = self._get_quote(asset)
         if not quote:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         if price > 0:
             p = price
@@ -1055,14 +1055,14 @@ class PaperBroker(AbstractBroker):
             _, up_limit = self._get_price_limits(asset)
             p = up_limit or quote.get("lastPrice", 0)
         if p <= 0:
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
         # 使用总资产计算
         target_value = self.total_assets * percent
 
         shares = int(target_value / p / 100) * 100
         if shares == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         return await self.buy(asset, shares, price, order_time, timeout)
 
@@ -1073,7 +1073,7 @@ class PaperBroker(AbstractBroker):
         price: int | float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按金额买入。
 
         Args:
@@ -1088,7 +1088,7 @@ class PaperBroker(AbstractBroker):
         """
         quote = self._get_quote(asset)
         if not quote and price == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         if price > 0:
             p = price
@@ -1096,11 +1096,11 @@ class PaperBroker(AbstractBroker):
             _, up_limit = self._get_price_limits(asset)
             p = up_limit or quote.get("lastPrice", 0)
         if p <= 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         shares = int(amount / p / 100) * 100
         if shares == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         return await self.buy(asset, shares, price, order_time, timeout)
 
@@ -1111,7 +1111,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按持仓比例卖出。
 
         Args:
@@ -1125,7 +1125,7 @@ class PaperBroker(AbstractBroker):
             成交结果
         """
         if asset not in self._positions:
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
         pos = self._positions[asset]
         # 如果是 1.0 (100%)，则是清仓
@@ -1135,7 +1135,7 @@ class PaperBroker(AbstractBroker):
             shares = int(pos.shares * percent / 100) * 100
 
         if shares == 0:
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
         return await self.sell(asset, shares, price, order_time, timeout)
 
@@ -1146,7 +1146,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按金额卖出。
 
         Args:
@@ -1161,7 +1161,7 @@ class PaperBroker(AbstractBroker):
         """
         quote = self._get_quote(asset)
         if not quote and price == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         if price > 0:
             p = price
@@ -1169,13 +1169,13 @@ class PaperBroker(AbstractBroker):
             down_limit, _ = self._get_price_limits(asset)
             p = down_limit or quote.get("lastPrice", 0)
         if p <= 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         shares = int(amount / p / 100) * 100
         if shares == 0:
             # 如果金额不足1手，是否尝试卖出1手？通常不。
             # 但是如果 amount 很大导致 shares > pos.shares，sell 方法会检查并抛出异常
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
         return await self.sell(asset, shares, price, order_time, timeout)
 
@@ -1186,7 +1186,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """调整持仓至目标比例。
 
         如果当前比例低于目标，则买入；如果高于目标，则卖出。
@@ -1203,7 +1203,7 @@ class PaperBroker(AbstractBroker):
         """
         quote = self._get_quote(asset)
         if not quote and price == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         # 计算当前价值和目标价值应该统一使用参考价格（通常是 lastPrice）
         # 只有在计算买入/卖出数量时，为了保守起见，才可能使用 limit price
@@ -1217,7 +1217,7 @@ class PaperBroker(AbstractBroker):
                 ref_price = up_limit if up_limit > 0 else 0
 
         if ref_price <= 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         total = self.total_assets
         target_val = total * target_pct
@@ -1241,7 +1241,7 @@ class PaperBroker(AbstractBroker):
                 return await self.sell_percent(asset, 1.0, order_time, timeout)
             return await self.sell_amount(asset, -diff, price, order_time, timeout)
         else:
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
     async def cancel_order(self, qt_oid: str):
         """取消订单。
@@ -1270,7 +1270,7 @@ class PaperBroker(AbstractBroker):
 
                         # 唤醒等待者（如果还在等待）
                         all_trades = self._order_trades.pop(qt_oid, [])
-                        self.awake(qt_oid, TradeResult(qt_oid, all_trades))
+                        self.awake(qt_oid, ExecutionResult(order_id=qt_oid, trades=all_trades))
                         break
                 if found:
                     if not orders:
@@ -1299,7 +1299,7 @@ class PaperBroker(AbstractBroker):
                         db.update_order(order.qtoid, status=order.status.value, status_msg="Canceled by user", filled=order.filled)
 
                         all_trades = self._order_trades.pop(order.qtoid, [])
-                        self.awake(order.qtoid, TradeResult(order.qtoid, all_trades))
+                        self.awake(order.qtoid, ExecutionResult(order_id=order.qtoid, trades=all_trades))
                     else:
                         remaining.append(order)
 

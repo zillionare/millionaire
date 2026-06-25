@@ -10,7 +10,6 @@ from quantide.core.ports.broker import (
     OrderStyle,
     OrderView,
     PositionView,
-    TradeView,
 )
 from quantide.core.ports.clock import ClockPort
 from quantide.core.ports.data_fetcher import DataFetcherPort
@@ -19,7 +18,6 @@ from quantide.core.ports.market_data import MarketDataPort
 __all__ = [
     "OrderStyle",
     "OrderRequest",
-    "TradeView",
     "PositionView",
     "AssetView",
     "OrderView",

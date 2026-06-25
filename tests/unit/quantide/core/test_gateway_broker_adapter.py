@@ -235,7 +235,7 @@ async def test_gateway_broker_preserves_qtoid_when_gateway_returns_external_orde
 
     assert ack.order_id == "qt-1"
     assert orders[0].order_id == "qt-1"
-    assert trades[0].order_id == "qt-1"
+    assert trades[0].qtoid == "qt-1"
 
 
 @pytest.mark.asyncio
@@ -535,8 +535,6 @@ async def test_gateway_broker_no_double_qfq_adjustment_on_forming_merge(monkeypa
     """
     import polars as pl
 
-    from quantide.core.enums import OrderSide
-    from quantide.core.ports import OrderRequest
     from quantide.core.runtime import gateway_broker as _gb_mod
     from quantide.service.livequote import live_quote
 

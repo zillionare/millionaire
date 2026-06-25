@@ -1,10 +1,15 @@
 """交易端口抽象."""
 
+from __future__ import annotations
+
 import datetime
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from quantide.core.enums import BidType, OrderSide
+
+if TYPE_CHECKING:
+    from quantide.data.sqlite import Trade
 
 OrderStyle = Literal["shares", "amount", "percent", "target_pct"]
 
@@ -22,20 +27,6 @@ class OrderRequest:
     order_time: datetime.datetime | None = None
     timeout: float = 0.5
     extra: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class TradeView:
-    """成交视图."""
-
-    trade_id: str
-    order_id: str
-    asset: str
-    side: str
-    shares: float
-    price: float
-    amount: float
-    tm: datetime.datetime
 
 
 @dataclass
@@ -83,7 +74,7 @@ class OrderAck:
 
     order_id: str | None
     status: str
-    trades: list[TradeView] = field(default_factory=list)
+    trades: list[Trade] = field(default_factory=list)
     message: str = ""
 
 
@@ -92,7 +83,7 @@ class ExecutionResult:
     """高阶交易语义的统一返回值."""
 
     order_id: str | None
-    trades: list[TradeView] = field(default_factory=list)
+    trades: list[Trade] = field(default_factory=list)
     status: str = "submitted"
     message: str = ""
 
@@ -102,7 +93,7 @@ class ExecutionResult:
         return self.order_id
 
     @classmethod
-    def empty(cls) -> "ExecutionResult":
+    def empty(cls) -> ExecutionResult:
         """返回空交易结果."""
         return cls(order_id=None, trades=[])
 
@@ -236,6 +227,6 @@ class BrokerPort(Protocol):
         """查询订单."""
         ...
 
-    def query_trades(self, order_id: str | None = None) -> list[TradeView]:
+    def query_trades(self, order_id: str | None = None) -> list[Trade]:
         """查询成交."""
         ...

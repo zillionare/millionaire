@@ -13,7 +13,6 @@ from quantide.core.ports import (
     OrderRequest,
     OrderView,
     PositionView,
-    TradeView,
 )
 from quantide.data.sqlite import Position, Trade, db
 from quantide.service.base_broker import Broker
@@ -46,12 +45,11 @@ class PaperBrokerPort(BrokerPort):
         """提交订单."""
         try:
             result = await self._dispatch_submit(request)
-            trades = [
-                self._to_trade_view(item)
-                for item in (result.trades or [])
-                if item is not None
-            ]
-            return OrderAck(order_id=result.qt_oid, status="submitted", trades=trades)
+            return OrderAck(
+                order_id=result.order_id,
+                status="submitted",
+                trades=[t for t in (result.trades or []) if t is not None],
+            )
         except Exception as exc:
             return OrderAck(order_id=None, status="rejected", message=str(exc))
 
@@ -65,7 +63,7 @@ class PaperBrokerPort(BrokerPort):
         **kwargs,
     ) -> ExecutionResult:
         """按股数买入."""
-        result = await self._broker.buy(
+        return await self._broker.buy(
             asset=asset,
             shares=shares,
             price=price,
@@ -73,7 +71,6 @@ class PaperBrokerPort(BrokerPort):
             timeout=timeout,
             **kwargs,
         )
-        return self._to_execution_result(result)
 
     async def buy_percent(
         self,
@@ -85,7 +82,7 @@ class PaperBrokerPort(BrokerPort):
         **kwargs,
     ) -> ExecutionResult:
         """按比例买入."""
-        result = await self._broker.buy_percent(
+        return await self._broker.buy_percent(
             asset=asset,
             percent=percent,
             price=price,
@@ -93,7 +90,6 @@ class PaperBrokerPort(BrokerPort):
             timeout=timeout,
             **kwargs,
         )
-        return self._to_execution_result(result)
 
     async def buy_amount(
         self,
@@ -105,7 +101,7 @@ class PaperBrokerPort(BrokerPort):
         **kwargs,
     ) -> ExecutionResult:
         """按金额买入."""
-        result = await self._broker.buy_amount(
+        return await self._broker.buy_amount(
             asset=asset,
             amount=amount,
             price=price,
@@ -113,7 +109,6 @@ class PaperBrokerPort(BrokerPort):
             timeout=timeout,
             **kwargs,
         )
-        return self._to_execution_result(result)
 
     async def sell(
         self,
@@ -125,7 +120,7 @@ class PaperBrokerPort(BrokerPort):
         **kwargs,
     ) -> ExecutionResult:
         """按股数卖出."""
-        result = await self._broker.sell(
+        return await self._broker.sell(
             asset=asset,
             shares=shares,
             price=price,
@@ -133,7 +128,6 @@ class PaperBrokerPort(BrokerPort):
             timeout=timeout,
             **kwargs,
         )
-        return self._to_execution_result(result)
 
     async def sell_percent(
         self,
@@ -145,7 +139,7 @@ class PaperBrokerPort(BrokerPort):
         **kwargs,
     ) -> ExecutionResult:
         """按比例卖出."""
-        result = await self._broker.sell_percent(
+        return await self._broker.sell_percent(
             asset=asset,
             percent=percent,
             price=price,
@@ -153,7 +147,6 @@ class PaperBrokerPort(BrokerPort):
             timeout=timeout,
             **kwargs,
         )
-        return self._to_execution_result(result)
 
     async def sell_amount(
         self,
@@ -165,7 +158,7 @@ class PaperBrokerPort(BrokerPort):
         **kwargs,
     ) -> ExecutionResult:
         """按金额卖出."""
-        result = await self._broker.sell_amount(
+        return await self._broker.sell_amount(
             asset=asset,
             amount=amount,
             price=price,
@@ -173,7 +166,6 @@ class PaperBrokerPort(BrokerPort):
             timeout=timeout,
             **kwargs,
         )
-        return self._to_execution_result(result)
 
     async def trade_target_pct(
         self,
@@ -185,7 +177,7 @@ class PaperBrokerPort(BrokerPort):
         **kwargs,
     ) -> ExecutionResult:
         """调整目标仓位占比."""
-        result = await self._broker.trade_target_pct(
+        return await self._broker.trade_target_pct(
             asset=asset,
             target_pct=target_pct,
             price=price,
@@ -193,7 +185,6 @@ class PaperBrokerPort(BrokerPort):
             timeout=timeout,
             **kwargs,
         )
-        return self._to_execution_result(result)
 
     async def cancel(self, order_id: str) -> CancelAck:
         """撤销订单."""
@@ -269,7 +260,7 @@ class PaperBrokerPort(BrokerPort):
             )
         return result
 
-    def query_trades(self, order_id: str | None = None) -> list[TradeView]:
+    def query_trades(self, order_id: str | None = None) -> list[Trade]:
         """查询成交."""
         if order_id:
             df = db.query_trade(qtoid=order_id)
@@ -281,7 +272,7 @@ class PaperBrokerPort(BrokerPort):
             if df.is_empty():
                 return []
             rows = df.to_dicts()
-        return [self._to_trade_view(row) for row in rows]
+        return [self._to_trade(row) for row in rows]
 
     async def _dispatch_submit(self, request: OrderRequest):
         """路由下单调用."""
@@ -359,40 +350,30 @@ class PaperBrokerPort(BrokerPort):
                 return False
         return str(raw_status).upper() == text
 
-    def _to_trade_view(self, trade: Trade | dict[str, Any]) -> TradeView:
-        """转换成交视图."""
+    def _to_trade(self, trade: Trade | dict[str, Any]) -> Trade:
+        """转换成交记录."""
         if isinstance(trade, Trade):
-            return TradeView(
-                trade_id=str(trade.tid),
-                order_id=str(trade.qtoid),
-                asset=trade.asset,
-                side=str(trade.side),
-                shares=float(trade.shares),
-                price=float(trade.price),
-                amount=float(trade.amount),
-                tm=trade.tm,
-            )
-        return TradeView(
-            trade_id=str(trade.get("tid") or ""),
-            order_id=str(trade.get("qtoid") or ""),
+            return trade
+        return Trade(
+            tid=str(trade.get("tid") or ""),
+            qtoid=str(trade.get("qtoid") or ""),
             asset=str(trade.get("asset") or ""),
             side=str(trade.get("side") or ""),
             shares=float(trade.get("shares") or 0),
             price=float(trade.get("price") or 0),
             amount=float(trade.get("amount") or 0),
             tm=self._to_datetime(trade.get("tm")),
+            fee=float(trade.get("fee") or 0),
         )
 
     def _to_execution_result(self, result: Any) -> ExecutionResult:
-        """将旧 TradeResult 转换为正式返回类型."""
-        trades = [
-            self._to_trade_view(item)
-            for item in (getattr(result, "trades", None) or [])
-            if item is not None
-        ]
+        """透传 ExecutionResult (broker 已统一返回类型)."""
+        if isinstance(result, ExecutionResult):
+            return result
+        # Fallback for legacy results
         return ExecutionResult(
-            order_id=getattr(result, "qt_oid", None),
-            trades=trades,
+            order_id=getattr(result, "order_id", None) or getattr(result, "qt_oid", None),
+            trades=[t for t in (getattr(result, "trades", None) or []) if t is not None],
             status="submitted",
             message="",
         )

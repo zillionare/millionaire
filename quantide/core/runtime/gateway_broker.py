@@ -16,14 +16,13 @@ from quantide.core.ports import (
     OrderRequest,
     OrderView,
     PositionView,
-    TradeView,
 )
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.data.helper import qfq_adjustment
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Order, Position, Trade
-from quantide.service.base_broker import Broker, TradeResult
+from quantide.service.base_broker import Broker
 from quantide.service.livequote import live_quote
 
 
@@ -371,7 +370,7 @@ class GatewayBrokerWrapper(Broker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按股数买入."""
         return await self._submit_legacy_order(
             asset=asset,
@@ -392,7 +391,7 @@ class GatewayBrokerWrapper(Broker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按资金比例买入."""
         return await self._submit_legacy_order(
             asset=asset,
@@ -413,7 +412,7 @@ class GatewayBrokerWrapper(Broker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按金额买入."""
         return await self._submit_legacy_order(
             asset=asset,
@@ -434,7 +433,7 @@ class GatewayBrokerWrapper(Broker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按股数卖出."""
         return await self._submit_legacy_order(
             asset=asset,
@@ -455,7 +454,7 @@ class GatewayBrokerWrapper(Broker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按持仓比例卖出."""
         return await self._submit_legacy_order(
             asset=asset,
@@ -476,7 +475,7 @@ class GatewayBrokerWrapper(Broker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按金额卖出."""
         return await self._submit_legacy_order(
             asset=asset,
@@ -504,7 +503,7 @@ class GatewayBrokerWrapper(Broker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """将仓位调整到目标占比."""
         current_mv = 0.0
         for position in self.positions.values():
@@ -513,7 +512,7 @@ class GatewayBrokerWrapper(Broker):
                 break
         total_asset = float(self.asset.total)
         if total_asset <= 0:
-            return TradeResult.empty()
+            return ExecutionResult.empty()
         target_mv = total_asset * target_pct
         side = OrderSide.BUY if target_mv >= current_mv else OrderSide.SELL
         return await self._submit_legacy_order(
@@ -537,7 +536,7 @@ class GatewayBrokerWrapper(Broker):
         order_time: datetime.datetime | None,
         timeout: float,
         extra: dict[str, Any],
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """将旧版 Broker 调用委托到统一交易端口.
 
         当 ``strategy_runtime_config.cheat_on_close=False``（盘后决策模式）且
@@ -563,7 +562,7 @@ class GatewayBrokerWrapper(Broker):
                     "submitted_at": self._now(),
                 }
             )
-            return TradeResult.empty()
+            return ExecutionResult.empty()
 
         request = OrderRequest(
             asset=asset,
@@ -577,12 +576,12 @@ class GatewayBrokerWrapper(Broker):
         )
         ack = await self._adapter.submit(request)
         if ack.order_id is None:
-            return TradeResult.empty()
+            return ExecutionResult.empty()
         trades = [
             Trade(
                 self._portfolio_id,
-                str(item.trade_id),
-                str(item.order_id),
+                str(item.tid),
+                str(item.qtoid),
                 "",
                 str(item.asset),
                 float(item.shares),
@@ -594,7 +593,7 @@ class GatewayBrokerWrapper(Broker):
             )
             for item in (ack.trades or [])
         ]
-        return TradeResult(str(ack.order_id), trades)
+        return ExecutionResult(order_id=str(ack.order_id), trades=trades)
 
     def _now(self) -> datetime.datetime:
         if self._clock is not None:
@@ -1042,10 +1041,10 @@ class GatewayBrokerAdapter(BrokerPort):
             )
         return result
 
-    def query_trades(self, order_id: str | None = None) -> list[TradeView]:
+    def query_trades(self, order_id: str | None = None) -> list[Trade]:
         """查询成交."""
         rows = self._client.get_json("/api/trade/trades") or []
-        result: list[TradeView] = []
+        result: list[Trade] = []
         for idx, row in enumerate(rows):
             trade_id = str(row.get("tid") or f"gw-{idx}")
             qtoid = self._resolve_qtoid(
@@ -1054,15 +1053,18 @@ class GatewayBrokerAdapter(BrokerPort):
                 context="query_trades",
             )
             result.append(
-                TradeView(
-                    trade_id=trade_id,
-                    order_id=qtoid,
+                Trade(
+                    portfolio_id="",
+                    tid=trade_id,
+                    qtoid=qtoid,
+                    foid="",
                     asset=str(row.get("symbol") or ""),
-                    side=str(row.get("side") or ""),
                     shares=float(row.get("shares") or 0),
                     price=float(row.get("price") or 0),
                     amount=float(row.get("amount") or 0),
                     tm=self._parse_time_text(str(row.get("time") or "")),
+                    side=str(row.get("side") or ""),
+                    cid="",
                 )
             )
         return result

@@ -22,10 +22,10 @@ from quantide.core.errors import (
     PriceNotMeet,
     TradeError,
 )
+from quantide.core.ports.broker import ExecutionResult
 from quantide.data.models.calendar import calendar
 from quantide.data.sqlite import Asset, Order, Portfolio, Position, Trade, db
 from quantide.service.abstract_broker import AbstractBroker
-from quantide.service.base_broker import TradeResult
 from quantide.service.datafeed import BarsFeedImpl
 
 
@@ -410,7 +410,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         # 在回测中，timeout 参数无效，直接忽略
         _ = timeout
 
@@ -461,7 +461,7 @@ class BacktestBroker(AbstractBroker):
             else:
                 trade =self._match_bid_day(order, bars)
 
-            return TradeResult(order.qtoid, [trade])
+            return ExecutionResult(order_id=order.qtoid, trades=[trade])
         except TradeError as e:
             # 在废单的情况下，保留已插入的订单记录并更新状态，
             # 避免重复插入同一个 qtoid 触发唯一约束异常。
@@ -689,7 +689,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         _ = timeout
 
         if not 0 < percent <= 1:
@@ -707,7 +707,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         _ = timeout
         assert order_time is not None, "order_time must be present in backtest mode"
 
@@ -727,7 +727,7 @@ class BacktestBroker(AbstractBroker):
 
         shares = int(shares // 100) * 100
         if shares == 0:
-            return TradeResult.empty()
+            return ExecutionResult.empty()
 
         return await self.buy(
             asset, shares, price, order_time, timeout, **kwargs
@@ -741,7 +741,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         _ = timeout
 
         assert order_time is not None, "order_time must be present in backtest mode"
@@ -802,7 +802,7 @@ class BacktestBroker(AbstractBroker):
             else:
                 trade = self._match_ask_day(order, bars)
 
-            return TradeResult(order.qtoid, [trade])
+            return ExecutionResult(order_id=order.qtoid, trades=[trade])
         except TradeError as e:
             # 在废单的情况下，保留已插入的订单记录并更新状态。
             order.status = OrderStatus.JUNK
@@ -954,7 +954,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按持仓百分比卖出"""
         _ = timeout
 
@@ -984,7 +984,7 @@ class BacktestBroker(AbstractBroker):
         timeout: float = 0.5,
         method: Literal["ceil", "floor"] = "ceil",
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         _ = timeout
 
         assert order_time is not None, "order_time must be present in backtest mode"
@@ -1007,7 +1007,7 @@ class BacktestBroker(AbstractBroker):
             shares = int(amount / est_price / 100) * 100
 
         if shares == 0:
-            return TradeResult.empty()
+            return ExecutionResult.empty()
 
         return await self.sell(
             asset, shares, est_price, order_time, timeout, **kwargs
@@ -1020,11 +1020,11 @@ class BacktestBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """将`asset`仓位调整到占总市值的`target_pct`
 
         受市值波动影响，以及可能还有其它标的的仓位也要调整，所以最终仓位可能与目标仓位不完全一致。
-        如果当前仓位非常接近目标仓位（差别不足一手），则不进行调整，此时返回`TradeResult.empty()`
+        如果当前仓位非常接近目标仓位（差别不足一手），则不进行调整，此时返回`ExecutionResult.empty()`
 
         Args:
             asset: 资产代码，"symbol.SZ"风格
@@ -1033,7 +1033,7 @@ class BacktestBroker(AbstractBroker):
             order_time: 委托时间.
 
         Returns:
-            TradeResult: 交易结果
+            ExecutionResult: 交易结果
         """
         _ = timeout
 

@@ -7,25 +7,8 @@ import datetime
 from abc import ABCMeta, abstractmethod
 
 from quantide.core.enums import OrderSide
-from quantide.data.sqlite import Position, Trade
-
-
-class TradeResult:
-    """成交结果类。
-
-    成交结果将包含系统创建的订单 id，以便客户端查询。如果在 timeout 时间内成交（或者部成），则trades 属性将包含所有对应的成交记录。
-
-    在 trade_target_pct 时，有可能不需要调仓，此时将返回 qt_oid 为 None。这不应该被当成错误。
-    """
-
-    def __init__(self, qt_oid: str|None, trades: list[Trade]|None = None):
-        self.trades = trades
-        self.qt_oid = qt_oid
-
-    @classmethod
-    def empty(cls) -> "TradeResult":
-        """返回空的成交结果"""
-        return cls(None, [])
+from quantide.core.ports.broker import ExecutionResult
+from quantide.data.sqlite import Position
 
 
 class Broker(metaclass=ABCMeta):
@@ -72,7 +55,7 @@ class Broker(metaclass=ABCMeta):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """买入指令
 
         如果传入价格为 0, 则为市价买入。
@@ -98,7 +81,7 @@ class Broker(metaclass=ABCMeta):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按当前持有的现金的比例买入
 
         实际执行的结果可能与计划略有出入，因为买入时需要按 100 股为单位取整。
@@ -125,7 +108,7 @@ class Broker(metaclass=ABCMeta):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """买入指令按金额买入
 
         Args:
@@ -150,7 +133,7 @@ class Broker(metaclass=ABCMeta):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """卖出指令
 
         如果传入价格为 0, 则为市价卖出。
@@ -177,7 +160,7 @@ class Broker(metaclass=ABCMeta):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """卖出指令按比例卖出
 
         Args:
@@ -202,7 +185,7 @@ class Broker(metaclass=ABCMeta):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """卖出指令按金额卖出
 
         因为取整（手）的关系，实际卖出金额将可能超过约定金额，以保证回笼足够的现金。
@@ -279,7 +262,7 @@ class Broker(metaclass=ABCMeta):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """将`asset`的仓位调整到总体市值占比的`target_pct`
 
         如果当前仓位与总市值之比大于 target_pct，则卖出；

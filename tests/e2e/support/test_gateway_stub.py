@@ -13,7 +13,6 @@ from quantide.core.ports import OrderRequest
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.gateway_client import GatewayClient
 from tests.e2e.support.gateway_stub import (
-    GatewayCancelScript,
     GatewayScenario,
     GatewaySubmitScript,
     running_gateway_stub,
@@ -173,7 +172,7 @@ async def test_gateway_stub_preserves_qtoid_when_query_snapshots_only_expose_ext
 
     assert ack.order_id == "qt-1"
     assert orders[0].order_id == "qt-1"
-    assert trades[0].order_id == "qt-1"
+    assert trades[0].qtoid == "qt-1"
 
 
 @pytest.mark.asyncio  # type: ignore[untyped-decorator]

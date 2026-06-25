@@ -2,8 +2,6 @@
 import datetime
 import re
 import tempfile
-import urllib.error
-from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -20,6 +18,7 @@ from starlette.testclient import TestClient
 
 import quantide.web.middleware_feature as middleware_feature
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
+from quantide.core.ports.broker import ExecutionResult
 from quantide.data.sqlite import Order, Position
 from quantide.data.sqlite import db as _db
 from quantide.service.registry import BrokerRegistry
@@ -1416,13 +1415,13 @@ class TestLoginRoutes:
         assert "10万" in text
 
     def test_trade_lightning_execute_missing_entry_returns_error(self, test_client):
-        """execute 接口对不存在的闪电单必须返回 error toast，不能 500."""
+        """Execute 接口对不存在的闪电单必须返回 error toast，不能 500."""
         response = test_client.post("/trade/lightning/sim_demo/MISSING.SZ/execute")
         assert response.status_code == 200
         assert "该闪电买入单不存在" in response.text
 
     def test_trade_lightning_execute_unresolvable_price_returns_error(self, test_client, monkeypatch):
-        """execute 接口在价格解析为 0 时必须返回 error toast."""
+        """Execute 接口在价格解析为 0 时必须返回 error toast."""
         from types import SimpleNamespace
 
         from quantide.core.enums import BrokerKind
@@ -1514,7 +1513,7 @@ class TestLoginRoutes:
         assert "（8.87）" in html
 
     def test_trade_lightning_row_skips_cached_price_for_current(self):
-        """current 不显示缓存价（实时价格无法预锁定，缓存必然是 0）."""
+        """Current 不显示缓存价（实时价格无法预锁定，缓存必然是 0）."""
         from types import SimpleNamespace
 
         from fasthtml.common import to_xml
@@ -1963,10 +1962,9 @@ class TestTradeOrderRoute:
 
     def test_order_route_rejects_empty_trade_result(self, test_client, monkeypatch):
         """Broker 未生成真实委托时应返回失败提示。"""
-        from quantide.service.base_broker import TradeResult
 
         async def _empty_trade_result(self, asset, amount, price=0, order_time=None, timeout=0.5):
-            return TradeResult.empty()
+            return ExecutionResult.empty()
 
         monkeypatch.setattr(SimulationBroker, "sell_amount", _empty_trade_result)
 

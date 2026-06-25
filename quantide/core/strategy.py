@@ -5,8 +5,8 @@ from typing import Any
 import polars as pl
 from loguru import logger
 
-from quantide.core.enums import FrameType
-from quantide.service.base_broker import Broker, TradeResult
+from quantide.core.ports.broker import ExecutionResult
+from quantide.service.base_broker import Broker
 
 
 class Strategy(ABC):
@@ -118,27 +118,27 @@ class BaseStrategy(Strategy):
         return self.broker.cash
 
     async def buy(self, asset: str, shares: int, price: float = 0,
-                  order_time: datetime.datetime | None = None) -> TradeResult:
+                  order_time: datetime.datetime | None = None) -> ExecutionResult:
         return await self.broker.buy(asset, shares, price, order_time)
 
     async def buy_percent(self, asset: str, percent: float, price: float = 0,
-                          order_time: datetime.datetime | None = None) -> TradeResult:
+                          order_time: datetime.datetime | None = None) -> ExecutionResult:
         return await self.broker.buy_percent(asset, percent, price, order_time)
 
     async def buy_amount(self, asset: str, amount: int | float, price: float = 0,
-                         order_time: datetime.datetime | None = None) -> TradeResult:
+                         order_time: datetime.datetime | None = None) -> ExecutionResult:
         return await self.broker.buy_amount(asset, amount, price, order_time)
 
     async def sell(self, asset: str, shares: int, price: float = 0,
-                   order_time: datetime.datetime | None = None) -> TradeResult:
+                   order_time: datetime.datetime | None = None) -> ExecutionResult:
         return await self.broker.sell(asset, shares, price, order_time)
 
     async def sell_percent(self, asset: str, percent: float, price: float = 0,
-                           order_time: datetime.datetime | None = None) -> TradeResult:
+                           order_time: datetime.datetime | None = None) -> ExecutionResult:
         return await self.broker.sell_percent(asset, percent, price, order_time)
 
     async def sell_amount(self, asset: str, amount: int | float, price: float = 0,
-                          order_time: datetime.datetime | None = None) -> TradeResult:
+                          order_time: datetime.datetime | None = None) -> ExecutionResult:
         return await self.broker.sell_amount(asset, amount, price, order_time)
 
     async def cancel_order(self, qt_oid: str) -> None:
@@ -149,7 +149,7 @@ class BaseStrategy(Strategy):
 
     async def trade_target_pct(self, asset: str, target_pct: float,
                                price: float = 0,
-                               order_time: datetime.datetime | None = None) -> TradeResult:
+                               order_time: datetime.datetime | None = None) -> ExecutionResult:
         return await self.broker.trade_target_pct(asset, target_pct, price, order_time)
 
 
@@ -176,7 +176,7 @@ class RiskStrategy(Strategy):
         raise NotImplementedError("get_ticks is only available in paper/live mode")
 
     async def sell_host_position(self, asset: str, shares: int,
-                                  reason: str = "") -> TradeResult:
+                                  reason: str = "") -> ExecutionResult:
         from quantide.core.risk_events import BarrierHit, emit_risk_triggered
         price = 0.0
         if hasattr(self.broker, "get_prices"):
