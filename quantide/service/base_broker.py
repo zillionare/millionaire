@@ -1,35 +1,33 @@
-"""Broker 接口类。
+"""Broker 基类（向后兼容层）.
 
-本接口类定义了交易代理的基本功能接口。
+Phase 3 of #110: Broker ABC 退役。本模块仅保留 Broker 类作为向后兼容的类型引用，
+实际共享逻辑在 AbstractBroker 中。新代码应使用 BrokerPort Protocol。
 """
 
 import datetime
-from abc import ABCMeta, abstractmethod
 
 from quantide.core.enums import OrderSide
 from quantide.core.ports.broker import ExecutionResult
 from quantide.data.sqlite import Position
 
 
-class Broker(metaclass=ABCMeta):
-    """交易代理接口类。
+class Broker:
+    """Broker 基类（向后兼容）.
 
-    本接口类定义了交易代理的基本功能接口。
+    所有实际共享逻辑已迁移到 AbstractBroker。
+    新代码应直接使用 BrokerPort Protocol 或 AbstractBroker。
     """
 
     @property
-    @abstractmethod
     def positions(self) -> dict[str, Position]:
         """获取当前持仓"""
-        ...
+        raise NotImplementedError
 
     @property
-    @abstractmethod
     def cash(self) -> float:
         """获取当前可用资金"""
-        ...
+        raise NotImplementedError
 
-    @abstractmethod
     def record(
         self,
         key: str,
@@ -37,249 +35,45 @@ class Broker(metaclass=ABCMeta):
         dt: datetime.datetime | None = None,
         extra: dict | None = None,
     ) -> None:
-        """记录策略运行数据
+        """记录策略运行数据"""
+        raise NotImplementedError
 
-        Args:
-            key: 数据名称
-            value: 数据值
-            dt: 时间
-            extra: 额外信息
-        """
-        ...
-    @abstractmethod
-    async def buy(
-        self,
-        asset: str,
-        shares: int | float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        """买入指令
+    async def buy(self, asset, shares, price=0, order_time=None, timeout=0.5, **kwargs) -> ExecutionResult:
+        """买入指令"""
+        raise NotImplementedError
 
-        如果传入价格为 0, 则为市价买入。
+    async def buy_percent(self, asset, percent, price=0, order_time=None, timeout=0.5, **kwargs) -> ExecutionResult:
+        """按比例买入"""
+        raise NotImplementedError
 
-        Args:
-            asset: 资产代码，"symbol.SZ"风格
-            shares: 委托数量
-            price: 委托价格
-            order_time: 下单时间，实盘时可省略传入，测试时必须传入
-            timeout: 超时时间，单位秒。超时撮合不成功，返回 None
-            **kwargs: 额外参数，例如 extra (决策快照)
+    async def buy_amount(self, asset, amount, price=0, order_time=None, timeout=0.5, **kwargs) -> ExecutionResult:
+        """按金额买入"""
+        raise NotImplementedError
 
-        Returns:
-            成交结果。
-        """
+    async def sell(self, asset, shares, price=0, order_time=None, timeout=0.5, **kwargs) -> ExecutionResult:
+        """卖出指令"""
+        raise NotImplementedError
 
-    @abstractmethod
-    async def buy_percent(
-        self,
-        asset: str,
-        percent: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        """按当前持有的现金的比例买入
+    async def sell_percent(self, asset, percent, price=0, order_time=None, timeout=0.5, **kwargs) -> ExecutionResult:
+        """按比例卖出"""
+        raise NotImplementedError
 
-        实际执行的结果可能与计划略有出入，因为买入时需要按 100 股为单位取整。
+    async def sell_amount(self, asset, amount, price=0, order_time=None, timeout=0.5, **kwargs) -> ExecutionResult:
+        """按金额卖出"""
+        raise NotImplementedError
 
-        Args:
-            asset: 资产代码，"symbol.SZ"风格
-            percent: 买入比例，0-1 之间的浮点数
-            price: 订单价格，默认为 0，表示市价
-            order_time: 下单时间，实盘时可省略传入，测试时必须传入
-            timeout: 超时时间，单位秒。超时撮合不成功，返回 None
-            **kwargs: 额外参数，例如 extra (决策快照)
-
-        Returns:
-            成交结果。如果超时未成交（含部成），返回空列表
-        """
-        ...
-
-    @abstractmethod
-    async def buy_amount(
-        self,
-        asset: str,
-        amount: int | float,
-        price: int | float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        """买入指令按金额买入
-
-        Args:
-            asset: 资产代码，"symbol.SZ"风格
-            amount: 买入金额
-            price: 如果委托价格为 None，则以市价买入
-            order_time: 下单时间，实盘时可省略传入，测试时必须传入
-            timeout: 超时时间，单位秒。超时撮合不成功，返回 None
-            **kwargs: 额外参数，例如 extra (决策快照)
-
-        Returns:
-            成交结果。如果超时未成交（含部成），返回空列表
-        """
-        ...
-
-    @abstractmethod
-    async def sell(
-        self,
-        asset: str,
-        shares: int | float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        """卖出指令
-
-        如果传入价格为 0, 则为市价卖出。
-
-        Args:
-            asset: 资产代码，"symbol.SZ"风格
-            shares: 委托数量
-            price: 委托价格
-            order_time: 下单时间，实盘时可省略传入，测试时必须传入
-            timeout: 超时时间，单位秒。超时撮合不成功，返回 None
-            **kwargs: 额外参数，例如 extra (决策快照)
-
-        Returns:
-            成交数据。如果超时未成交（含部成），返回空列表
-        """
-        ...
-
-    @abstractmethod
-    async def sell_percent(
-        self,
-        asset: str,
-        percent: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        """卖出指令按比例卖出
-
-        Args:
-            asset: 资产代码，"symbol.SZ"风格
-            percent: 卖出比例，0-1 之间的浮点数
-            price: 委托价格
-            order_time: 下单时间，实盘时可省略传入，测试时必须传入
-            timeout: 超时时间，单位秒。超时撮合不成功，返回 None
-            **kwargs: 额外参数，例如 extra (决策快照)
-
-        Returns:
-            成交结果。如果超时未成交（含部成），返回空列表
-        """
-        ...
-
-    @abstractmethod
-    async def sell_amount(
-        self,
-        asset: str,
-        amount: int | float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        """卖出指令按金额卖出
-
-        因为取整（手）的关系，实际卖出金额将可能超过约定金额，以保证回笼足够的现金。
-
-        Args:
-            asset: 资产代码，"symbol.SZ"风格
-            amount: 卖出金额
-            price: 如果委托价格为 0，则以市价卖出
-            order_time: 下单时间，实盘时可省略传入，测试时必须传入
-            timeout: 超时时间，单位秒。超时撮合不成功，返回 None
-            **kwargs: 额外参数，例如 extra (决策快照)
-
-        Returns:
-            成交结果。如果超时未成交（含部成），返回空列表
-        """
-        ...
-
-    @abstractmethod
     async def cancel_order(self, qt_oid: str):
-        """取消订单，用于实盘
+        """取消订单"""
+        raise NotImplementedError
 
-        取消指定订单。如果订单不存在或已成交，不做任何操作。
-
-        Args:
-            qt_oid: Quantide 订单 ID，是一个 uuid4 惟一值
-        """
-        ...
-
-    @abstractmethod
     async def cancel_all_orders(self, side: OrderSide | None = None):
-        """取消所有订单，用于实盘
+        """取消所有订单"""
+        raise NotImplementedError
 
-        取消所有未成交订单。如果所有订单已成交，不做任何操作。
+    def get_history(self, asset, count, end_dt=None, frame_type="1d", skip_suspended=True, fill_value=True, include_forming_bar=True):
+        """获取历史行情"""
+        raise NotImplementedError
 
-        Args:
-            side: 订单方向，默认为 None，取消所有未成交订单
-        """
-        ...
-
-    @abstractmethod
-    def get_history(
-        self,
-        asset: str,
-        count: int,
-        end_dt: datetime.datetime | None = None,
-        frame_type: str = "1d",
-        skip_suspended: bool = True,
-        fill_value: bool = True,
-        include_forming_bar: bool = True,
-    ):
-        """获取历史行情。
-
-        Args:
-            asset: 资产代码。
-            count: 历史 bar 数量。
-            end_dt: 截止时间，包含边界。
-            frame_type: 周期类型，目前仅支持 ``1d``。
-            skip_suspended: 是否跳过停牌日。
-            fill_value: 是否填补停牌日。
-            include_forming_bar: 当 ``end_dt`` 落在今日时，是否将今日的实时
-                forming bar (累积自首个 tick) 拼接到历史窗口末尾。默认为 True。
-                设为 False 则只返回昨日及更早的数据。
-
-        Returns:
-            历史行情 DataFrame。
-        """
-        ...
-
-    @abstractmethod
-    async def trade_target_pct(
-        self,
-        asset: str,
-        target_pct: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5
-    ) -> ExecutionResult:
-        """将`asset`的仓位调整到总体市值占比的`target_pct`
-
-        如果当前仓位与总市值之比大于 target_pct，则卖出；
-        如果当前仓位与总市值之比小于 target_pct，则买入，直到现金用尽；在这种情况下，最终`asset`的仓位会小于约定的`target_pct`。
-
-        调仓步骤：
-        1. 计算当前总市值
-        2. 计算目标仓位市值 = 总市值 * target_pct
-        3. 对比当前持仓市值与目标持仓市值，计算需要买卖的数量，执行交易
-
-        !!! warning:
-            受交易手数取整和手续费影响，最终仓位可能与目标仓位不完全一致。
-
-        Args:
-            asset: 资产代码，"symbol.SZ"风格
-            price: 委托价格
-            target_pct: 目标仓位占比，0-1 之间的浮点数
-            order_time: 下单时间，实盘时可省略传入，测试时必须传入
-        """
-        ...
+    async def trade_target_pct(self, asset, target_pct, price=0, order_time=None, timeout=0.5) -> ExecutionResult:
+        """调整仓位占比"""
+        raise NotImplementedError

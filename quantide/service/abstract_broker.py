@@ -11,10 +11,9 @@ from quantide.core.enums import BrokerKind
 from quantide.core.errors import InsufficientPosition, NonMultipleOfLotSize
 from quantide.data.sqlite import Position, StrategyLog, db
 from quantide.service.backtest_logs import record_backtest_log
-from quantide.service.base_broker import Broker
 
 
-class AbstractBroker(Broker):
+class AbstractBroker:
     """抽象 Broker 类。只实现超时控制功能，策略的 metrics 计算等功能"""
 
     def __init__(

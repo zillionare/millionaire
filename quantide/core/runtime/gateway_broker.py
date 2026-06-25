@@ -22,7 +22,7 @@ from quantide.data.helper import qfq_adjustment
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import Asset, Order, Position, Trade
-from quantide.service.base_broker import Broker
+from quantide.service.abstract_broker import AbstractBroker
 from quantide.service.livequote import live_quote
 
 
@@ -74,7 +74,7 @@ def _coerce_order_status(value: str) -> OrderStatus:
     return mapping.get(text, OrderStatus.UNKNOWN)
 
 
-class GatewayBrokerWrapper(Broker):
+class GatewayBrokerWrapper(AbstractBroker):
     """将 GatewayBrokerAdapter 包装为旧版的 Broker 接口，以便 UI 使用。"""
 
     def __init__(
@@ -82,6 +82,7 @@ class GatewayBrokerWrapper(Broker):
         adapter: "GatewayBrokerAdapter",
         portfolio_id: str = "gateway",
     ):
+        super().__init__(portfolio_id=portfolio_id, kind=BrokerKind.QMT)
         self._adapter = adapter
         self._portfolio_id = portfolio_id
         self._portfolio_name = "实盘网关"
