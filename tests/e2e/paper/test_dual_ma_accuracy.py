@@ -12,7 +12,6 @@ import pytest
 from quantide.core.domain import QuoteSnapshot
 from quantide.core.enums import BrokerKind, FrameType, OrderSide
 from quantide.core.runtime.registration import register_port_backed_broker
-from quantide.service.paper_broker_port import PaperBrokerPort
 from quantide.data.models.calendar import calendar as calendar_model
 from quantide.data.sqlite import db
 from quantide.service.metrics import metrics
@@ -165,7 +164,7 @@ async def test_dual_ma_paper_matches_accuracy_contract(calendar):
             market_data=market_data,
         )
 
-    port = PaperBrokerPort(legacy_broker, portfolio_id=portfolio_id)
+    port = legacy_broker
     handle = register_port_backed_broker(
         registry=BrokerRegistry(),
         port=port,

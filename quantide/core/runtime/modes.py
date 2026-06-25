@@ -15,7 +15,6 @@ from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.core.scheduler import scheduler
 from quantide.data import db
 from quantide.service.livequote import live_quote
-from quantide.service.paper_broker_port import PaperBrokerPort
 from quantide.service.quote_port_adapter import LiveQuotePortAdapter
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
@@ -124,7 +123,7 @@ class RuntimeBootstrap:
             if broker is None:
                 continue
             name = f"{kind}:{portfolio_id}"
-            port = PaperBrokerPort(broker, portfolio_id=portfolio_id)
+            port = broker
             register_port_backed_broker(
                 registry=registry,
                 adapters=adapters,

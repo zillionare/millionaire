@@ -461,7 +461,7 @@ class BacktestBroker(AbstractBroker):
             else:
                 trade =self._match_bid_day(order, bars)
 
-            return ExecutionResult(order_id=order.qtoid, trades=[trade])
+            return ExecutionResult(qt_oid=order.qtoid, trades=[trade])
         except TradeError as e:
             # 在废单的情况下，保留已插入的订单记录并更新状态，
             # 避免重复插入同一个 qtoid 触发唯一约束异常。
@@ -802,7 +802,7 @@ class BacktestBroker(AbstractBroker):
             else:
                 trade = self._match_ask_day(order, bars)
 
-            return ExecutionResult(order_id=order.qtoid, trades=[trade])
+            return ExecutionResult(qt_oid=order.qtoid, trades=[trade])
         except TradeError as e:
             # 在废单的情况下，保留已插入的订单记录并更新状态。
             order.status = OrderStatus.JUNK
