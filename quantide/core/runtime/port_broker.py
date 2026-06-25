@@ -116,6 +116,12 @@ class PortBackedBroker:
     ) -> None:
         self._port.record(key, value, dt=dt, extra=extra)
 
+    def set_clock(self, now: datetime.datetime) -> None:
+        """设置底层 broker 时钟 (paper/live 策略循环用)."""
+        broker = getattr(self._port, "_broker", None)
+        if broker is not None and hasattr(broker, "set_clock"):
+            broker.set_clock(now)
+
     async def buy(
         self,
         asset: str,
