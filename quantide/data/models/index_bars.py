@@ -15,7 +15,7 @@ class IndexBars:
     """
 
     SCHEMA: dict[str, pl.DataType] = {
-        "symbol": pl.Utf8,
+        "sector_id": pl.Utf8,  # 存储列名 sector_id (非 symbol)
         "date": pl.Date,
         "open": pl.Float64,
         "high": pl.Float64,

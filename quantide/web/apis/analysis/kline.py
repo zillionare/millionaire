@@ -7,8 +7,8 @@ from fasthtml.common import *
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from quantide.data.models.daily_bars import daily_bars
 from quantide.data import get_index_bars_store
+from quantide.data.models.daily_bars import daily_bars
 from quantide.data.utils.resampler import Resampler
 
 app, rt = fast_app()
