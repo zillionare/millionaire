@@ -9,10 +9,7 @@ from quantide.core.ports import MarketDataPort
 from quantide.core.ports.clock import ClockPort
 from quantide.core.runtime.adapter_registry import AdapterRegistry
 from quantide.core.runtime.clock_bridge import SystemClockAdapter
-from quantide.core.runtime.gateway_broker import (
-    GatewayBrokerAdapter,
-    GatewayBrokerWrapper,
-)
+from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter
 from quantide.core.runtime.registration import register_port_backed_broker
