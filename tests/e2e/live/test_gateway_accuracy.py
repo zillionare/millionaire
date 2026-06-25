@@ -173,7 +173,6 @@ def _build_gateway_port(
         port=adapter,
         portfolio_id="gateway",
         kind=BrokerKind.QMT,
-        legacy=wrapper,
     )
     return adapter, wrapper, StrategyBrokerProxy(handle, "dual-ma-live")
 

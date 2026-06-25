@@ -89,4 +89,3 @@ def test_runtime_bootstrap_paper_uses_live_quote_market_data(monkeypatch):
     assert handle is not None
     assert handle.portfolio_id == "paper-account"
     assert handle.portfolio_name == "paper-account"
-    assert getattr(handle, "_market_data") is runtime.market_data

@@ -17,6 +17,8 @@ from quantide.data.sqlite import db
 from quantide.service.discovery import strategy_loader
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
+from quantide.service.paper_broker_port import PaperBrokerPort
+from quantide.core.runtime.registration import register_port_backed_broker
 
 
 @dataclass
@@ -290,8 +292,11 @@ class StrategyRuntimeManager:
         runtime = self._runtime
         if runtime is None:
             raise RuntimeError("runtime 未初始化")
-        handle = runtime.register_legacy_broker(
-            broker=broker,
+        port = PaperBrokerPort(broker, portfolio_id=account_id)
+        handle = register_port_backed_broker(
+            registry=runtime.registry,
+            adapters=runtime.adapters,
+            port=port,
             portfolio_id=account_id,
             kind=BrokerKind.SIMULATION,
             portfolio_name=f"{run.strategy_name}-paper",

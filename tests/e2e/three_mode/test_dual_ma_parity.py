@@ -15,7 +15,8 @@ from quantide.core.enums import BrokerKind, FrameType, OrderSide
 from quantide.core.runtime.adapter_registry import AdapterRegistry
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter, GatewayBrokerWrapper
 from quantide.core.runtime.gateway_client import GatewayClient
-from quantide.core.runtime.registration import register_legacy_broker, register_port_backed_broker
+from quantide.core.runtime.registration import register_port_backed_broker
+from quantide.service.paper_broker_port import PaperBrokerPort
 from quantide.data.models.calendar import calendar as calendar_model
 from quantide.data.sqlite import Asset, db
 from quantide.service import runner as runner_module
@@ -410,9 +411,10 @@ async def _run_paper_mode(baseline: dict[str, Any], bars: pl.DataFrame) -> dict[
             market_data=market_data,
         )
 
-    handle = register_legacy_broker(
+    port = PaperBrokerPort(legacy_broker, portfolio_id=portfolio_id)
+    handle = register_port_backed_broker(
         registry=BrokerRegistry(),
-        broker=legacy_broker,
+        port=port,
         portfolio_id=portfolio_id,
         kind=BrokerKind.SIMULATION,
     )
@@ -475,7 +477,6 @@ async def _run_live_mode(
             port=adapter,
             portfolio_id="gateway",
             kind=BrokerKind.QMT,
-            legacy=wrapper,
         )
         broker = StrategyBrokerProxy(handle, "dual-ma-parity-live")
         strategy = DualMAStrategy(broker, _strategy_config())

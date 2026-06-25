@@ -19,7 +19,6 @@ class PortBackedBroker:
         portfolio_name: str = "",
         status: bool = True,
         is_connected: bool | None = None,
-        legacy: Any | None = None,
     ):
         self._port = port
         self._portfolio_id = portfolio_id
@@ -27,12 +26,6 @@ class PortBackedBroker:
         self._portfolio_name = portfolio_name or portfolio_id
         self._status = status
         self._is_connected = status if is_connected is None else is_connected
-        self._legacy = legacy
-
-    def __getattr__(self, name: str) -> Any:
-        if self._legacy is not None:
-            return getattr(self._legacy, name)
-        raise AttributeError(name)
 
     @property
     def port(self) -> BrokerPort:
@@ -72,15 +65,14 @@ class PortBackedBroker:
                 market_value=view.market_value,
                 total=view.total,
             )
-        principal = float(getattr(self._legacy, "principal", 0.0) or 0.0)
         return Asset(
             portfolio_id=self._portfolio_id,
             dt=datetime.date.today(),
-            principal=principal,
+            principal=0.0,
             cash=0.0,
             frozen_cash=0.0,
             market_value=0.0,
-            total=principal,
+            total=0.0,
         )
 
     @property

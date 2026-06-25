@@ -1,4 +1,4 @@
-"""旧 Broker 到新端口的桥接适配器."""
+"""PaperBroker 到 BrokerPort 的适配器."""
 
 import datetime
 from typing import Any
@@ -19,14 +19,14 @@ from quantide.data.sqlite import Position, Trade, db
 from quantide.service.base_broker import Broker
 
 
-class LegacyBrokerPortAdapter(BrokerPort):
-    """将现有 Broker 适配为 BrokerPort."""
+class PaperBrokerPort(BrokerPort):
+    """将 PaperBroker 适配为 BrokerPort."""
 
     def __init__(self, broker: Broker, portfolio_id: str | None = None):
-        """初始化桥接器.
+        """初始化适配器.
 
         Args:
-            broker: 旧 Broker 实例。
+            broker: PaperBroker 实例。
             portfolio_id: 账户 ID，为空时尝试从 broker 获取。
         """
         self._broker = broker

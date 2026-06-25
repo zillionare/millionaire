@@ -12,6 +12,8 @@ from quantide.core.enums import BrokerKind
 from quantide.data.sqlite import db
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
+from quantide.service.paper_broker_port import PaperBrokerPort
+from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import AppTheme
 
@@ -619,8 +621,11 @@ async def create_sim_account(req):
         )
         runtime = getattr(req.app.state, "runtime", None)
         if runtime is not None:
-            runtime.register_legacy_broker(
-                broker=sim_broker,
+            port = PaperBrokerPort(sim_broker, portfolio_id=account_id)
+            register_port_backed_broker(
+                registry=runtime.registry,
+                adapters=runtime.adapters,
+                port=port,
                 portfolio_id=account_id,
                 kind=BrokerKind.SIMULATION,
                 portfolio_name=name,

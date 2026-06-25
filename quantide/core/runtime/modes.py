@@ -15,13 +15,11 @@ from quantide.core.runtime.gateway_broker import (
 )
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter
-from quantide.core.runtime.registration import (
-    register_legacy_broker,
-    register_port_backed_broker,
-)
+from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.core.scheduler import scheduler
 from quantide.data import db
 from quantide.service.livequote import live_quote
+from quantide.service.paper_broker_port import PaperBrokerPort
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
 
@@ -38,28 +36,6 @@ class RuntimeContext:
     market_data: MarketDataPort
     clock: ClockPort
 
-    def register_legacy_broker(
-        self,
-        broker: Any,
-        portfolio_id: str,
-        kind: BrokerKind | str,
-        *,
-        portfolio_name: str = "",
-        status: bool | None = None,
-        is_connected: bool | None = None,
-    ):
-        """将 legacy broker 注册到正式运行时。"""
-        return register_legacy_broker(
-            registry=self.registry,
-            adapters=self.adapters,
-            broker=broker,
-            portfolio_id=portfolio_id,
-            kind=kind,
-            portfolio_name=portfolio_name,
-            status=status,
-            is_connected=is_connected,
-        )
-
     def register_port_broker(
         self,
         port: Any,
@@ -70,7 +46,6 @@ class RuntimeContext:
         portfolio_name: str = "",
         status: bool = True,
         is_connected: bool | None = None,
-        legacy: Any | None = None,
     ):
         """将正式 broker port 注册到运行时。"""
         return register_port_backed_broker(
@@ -83,7 +58,6 @@ class RuntimeContext:
             portfolio_name=portfolio_name,
             status=status,
             is_connected=is_connected,
-            legacy=legacy,
         )
 
 
@@ -153,10 +127,11 @@ class RuntimeBootstrap:
             if broker is None:
                 continue
             name = f"{kind}:{portfolio_id}"
-            register_legacy_broker(
+            port = PaperBrokerPort(broker, portfolio_id=portfolio_id)
+            register_port_backed_broker(
                 registry=registry,
                 adapters=adapters,
-                broker=broker,
+                port=port,
                 portfolio_id=portfolio_id,
                 kind=kind,
                 adapter_name=name,
@@ -200,7 +175,6 @@ class RuntimeBootstrap:
             return
         client = GatewayClient.from_config()
         adapter = GatewayBrokerAdapter(client)
-        legacy = GatewayBrokerWrapper(adapter)
         registry = getattr(self, "_registry_ref", None)
         if registry:
             register_port_backed_broker(
@@ -213,5 +187,4 @@ class RuntimeBootstrap:
                 portfolio_name="实盘网关",
                 status=True,
                 is_connected=True,
-                legacy=legacy,
             )
