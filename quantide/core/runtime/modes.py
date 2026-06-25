@@ -11,7 +11,7 @@ from quantide.core.runtime.adapter_registry import AdapterRegistry
 from quantide.core.runtime.clock_bridge import SystemClockAdapter
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.gateway_client import GatewayClient
-from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter
+from quantide.service.quote_port_adapter import LiveQuotePortAdapter
 from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.core.scheduler import scheduler
 from quantide.data import db
@@ -107,7 +107,7 @@ class RuntimeBootstrap:
         一律走 LiveQuote。gateway 行情接入点保留在 service 层 (`live_quote` 的实现里)。
         """
         live_quote.start()
-        market_data = LiveQuoteMarketDataAdapter(live_quote)
+        market_data = LiveQuotePortAdapter(live_quote)
         adapters.register("market_data", "live_quote", market_data)
         return market_data
 
