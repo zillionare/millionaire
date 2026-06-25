@@ -8,15 +8,12 @@ import asyncio
 
 import pytest
 
-from quantide.core.domain import MarketEvent, QuoteSnapshot
-from quantide.core.ports import MarketDataPort
-from quantide.service.livequote import LiveQuote, live_quote
+from quantide.service.livequote import live_quote
 from quantide.service.quote_port_adapter import LiveQuotePortAdapter
 
 
 def _reset_live_quote():
     """Reset LiveQuote singleton state for isolated tests."""
-    live_quote._subscribed = set()
     live_quote._quotes = {}
     live_quote._is_running = False
 
