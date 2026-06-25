@@ -46,12 +46,12 @@ class PaperBrokerPort(BrokerPort):
         try:
             result = await self._dispatch_submit(request)
             return OrderAck(
-                order_id=result.order_id,
+                qt_oid=result.qt_oid,
                 status="submitted",
                 trades=[t for t in (result.trades or []) if t is not None],
             )
         except Exception as exc:
-            return OrderAck(order_id=None, status="rejected", message=str(exc))
+            return OrderAck(qt_oid=None, status="rejected", message=str(exc))
 
     async def buy(
         self,

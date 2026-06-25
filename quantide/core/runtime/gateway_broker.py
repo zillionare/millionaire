@@ -593,7 +593,7 @@ class GatewayBrokerWrapper(Broker):
             )
             for item in (ack.trades or [])
         ]
-        return ExecutionResult(order_id=str(ack.order_id), trades=trades)
+        return ExecutionResult(qt_oid=str(ack.order_id), trades=trades)
 
     def _now(self) -> datetime.datetime:
         if self._clock is not None:
@@ -896,7 +896,7 @@ class GatewayBrokerAdapter(BrokerPort):
         qtoid = str(request.extra.get("qtoid") or uuid4())
         strategy_id = str(request.extra.get("strategy_id") or "")
         if shares <= 0:
-            return OrderAck(order_id=None, status="rejected", message="invalid shares")
+            return OrderAck(qt_oid=None, status="rejected", message="invalid shares")
         if request.side == OrderSide.BUY:
             payload = {
                 "symbol": request.asset,
@@ -924,12 +924,12 @@ class GatewayBrokerAdapter(BrokerPort):
                 )
             self._remember_order_mapping(qtoid=qtoid, external_order_id=external_order_id)
             return OrderAck(
-                order_id=qtoid,
+                qt_oid=qtoid,
                 status="submitted",
                 message="ok",
             )
         return OrderAck(
-            order_id=None,
+            qt_oid=None,
             status="rejected",
             message=str(result.get("error") or "gateway submit failed"),
         )
@@ -967,7 +967,7 @@ class GatewayBrokerAdapter(BrokerPort):
             )
         )
         return ExecutionResult(
-            order_id=ack.order_id,
+            qt_oid=ack.qt_oid,
             trades=list(ack.trades or []),
             status=ack.status,
             message=ack.message,

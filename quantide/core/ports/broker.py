@@ -72,30 +72,35 @@ class OrderView:
 class OrderAck:
     """下单响应."""
 
-    order_id: str | None
+    qt_oid: str | None
     status: str
     trades: list[Trade] = field(default_factory=list)
     message: str = ""
+
+    @property
+    def order_id(self) -> str | None:
+        """兼容别名."""
+        return self.qt_oid
 
 
 @dataclass
 class ExecutionResult:
     """高阶交易语义的统一返回值."""
 
-    order_id: str | None
+    qt_oid: str | None
     trades: list[Trade] = field(default_factory=list)
     status: str = "submitted"
     message: str = ""
 
     @property
-    def qt_oid(self) -> str | None:
+    def order_id(self) -> str | None:
         """兼容旧返回值字段名."""
-        return self.order_id
+        return self.qt_oid
 
     @classmethod
     def empty(cls) -> ExecutionResult:
         """返回空交易结果."""
-        return cls(order_id=None, trades=[])
+        return cls(qt_oid=None, trades=[])
 
 
 @dataclass
