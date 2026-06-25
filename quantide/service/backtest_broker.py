@@ -23,8 +23,8 @@ from quantide.core.errors import (
     TradeError,
 )
 from quantide.core.ports.broker import ExecutionResult
-from quantide.data.models.calendar import calendar
 from quantide.data.models import Asset, Order, Portfolio, Position, Trade
+from quantide.data.models.calendar import calendar
 from quantide.data.sqlite import db
 from quantide.service.abstract_broker import AbstractBroker
 from quantide.service.datafeed import BarsFeedImpl

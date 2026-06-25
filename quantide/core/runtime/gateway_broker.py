@@ -19,9 +19,9 @@ from quantide.core.ports import (
 )
 from quantide.core.runtime.gateway_client import GatewayClient
 from quantide.data.helper import qfq_adjustment
+from quantide.data.models import Asset, Order, Position, Trade
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
-from quantide.data.models import Asset, Order, Position, Trade
 from quantide.service.abstract_broker import AbstractBroker
 from quantide.service.livequote import live_quote
 
