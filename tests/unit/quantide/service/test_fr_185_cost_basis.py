@@ -184,7 +184,7 @@ def test_f_cb_3_full_sell_clears(paper_broker):
 
 
 def test_f_cb_2_then_1_partial_sell_then_buy(paper_broker):
-    """边界: 多次部分卖出后再次买入 — 先 F-CB-2 保留成本, 再 F-CB-1 加权更新.
+    """needs AC (Sage): 边界: 多次部分卖出后再次买入 — 先 F-CB-2 保留成本, 再 F-CB-1 加权更新.
 
     步骤:
     - T1: BUY 100 @ 10.0 (cost = 10.0, shares = 100)
@@ -211,7 +211,7 @@ def test_f_cb_2_then_1_partial_sell_then_buy(paper_broker):
 
 
 def test_f_cb_1_does_not_apply_when_no_existing_position(paper_broker):
-    """边界: 旧持仓 shares == 0 时 (不应出现但兜底), F-CB-1 不除以 0.
+    """needs AC (Sage): 边界: 旧持仓 shares == 0 时 (不应出现但兜底), F-CB-1 不除以 0.
 
     步骤: BUY 0 股 @ 10.0 → new_shares = 0, 加权被跳过 (L792 if), shares 保持 0.
     实际场景: 不会发生 (buy 0 股非法), 但代码 L792 有 if 保护.
@@ -233,7 +233,7 @@ def test_f_cb_1_does_not_apply_when_no_existing_position(paper_broker):
 
 
 def test_multiple_assets_independent(paper_broker):
-    """边界: 多 asset 独立 — AAPL cost_basis 不影响 GOOG cost_basis.
+    """needs AC (Sage): 边界: 多 asset 独立 — AAPL cost_basis 不影响 GOOG cost_basis.
 
     步骤:
     - AAPL: BUY 100 @ 10.0

@@ -83,7 +83,7 @@ async def test_fr_170_buy_active_allowed(paper_broker):
 
 @pytest.mark.asyncio
 async def test_fr_170_no_quote_not_blocked(paper_broker):
-    """边界: 无 quote (paper/live 未推送) 不视为停牌, 不阻止下单 (测试 setup 阶段)."""
+    """AC-170-01: 边界 - 无 quote (paper/live 未推送) 不视为停牌, 不阻止下单 (测试 setup 阶段)."""
     paper_broker.set_clock(AC_TEST_DATE)
     try:
         await paper_broker.buy(AC_ASSET, 100, price=10.0)
@@ -93,7 +93,7 @@ async def test_fr_170_no_quote_not_blocked(paper_broker):
 
 @pytest.mark.asyncio
 async def test_fr_170_halt_detection_helper(paper_broker):
-    """边界: _is_halted() 直接验证 (单元层)."""
+    """AC-170-01: 边界 - _is_halted() 直接验证 (单元层)."""
     _publish_halted(paper_broker)
     assert paper_broker._is_halted(AC_ASSET) is True
 

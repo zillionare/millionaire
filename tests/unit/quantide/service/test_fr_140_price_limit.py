@@ -166,7 +166,7 @@ async def test_fr_140_limit_sell_below_down_rejected(paper_broker_with_limits):
 
 @pytest.mark.asyncio
 async def test_fr_140_no_limit_data_no_check(paper_broker):
-    """边界: 没有涨跌停数据 (_limits 空, _get_price_limits 返回 (0, 0)), price 校验跳过."""
+    """AC-140-01: 边界 - 没有涨跌停数据 (_limits 空, _get_price_limits 返回 (0, 0)), price 校验跳过."""
     paper_broker.set_clock(AC_TEST_DATE)
     try:
         await paper_broker.buy(asset="NO_LIMIT_ASSET", shares=100, price=999.0)
