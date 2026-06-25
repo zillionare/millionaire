@@ -50,10 +50,6 @@ import sqlite_utils as su
 
 from quantide.core.singleton import singleton
 from quantide.data.models.app_state import AppState
-from quantide.data.models.strategy_config import StrategyConfig, StrategyInfo
-
-T = TypeVar("T")
-
 from quantide.data.models.base import Entity, new_uuid_id
 from quantide.data.models.entities import (
     Asset,
@@ -64,6 +60,9 @@ from quantide.data.models.entities import (
     StrategyLog,
     Trade,
 )
+from quantide.data.models.strategy_config import StrategyConfig, StrategyInfo
+
+T = TypeVar("T")
 
 @singleton
 class SQLiteDB:
@@ -780,4 +779,15 @@ class SQLiteDB:
 
 db: SQLiteDB = SQLiteDB()
 
-__all__ = ["db", "new_uuid_id", "Asset", "Position", "Order", "Trade"]
+__all__ = [
+    "Asset",
+    "BacktestLogEntry",
+    "Entity",
+    "Order",
+    "Portfolio",
+    "Position",
+    "StrategyLog",
+    "Trade",
+    "db",
+    "new_uuid_id",
+]
