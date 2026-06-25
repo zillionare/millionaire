@@ -3,9 +3,18 @@ from pathlib import Path
 from quantide.config.paths import get_app_db_path
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
-from quantide.data.models.index_bars import index_bars
 from quantide.data.models.stocks import stock_list
 from quantide.data.sqlite import db
+from quantide.data.stores.index_bars import IndexBarsStore
+
+_index_bars_store: IndexBarsStore | None = None
+
+
+def get_index_bars_store() -> IndexBarsStore:
+    """返回 IndexBarsStore 单例。"""
+    if _index_bars_store is None:
+        raise RuntimeError("IndexBarsStore 未初始化，请先调用 init_data()")
+    return _index_bars_store
 
 
 def init_data(
@@ -23,6 +32,8 @@ def init_data(
     Returns:
         tuple[StockList, Calendar, DailyBars, IndexBars, SQLiteDB]: 依次返回 stocklist, calendar, daily_bars, index_bars, db
     """
+    global _index_bars_store
+
     home_dir = Path(home).expanduser()
     home_dir.mkdir(parents=True, exist_ok=True)
     calendar_path = home_dir / "data/calendar.parquet"
@@ -33,18 +44,11 @@ def init_data(
     daily_bars_path.mkdir(parents=True, exist_ok=True)
     index_bars_path.mkdir(parents=True, exist_ok=True)
 
-    # 延迟导入，避免在包初始化时触发循环依赖
-    # from quantide.data.models.calendar import calendar
-    # from quantide.data.models.daily_bars import daily_bars
-    # from quantide.data.models.index_bars import index_bars
-    # from quantide.data.models.stocks import stock_list
-    # from quantide.data.sqlite import db
-
     calendar.load(calendar_path)
     stock_list.load(stocklist_path)
 
     daily_bars.connect(str(daily_bars_path), str(calendar_path))
-    index_bars.connect(str(index_bars_path), calendar)
+    _index_bars_store = IndexBarsStore(str(index_bars_path), calendar)
 
     if init_db:
         target_db_path = Path(db_path).expanduser() if db_path is not None else get_app_db_path()

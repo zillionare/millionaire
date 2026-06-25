@@ -19,11 +19,9 @@ def test_init_data_uses_fixed_config_db_by_default(monkeypatch, tmp_path: Path):
             (str(store_path), str(calendar_path)),
         ),
     )
-    monkeypatch.setattr(
-        data_module.index_bars,
-        "connect",
-        lambda store_path, calendar: captured.setdefault("index", Path(store_path)),
-    )
+    def _fake_store_init(self, path, cal):
+        captured.setdefault("index", Path(str(path)))
+    monkeypatch.setattr(data_module.IndexBarsStore, "__init__", _fake_store_init)
     monkeypatch.setattr(data_module.db, "init", lambda path: captured.setdefault("db", Path(path)))
 
     data_module.init_data(data_home)
@@ -43,7 +41,7 @@ def test_init_data_allows_explicit_db_override(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(data_module.calendar, "load", lambda path: None)
     monkeypatch.setattr(data_module.stock_list, "load", lambda path: None)
     monkeypatch.setattr(data_module.daily_bars, "connect", lambda store_path, calendar_path: None)
-    monkeypatch.setattr(data_module.index_bars, "connect", lambda store_path, calendar: None)
+    monkeypatch.setattr(data_module.IndexBarsStore, "__init__", lambda self, path, cal: None)
     monkeypatch.setattr(data_module.db, "init", lambda path: captured.setdefault("db", Path(path)))
 
     data_module.init_data(data_home, db_path=explicit_db_path)

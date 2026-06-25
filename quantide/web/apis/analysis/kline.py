@@ -8,7 +8,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from quantide.data.models.daily_bars import daily_bars
-from quantide.data.models.index_bars import index_bars
+from quantide.data import get_index_bars_store
 from quantide.data.utils.resampler import Resampler
 
 app, rt = fast_app()
@@ -110,10 +110,10 @@ def _get_index_bars(
     freq: str = "day",
 ) -> pl.DataFrame:
     """从 IndexBars 获取指数行情数据。"""
-    df = index_bars.get_bars_in_range(
+    df = get_index_bars_store().get(
+        symbols=[symbol],
         start=start,
         end=end,
-        symbols=[symbol],
         eager_mode=True,
     )
 
