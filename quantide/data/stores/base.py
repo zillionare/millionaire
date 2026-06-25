@@ -18,7 +18,6 @@ from quantide.config.settings import get_timezone
 from quantide.core.enums import FrameType
 from quantide.core.message import msg_hub
 from quantide.data.models.calendar import Calendar
-from quantide.data.protocols import ErrorHandler, FetchDataCallback
 
 
 def _as_datetime_bound(value: datetime.date | datetime.datetime) -> pl.Expr:
@@ -57,8 +56,8 @@ class ParquetStorage:
         store_name: str,
         store_path: str | Path,
         calendar: Calendar,
-        fetch_data_func: FetchDataCallback | None = None,
-        error_handler: ErrorHandler | None = None,
+        fetch_data_func: Callable[..., Any] | None = None,
+        error_handler: Callable[[list[list]], None] | None = None,
         partition_by: Literal["year", "month", "day"] | None = None,
     ):
         """初始化ParquetStorage
