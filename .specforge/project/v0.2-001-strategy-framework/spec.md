@@ -84,8 +84,8 @@ priority: P0
 | FR-200 | [spec-strategy.md](./spec-strategy.md) | 运行时参数(策略层) |
 | FR-210 ~ FR-220 | [spec-trading.md](./spec-trading.md) | 虚拟账本 + 手工交易归属 |
 | FR-230 ~ FR-260 | [spec-strategy.md](./spec-strategy.md) | 调度(回测启动路径/无回测启动/风控调度/调度 UI) |
-| FR-270 ~ FR-470 | [spec-trading.md](./spec-trading.md) | 数据源、评估、账户、UI、通知、安装 |
-| NFR-010 ~ NFR-050 | [spec-foundation.md](./spec-foundation.md) | 非功能需求 |
+| FR-270 ~ FR-485 | [spec-trading.md](./spec-trading.md) | 数据源、评估、账户、UI、通知、安装、端口与工具补充 |
+| NFR-010 ~ NFR-060 | [spec-foundation.md](./spec-foundation.md) | 非功能需求 |
 | 已知约束 / 排除项 / 推迟 | [spec-foundation.md](./spec-foundation.md) | 范围声明 |
 
 **Coverage cutoff**: 本 spec 当前定稿至 FR-260 (含 FR-440/450), FR-270 ~ FR-470 视为下一轮增量. FR-185 (持仓成本基准) 已解 (P1 经典方案 A, 见 [spec-strategy.md §FR-185](./spec-strategy.md)). 全部已锁定 FR 均已建 issue (Sage cycle 1+2: 33 个 issue 覆盖 FR-010~250 + FR-360/440/450).
@@ -94,7 +94,8 @@ priority: P0
 - ✅ FR-010 ~ FR-185: spec + acceptance + test-plan + interfaces 四文档已对齐 (内审锁定)
 - ✅ FR-190 ~ FR-260 + FR-440/450: spec + acceptance + test-plan 已补齐, 跨越 P2 域 1 (FR-030~080 调度/下单方式) / 域 2 (FR-090~110 内置策略) / 域 3 (FR-115/130 驱动契约) / 域 4 (FR-140~190 交易规则) / 域 5 (FR-200~250 运行时参数+调度+通知); FR-260/FR-460 调度 UI/系统配置已迁移 [v0.2-002-ui](../v0.2-002-ui/spec.md)
 - ✅ NFR-060: 运行时注入契约, 见 [interfaces.md §7.4](./interfaces.md)
-- ⏸ FR-270 ~ FR-470: spec 已有, acceptance/test-plan 待补 (数据同步/评估/账户/通知/安装等扩展域)
+- ✅ FR-270 ~ FR-470: spec + acceptance 已补齐, 覆盖数据同步/评估/账户/通知/安装等扩展域
+- ✅ FR-480/481/484/485: 基于 reverse coverage map 新增, 覆盖重采样、通知通道、研究辅助与证券代码工具
 - ✅ FR-185: 经典加权均价方案 A (P1 已解), 见 [spec-strategy.md §FR-185](./spec-strategy.md)
 
 #### v0.2-001 已锁定 FR (有锚点, 已建 issue)

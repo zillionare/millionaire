@@ -772,6 +772,492 @@
 
 ---
 
+<a id="fr-050"></a>
+<a id="ac-fr-050"></a>
+### FR-050 下单方式 — cheat-on-close
+
+> 下单方式契约见 [spec-strategy.md §FR-050](./spec-strategy.md); 撮合 ground truth 见 [test-plan.md §3.2](./test-plan.md)。
+
+#### AC-050-01 回测按 T+0 收盘价撮合
+- ⬜ 回测中策略在 T+0 收盘价信号触发买入或卖出 → 订单以 T+0 `daily_bars.close` 作为成交价
+- ⬜ 验证依据: 使用 test-plan §3.2 独立手算脚本读取同一日线数据, 断言 `trades.price == close[T]` 且成交记录写入 [interfaces.md §4.3 trades](./interfaces.md)
+
+#### AC-050-02 paper/live 尾盘集合竞价前发单
+- ⬜ paper/live 中选择 cheat-on-close, T+0 触发信号 → 系统在默认 14:57 或用户配置的尾盘执行时点提交委托
+- ⬜ 验证依据: 结构化日志 `order.submitted` 或 [interfaces.md §4.2 orders](./interfaces.md) 的 `tm` 字段等于配置时点; 策略自身仍不感知运行模式
+
+---
+
+<a id="fr-060"></a>
+<a id="ac-fr-060"></a>
+### FR-060 下单方式 — 次日开盘（正常模式）
+
+> 下单方式契约见 [spec-strategy.md §FR-060](./spec-strategy.md); 撮合 ground truth 见 [test-plan.md §3.2](./test-plan.md)。
+
+#### AC-060-01 回测按 T+1 开盘价成交
+- ⬜ 回测中 T+0 收盘信号产生订单 → T+1 以 `daily_bars.open` 成交
+- ⬜ 验证依据: 独立手算脚本读取 T+1 open, 断言 [interfaces.md §4.3 trades](./interfaces.md) 的成交价等于 `open[T+1]`
+
+#### AC-060-02 开盘涨跌停时不撮合
+- ⬜ T+1 `open == up_limit` 时买单不成交; T+1 `open == down_limit` 时卖单不成交
+- ⬜ 验证依据: [interfaces.md §4.2 orders](./interfaces.md) 状态为 rejected 或 filled=0, [interfaces.md §4.3 trades](./interfaces.md) 无对应成交记录
+
+---
+
+<a id="fr-070"></a>
+<a id="ac-fr-070"></a>
+### FR-070 下单方式 — 次日限价
+
+> 下单方式契约见 [spec-strategy.md §FR-070](./spec-strategy.md); 撮合 ground truth 见 [test-plan.md §3.2](./test-plan.md)。
+
+#### AC-070-01 回测限价落入 T+1 日内区间才成交
+- ⬜ 回测中 T+0 收盘信号指定限价 `price` 且 `low[T+1] <= price <= high[T+1]` → 全部成交, 成交价为指定限价
+- ⬜ `price < low[T+1]` 或 `price > high[T+1]` → 不成交
+- ⬜ 验证依据: test-plan §3.2 手算脚本读取 T+1 `[low, high]`, 对比 [interfaces.md §4.2 orders](./interfaces.md) 与 [interfaces.md §4.3 trades](./interfaces.md)
+
+#### AC-070-02 paper/live 次日集合竞价发出限价委托
+- ⬜ paper/live 中选择次日限价, T+0 盘后信号产生订单 → T+1 开盘集合竞价发出限价委托, 委托价格等于策略信号指定价
+- ⬜ 验证依据: [interfaces.md §4.2 orders](./interfaces.md) 的 `tm` 为 T+1 开盘时点, `price` 等于指定限价
+
+---
+
+<a id="fr-080"></a>
+<a id="ac-fr-080"></a>
+### FR-080 跨模式回测-实盘差异
+
+> 跨模式差异契约见 [spec-strategy.md §FR-080](./spec-strategy.md) 与 [spec-trading.md §FR-190](./spec-trading.md); 三层测试策略见 [test-plan.md §6.3](./test-plan.md)。
+
+#### AC-080-01 同一信号跨模式允许因撮合源不同产生差异
+- ⬜ 同一策略、同一信号、同一下单方式在 backtest 与 paper/live 中运行 → 成交时点或成交结果可因历史日线撮合、仿真撮合、真实/假网关撮合不同而不同
+- ⬜ 验证依据: 测试只断言各模式分别满足对应 FR-050/060/070/190 的外部契约, 不要求跨模式成交价/成交状态完全相等
+
+#### AC-080-02 差异不得暴露给策略代码
+- ⬜ 策略生命周期、参数、数据接口名称在四模式保持一致; 策略代码内不存在可读取当前运行模式的公开 API
+- ⬜ 验证依据: 反射策略基类无 `get_mode` / `is_backtest` / `is_live` 等模式探测入口, 且 [interfaces.md §6](./interfaces.md) 生命周期日志字段语义一致
+
+---
+
+<a id="fr-185"></a>
+<a id="ac-fr-185"></a>
+### FR-185 持仓成本基准（加权均价算法 — 经典方案 A）
+
+> 成本基准算法见 [spec-strategy.md §FR-185](./spec-strategy.md); 存储字段见 [interfaces.md §4.4 positions.price](./interfaces.md)。
+
+#### AC-185-01 买入时按加权均价更新 cost_basis
+- ⬜ 已有持仓 `old_qty > 0`, 再次买入 `buy_qty` → `positions.price = (old_qty × old_cost_basis + buy_qty × buy_price) / (old_qty + buy_qty)`
+- ⬜ 首次建仓 (`old_qty == 0`) → `positions.price = buy_price`
+- ⬜ 验证依据: 成交后查询 [interfaces.md §4.4 positions](./interfaces.md) 的 `price` 字段, 与 spec-strategy.md F-CB-1/F-CB-4 手算结果一致
+
+#### AC-185-02 卖出时剩余持仓成本不变或清仓删除
+- ⬜ 部分卖出 (`0 < sell_qty < old_qty`) → 剩余持仓 `positions.price` 保持卖出前成本不变
+- ⬜ 全部卖出 (`sell_qty == old_qty`) → 删除该标的持仓记录或持仓数量为 0 且不再保留可用于风控触发的 cost_basis
+- ⬜ 验证依据: 成交后查询 [interfaces.md §4.4 positions](./interfaces.md), 与 spec-strategy.md F-CB-2/F-CB-3 一致
+
+---
+
+<a id="fr-270"></a>
+<a id="ac-fr-270"></a>
+### FR-270 数据源 — 行情（tushare）
+
+> 行情数据源契约见 [spec-trading.md §FR-270](./spec-trading.md); 测试数据字段契约见 [test-plan.md §2.4.1](./test-plan.md)。
+
+#### AC-270-01 日线行情字段完整且按年分区存储
+- ⬜ 同步个股或指数日线后, 本地 Parquet 至少包含 OHLCV、amount、adjust、is_st、up_limit、down_limit 中该资产类型适用的字段
+- ⬜ 数据按年份分区或可按年份范围读取, 不要求保存 tick/分钟/30m 生产行情
+- ⬜ 验证依据: 读取落盘 Parquet schema 与分区路径, 对比 spec-trading.md §FR-270 字段清单
+
+#### AC-270-02 回测仅消费本地历史日线
+- ⬜ 回测运行时读取本地 tushare 历史日线数据, 不发起网络行情请求
+- ⬜ 验证依据: 回测日志/配置记录数据源为本地 Parquet; 测试环境断网时仍可读取 fixture 完成回测数据加载
+
+---
+
+<a id="fr-280"></a>
+<a id="ac-fr-280"></a>
+### FR-280 数据源 — 参考数据（tushare）
+
+> 参考数据契约见 [spec-trading.md §FR-280](./spec-trading.md); SDK 元数据验收见 FR-014/FR-015。
+
+#### AC-280-01 交易日历与证券列表可从 tushare 同步并落盘
+- ⬜ 同步任务完成后, 本地参考数据包含交易日历、全市场证券代码/名称/拼音/上市退市日期、ST 标记
+- ⬜ 验证依据: 读取本地参考数据文件或数据库表, 字段覆盖 spec-trading.md §FR-280 清单; SDK 查询结果与落盘数据一致
+
+#### AC-280-02 参考数据作为 SDK 元数据单一真相源
+- ⬜ `is_trade_day` / `stocks_listed` / `is_st` / `get_name` 等 SDK 查询结果来自已同步参考数据, 与 fixture parquet 直接查询一致
+- ⬜ 验证依据: test-plan §3.6 ground truth 直接读取 parquet 与 SDK 输出逐项对比
+
+---
+
+<a id="fr-290"></a>
+<a id="ac-fr-290"></a>
+### FR-290 数据源 — 复权与涨跌停
+
+> 复权与涨跌停契约见 [spec-trading.md §FR-290](./spec-trading.md); 涨跌停撮合验收见 FR-140。
+
+#### AC-290-01 复权因子可用于前复权/后复权计算
+- ⬜ 给定未复权 OHLC 与 adjust 因子 → 前复权/后复权输出与独立公式计算结果一致
+- ⬜ 验证依据: 直接读取测试 fixture 中的 OHLC + adjust, 用 ground truth 脚本计算复权价格, 对比框架数据工具输出
+
+#### AC-290-02 涨跌停价进入撮合判断
+- ⬜ 日线数据存在 `up_limit` / `down_limit` 时, FR-140 限价与开盘涨跌停判断以数据字段为准, 不以内置百分比规则硬编码为准
+- ⬜ 验证依据: 构造普通/ST/创科标的 fixture, 断言订单拒绝/成交行为与字段值一致
+
+---
+
+<a id="fr-300"></a>
+<a id="ac-fr-300"></a>
+### FR-300 数据源 — 实时行情（qmt-gateway）
+
+> 实时行情契约见 [spec-trading.md §FR-300](./spec-trading.md); L2 网关契约测试见 [test-plan.md §6.3.2](./test-plan.md)。
+
+#### AC-300-01 paper/live 通过 qmt-gateway 获取 tick 与分钟线
+- ⬜ paper/live 模式启动实时行情后, 框架能通过 gateway 协议接收 tick 或分钟线事件, 并将其用于策略 `get_bars(frame_type="30m")` / 风控 `on_check`
+- ⬜ 验证依据: L2 假网关推送行情后, [interfaces.md §6](./interfaces.md) 日志或行情流事件可观测到同一标的/时间戳/价格
+
+#### AC-300-02 实时行情不作为生产历史数据落盘
+- ⬜ tick/分钟/30m 实时行情仅用于 paper/live 当日运行; 生产数据同步不把它们写入历史行情库
+- ⬜ 验证依据: 运行一次实时行情订阅后, 历史日线 Parquet/数据库无新增 tick/分钟/30m 生产历史分区
+
+---
+
+<a id="fr-310"></a>
+<a id="ac-fr-310"></a>
+### FR-310 数据同步任务
+
+> 数据同步任务契约见 [spec-trading.md §FR-310](./spec-trading.md)。
+
+#### AC-310-01 定时同步覆盖行情与参考数据
+- ⬜ 定时同步任务可同步日线行情、证券列表、交易日历、ST、涨跌停历史数据
+- ⬜ 验证依据: 执行同步任务后, 每类数据的落盘行数或更新时间出现在同步报告中, 且本地存储可查询到新增数据
+
+#### AC-310-02 支持错过任务重跑与补录
+- ⬜ 某个交易日同步失败或错过执行后, 用户可重新执行该日期或日期范围的数据同步
+- ⬜ 验证依据: 删除或标记缺失某日数据后运行补录, 完成报告显示该日被补齐, 数据完整性校验通过
+
+---
+
+<a id="fr-320"></a>
+<a id="ac-fr-320"></a>
+### FR-320 数据完整性校验
+
+> 数据完整性契约见 [spec-trading.md §FR-320](./spec-trading.md)。
+
+#### AC-320-01 完整性报告覆盖缺日、重复日与字段空值率
+- ⬜ 对已同步数据运行完整性校验 → 报告至少包含缺失交易日、重复交易日、关键字段空值率
+- ⬜ 验证依据: 对 fixture 注入缺日/重复日/空值样本, 断言报告中对应问题类型和标的/日期可观测
+
+#### AC-320-02 完整性校验可作为同步后验收门禁
+- ⬜ 同步任务完成后可触发完整性校验; 校验失败时报告失败原因, 不把失败伪装为成功
+- ⬜ 验证依据: 同步报告或结构化日志包含 `success=false` 与失败项列表
+
+---
+
+<a id="fr-330"></a>
+<a id="ac-fr-330"></a>
+### FR-330 数据查询支持
+
+> 数据查询契约见 [spec-trading.md §FR-330](./spec-trading.md)。
+
+#### AC-330-01 支持交易日历与证券信息查询
+- ⬜ 用户可查询交易日历; 可按名称、数字代码或拼音模糊查询个股基本信息
+- ⬜ 验证依据: 对固定 fixture 发起查询, 返回结果与 parquet/数据库 ground truth 一致, 且模糊查询覆盖名称/代码/拼音三类输入
+
+#### AC-330-02 支持个股历史行情查询
+- ⬜ 用户指定标的和日期范围 → 返回该标的历史 OHLCV 数据; K 线图绘制属于 UI spec, 本 FR 只验数据查询结果
+- ⬜ 验证依据: 查询结果行数、日期范围、OHLCV 字段值与本地 Parquet 直接读取一致
+
+---
+
+<a id="fr-340"></a>
+<a id="ac-fr-340"></a>
+### FR-340 评估指标 — 回测
+
+> 回测评估契约见 [spec-trading.md §FR-340](./spec-trading.md); 指标 ground truth 见 [test-plan.md §3.4](./test-plan.md)。
+
+#### AC-340-01 回测结果包含完整独立策略指标
+- ⬜ 独立策略回测完成后, 结果包含年化收益率、最大回撤、Sharpe、Sortino、Calma、胜率、盈亏比、交易次数、基准对比
+- ⬜ 验证依据: [interfaces.md §4.1 回测结果 JSON](./interfaces.md) 中指标字段齐全
+
+#### AC-340-02 指标值与独立 ground truth 一致
+- ⬜ 对同一 returns/trades 序列, 框架输出的指标与 `empyrical-reloaded` 或手算脚本结果一致
+- ⬜ 验证依据: test-plan §3.4, 相对误差 < 1e-6; 胜率/盈亏比/交易次数由手算脚本计算
+
+---
+
+<a id="fr-350"></a>
+<a id="ac-fr-350"></a>
+### FR-350 评估指标 — 实盘/仿真
+
+> 实盘/仿真评估契约见 [spec-trading.md §FR-350](./spec-trading.md)。
+
+#### AC-350-01 paper/live 使用成交记录计算独立策略指标
+- ⬜ 独立策略在 paper/live 运行时, 使用实际成交记录计算与 FR-340 相同的指标集合
+- ⬜ 验证依据: 从 [interfaces.md §4.3 trades](./interfaces.md) 与资产曲线可观测出口重算指标, 与系统输出一致
+
+#### AC-350-02 日线和日内策略评估字段一致
+- ⬜ 日线策略与使用 live-only 粒度的独立策略在 paper/live 下输出同一套指标字段; 数据来源不同不改变指标 schema
+- ⬜ 验证依据: 分别运行日线与 30m 策略, 对比评估结果 JSON/数据库字段集合一致
+
+---
+
+<a id="fr-370"></a>
+<a id="ac-fr-370"></a>
+### FR-370 可视化 — 核心图表
+
+> 本 FR 已迁移到 [v0.2-002-ui/spec.md UI-FR-370](../v0.2-002-ui/spec.md); 本节仅验 v0.2-001 数据出口是否足以支撑 UI。
+
+#### AC-370-01 核心图表所需数据出口可用
+- ⬜ 回测/运行结果可提供净值曲线、基准曲线、买卖点、指标序列等 UI-FR-370 所需输入数据
+- ⬜ 验证依据: [interfaces.md §4.1 回测结果 JSON](./interfaces.md) 或对应运行结果出口字段齐全; 不验证 UI 渲染像素
+
+---
+
+<a id="fr-380"></a>
+<a id="ac-fr-380"></a>
+### FR-380 可视化 — 回测进度
+
+> 本 FR 已迁移到 [v0.2-002-ui/spec.md UI-FR-380 / UI-FR-080](../v0.2-002-ui/spec.md); 本节仅验回测进度事件出口。
+
+#### AC-380-01 回测进度可被外部观察
+- ⬜ 回测运行中按阶段或进度百分比发出可观察事件, 至少包含当前日期/已处理数量/总数量或等价进度信息
+- ⬜ 验证依据: [interfaces.md §6](./interfaces.md) 结构化日志或 backtest_logs 出口存在 progress 事件; UI 渲染不在本 FR 验证
+
+---
+
+<a id="fr-390"></a>
+<a id="ac-fr-390"></a>
+### FR-390 账户总览
+
+> 本 FR 已迁移到 [v0.2-002-ui/spec.md UI-FR-390](../v0.2-002-ui/spec.md); 本节仅验多策略账户数据出口。
+
+#### AC-390-01 多策略账户总览数据可查询
+- ⬜ 系统可按策略账户维度查询现金、总资产、市值、冻结资金、本金与更新时间
+- ⬜ 验证依据: [interfaces.md §4.5 assets](./interfaces.md) 按 `portfolio_id` 查询结果字段齐全, 多策略之间不串账
+
+---
+
+<a id="fr-400"></a>
+<a id="ac-fr-400"></a>
+### FR-400 委托与成交记录
+
+> 本 FR 已迁移到 [v0.2-002-ui/spec.md UI-FR-400](../v0.2-002-ui/spec.md); 本节仅验委托/成交数据出口。
+
+#### AC-400-01 委托与成交记录可按策略账户查询
+- ⬜ 用户可按 `portfolio_id` 查询委托记录与成交记录, 字段覆盖订单号、标的、方向、数量、价格、状态、时间与错误信息
+- ⬜ 验证依据: [interfaces.md §4.2 orders](./interfaces.md) 与 [interfaces.md §4.3 trades](./interfaces.md) 查询结果符合 schema
+
+---
+
+<a id="fr-410"></a>
+<a id="ac-fr-410"></a>
+### FR-410 paper/live 账户
+
+> 本 FR 已迁移到 [v0.2-002-ui/spec.md UI-FR-410](../v0.2-002-ui/spec.md); 本节仅验账户状态出口。
+
+#### AC-410-01 paper/live 虚拟账户状态可查询
+- ⬜ paper/live 策略启动后, 系统为策略提供独立虚拟账户状态, 包含资产、持仓、委托、成交四类可观测数据
+- ⬜ 验证依据: [interfaces.md §4.2~§4.5](./interfaces.md) 中同一 `portfolio_id` 的数据可关联查询
+
+---
+
+<a id="fr-420"></a>
+<a id="ac-fr-420"></a>
+### FR-420 实盘交易界面
+
+> 本 FR 已迁移到 [v0.2-002-ui/spec.md UI-FR-420](../v0.2-002-ui/spec.md); 本节仅验实盘交易后端契约。
+
+#### AC-420-01 live 模式委托链路可观察
+- ⬜ live 模式提交委托后, 系统记录委托提交、柜台回报、成交或失败结果
+- ⬜ 验证依据: L2 假网关或 L3 live smoke 中, [interfaces.md §4.2 orders](./interfaces.md)、[interfaces.md §4.3 trades](./interfaces.md) 与 [interfaces.md §6](./interfaces.md) 日志事件形成同一订单链路
+
+---
+
+<a id="fr-430"></a>
+<a id="ac-fr-430"></a>
+### FR-430 仿真交易界面
+
+> 本 FR 已迁移到 [v0.2-002-ui/spec.md UI-FR-430](../v0.2-002-ui/spec.md); 本节仅验仿真交易后端契约。
+
+#### AC-430-01 paper 模式委托链路可观察
+- ⬜ paper 模式提交委托后, 系统通过本地仿真撮合生成订单与成交结果, 并写入策略虚拟账本
+- ⬜ 验证依据: L1 确定性仿真中, [interfaces.md §4.2 orders](./interfaces.md)、[interfaces.md §4.3 trades](./interfaces.md)、[interfaces.md §4.4 positions](./interfaces.md) 和 [interfaces.md §4.5 assets](./interfaces.md) 按 `portfolio_id` 一致
+
+---
+
+<a id="fr-460"></a>
+<a id="ac-fr-460"></a>
+### FR-460 系统配置（init-wizard）
+
+> 本 FR 已迁移到 [v0.2-002-ui/spec.md UI-FR-460](../v0.2-002-ui/spec.md); 本节仅验配置结果对 v0.2-001 运行可见。
+
+#### AC-460-01 init-wizard 写入运行所需配置
+- ⬜ 初始化向导完成后, 系统配置包含数据目录、tushare token、gateway_url、通知配置、虚拟环境/服务启动所需路径中的适用项
+- ⬜ 验证依据: 配置读取 API 或配置文件可观测到上述字段; 依赖这些字段的数据同步或 gateway 连接能读取同一配置值
+
+---
+
+<a id="fr-470"></a>
+<a id="ac-fr-470"></a>
+### FR-470 安装与运行
+
+> 安装与运行契约见 [spec-trading.md §FR-470](./spec-trading.md)。
+
+#### AC-470-01 支持三类操作系统安装路径
+- ⬜ mac/linux 使用 shell 安装流程; windows 使用图形界面安装流程; 安装产物包含 embedded python/get-pip 或等价虚拟运行环境
+- ⬜ 验证依据: 安装脚本或安装日志显示创建虚拟运行环境, 启动命令使用该环境而非系统 Python
+
+#### AC-470-02 支持服务化运行与开机自启动
+- ⬜ 安装完成后可将程序注册为服务, 并配置随开机自动启动
+- ⬜ 验证依据: 对应平台服务管理器中存在服务定义; 启动日志显示从虚拟运行环境加载应用
+
+---
+
+<a id="fr-480"></a>
+<a id="ac-fr-480"></a>
+### FR-480 数据重采样与移动平均工具
+
+> 数据工具契约见 [spec-trading.md §FR-480](./spec-trading.md)。
+
+#### AC-480-01 周线/月线 OHLCV 聚合规则正确
+- ⬜ 给定多日 OHLCV 数据, 周线或月线输出满足 open=周期首个交易日开盘、high=max、low=min、close=周期最后交易日收盘、volume/amount=sum
+- ⬜ 存在 `adjust` 字段时, 输出周期末 `adjust`; 空输入返回空 DataFrame
+- ⬜ 验证依据: 独立手算 fixture 周/月聚合结果, 对比框架重采样输出
+
+#### AC-480-02 移动平均列按窗口生成
+- ⬜ 给定 close 序列和 periods `[5, 20]` → 输出包含 `ma5` / `ma20`, 值等于 close rolling mean
+- ⬜ 验证依据: 用 Polars/Pandas 独立 rolling mean 计算结果对比, 不使用被测实现作为期望值
+
+---
+
+<a id="fr-481"></a>
+<a id="ac-fr-481"></a>
+### FR-481 通知通道扩展（邮件 / 钉钉）
+
+> 通知通道契约见 [spec-trading.md §FR-481](./spec-trading.md); 通知事件枚举见 FR-450。
+
+#### AC-481-01 邮件消息可组装为纯文本、HTML 或附件 MIME
+- ⬜ 提供 subject + plain text → 生成 MIME 邮件含 Subject 与 text/plain 内容
+- ⬜ 提供 HTML 内容 → 生成 MIME 邮件 subtype 为 html
+- ⬜ 提供附件路径 → MIME 邮件包含附件 part
+- ⬜ 验证依据: 检查 `EmailMessage` headers、content type 与 payload; 不发送真实邮件
+
+#### AC-481-02 钉钉通道支持文本和 markdown 消息
+- ⬜ 输入字符串 → 发送 payload 为 text 类型
+- ⬜ 输入含 `title` / `text` 的 dict → 发送 payload 为 markdown 类型
+- ⬜ 验证依据: 使用外部 HTTP stub 捕获请求 JSON, 断言 msgtype 与 markdown/text 字段; access_token/secret 来自配置
+
+---
+
+<a id="fr-484"></a>
+<a id="ac-fr-484"></a>
+### FR-484 数据研究辅助工具
+
+> 数据研究辅助契约见 [spec-trading.md §FR-484](./spec-trading.md)。
+
+#### AC-484-01 时间序列切分保持时间顺序与输入类型
+- ⬜ 对 pandas DataFrame、Polars DataFrame、Polars LazyFrame 分别调用切分 → 返回类型与输入类型一致
+- ⬜ 每个 train/valid/test 子集内按 date 保持时间顺序, 不做随机打乱
+- ⬜ 验证依据: 构造多资产 fixture, 独立计算预期索引范围后对比输出
+
+#### AC-484-02 分组切分按每个 asset 独立执行
+- ⬜ `group_id="asset"` 时, 每个 asset 内独立按 cuts 切分; 不同 asset 的样本不会互相影响边界
+- ⬜ `group_id=None` 时, 全体数据按时间整体切分
+- ⬜ 验证依据: 多资产不同长度 fixture 对比每组 train/valid/test 行数与日期范围
+
+---
+
+<a id="fr-485"></a>
+<a id="ac-fr-485"></a>
+### FR-485 证券代码与市场规则工具
+
+> 证券代码工具契约见 [spec-trading.md §FR-485](./spec-trading.md)。
+
+#### AC-485-01 证券代码格式转换结果可判定
+- ⬜ 给定沪深北代表性证券代码 → hson / xt / jq 等目标格式转换结果与明确规则表一致
+- ⬜ 无效或不支持代码 → 返回可判定错误或空结果, 不返回错误市场的合法格式
+- ⬜ 验证依据: 独立规则表 fixture 对比转换输出
+
+#### AC-485-02 市场规则辅助值与行情字段一致
+- ⬜ 涨跌停辅助结果以行情数据或规则表为输入, 输出不与 FR-140 使用的 up_limit/down_limit 字段冲突
+- ⬜ 开盘时间差等交易时段辅助值与交易日历/交易时段规则一致
+- ⬜ 验证依据: 普通/ST/创科标的 fixture 与交易时段 fixture 对比工具输出
+
+---
+
+## 非功能验收标准
+
+<a id="nfr-010"></a>
+<a id="ac-nfr-010"></a>
+### NFR-010 性能 — 1000 标的日线回测 < 60s
+
+> 性能契约见 [spec-foundation.md §NFR-010](./spec-foundation.md); 指标 ground truth 见 [test-plan.md §3.4](./test-plan.md)。
+
+#### AC-NFR-010-01 1000 标的 3 年日线回测性能达标
+- ⬜ 在 CI 标准机上运行 1000 个 A 股日线、3 年区间、双均线回测端到端耗时 < 60s
+- ⬜ 验证依据: CI 性能基准记录总耗时, 含数据加载、策略执行、撮合与指标计算阶段耗时
+
+---
+
+<a id="nfr-020"></a>
+<a id="ac-nfr-020"></a>
+### NFR-020 类型完备
+
+> 类型契约见 [spec-foundation.md §NFR-020](./spec-foundation.md)。
+
+#### AC-NFR-020-01 公共 API 类型检查 0 报错
+- ⬜ 所有公共 API 具有参数与返回值类型标注; 严格类型检查在项目配置下 0 error
+- ⬜ 验证依据: CI 运行 pyright/mypy 严格检查通过; 新增公共 API 未标注时报错
+
+---
+
+<a id="nfr-030"></a>
+<a id="ac-nfr-030"></a>
+### NFR-030 单一职责原则
+
+> 单一职责契约见 [spec-foundation.md §NFR-030](./spec-foundation.md)。
+
+#### AC-NFR-030-01 方法长度门禁可执行
+- ⬜ 每个方法 ≤ 50 行, 最长 ≤ 120 行; docstring 与注释不计入业务行数
+- ⬜ 验证依据: CI 静态检查或 code review checklist 输出超限方法列表; 超限时 PR 阻塞
+
+---
+
+<a id="nfr-040"></a>
+<a id="ac-nfr-040"></a>
+### NFR-040 不留冗余代码
+
+> 冗余代码契约见 [spec-foundation.md §NFR-040](./spec-foundation.md)。
+
+#### AC-NFR-040-01 一次性 stub 与未使用代码不进入主线
+- ⬜ 新增代码中不存在仅为占位的 stub、未调用的实验函数或“以备将来用”的分支
+- ⬜ 验证依据: code review checklist + 静态未使用检查; 删除 stub 后测试仍通过
+
+---
+
+<a id="nfr-050"></a>
+<a id="ac-nfr-050"></a>
+### NFR-050 可观测性契约（黑盒测试基础）
+
+> 可观测性契约见 [spec-foundation.md §NFR-050](./spec-foundation.md); 外部可观测边界见 [test-plan.md §1.1](./test-plan.md)。
+
+#### AC-NFR-050-01 每条 AC 所需内部状态有外部可观测出口
+- ⬜ acceptance.md 中任一 AC 若需要验证内部状态, 实现层必须通过结构化日志、数据文件、数据库表或 Web API 至少一种渠道暴露该状态
+- ⬜ 验证依据: test-plan §6.6 可观测契约清单能映射到 interfaces.md 或日志事件; 缺失出口时按 NFR 缺口处理
+
+---
+
+<a id="nfr-060"></a>
+<a id="ac-nfr-060"></a>
+### NFR-060 运行时可注入性（test-plan §6 可测试性基础）
+
+> 运行时可注入契约见 [spec-foundation.md §NFR-060](./spec-foundation.md); 详细场景保留下方“运行时可注入性验收 (NFR-060 联动)”节。
+
+#### AC-NFR-060-01 paper/live 外部依赖可通过公开装配点注入
+- ⬜ paper/live 运行时组件的墙钟、行情源、网关地址可通过公开协议或配置注入测试替身, 不需要 `mock.patch` 框架内部符号
+- ⬜ 验证依据: 下方 AC-CLOCK-INJ-01~06 全部通过; [interfaces.md §7](./interfaces.md) 声明的 ClockPort / MarketDataPort / gateway_url 装配点可观察
+
+---
+
 ## 运行时可注入性验收 (NFR-060 联动)
 
 > **范围**: 本节 AC 验证 [spec-foundation.md NFR-060](./spec-foundation.md) 的运行时可注入契约, 是 [test-plan.md §6](./test-plan.md) L1/L2 E2E 测试的前置条件。
@@ -822,23 +1308,14 @@
 
 按 specforge 0.5.1 L7 三模式 (v0.5-006): 字面值 "无" + acceptance.md ## No Acceptance 列表.
 
-以下 FR 无专属 acceptance 章节 (AC 在 spec 章节中描述, 或由 test-plan / CI 静态扫描覆盖):
+以下 FR 无专属 acceptance 章节:
 
-### FR — 撮合/算法/声明性
+### FR — 已迁移 / 无专属 v0.2-001 acceptance
 
-- FR-050 (cheat-on-close): AC 由 [test-plan.md §3.2 撮合 ground truth](./test-plan.md) 覆盖, 行为依赖 cheat-on-close 撮合规则
-- FR-060 (次日开盘): 同上, 撮合规则为 T0 收盘价信号 → T1 开盘价成交
-- FR-070 (次日限价): 同上, 撮合规则为 T0 收盘价信号 → T1 限价成交
-- FR-080 (跨模式差异): 声明性 FR, 跨模式差异由 [test-plan.md §6.3 三层测试金字塔跨模式差异测试](./test-plan.md) 覆盖
-- FR-185 (加权均价经典方案 A, P1 已解): 算法定义见 [spec-strategy.md §FR-185 F-CB-1/2/3/4 公式](./spec-strategy.md); 存储 [interfaces.md §4.4 positions.price](./interfaces.md)
+- FR-260 (调度 UI): UI 契约已迁移到 [v0.2-002-ui/spec.md UI-FR-260](../v0.2-002-ui/spec.md); 001 分册仅保留调度规则引用位
 
-### NFR — 非功能需求
+### NFR — 无
 
-- NFR-010 (性能): AC 由 [test-plan.md §3.4 评估指标 ground truth (empyrical-reloaded)](./test-plan.md) + CI 性能基准保证
-- NFR-020 (类型完备): AC 由 ruff mypy strict CI 保证
-- NFR-030 (单一职责): AC 由 code review + 架构图验证保证
-- NFR-040 (不留冗余): AC 由 code review + coverage ≥ 95% 保证
-- NFR-050 (可观测性): AC 由 L1 paper E2E 黑盒断言间接保证 (见 [interfaces.md §4-6 数据表 + 日志](./interfaces.md))
-- NFR-060 (运行时可注入): AC 见下方 '运行时可注入性验收 (NFR-060 联动)' 节 (AC-CLOCK-INJ-01~06); 此处列 '无' 是因 acceptance.md 无 ac-nfr-060 锚点
+- 当前 NFR-010 ~ NFR-060 均已有标准 `### NFR-XXX` acceptance 节；NFR-060 的详细场景保留在上方 `运行时可注入性验收 (NFR-060 联动)`。
 
 > **Lex 阶段一审核依据**: 这些 FR 的 acceptance 来源 (test-plan §3.2 / spec FR 章节) 已由 spec 阶段锁定, Lex 验证 spec.md + test-plan.md 引用完整后, 视为 AC 已落地. 不需 acceptance.md 占位章节.
