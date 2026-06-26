@@ -65,7 +65,7 @@ def _get_data_status() -> dict:
     try:
         from quantide.data.models.daily_bars import daily_bars
 
-        if daily_bars.store._data is not None:
+        if daily_bars.total_dates > 0:
             total = daily_bars.size
             start = daily_bars.start
             end = daily_bars.end
