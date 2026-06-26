@@ -10,13 +10,12 @@ from quantide.core.ports import DataFetcherPort
 from quantide.core.singleton import singleton
 from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.helper import hfq_adjustment, qfq_adjustment
-from quantide.data.models.bars import Bars
 from quantide.data.models.calendar import Calendar
 from quantide.data.stores.base import ParquetStorage
 
 
 @singleton
-class DailyBars(Bars, ParquetStorage):
+class DailyBars(ParquetStorage):
     """日线行情数据存储与查询。
 
     继承 ParquetStorage 提供统一的存储、更新和查询能力。
