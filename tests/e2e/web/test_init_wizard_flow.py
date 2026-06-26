@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import datetime
 import json
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-from quantide.config.dev_stubs import DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, reset_dev_stub_runtime_for_tests
+from quantide.config.dev_stubs import (
+    DEV_STUB_TUSHARE_TOKEN,
+    DEV_STUBS_ENV_VAR,
+    reset_dev_stub_runtime_for_tests,
+)
 from quantide.service.init_wizard import init_wizard
 from tests.e2e.support.gateway_stub import running_gateway_stub
 from tests.e2e.support.init_wizard_session import init_wizard_e2e_session
@@ -229,22 +232,12 @@ def test_init_wizard_dev_stub_step_five_imports_samples_without_download_dialog(
 @pytest.mark.e2e
 @pytest.mark.release_gate
 def test_init_wizard_download_success_reports_completed_progress():
-    class SuccessfulStockSyncService:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def sync_stock_list(self):
-            return 12
-
-        def sync_daily_bars(self, start, end):
-            return None
-
     with init_wizard_e2e_session() as session, patch(
         "quantide.data.init_data", lambda home, init_db=True: None
     ), patch(
-        "quantide.web.pages.init_wizard.StockSyncService", SuccessfulStockSyncService
+        "quantide.web.pages.init_wizard.stock_list.update", lambda *a, **kw: None
     ), patch(
-        "quantide.web.pages.init_wizard.daily_bars", SimpleNamespace(store=object())
+        "quantide.web.pages.init_wizard.daily_bars.fetch_with_daily_progress", lambda *a, **kw: 0
     ), patch(
         "quantide.web.pages.init_wizard.calendar.update", lambda: None
     ), patch(

@@ -598,22 +598,13 @@ async def test_run_data_sync_failure_persists_error_to_step_five_header(monkeypa
         "last_trade_date",
         lambda: datetime.date(2024, 12, 31),
     )
-    monkeypatch.setattr(init_wizard_page, "daily_bars", SimpleNamespace(store=object()))
+    monkeypatch.setattr(init_wizard_page.stock_list, "update", lambda *a, **kw: None)
+    def _failing_fetch(*a, **kw):
+        raise RuntimeError("network broken")
+    monkeypatch.setattr(init_wizard_page.daily_bars, "fetch_with_daily_progress", _failing_fetch)
     monkeypatch.setattr("quantide.data.init_data", lambda home, init_db=True: None)
     monkeypatch.setattr(init_wizard_page.msg_hub, "subscribe", lambda *args, **kwargs: None)
     monkeypatch.setattr(init_wizard_page.msg_hub, "unsubscribe", lambda *args, **kwargs: None)
-
-    class FailingStockSyncService:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def sync_stock_list(self):
-            return 12
-
-        def sync_daily_bars(self, start, end):
-            raise RuntimeError("network broken")
-
-    monkeypatch.setattr(init_wizard_page, "StockSyncService", FailingStockSyncService)
 
     await init_wizard_page._run_data_sync(fake_wizard.state.history_start_date)
 
@@ -645,26 +636,17 @@ async def test_run_data_sync_clamps_future_start_to_calendar_end(monkeypatch):
         "last_trade_date",
         lambda: datetime.date(2024, 12, 31),
     )
-    monkeypatch.setattr(init_wizard_page, "daily_bars", SimpleNamespace(store=object()))
+    monkeypatch.setattr(init_wizard_page.stock_list, "update", lambda *a, **kw: None)
+    observed: dict[str, datetime.date] = {}
+
+    def _recording_fetch(start, end, progress_callback=None, force=False):
+        observed["start"] = start
+        observed["end"] = end
+        return 1
+    monkeypatch.setattr(init_wizard_page.daily_bars, "fetch_with_daily_progress", _recording_fetch)
     monkeypatch.setattr("quantide.data.init_data", lambda home, init_db=True: None)
     monkeypatch.setattr(init_wizard_page.msg_hub, "subscribe", lambda *args, **kwargs: None)
     monkeypatch.setattr(init_wizard_page.msg_hub, "unsubscribe", lambda *args, **kwargs: None)
-
-    observed: dict[str, datetime.date] = {}
-
-    class RecordingStockSyncService:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def sync_stock_list(self):
-            return 12
-
-        def sync_daily_bars(self, start, end):
-            observed["start"] = start
-            observed["end"] = end
-            return 1
-
-    monkeypatch.setattr(init_wizard_page, "StockSyncService", RecordingStockSyncService)
 
     await init_wizard_page._run_data_sync(fake_wizard.state.history_start_date)
 

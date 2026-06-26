@@ -15,8 +15,6 @@ from starlette.responses import StreamingResponse
 from quantide.core.message import msg_hub
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
-from quantide.data.models.stocks import stock_list
-from quantide.data.services import StockSyncService
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
@@ -321,8 +319,6 @@ async def _run_market_sync(start_date, end_date):
     _sync_status["message"] = "准备同步..."
 
     try:
-        stock_sync = StockSyncService(stock_list, daily_bars.store, calendar)
-
         def _on_progress(payload):
             if not isinstance(payload, dict): return
             if payload.get("error"):
@@ -337,7 +333,7 @@ async def _run_market_sync(start_date, end_date):
 
         msg_hub.subscribe("fetch_data_progress", _on_progress)
         try:
-            await asyncio.to_thread(stock_sync.sync_daily_bars, start_date, end_date)
+            await asyncio.to_thread(daily_bars.fetch_with_daily_progress, start_date, end_date)
             _sync_status["progress"] = 100
             _sync_status["message"] = "同步完成"
             _sync_status["completed"] = True

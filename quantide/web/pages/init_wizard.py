@@ -29,7 +29,6 @@ from quantide.core.message import msg_hub
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.stocks import stock_list
-from quantide.data.services import StockSyncService
 from quantide.service.init_wizard import init_wizard
 from quantide.web.layouts.base import BaseLayout
 from quantide.web.theme import PRIMARY_COLOR, AppTheme
@@ -1648,15 +1647,14 @@ def _prepare_dev_stub_sample_data(state: Any) -> None:
     home = str(getattr(state, "app_home", "") or DEFAULT_DATA_HOME)
     init_data(home, init_db=True)
 
-    stock_sync = StockSyncService(stock_list, daily_bars.store, calendar)
     calendar.update()
-    stock_sync.sync_stock_list()
+    stock_list.update()
 
     sync_end = calendar.last_trade_date()
     sync_start = getattr(state, "epoch", None) or sync_end
     if sync_start > sync_end:
         sync_start = sync_end
-    stock_sync.sync_daily_bars(sync_start, sync_end)
+    daily_bars.fetch_with_daily_progress(sync_start, sync_end)
 
 
 def _bootstrap_runtime_for_initialized_app(app: Any) -> None:
@@ -1701,8 +1699,6 @@ async def _run_data_sync(start_date: datetime.date | None = None):
 
         init_data(home, init_db=True)
 
-        stock_sync = StockSyncService(stock_list, daily_bars.store, calendar)
-
         _update_sync_status(15, "正在同步证券日历", "正在同步证券日历...")
         await asyncio.to_thread(calendar.update)
         sync_end = calendar.last_trade_date()
@@ -1715,7 +1711,8 @@ async def _run_data_sync(start_date: datetime.date | None = None):
             effective_start = sync_end
 
         _update_sync_status(30, "正在同步全A证券列表", "正在同步全A证券列表...")
-        stock_count = await asyncio.to_thread(stock_sync.sync_stock_list)
+        await asyncio.to_thread(stock_list.update)
+        stock_count = stock_list.size
         _update_sync_status(
             40,
             "全A证券列表同步完成",
@@ -1786,7 +1783,7 @@ async def _run_data_sync(start_date: datetime.date | None = None):
         msg_hub.subscribe("fetch_data_progress", _on_fetch_progress)
         try:
             await asyncio.to_thread(
-                stock_sync.sync_daily_bars,
+                daily_bars.fetch_with_daily_progress,
                 effective_start,
                 sync_end,
             )
