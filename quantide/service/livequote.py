@@ -61,6 +61,11 @@ class LiveQuote:
         self._streaming = False
         self._is_running = False
         self._stop_event.set()
+        # 注入 sentinel 唤醒可能阻塞在 queue.get() 的 stream() 消费者
+        if self._stream_queue is not None and self._stream_loop is not None:
+            self._stream_loop.call_soon_threadsafe(
+                self._stream_queue.put_nowait, None,
+            )
 
     def _run_ws(self):
         asyncio.run(self._ws_loop())
@@ -344,6 +349,8 @@ class LiveQuote:
         try:
             while self._streaming:
                 event = await self._stream_queue.get()
+                if event is None:  # sentinel from stop()
+                    break
                 yield event
         finally:
             self._streaming = False
