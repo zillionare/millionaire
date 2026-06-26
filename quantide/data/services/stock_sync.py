@@ -13,7 +13,7 @@ from quantide.core.ports import DataFetcherPort
 from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.models.calendar import Calendar, calendar
 from quantide.data.models.stocks import StockList
-from quantide.data.stores.bars import DailyBarsStore
+from quantide.data.stores.base import ParquetStorage
 
 
 class StockSyncService:
@@ -22,7 +22,7 @@ class StockSyncService:
     def __init__(
         self,
         stock_list: StockList,
-        daily_store: DailyBarsStore,
+        daily_store: ParquetStorage,
         calendar: Calendar,
         fetcher: DataFetcherPort | None = None,
     ):

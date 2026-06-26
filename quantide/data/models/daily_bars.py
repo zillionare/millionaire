@@ -6,35 +6,94 @@ from loguru import logger
 
 from quantide.config.settings import get_timezone
 from quantide.core.enums import FrameType
+from quantide.core.ports import DataFetcherPort
 from quantide.core.singleton import singleton
+from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.helper import hfq_adjustment, qfq_adjustment
 from quantide.data.models.bars import Bars
 from quantide.data.models.calendar import Calendar
-from quantide.data.stores.bars import DailyBarsStore
+from quantide.data.stores.base import ParquetStorage
 
 
 @singleton
-class DailyBars(Bars):
-    def __init__(self):
-        self._store: DailyBarsStore | None = None
-        self._calendar: Calendar | None = None
+class DailyBars(Bars, ParquetStorage):
+    """日线行情数据存储与查询。
 
-    @property
-    def store(self) -> DailyBarsStore:
-        if self._store is None:
-            raise RuntimeError("daily bars store 未初始化")
-        return self._store
+    继承 ParquetStorage 提供统一的存储、更新和查询能力。
+    .store 属性返回 self，保持向后兼容。
+    """
+
+    def __init__(self):
+        # 占位初始化；connect() 会用真实路径重新初始化 ParquetStorage
+        ParquetStorage.__init__(
+            self,
+            store_name="DailyBars",
+            store_path="/dev/null",
+            calendar=Calendar(),
+            fetch_data_func=None,
+        )
+        self._calendar: Calendar | None = None
+        self._data_fetcher: DataFetcherPort | None = None
+        self._initialized = False
 
     def connect(self, store_path: str | Path, calendar_store_path: str | Path) -> None:
-        if self._store is not None:
+        if self._initialized:
             logger.warning("重加载 daily bars store")
 
         self._calendar = Calendar().load(calendar_store_path)
-        self._store = DailyBarsStore(store_path, self._calendar)
+        self._data_fetcher = get_data_fetcher()
 
-    def __getattr__(self, name: str):
-        if name in ("start", "end", "total_dates", "size", "last_update_time"):
-            return getattr(self.store, name)
+        path = Path(store_path).expanduser()
+        partition_by = None if path.suffix == ".parquet" else "year"
+
+        # 用真实路径重新初始化 ParquetStorage
+        ParquetStorage.__init__(
+            self,
+            store_name="DailyBars",
+            store_path=path,
+            calendar=self._calendar,
+            fetch_data_func=self._fetch_bars_ext,
+            error_handler=None,
+            partition_by=partition_by,
+        )
+        self._initialized = True
+
+    @property
+    def store(self) -> "DailyBars":
+        """向后兼容属性：返回 self。
+
+        合并 DailyBarsStore 后，DailyBars 自身即为存储层。
+        旧代码 ``daily_bars.store.update()`` 等价于 ``daily_bars.update()``。
+        """
+        if not self._initialized:
+            raise RuntimeError("daily bars store 未初始化，请先调用 connect()")
+        return self
+
+    def _fetch_bars_ext(
+        self,
+        dates: list[datetime.date] | datetime.date,
+        phase_callback=None,
+    ):
+        return self._data_fetcher.fetch_bars_ext(dates, phase_callback=phase_callback)
+
+    def rec_counts_per_date(
+        self, start: datetime.date | None = None, end: datetime.date | None = None
+    ) -> dict[datetime.date, int]:
+        """获取每个交易日期的记录数量统计。"""
+        lazy = self._scan_store(keep_partition_col=False)
+        lazy = lazy.with_columns(pl.col("date").cast(pl.Date))
+
+        if start is not None:
+            lazy = lazy.filter(pl.col("date").dt.strftime("%F") >= start.isoformat())
+        if end is not None:
+            lazy = lazy.filter(pl.col("date").dt.strftime("%F") <= end.isoformat())
+        df = lazy.group_by("date").agg(pl.len().alias("n")).collect()
+        dates = df["date"].to_list()
+        counts = df["n"].to_list()
+        result: dict[datetime.date, int] = {}
+        for d, c in zip(dates, counts, strict=True):
+            result[d] = int(c)
+        return result
 
     def _normalize_bar_schema(
         self, frame: pl.DataFrame | pl.LazyFrame
@@ -75,11 +134,11 @@ class DailyBars(Bars):
             end: 结束日期/时间，默认为 None，表示获取缓存中最后一个交易日
         """
         if adjust not in ("qfq", "hfq"):
-            raw = self.store.get(assets, start, end, eager_mode=eager_mode)
+            raw = self.get(assets, start, end, eager_mode=eager_mode)
             return self._normalize_bar_schema(raw)
 
         lf = self._normalize_bar_schema(
-            self.store.get(assets, start, end, eager_mode=False)
+            self.get(assets, start, end, eager_mode=False)
         )
         if adjust == "qfq":
             return qfq_adjustment(lf, eager_mode=eager_mode)
@@ -161,7 +220,7 @@ class DailyBars(Bars):
             pl.DataFrame: 包含字段 [date, asset, close, adjust]
         """
         cols = ["date", "asset", "close", "adjust"]
-        lf = self.store.get(assets, start, end, cols=cols, eager_mode=False)
+        lf = self.get(assets, start, end, cols=cols, eager_mode=False)
         return lf.with_columns(pl.col("date").cast(pl.Date)).collect()
 
     def get_price_for_match(self, asset: str, tm: datetime.datetime) -> pl.DataFrame:

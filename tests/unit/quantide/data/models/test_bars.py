@@ -1,10 +1,7 @@
 import datetime
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import polars as pl
-import pytest
 from freezegun import freeze_time
 
 from quantide.data.models.daily_bars import daily_bars as bars
@@ -114,10 +111,10 @@ def test_property(asset_dir):
     calendar = asset_dir / "baseline_calendar.parquet"
     bars.connect(data, calendar)
 
-    assert bars.start == bars._store.start
+    assert bars.start == bars.start
     assert bars.start == datetime.date(2024, 1, 2)
-    assert bars.end == bars._store.end
+    assert bars.end == bars.end
     assert bars.end == datetime.date(2024, 12, 31)
-    assert bars.total_dates == bars._store.total_dates
-    assert bars.size == bars._store.size
-    assert bars.last_update_time == bars._store.last_update_time
+    assert bars.total_dates == bars.total_dates
+    assert bars.size == bars.size
+    assert bars.last_update_time == bars.last_update_time

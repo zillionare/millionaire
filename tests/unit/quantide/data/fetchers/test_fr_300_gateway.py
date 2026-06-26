@@ -7,11 +7,7 @@
 
 from __future__ import annotations
 
-import datetime
-from unittest.mock import MagicMock, patch
-
 import quantide.core.runtime.gateway_client
-import pytest
 
 
 class TestAC30001:
@@ -19,7 +15,6 @@ class TestAC30001:
 
     def test_happy_fake_gateway(self):
         """AC-300-01: happy — fake gateway 推送 tick 后 runtime 可观察事件"""
-        from quantide.core.runtime.gateway_client import GatewayProtocolError, _assert_json_content_type
         # 验证 gateway client 模块存在关键函数
         assert hasattr(quantide.core.runtime.gateway_client, "GatewayProtocolError")
 
@@ -43,9 +38,9 @@ class TestAC30002:
 
     def test_happy_tick_not_write_daily(self):
         """AC-300-02: happy — tick 事件不写 daily_bars"""
-        from quantide.data.stores.bars import DailyBarsStore
-        # DailyBarsStore 只存储日线
-        assert hasattr(DailyBarsStore, "_fetch_bars_ext")
+        from quantide.data.models.daily_bars import DailyBars
+        # DailyBars 只存储日线
+        assert hasattr(DailyBars, "_fetch_bars_ext")
 
     def test_edge_aggregation_rules(self):
         """AC-300-02: edge — 同一标的多 tick 聚合规则"""

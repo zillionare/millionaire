@@ -58,8 +58,8 @@ class TestAC32002:
 
     def test_edge_partial_pass(self):
         """AC-320-02: edge — 部分通过 + warning"""
-        from quantide.data.stores.bars import DailyBarsStore
-        assert hasattr(DailyBarsStore, "rec_counts_per_date")
+        from quantide.data.models.daily_bars import DailyBars
+        assert hasattr(DailyBars, "rec_counts_per_date")
 
     def test_error_crash_fallback(self):
         """AC-320-02: error — 校验脚本崩溃的兜底"""

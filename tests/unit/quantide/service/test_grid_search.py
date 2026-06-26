@@ -2,7 +2,7 @@ import datetime
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -10,7 +10,6 @@ from loguru import logger
 
 from quantide.core.enums import FrameType
 from quantide.core.strategy import BaseStrategy
-from quantide.data.sqlite import db as main_db
 from quantide.service.grid_search import GridSearch
 
 
@@ -34,7 +33,7 @@ class MockStrategy(BaseStrategy):
         pass
 
     async def on_bar(
-        self, tm: datetime.datetime, quote: Dict[str, Any], frame_type: FrameType
+        self, tm: datetime.datetime, quote: dict[str, Any], frame_type: FrameType
     ):
         pass
 
@@ -73,10 +72,10 @@ def grid_search_env(asset_dir):
 
     # Create dummy bars for 2024 (partitioned or single file depending on implementation)
     # The implementation in stores/bars.py checks suffix or partition by year.
-    # DailyBarsStore uses "DailyBars" and partition_by="year" if not .parquet suffix.
+    # DailyBars uses "DailyBars" and partition_by="year" if not .parquet suffix.
     # But init_data points to "data/bars/daily" directory.
     # So we should create "year=2024/part.parquet" or similar if hive partitioned.
-    # However, DailyBarsStore logic:
+    # However, DailyBars logic:
     # if path.suffix == ".parquet": partition_by = None
     # else: partition_by = "year"
 
@@ -115,7 +114,6 @@ def grid_search_env(asset_dir):
 
 def test_grid_search_save_logs(grid_search_env, db):
     """Test grid search running and merging logs."""
-
     # Clean up strategy logs before test (db fixture is session scoped but we can clean tables)
     # The 'db' fixture yields the singleton which is connected to a temp file for the session.
     if "strategy_logs" in db.tables:

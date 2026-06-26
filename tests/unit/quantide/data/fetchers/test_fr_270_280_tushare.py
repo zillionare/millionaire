@@ -10,18 +10,14 @@
 from __future__ import annotations
 
 import datetime
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
-import polars as pl
 import pytest
 
 from quantide.data.fetchers.tushare import (
     TushareDataFetcher,
     fetch_bars,
-    fetch_bars_ext,
-    fetch_calendar,
     fetch_stock_list,
 )
 
@@ -106,12 +102,13 @@ class TestAC27002:
 
     def test_happy_local_read(self):
         """AC-270-02: happy — 本地 fixture 可被读取"""
-        # 验证数据存储路径约定
-        from quantide.data.stores.bars import DailyBarsStore
+        # DailyBars 现在使用 connect() 初始化
         import inspect
-        sig = inspect.signature(DailyBarsStore.__init__)
-        assert "path" in sig.parameters
-        assert "data_fetcher" in sig.parameters
+
+        from quantide.data.models.daily_bars import DailyBars
+        sig = inspect.signature(DailyBars.connect)
+        assert "store_path" in sig.parameters
+        assert "calendar_store_path" in sig.parameters
 
     def test_error_missing_data(self, monkeypatch):
         """AC-270-02: error — 本地缺数据时报告明确"""
