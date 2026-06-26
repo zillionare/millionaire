@@ -1,7 +1,7 @@
 # auth/database.py
 from pathlib import Path
 
-from fasthtml.common import database
+from fastlite import database
 
 from quantide.config.paths import get_app_db_path
 
