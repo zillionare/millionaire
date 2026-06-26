@@ -1,1 +1,0 @@
-../.dev/AGENTS.MD

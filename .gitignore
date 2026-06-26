@@ -128,3 +128,9 @@ agents
 quantide.db-wal
 quantide.db
 quantide.db-shm
+
+.specforge/
+.louke/agents/
+.louke/templates/
+.opencode/agents/
+.claude/

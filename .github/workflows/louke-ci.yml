@@ -1,0 +1,27 @@
+name: louke-ci
+on:
+  push:
+    branches: [main, "releases/**"]
+  pull_request:
+    branches: [main, "releases/**"]
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install louke
+      - name: AC traceability scan
+        run: |
+          if [ -n "${SPEC_ID:-}" ]; then
+            lk archer ci-scan --spec "$SPEC_ID"
+          elif [ -d .louke/project/specs ]; then
+            for spec in .louke/project/specs/*; do
+              [ -d "$spec" ] || continue
+              lk archer ci-scan --spec "$(basename "$spec")"
+            done
+          else
+            echo "No .louke specs found; skipping louke ci-scan"
+          fi

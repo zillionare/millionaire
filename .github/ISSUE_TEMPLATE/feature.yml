@@ -1,0 +1,38 @@
+name: Feature
+description: 一个 FR 需求单元（必须 1:1 对应 spec.md 中的一个 FR-XXXX 段）
+title: "[FR-XXXX] 简述"
+labels: ["Feature"]
+body:
+  - type: input
+    id: fr_id
+    attributes:
+      label: 需求 ID
+      description: 与 spec.md 中的 FR 编号严格一致（4 位零填充，如 FR-0001）
+      placeholder: FR-0001
+    validations:
+      required: true
+      regex: "^FR-\\d{4}$"
+
+  - type: input
+    id: spec_url
+    attributes:
+      label: Spec 链接
+      description: 完整 GitHub URL，fragment 必须小写（#fr-0001，不是 #FR-0001）。
+      placeholder: https://github.com/{owner}/{repo}/blob/{branch}/.louke/project/specs/{spec-id}/spec.md#fr-0001
+    validations:
+      required: true
+      regex: "^https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/blob/[A-Za-z0-9._/-]+/\\.louke/project/(specs/)?[A-Za-z0-9._-]+/spec(-\\w+)?\\.md#(fr|nfr)-\\d{4}$"
+
+  - type: input
+    id: acceptance_criteria
+    attributes:
+      label: 验收标准
+      description: |
+        指向 AC 来源, 三选一:
+        1. acceptance.md#ac-fr-0001 URL
+        2. spec(-vol)?.md#fr-0001 URL
+        3. 字面值 "无"
+      placeholder: https://github.com/{owner}/{repo}/blob/{branch}/.louke/project/specs/{spec-id}/acceptance.md#ac-fr-0001
+    validations:
+      required: true
+      regex: "^(无|https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/blob/[A-Za-z0-9._/-]+/\\.louke/project/(specs/)?[A-Za-z0-9._-]+/(spec(-\\w+)?\\.md#(fr|nfr)-\\d{4}|acceptance\\.md#ac-(fr|nfr)-\\d{4}))$"
