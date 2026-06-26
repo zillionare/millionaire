@@ -17,12 +17,9 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import polars as pl
 import pytest
 
 from quantide.core.strategy import BaseStrategy
-from quantide.service.runner import BacktestRunner
-
 
 # Real tushare fixture (preferred); fall back to synthetic
 REAL_DIR = Path(__file__).resolve().parents[2] / "assets" / "real"
@@ -108,12 +105,12 @@ class TestAccountIsolation:
         assert "broker" in params
 
     def test_cash_via_broker(self):
-        """cash 通过 broker.cash 访问"""
-        # 当前架构通过 broker 委托;验证 broker 接口有 cash 属性
-        from quantide.service.base_broker import Broker
+        """账户信息通过 BrokerPort query 方法访问"""
+        # BrokerPort 用 query_assets()/query_position() 替代旧 cash/positions 属性
+        from quantide.core.ports.broker import BrokerPort
 
-        assert hasattr(Broker, "cash")
-        assert hasattr(Broker, "positions")
+        assert hasattr(BrokerPort, "query_assets")
+        assert hasattr(BrokerPort, "query_positions")
 
 
 # ───────────────────────── Synthetic fixture 集成测试 ─────────────────────────
@@ -137,7 +134,7 @@ class TestFixtureIntegration:
             pytest.skip("neither real nor synthetic fixtures generated; tracker: .dev/memory/26-06-22.md#L6")
 
     def test_fixture_assets_cover_boundary_categories(self, fixture_loaded):
-        """fixture 包含所有 test-plan §1.2 边界类别
+        """Fixture 包含所有 test-plan §1.2 边界类别
 
         real data: dedup 后 chinext_star 为 0,接受该缺口并标注。
         """
@@ -153,7 +150,7 @@ class TestFixtureIntegration:
             assert "chinext_star" not in categories or len(universe[universe["category"] == "chinext_star"]) > 0
 
     def test_fixture_date_range(self, fixture_loaded):
-        """fixture 覆盖 2023-2025"""
+        """Fixture 覆盖 2023-2025"""
         bars, _, _ = fixture_loaded
         bars["date"] = pd.to_datetime(bars["date"])
         date_min = bars["date"].min().date()
@@ -175,7 +172,7 @@ class TestFixtureIntegration:
             assert all(st_assets["name"].str.contains("ST", na=False))
 
     def test_fixture_suspended_has_zero_volume(self, fixture_loaded):
-        """suspended 类资产的部分日期 volume=0(停牌特征)
+        """Suspended 类资产的部分日期 volume=0(停牌特征)
 
         仅对 synthetic fixture 适用(real data 未做停牌时间戳注入)。
         """

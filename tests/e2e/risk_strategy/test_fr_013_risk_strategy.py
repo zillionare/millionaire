@@ -15,13 +15,11 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
-from typing import Any
 
 import polars as pl
 import pytest
 
 from quantide.core.strategy import BaseStrategy
-
 
 # ───────────────────────── AC-013-01 无独立账户 ─────────────────────────
 
@@ -59,11 +57,11 @@ class TestSellOnly:
         中是通用方法。spec 明确 RiskStrategy 不应有 buy 接口 —
         当前架构通过 BaseStrategy.broker.buy 暴露,这是 spec 缺口。
         """
-        from quantide.service.base_broker import Broker
+        from quantide.core.ports.broker import BrokerPort
 
-        assert hasattr(Broker, "sell")
-        assert hasattr(Broker, "sell_amount")
-        assert hasattr(Broker, "sell_percent")
+        assert hasattr(BrokerPort, "sell")
+        assert hasattr(BrokerPort, "sell_amount")
+        assert hasattr(BrokerPort, "sell_percent")
 
 
 # ───────────────────────── AC-013-03 只读宿主持仓 ─────────────────────────
@@ -73,13 +71,11 @@ class TestReadOnlyHostPositions:
     """AC-013-03: RiskStrategy 只读访问宿主持仓"""
 
     def test_broker_positions_is_readable(self):
-        """broker.positions 可读"""
-        from quantide.service.base_broker import Broker
+        """BrokerPort.query_position 可读"""
+        from quantide.core.ports.broker import BrokerPort
 
-        positions_prop = Broker.__dict__.get("positions", None)
-        # positions 应该是 property(只读接口)
-        assert positions_prop is not None
-        assert isinstance(positions_prop, property)
+        # Protocol 方法天然只读
+        assert hasattr(BrokerPort, "query_positions")
 
 
 # ───────────────────────── AC-013-04 tick 数据接口 ─────────────────────────
@@ -89,7 +85,7 @@ class TestTickData:
     """AC-013-04: get_ticks / get_prices 在 tick 级数据可用"""
 
     def test_synthetic_ticks_fixture_exists(self):
-        """synthetic tick fixture 存在"""
+        """Synthetic tick fixture 存在"""
         path = Path(__file__).resolve().parents[2] / "assets" / "synthetic" / "synthetic_ticks.parquet"
         if not path.exists():
             pytest.skip("synthetic ticks fixture not generated; tracker: .dev/memory/26-06-22.md#L13")
@@ -107,7 +103,7 @@ class TestHostLifecycleBinding:
     """AC-013-05: RiskStrategy 不可独立运行,需绑定宿主"""
 
     def test_no_risk_strategy_subclass_exists_yet(self):
-        """spec 缺口: RiskStrategy 子类尚未实现(spec-vs-impl gap)
+        """Spec 缺口: RiskStrategy 子类尚未实现(spec-vs-impl gap)
 
         当前所有策略都是 BaseStrategy 直接子类。
         spec FR-013 要求 RiskStrategy(BaseStrategy) 子类有:
@@ -133,8 +129,6 @@ class TestKnownGaps:
 
     def test_risk_strategy_subclasses_not_implemented(self):
         """RiskStrategy 子类未实现(spec FR-013 全部 AC 当前结构性不可测)"""
-        from quantide.strategies.example.dual_ma import DualMAStrategy
-
         # 当前 BaseStrategy 子类只有 DualMAStrategy,无 RiskStrategy
         subclasses = BaseStrategy.__subclasses__()
         risk_subclasses = [c for c in subclasses if "Risk" in c.__name__]

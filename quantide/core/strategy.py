@@ -5,12 +5,12 @@ from typing import Any
 import polars as pl
 from loguru import logger
 
+from quantide.core.ports import BrokerPort
 from quantide.core.ports.broker import ExecutionResult
-from quantide.service.base_broker import Broker
 
 
 class Strategy(ABC):
-    def __init__(self, broker: Broker, config: dict[str, Any]):
+    def __init__(self, broker: BrokerPort, config: dict[str, Any]):
         self.broker = broker
         self.config = config
         logger_kwargs = {"strategy": self.__class__.__name__}

@@ -7,17 +7,14 @@
 
 from __future__ import annotations
 
-import datetime
 import inspect
 from pathlib import Path
-from typing import Any
 
 import polars as pl
 import pytest
 
 from quantide.core.strategy import BaseStrategy
 from quantide.service.runner import BacktestRunner
-
 
 # ───────────────────────── AC-012-01 类型层拒绝回测 ─────────────────────────
 
@@ -108,12 +105,12 @@ class TestTradingInterfaceConsistency:
     """AC-012-04: LiveStrategy 交易/查询接口与 DayStrategy 完全相同"""
 
     def test_broker_interface_shared_with_day_strategy(self):
-        """AC-012-04: Broker 类提供 buy/sell/cash/positions/get_history 等 11 个接口."""
-        from quantide.service.base_broker import Broker
+        """AC-012-04: BrokerPort Protocol 提供 buy/sell/cancel/query 等 12 个接口."""
+        from quantide.core.ports.broker import BrokerPort
 
         required = ["buy", "buy_amount", "buy_percent",
                     "sell", "sell_amount", "sell_percent",
-                    "cancel_order", "cancel_all_orders", "trade_target_pct",
-                    "positions", "cash", "get_history"]
+                    "cancel", "cancel_all", "trade_target_pct",
+                    "query_positions", "query_assets", "record"]
         for attr in required:
-            assert hasattr(Broker, attr), f"Broker missing {attr}"
+            assert hasattr(BrokerPort, attr), f"BrokerPort missing {attr}"
