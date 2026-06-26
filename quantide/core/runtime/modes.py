@@ -15,7 +15,6 @@ from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.core.scheduler import scheduler
 from quantide.data import db
 from quantide.service.livequote import live_quote
-from quantide.service.quote_port_adapter import LiveQuotePortAdapter
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
 
@@ -106,7 +105,7 @@ class RuntimeBootstrap:
         一律走 LiveQuote。gateway 行情接入点保留在 service 层 (`live_quote` 的实现里)。
         """
         live_quote.start()
-        market_data = LiveQuotePortAdapter(live_quote)
+        market_data = live_quote
         adapters.register("market_data", "live_quote", market_data)
         return market_data
 

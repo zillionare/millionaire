@@ -4,6 +4,7 @@ import json
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import AsyncIterator
 from typing import Any
 
 import polars as pl
@@ -11,6 +12,7 @@ import websockets
 from loguru import logger
 
 from quantide.config.settings import get_settings
+from quantide.core.domain import MarketEvent, QuoteSnapshot
 from quantide.core.enums import Topics
 from quantide.core.message import msg_hub
 from quantide.core.scheduler import scheduler
@@ -39,6 +41,11 @@ class LiveQuote:
         self._lock = threading.RLock()
         self._ws_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        # MarketDataPort stream state
+        self._subscribed: set[str] = set()
+        self._stream_queue: asyncio.Queue[MarketEvent] | None = None
+        self._stream_loop: asyncio.AbstractEventLoop | None = None
+        self._streaming = False
 
     def start(self):
         if self._is_running:
@@ -51,6 +58,7 @@ class LiveQuote:
         self._ws_thread.start()
 
     def stop(self):
+        self._streaming = False
         self._is_running = False
         self._stop_event.set()
 
@@ -306,6 +314,102 @@ class LiveQuote:
     @property
     def is_running(self) -> bool:
         return self._is_running
+
+
+    # ── MarketDataPort methods ──────────────────────────────────────────
+
+    def subscribe(self, symbols: list[str]) -> None:
+        """登记关注标的."""
+        for symbol in symbols:
+            if symbol:
+                self._subscribed.add(symbol)
+
+    def unsubscribe(self, symbols: list[str]) -> None:
+        """移除关注标的."""
+        for symbol in symbols:
+            self._subscribed.discard(symbol)
+
+    async def stream(self) -> AsyncIterator[MarketEvent]:
+        """获取行情事件流 (async generator).
+
+        使用 asyncio.Queue + call_soon_threadsafe 桥接
+        msg_hub dispatch 线程与 asyncio 事件循环。
+        """
+        if self._stream_queue is not None:
+            raise RuntimeError("stream already started")
+        self._stream_queue = asyncio.Queue(maxsize=2000)
+        self._stream_loop = asyncio.get_running_loop()
+        self._streaming = True
+        msg_hub.subscribe(Topics.QUOTES_ALL.value, self._on_quotes_all)
+        try:
+            while self._streaming:
+                event = await self._stream_queue.get()
+                yield event
+        finally:
+            self._streaming = False
+            msg_hub.unsubscribe(Topics.QUOTES_ALL.value, self._on_quotes_all)
+            self._stream_queue = None
+            self._stream_loop = None
+
+    def snapshot(self, symbols: list[str]) -> dict[str, QuoteSnapshot]:
+        """获取行情快照."""
+        result: dict[str, QuoteSnapshot] = {}
+        for symbol in symbols:
+            quote = self.get_quote(symbol)
+            if quote is None:
+                continue
+            ts_raw = quote.get("time")
+            ts = None
+            if isinstance(ts_raw, (int, float)) and ts_raw > 0:
+                ts = datetime.datetime.fromtimestamp(ts_raw / 1000)
+            result[symbol] = QuoteSnapshot(
+                symbol=symbol,
+                price=self._to_float_or_none(quote.get("price")),
+                open=self._to_float_or_none(quote.get("open")),
+                high=self._to_float_or_none(quote.get("high")),
+                low=self._to_float_or_none(quote.get("low")),
+                volume=self._to_float_or_none(quote.get("volume")),
+                amount=self._to_float_or_none(quote.get("amount")),
+                ts=ts,
+            )
+        return result
+
+    def _on_quotes_all(self, payload: dict[str, dict[str, Any]]) -> None:
+        """接收消息总线行情推送, 桥接到 async stream."""
+        if self._stream_queue is None or self._stream_loop is None:
+            return
+        if not payload:
+            return
+        now = datetime.datetime.now()
+        for symbol, quote in payload.items():
+            if self._subscribed and symbol not in self._subscribed:
+                continue
+            event = MarketEvent(
+                symbol=symbol,
+                event_type="tick",
+                ts=now,
+                payload=dict(quote),
+                source="live_quote",
+            )
+            self._stream_loop.call_soon_threadsafe(self._put_event_safe, event)
+
+    def _put_event_safe(self, event: MarketEvent) -> None:
+        """将事件写入队列 (从 event loop 线程调用)."""
+        if self._stream_queue is None:
+            return
+        try:
+            self._stream_queue.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
+
+    def _to_float_or_none(self, value: Any) -> float | None:
+        """将任意值转换为浮点, 失败时返回 None."""
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     def _to_float(self, value: Any, default: float = 0.0) -> float:
         try:

@@ -83,8 +83,8 @@ def test_runtime_bootstrap_paper_uses_live_quote_market_data(monkeypatch):
     runtime = runtime_modes.RuntimeBootstrap(mode="paper").bootstrap()
 
     assert runtime.mode == "paper"
-    from quantide.service.quote_port_adapter import LiveQuotePortAdapter
-    assert isinstance(runtime.market_data, LiveQuotePortAdapter)
+    from quantide.service.livequote import LiveQuote
+    assert isinstance(runtime.market_data, LiveQuote)
 
     handle = runtime.registry.get(BrokerKind.SIMULATION, "paper-account")
     assert handle is not None
