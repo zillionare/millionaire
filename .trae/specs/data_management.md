@@ -1,1 +1,0 @@
-../../.dev/specs/data_management.md

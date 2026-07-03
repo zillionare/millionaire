@@ -114,6 +114,7 @@ tests/assets/synthetic/
 tests/assets/real/
 tests/assets/real/_cache/
 agents
+!agents/
 
 .specforge/agents
 .omc/**
@@ -128,3 +129,9 @@ agents
 quantide.db-wal
 quantide.db
 quantide.db-shm
+
+.specforge/
+.louke/agents/
+.louke/templates/
+.opencode/agents/
+.claude/
