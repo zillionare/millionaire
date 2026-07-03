@@ -114,6 +114,7 @@ tests/assets/synthetic/
 tests/assets/real/
 tests/assets/real/_cache/
 agents
+!agents/
 
 .specforge/agents
 .omc/**

@@ -1,0 +1,1 @@
+../.louke/agents/Scout.md
