@@ -431,3 +431,11 @@
 - AC-4: 在账户管理 (§2.4 UI-FR-0411) 切换"显示已隐藏账户"开关 → 关闭浏览器 → 重新打开 → 开关状态保持上次设置 (验证: 开关状态持久化)
 - AC-5: 在 Chrome 设置的"清除浏览数据"中清除 localStorage → 重新访问页面 → 各项状态恢复默认值, 页面渲染不报错 (验证: localStorage 读取失败时使用默认值)
 - AC-6: 验证 localStorage 中**不存储**敏感信息 (例: 密码、会话 token) — 通过浏览器 DevTools 抽查 localStorage 内容
+
+---
+
+## No Acceptance
+
+以下 FR 在 `acceptance.md` 中**没有专属 AC 章节**, AC 来源在 spec.md 章节或 test-plan 中。
+
+- UI-FR-A180: spec.md §2.1 UI-FR-A180 章节描述 A 类 (永久降级, 无网关) + B 类 (临时降级, 有网关偶发不可连接), AC 由 UI-FR-0340 AC-5/AC-6 (网关管理) 与 UI-NFR-0030 AC-2 (错误降级) 间接覆盖, 见 [Round 4 review §2.2/P2-1](../specs/v0.2-002-ui/review-round-4.md)。Round 9 未补专属 AC, 接受现状。
