@@ -1,1 +1,0 @@
-../../.specforge/project/v0.2-001-strategy-framework/story.md

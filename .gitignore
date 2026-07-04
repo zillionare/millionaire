@@ -136,3 +136,4 @@ quantide.db-shm
 .opencode/agents/
 .claude/
 .louke/raw
+.dev/
