@@ -490,23 +490,9 @@ priority: P1
 - B 类 (临时) **永不升级为 A 类** (Aaron: "没必要考虑此问题。即永不升级")
 - B 类降级期间运行中的实盘策略行为 (订单暂存 / 自动 dry-run 等) **不属于 UI 职责**, 由后台异常处理流程决定
 
-**降级状态 UI 表现** (Round 7 Sage 默认构图):
+**降级状态 UI 表现**
 
-A 类降级 (无网关, 永久):
-
-```
-+------------------------------------------------------------------+
-| [brand] Millionaire | Dashboard / 策略 / 数据 / 系统 / 交易 |🔔|👤|
-+------------------------------------------------------------------+
-| 交易(灰)| 实盘(灰) | 仿真(灰)                                   |  ← 导航按钮 disable
-+------+-----------------------------------------------------------+
-| Dash |                                                           |
-|      |                  main area                                |
-|      |                                                           |
-+------+-----------------------------------------------------------+
-```
-
-- 顶栏 "交易" / "实盘" / "仿真" 菜单按钮: 灰色, 鼠标 cursor: not-allowed
+- 顶栏 "交易" 菜单按钮: 灰色, 鼠标 cursor: not-allowed
 - hover 时显示 tooltip: "此功能因交易网关未配置而无法使用"
 - 用户直接访问 URL (例: `/trade/live`): 后台拦截, 返回 503 + 提示页
 - 顶栏 "策略" 下的 "启动回测" 按钮: disable (但 "启动仿真" 仍可用, 因为仿真不依赖网关)
@@ -519,9 +505,9 @@ B 类降级 (有网关但偶发不可连接, 临时):
 +------------------------------------------------------------------+
 | ⚠ 交易网关连接断开, 数据可能不刷新。 [告警中心]   [✕]            |  ← 顶部 banner
 +------+-----------------------------------------------------------+
-| Dash |                                                           |
-| ...  |                  main area                                |
-|      |   (页面正常显示, 数据可能 stale, 但不空白)               |
+| side |                                                           |
+| bar  |                  main area                                |
+| item |   (页面正常显示, 数据可能 stale, 但不空白)               |
 +------+-----------------------------------------------------------+
 ```
 
@@ -884,13 +870,13 @@ UI 提供启动/停止/切换模式的操作入口。**调度规则在 [v0.2-001
 
 **触发事件列表** (story §3.4.1):
 
-| 字段     | 来源                                                                                                         |
-| -------- | ------------------------------------------------------------------------------------------------------------ |
-| 时间戳   | 触发事件数据流                                                                                               |
-| 标的     | 同上                                                                                                         |
-| 触发价   | 同上                                                                                                         |
-| 成本价   | 同上                                                                                                         |
-| 原因     | `reason` 字段                                                                                                |
+| 字段     | 来源                                                                                                                                                                                       |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 时间戳   | 触发事件数据流                                                                                                                                                                             |
+| 标的     | 同上                                                                                                                                                                                       |
+| 触发价   | 同上                                                                                                                                                                                       |
+| 成本价   | 同上                                                                                                                                                                                       |
+| 原因     | `reason` 字段                                                                                                                                                                              |
 | 超额收益 | 按 Triple Barrier (001 spec-strategy.md FR-360) 计算的 N 日窗口; N 作为**风控策略参数**, 在**策略实例化时**由用户配置 (默认 N=0, 即当日收盘), 实例化后不可修改; UI 不提供单独的 N 配置控件 |
 
 **触发原因分布** (story §3.4.2):
@@ -1030,13 +1016,13 @@ UI 提供策略调度入口。启动回测时提供界面改写策略默认参�
 
 Web 框架 FastHTML (已在主项目 README 中选型)，支持响应式可视化。核心图表:
 
-| 图表                                                  | 适用策略   | 数据来源            |
-| ----------------------------------------------------- | ---------- | ------------------- |
+| 图表                                                  | 适用策略   | 数据来源                                                              |
+| ----------------------------------------------------- | ---------- | --------------------------------------------------------------------- |
 | 净值曲线 (含基准对比线, 复用 UI-FR-0080 净值曲线组件) | day / live | [001-FR-340/350](../v0.2-001-strategy-framework/spec-trading.md) 评估 |
-| 回撤图                                                | day / live | [001-FR-340/350](../v0.2-001-strategy-framework/spec-trading.md) |
-| 交易标注 (买卖点标记)                                 | day / live | [001-FR-340/350](../v0.2-001-strategy-framework/spec-trading.md) |
-| 月度收益热力图                                        | day / live | [001-FR-340/350](../v0.2-001-strategy-framework/spec-trading.md) |
-| 超额收益曲线                                          | risk       | [001-FR-360](../v0.2-001-strategy-framework/spec-trading.md) |
+| 回撤图                                                | day / live | [001-FR-340/350](../v0.2-001-strategy-framework/spec-trading.md)      |
+| 交易标注 (买卖点标记)                                 | day / live | [001-FR-340/350](../v0.2-001-strategy-framework/spec-trading.md)      |
+| 月度收益热力图                                        | day / live | [001-FR-340/350](../v0.2-001-strategy-framework/spec-trading.md)      |
+| 超额收益曲线                                          | risk       | [001-FR-360](../v0.2-001-strategy-framework/spec-trading.md)          |
 
 **联动接口**:
 - 上游: [001-FR-340/350/360](../v0.2-001-strategy-framework/spec-trading.md)
@@ -1666,53 +1652,53 @@ UI 展示校验报告:
 > - [spec-trading.md](../v0.2-001-strategy-framework/spec-trading.md) — 交易/账户/可视化/数据 (FR-210/220/270-490)
 > - [spec-foundation.md](../v0.2-001-strategy-framework/spec-foundation.md) — NFR
 
-| 本 spec     | 上游 001 FR                                                                                          | 关系                                                          |
-| ----------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| UI-FR-0010  | [FR-020](../v0.2-001-strategy-framework/spec-strategy.md#fr-020)                                      | 消费元数据列表                                                |
-| UI-FR-0011  | [FR-020](../v0.2-001-strategy-framework/spec-strategy.md#fr-020)                                      | 手动扫描策略更新                                              |
-| UI-FR-0012  | [FR-020](../v0.2-001-strategy-framework/spec-strategy.md#fr-020)                                      | 策略屏蔽与可见性                                              |
-| UI-FR-0013  | [FR-020](../v0.2-001-strategy-framework/spec-strategy.md#fr-020)                                      | 删除自定义策略                                                |
-| UI-FR-0020  | [FR-200](../v0.2-001-strategy-framework/spec-strategy.md#fr-200)                                      | 运行时参数定义                                                |
-| UI-FR-0040  | [FR-230](../v0.2-001-strategy-framework/spec-strategy.md#fr-230) / [FR-240](../v0.2-001-strategy-framework/spec-strategy.md#fr-240) / [FR-250](../v0.2-001-strategy-framework/spec-strategy.md#fr-250) | 调度路径 |
-| UI-FR-0060  | [FR-440](../v0.2-001-strategy-framework/spec-trading.md#fr-440)                                      | dry-run 行为                                                  |
-| UI-FR-0070  | [FR-013](../v0.2-001-strategy-framework/spec-strategy.md#fr-013) / [FR-125](../v0.2-001-strategy-framework/spec-strategy.md#fr-125) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360) | 风控触发事件 + 超额收益 |
-| UI-FR-0080  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360) | 评估指标展示 |
-| UI-FR-0091  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360) | 回测报告列表与排序 |
-| UI-FR-0092  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360) | 删除回测报告 |
-| UI-FR-0093  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360) | 全部回测报告删除与日志 |
-| UI-FR-0260  | (聚合 0010/0020/0040)                                                                                 | 调度 UI 聚合入口                                              |
-| UI-FR-0310  | [FR-310](../v0.2-001-strategy-framework/spec-trading.md#fr-310)                                      | 数据同步任务状态展示                                          |
-| UI-FR-0320  | [FR-320](../v0.2-001-strategy-framework/spec-trading.md#fr-320)                                      | 数据校验报告展示                                              |
-| UI-FR-0330  | [FR-330](../v0.2-001-strategy-framework/spec-trading.md#fr-330)                                      | K 线图绘制                                                    |
-| UI-FR-0340  | —                                                                                                     | 网关配置与状态 (无 001 直接引用, 网关能力由 001 网关服务提供) |
-| UI-FR-0370  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360) | 核心图表组件 (净值曲线/回撤图/热力图/超额收益) |
-| UI-FR-0380  | (等价 UI-FR-0080)                                                                                     | 回测进度 (从 001 迁移)                                        |
-| UI-FR-0390  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220)                                      | 账户总览 (按策略筛选)                                         |
-| UI-FR-0400  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220) / [FR-210](../v0.2-001-strategy-framework/spec-trading.md#fr-210) | 委托/成交归属与账本 |
-| UI-FR-0410  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220)                                      | paper/live 账户详情                                           |
-| UI-FR-0411  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220)                                      | 账户管理 - 隐藏与显示 (Aaron Q1=C: 复用账户主线, 不独立)      |
-| UI-FR-0420  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220) / [FR-210](../v0.2-001-strategy-framework/spec-trading.md#fr-210) | 手动交易归属 |
-| UI-FR-0430  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220) / [FR-210](../v0.2-001-strategy-framework/spec-trading.md#fr-210) | 仿真交易界面 (补单) |
-| UI-FR-0450  | [FR-450](../v0.2-001-strategy-framework/spec-trading.md#fr-450)                                      | 事件触发列表                                                  |
-| UI-FR-0460  | —                                                                                                     | init-wizard (系统入口)                                        |
-| UI-FR-A110  | —                                                                                                     | 启动路由分流 (壳层, 无 001 引用)                              |
-| UI-FR-A120  | —                                                                                                     | 单用户登录与会话 (壳层, 无 001 引用)                          |
-| UI-FR-A130  | —                                                                                                     | 登出与个人设置 (壳层, 无 001 引用)                            |
-| UI-FR-A140  | —                                                                                                     | 未登录访问重定向 (壳层, 无 001 引用)                          |
-| UI-FR-A150  | —                                                                                                     | 主界面布局 (壳层, 无 001 引用)                                |
-| UI-FR-A160  | —                                                                                                     | 告警中心入口与列表 (壳层, 无 001 引用)                        |
-| UI-FR-A170  | —                                                                                                     | UI 内通知 (toast/banner, Aaron Q6=A: 集中定义)                |
-| UI-FR-A180  | —                                                                                                     | 功能降级 (A 类永久/B 类临时, GLM-5.2 S4 增量)                 |
-| UI-FR-D201  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220)                                      | 账户归属 (Dashboard 中部)                                     |
-| UI-FR-D202  | —                                                                                                     | 数据/系统任务状态 (Dashboard 底部, Round 5 重写: 不含策略调度) |
-| UI-FR-D203  | [FR-450](../v0.2-001-strategy-framework/spec-trading.md#fr-450) + UI-FR-A160                         | 告警中心数据源 (Dashboard 顶部, Aaron Q5=A)                   |
-| UI-NFR-0010 | —                                                                                                     | 响应性 (无 001 引用)                                          |
-| UI-NFR-0020 | —                                                                                                     | 可访问性 (无 001 引用)                                        |
-| UI-NFR-0030 | —                                                                                                     | 错误降级 (无 001 引用)                                        |
-| UI-NFR-0040 | —                                                                                                     | 视觉与组件规范                                                |
-| UI-NFR-0050 | —                                                                                                     | 局部刷新与失败隔离 (Aaron Q2=A)                               |
-| UI-NFR-0060 | —                                                                                                     | 长任务交互 (init-wizard / 数据同步 / 回测, Aaron Q3=A)        |
-| UI-NFR-0070 | —                                                                                                     | 本地 UI 状态持久化 (Aaron Q4=A: 统一 localStorage)            |
+| 本 spec     | 上游 001 FR                                                                                                                                                                                            | 关系                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| UI-FR-0010  | [FR-020](../v0.2-001-strategy-framework/spec-strategy.md#fr-020)                                                                                                                                       | 消费元数据列表                                                 |
+| UI-FR-0011  | [FR-020](../v0.2-001-strategy-framework/spec-strategy.md#fr-020)                                                                                                                                       | 手动扫描策略更新                                               |
+| UI-FR-0012  | [FR-020](../v0.2-001-strategy-framework/spec-strategy.md#fr-020)                                                                                                                                       | 策略屏蔽与可见性                                               |
+| UI-FR-0013  | [FR-020](../v0.2-001-strategy-framework/spec-strategy.md#fr-020)                                                                                                                                       | 删除自定义策略                                                 |
+| UI-FR-0020  | [FR-200](../v0.2-001-strategy-framework/spec-strategy.md#fr-200)                                                                                                                                       | 运行时参数定义                                                 |
+| UI-FR-0040  | [FR-230](../v0.2-001-strategy-framework/spec-strategy.md#fr-230) / [FR-240](../v0.2-001-strategy-framework/spec-strategy.md#fr-240) / [FR-250](../v0.2-001-strategy-framework/spec-strategy.md#fr-250) | 调度路径                                                       |
+| UI-FR-0060  | [FR-440](../v0.2-001-strategy-framework/spec-trading.md#fr-440)                                                                                                                                        | dry-run 行为                                                   |
+| UI-FR-0070  | [FR-013](../v0.2-001-strategy-framework/spec-strategy.md#fr-013) / [FR-125](../v0.2-001-strategy-framework/spec-strategy.md#fr-125) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360)  | 风控触发事件 + 超额收益                                        |
+| UI-FR-0080  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360)    | 评估指标展示                                                   |
+| UI-FR-0091  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360)    | 回测报告列表与排序                                             |
+| UI-FR-0092  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360)    | 删除回测报告                                                   |
+| UI-FR-0093  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360)    | 全部回测报告删除与日志                                         |
+| UI-FR-0260  | (聚合 0010/0020/0040)                                                                                                                                                                                  | 调度 UI 聚合入口                                               |
+| UI-FR-0310  | [FR-310](../v0.2-001-strategy-framework/spec-trading.md#fr-310)                                                                                                                                        | 数据同步任务状态展示                                           |
+| UI-FR-0320  | [FR-320](../v0.2-001-strategy-framework/spec-trading.md#fr-320)                                                                                                                                        | 数据校验报告展示                                               |
+| UI-FR-0330  | [FR-330](../v0.2-001-strategy-framework/spec-trading.md#fr-330)                                                                                                                                        | K 线图绘制                                                     |
+| UI-FR-0340  | —                                                                                                                                                                                                      | 网关配置与状态 (无 001 直接引用, 网关能力由 001 网关服务提供)  |
+| UI-FR-0370  | [FR-340](../v0.2-001-strategy-framework/spec-trading.md#fr-340) / [FR-350](../v0.2-001-strategy-framework/spec-trading.md#fr-350) / [FR-360](../v0.2-001-strategy-framework/spec-trading.md#fr-360)    | 核心图表组件 (净值曲线/回撤图/热力图/超额收益)                 |
+| UI-FR-0380  | (等价 UI-FR-0080)                                                                                                                                                                                      | 回测进度 (从 001 迁移)                                         |
+| UI-FR-0390  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220)                                                                                                                                        | 账户总览 (按策略筛选)                                          |
+| UI-FR-0400  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220) / [FR-210](../v0.2-001-strategy-framework/spec-trading.md#fr-210)                                                                      | 委托/成交归属与账本                                            |
+| UI-FR-0410  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220)                                                                                                                                        | paper/live 账户详情                                            |
+| UI-FR-0411  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220)                                                                                                                                        | 账户管理 - 隐藏与显示 (Aaron Q1=C: 复用账户主线, 不独立)       |
+| UI-FR-0420  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220) / [FR-210](../v0.2-001-strategy-framework/spec-trading.md#fr-210)                                                                      | 手动交易归属                                                   |
+| UI-FR-0430  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220) / [FR-210](../v0.2-001-strategy-framework/spec-trading.md#fr-210)                                                                      | 仿真交易界面 (补单)                                            |
+| UI-FR-0450  | [FR-450](../v0.2-001-strategy-framework/spec-trading.md#fr-450)                                                                                                                                        | 事件触发列表                                                   |
+| UI-FR-0460  | —                                                                                                                                                                                                      | init-wizard (系统入口)                                         |
+| UI-FR-A110  | —                                                                                                                                                                                                      | 启动路由分流 (壳层, 无 001 引用)                               |
+| UI-FR-A120  | —                                                                                                                                                                                                      | 单用户登录与会话 (壳层, 无 001 引用)                           |
+| UI-FR-A130  | —                                                                                                                                                                                                      | 登出与个人设置 (壳层, 无 001 引用)                             |
+| UI-FR-A140  | —                                                                                                                                                                                                      | 未登录访问重定向 (壳层, 无 001 引用)                           |
+| UI-FR-A150  | —                                                                                                                                                                                                      | 主界面布局 (壳层, 无 001 引用)                                 |
+| UI-FR-A160  | —                                                                                                                                                                                                      | 告警中心入口与列表 (壳层, 无 001 引用)                         |
+| UI-FR-A170  | —                                                                                                                                                                                                      | UI 内通知 (toast/banner, Aaron Q6=A: 集中定义)                 |
+| UI-FR-A180  | —                                                                                                                                                                                                      | 功能降级 (A 类永久/B 类临时, GLM-5.2 S4 增量)                  |
+| UI-FR-D201  | [FR-220](../v0.2-001-strategy-framework/spec-trading.md#fr-220)                                                                                                                                        | 账户归属 (Dashboard 中部)                                      |
+| UI-FR-D202  | —                                                                                                                                                                                                      | 数据/系统任务状态 (Dashboard 底部, Round 5 重写: 不含策略调度) |
+| UI-FR-D203  | [FR-450](../v0.2-001-strategy-framework/spec-trading.md#fr-450) + UI-FR-A160                                                                                                                           | 告警中心数据源 (Dashboard 顶部, Aaron Q5=A)                    |
+| UI-NFR-0010 | —                                                                                                                                                                                                      | 响应性 (无 001 引用)                                           |
+| UI-NFR-0020 | —                                                                                                                                                                                                      | 可访问性 (无 001 引用)                                         |
+| UI-NFR-0030 | —                                                                                                                                                                                                      | 错误降级 (无 001 引用)                                         |
+| UI-NFR-0040 | —                                                                                                                                                                                                      | 视觉与组件规范                                                 |
+| UI-NFR-0050 | —                                                                                                                                                                                                      | 局部刷新与失败隔离 (Aaron Q2=A)                                |
+| UI-NFR-0060 | —                                                                                                                                                                                                      | 长任务交互 (init-wizard / 数据同步 / 回测, Aaron Q3=A)         |
+| UI-NFR-0070 | —                                                                                                                                                                                                      | 本地 UI 状态持久化 (Aaron Q4=A: 统一 localStorage)             |
 
 ---
 
