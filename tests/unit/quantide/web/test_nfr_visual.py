@@ -65,6 +65,10 @@ class TestButtonStyles:
         assert style["border_color"] == "red"
         assert style["color"] == "red"
 
+    def test_unknown_variant_falls_back_to_secondary(self):
+        style = button_style("ghost")
+        assert style["variant"] == "outline"
+
 
 class TestModalSpec:
     """AC-NFR0040-3: Modal 规范."""
@@ -132,3 +136,6 @@ class TestNoLargeRedBackground:
 
     def test_white_background_acceptable(self):
         assert is_valid_background_color("white") is True
+
+    def test_none_background_acceptable(self):
+        assert is_valid_background_color(None) is True
