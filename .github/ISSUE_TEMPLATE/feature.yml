@@ -6,7 +6,7 @@ body:
   - type: input
     id: fr_id
     attributes:
-      label: 需求 ID
+      label: Requirement ID
       description: 与 spec.md 中的 FR 编号严格一致（4 位零填充，如 FR-0001）
       placeholder: FR-0001
     validations:
@@ -16,7 +16,7 @@ body:
   - type: input
     id: spec_url
     attributes:
-      label: Spec 链接
+      label: Spec Link
       description: 完整 GitHub URL，fragment 必须小写（#fr-0001，不是 #FR-0001）。
       placeholder: https://github.com/{owner}/{repo}/blob/{branch}/.louke/project/specs/{spec-id}/spec.md#fr-0001
     validations:
@@ -26,7 +26,7 @@ body:
   - type: input
     id: acceptance_criteria
     attributes:
-      label: 验收标准
+      label: Acceptance Criteria
       description: |
         指向 AC 来源, 三选一:
         1. acceptance.md#ac-fr-0001 URL

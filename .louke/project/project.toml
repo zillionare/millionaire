@@ -1,0 +1,13 @@
+[project]
+version = "v0.2"
+repo = "github.com/zillionare/millionaire"
+project = "millionaire-v0.2"
+project_id = "https://github.com/users/zillionare/projects/5"
+spec_id = "v0.2-002-ui"
+release_branch = "releases/v0.2"
+smoke_test_issue = "#131 (Step 4b 权限冒烟用, closed)"
+smoke_test_pr = "#54 (Step 4b 权限冒烟用, closed)"
+dod = "e2e 全通过 + 单元测试覆盖率 ≥95% (安全审查已关闭)"
+security_audit = "disabled (用户明确关闭)"
+current_stage = "M-FOUND"
+created = "2026-07-03"
