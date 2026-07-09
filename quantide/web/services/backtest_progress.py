@@ -149,12 +149,40 @@ def filter_positions_by_symbol(
     return [r for r in rows if r.symbol == symbol]
 
 
+_STAGE_LABELS: dict[BacktestStage, str] = {
+    BacktestStage.RUNNING: "回测中",
+    BacktestStage.EVALUATING: "评估中",
+    BacktestStage.GENERATING_REPORT: "生成报告中",
+}
+
+
+def format_progress_text(
+    processed_days: int,
+    total_days: int,
+    stage: BacktestStage,
+) -> str:
+    """FR-0380 / NFR-0060 AC-5c: 进度文案.
+
+    格式: "已处理交易日/总交易日 天 · 阶段名".
+
+    Args:
+        processed_days: 已处理交易日.
+        total_days: 总交易日.
+        stage: 当前阶段.
+
+    Returns:
+        进度文案.
+    """
+    return f"{processed_days}/{total_days} 天 · {_STAGE_LABELS[stage]}"
+
+
 __all__ = [
     "BacktestProgressState",
     "BacktestStage",
     "DailyPositionRow",
     "calculate_progress_percent",
     "filter_positions_by_symbol",
+    "format_progress_text",
     "is_metric_available_during_progress",
     "placeholder_text_for_unavailable_metric",
     "should_keep_empty_position_day",
