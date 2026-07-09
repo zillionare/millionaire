@@ -7,7 +7,7 @@ homepage = "https://github.com/zillionare/millionaire"
 description = "Millionaire — Zillionare's flagship quantitative trading platform."
 authors = ["aaron yang <aaron_yang@jieyu.ai>"]
 readme = "README.md"
-license = { text = "Millionaire Source-Available License v2.0" }
+license = "MIT"
 classifiers=[
     'Development Status :: 2 - Pre-Alpha',
     'Intended Audience :: Developers',
@@ -48,7 +48,6 @@ websockets = "^15.0.1"
 [[tool.poetry.source]]
 name = "tsinghua"
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
-priority = "primary"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
