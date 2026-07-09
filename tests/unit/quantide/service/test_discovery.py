@@ -10,14 +10,18 @@ import pytest
 from quantide.service.discovery import strategy_loader
 
 
+def _clear_strategy_scan_tables(db: Any) -> None:
+    for table in ("strategy_info", "strategy_config"):
+        if table in db.tables:
+            db.execute(f"DELETE FROM {table}")
+
+
 @pytest.fixture(autouse=True)
 def clean_strategy_scan_tables(db: Any) -> Generator[None]:
-    db.execute("DELETE FROM strategy_info")
-    db.execute("DELETE FROM strategy_config")
+    _clear_strategy_scan_tables(db)
     strategy_loader._strategies = {}
     yield
-    db.execute("DELETE FROM strategy_info")
-    db.execute("DELETE FROM strategy_config")
+    _clear_strategy_scan_tables(db)
     strategy_loader._strategies = {}
 
 

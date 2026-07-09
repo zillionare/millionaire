@@ -22,81 +22,127 @@ from quantide.data.fetchers.tushare import (
 
 class TestTushareFetcher:
     @pytest.fixture(autouse=True)
-    def stub_tushare_api(self, monkeypatch, calendar_data, bars, adjust_factor, limit_price, st):
+    def stub_tushare_api(self, monkeypatch, request):
         import quantide.data.fetchers.tushare as tushare_module
 
-        calendar_df = calendar_data.to_pandas().reset_index().rename(
-            columns={"index": "cal_date", "date": "cal_date", "prev": "pretrade_date"}
-        )
-        calendar_df["cal_date"] = pd.to_datetime(calendar_df["cal_date"]).dt.strftime("%Y%m%d")
-        calendar_df["pretrade_date"] = pd.to_datetime(calendar_df["pretrade_date"]).dt.strftime("%Y%m%d")
+        calendar_df = None
+        stock_df = None
 
-        daily_df = bars.rename(columns={"asset": "ts_code", "date": "trade_date", "volume": "vol"}).copy()
-        daily_df["trade_date"] = pd.to_datetime(daily_df["trade_date"]).dt.strftime("%Y%m%d")
+        def _calendar_df() -> pd.DataFrame:
+            nonlocal calendar_df
+            if calendar_df is None:
+                raw = request.getfixturevalue("calendar_data")
+                calendar_df = raw.to_pandas().reset_index().rename(
+                    columns={
+                        "index": "cal_date",
+                        "date": "cal_date",
+                        "prev": "pretrade_date",
+                    }
+                )
+                calendar_df["cal_date"] = pd.to_datetime(
+                    calendar_df["cal_date"]
+                ).dt.strftime("%Y%m%d")
+                calendar_df["pretrade_date"] = pd.to_datetime(
+                    calendar_df["pretrade_date"]
+                ).dt.strftime("%Y%m%d")
+            return calendar_df
 
-        adjust_df = adjust_factor.rename(
-            columns={"asset": "ts_code", "date": "trade_date", "adjust": "adj_factor"}
-        ).copy()
-        adjust_df["trade_date"] = pd.to_datetime(adjust_df["trade_date"]).dt.strftime("%Y%m%d")
+        def _stock_df() -> pd.DataFrame:
+            nonlocal stock_df
+            if stock_df is None:
+                stock_list_path = (
+                    Path(__file__).resolve().parents[5] / "data" / "stock_list.parquet"
+                )
+                stock_df = pd.read_parquet(stock_list_path).rename(
+                    columns={"asset": "ts_code", "pinyin": "cnspell"}
+                )
+                stock_df["list_date"] = pd.to_datetime(
+                    stock_df["list_date"]
+                ).dt.strftime("%Y%m%d")
+                stock_df["delist_date"] = pd.to_datetime(
+                    stock_df["delist_date"]
+                ).dt.strftime("%Y%m%d")
+            return stock_df
 
-        limit_df = limit_price.rename(columns={"asset": "ts_code", "date": "trade_date"}).copy()
-        limit_df["trade_date"] = pd.to_datetime(limit_df["trade_date"]).dt.strftime("%Y%m%d")
+        def _select_fixture(
+            fixture_name: str,
+            trade_date: str,
+            fields: str | None,
+            rename_as: dict[str, str],
+        ) -> pd.DataFrame:
+            df = request.getfixturevalue(fixture_name)
+            target = pd.Timestamp(datetime.datetime.strptime(trade_date, "%Y%m%d"))
+            result = df[df["date"] == target].copy()
+            if result.empty:
+                return _select_fields(result.rename(columns=rename_as), fields)
+            result = result.rename(columns=rename_as)
+            if "trade_date" in result:
+                result["trade_date"] = pd.to_datetime(
+                    result["trade_date"]
+                ).dt.strftime("%Y%m%d")
+            return _select_fields(result, fields)
 
-        st_df = st.rename(columns={"asset": "ts_code", "date": "trade_date"}).copy()
-        st_df["trade_date"] = pd.to_datetime(st_df["trade_date"]).dt.strftime("%Y%m%d")
-        st_df["name"] = "ST"
-        st_df["type"] = "S"
-        st_df["type_name"] = "特别处理"
-
-        stock_list_path = Path(__file__).resolve().parents[5] / "data" / "stock_list.parquet"
-        stock_df = pd.read_parquet(stock_list_path).rename(
-            columns={"asset": "ts_code", "pinyin": "cnspell"}
-        )
-        stock_df["list_date"] = pd.to_datetime(stock_df["list_date"]).dt.strftime("%Y%m%d")
-        stock_df["delist_date"] = pd.to_datetime(stock_df["delist_date"]).dt.strftime("%Y%m%d")
+        def _select_fields(df: pd.DataFrame, fields: str | None) -> pd.DataFrame:
+            if fields:
+                df = df[[col.strip() for col in fields.split(",") if col.strip()]]
+            return df.reset_index(drop=True)
 
         class FakePro:
-            @staticmethod
-            def _select(df: pd.DataFrame, trade_date: str, fields: str | None):
-                result = df[df["trade_date"] == trade_date].copy()
-                if result.empty and df is st_df and trade_date.startswith("2016"):
+            def trade_cal(self, exchange: str, start_date: str):
+                df = _calendar_df()
+                return df[df["cal_date"] >= start_date].reset_index(drop=True)
+
+            def stock_basic(self, list_status: str, exchange: str = "", fields: str | None = None):
+                if list_status != "L":
+                    source = _stock_df()
+                    columns = [col.strip() for col in fields.split(",")] if fields else source.columns.tolist()
+                    return pd.DataFrame(columns=columns)
+                return _select_fields(_stock_df().copy(), fields)
+
+            def daily(self, trade_date: str, fields: str | None = None, **kwargs):
+                return _select_fixture(
+                    "bars",
+                    trade_date,
+                    fields,
+                    {"asset": "ts_code", "date": "trade_date", "volume": "vol"},
+                )
+
+            def adj_factor(self, trade_date: str, fields: str | None = None, **kwargs):
+                return _select_fixture(
+                    "adjust_factor",
+                    trade_date,
+                    fields,
+                    {"asset": "ts_code", "date": "trade_date", "adjust": "adj_factor"},
+                )
+
+            def stk_limit(self, trade_date: str, fields: str | None = None, **kwargs):
+                return _select_fixture(
+                    "limit_price",
+                    trade_date,
+                    fields,
+                    {"asset": "ts_code", "date": "trade_date"},
+                )
+
+            def stock_st(self, trade_date: str, fields: str | None = None, **kwargs):
+                result = _select_fixture(
+                    "st",
+                    trade_date,
+                    None,
+                    {"asset": "ts_code", "date": "trade_date"},
+                )
+                if result.empty and trade_date.startswith("2016"):
                     result = pd.DataFrame(
                         {
                             "ts_code": ["000001.SZ"],
                             "trade_date": [trade_date],
                             "is_st": [True],
-                            "name": ["ST"],
-                            "type": ["S"],
-                            "type_name": ["特别处理"],
                         }
                     )
-                if fields:
-                    result = result[[col.strip() for col in fields.split(",") if col.strip()]]
-                return result.reset_index(drop=True)
-
-            def trade_cal(self, exchange: str, start_date: str):
-                return calendar_df[calendar_df["cal_date"] >= start_date].reset_index(drop=True)
-
-            def stock_basic(self, list_status: str, exchange: str = "", fields: str | None = None):
-                if list_status != "L":
-                    columns = [col.strip() for col in fields.split(",")] if fields else stock_df.columns.tolist()
-                    return pd.DataFrame(columns=columns)
-                result = stock_df.copy()
-                if fields:
-                    result = result[[col.strip() for col in fields.split(",") if col.strip()]]
-                return result.reset_index(drop=True)
-
-            def daily(self, trade_date: str, fields: str | None = None, **kwargs):
-                return self._select(daily_df, trade_date, fields)
-
-            def adj_factor(self, trade_date: str, fields: str | None = None, **kwargs):
-                return self._select(adjust_df, trade_date, fields)
-
-            def stk_limit(self, trade_date: str, fields: str | None = None, **kwargs):
-                return self._select(limit_df, trade_date, fields)
-
-            def stock_st(self, trade_date: str, fields: str | None = None, **kwargs):
-                return self._select(st_df, trade_date, fields)
+                if not result.empty:
+                    result["name"] = "ST"
+                    result["type"] = "S"
+                    result["type_name"] = "特别处理"
+                return _select_fields(result, fields)
 
         monkeypatch.setattr(tushare_module.ts, "pro_api", lambda: FakePro())
 

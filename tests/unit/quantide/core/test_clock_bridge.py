@@ -13,7 +13,14 @@ def test_backtest_clock_set_now_and_now():
     assert clock.now() == tm
 
 
-def test_backtest_clock_iter_frames_returns_iterable():
+def test_backtest_clock_iter_frames_returns_iterable(monkeypatch):
+    import quantide.core.runtime.clock_bridge as clock_bridge
+
+    class FakeCalendar:
+        def get_frames(self, start, end, frame_type):
+            return [start, end]
+
+    monkeypatch.setattr(clock_bridge, "calendar", FakeCalendar())
     clock = BacktestClockAdapter()
     frames = clock.iter_frames(
         datetime.date(2024, 1, 2),

@@ -1,8 +1,19 @@
 import datetime
 from pathlib import Path
 
+import pytest
+
 from quantide.core.enums import BrokerKind
 from quantide.service.strategy_runtime import StrategyRuntime, StrategyRuntimeManager
+
+
+@pytest.fixture(autouse=True)
+def isolate_runtime_state_file(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        StrategyRuntimeManager,
+        "_state_file",
+        lambda self: tmp_path / "strategy_runtimes.json",
+    )
 
 
 def test_strategy_runtime_manager_extract_symbols():

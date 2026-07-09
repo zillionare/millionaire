@@ -65,12 +65,19 @@ class FakeInitWizard:
         self.state.app_port = port
         self.state.app_prefix = prefix
 
-    def test_gateway_connection(self, server: str, port: int, prefix: str):
+    def test_gateway_connection(
+        self,
+        server: str,
+        port: int,
+        prefix: str,
+        api_key: str,
+    ):
         self.gateway_test_calls.append(
             {
                 "server": server,
                 "port": port,
                 "prefix": prefix,
+                "api_key": api_key,
             }
         )
         return self.gateway_test_result
@@ -300,6 +307,7 @@ async def test_handle_step_gateway_config_uses_canonical_field_names(monkeypatch
             "server": "127.0.0.1",
             "port": 8001,
             "prefix": "/gateway",
+            "api_key": "gateway-key",
         }
     ]
     assert fake_wizard.gateway_calls == [
@@ -733,4 +741,3 @@ async def test_handle_complete_redirects_to_root(monkeypatch):
 
     assert fake_wizard.complete_calls == 1
     assert "window.location.href = '/'" in html
-

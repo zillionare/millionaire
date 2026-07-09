@@ -55,8 +55,16 @@ class TestDatasourcePage:
 class TestDatasourceSync:
     """数据源同步功能测试"""
 
-    def test_datasource_sync_page(self, client):
+    def test_datasource_sync_page(self, client, monkeypatch):
         """同步页面可访问"""
+        from quantide.data.models.calendar import calendar as trade_calendar
+        from quantide.data.models.daily_bars import daily_bars
+        from quantide.data.models.stocks import stock_list
+
+        monkeypatch.setattr(trade_calendar, "update", lambda: None)
+        monkeypatch.setattr(stock_list, "update", lambda: None)
+        monkeypatch.setattr(daily_bars.store, "update", lambda: None)
+
         resp = client.get("/system/datasource/sync", follow_redirects=True)
         assert resp.status_code == 200
         # 应该显示同步结果

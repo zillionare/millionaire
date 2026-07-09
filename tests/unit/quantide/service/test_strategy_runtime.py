@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 
 from quantide.service.strategy_runtime import (
     StrategyBrokerProxy,
@@ -33,6 +34,29 @@ class DummyBroker:
             }
         )
         return {"ok": True}
+
+
+def _clear_strategy_runtime_manager() -> None:
+    strategy_runtime_manager._account_runtimes.clear()
+    strategy_runtime_manager._strategy_runtimes.clear()
+    strategy_runtime_manager._backtest_runtimes.clear()
+    strategy_runtime_manager._backtest_history.clear()
+    strategy_runtime_manager._runtime_specs.clear()
+    strategy_runtime_manager._blocked_accounts.clear()
+    strategy_runtime_manager._blocked_strategies.clear()
+    strategy_runtime_manager._risk_events.clear()
+
+
+@pytest.fixture(autouse=True)
+def isolate_strategy_runtime_manager(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        strategy_runtime_manager,
+        "_state_file",
+        lambda: tmp_path / "strategy_runtimes.json",
+    )
+    _clear_strategy_runtime_manager()
+    yield
+    _clear_strategy_runtime_manager()
 
 
 def test_remove_backtest_run_clears_history_and_runtimes():

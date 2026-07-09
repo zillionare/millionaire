@@ -29,8 +29,6 @@ from tests.e2e.support.system_settings_session import system_settings_e2e_sessio
 @pytest.fixture(scope="module")
 def test_app():
     """创建测试应用"""
-    from quantide.core.scheduler import scheduler
-    from quantide.service.livequote import live_quote
 
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         test_db_path = f.name
@@ -38,9 +36,6 @@ def test_app():
     try:
         _db._initialized = False
         _db.init(test_db_path)
-
-        scheduler.start()
-        live_quote.start()
 
         reg = BrokerRegistry()
         try:
@@ -165,6 +160,14 @@ def test_app():
         yield app
     finally:
         import os
+        from quantide.core.scheduler import scheduler
+        from quantide.service.livequote import live_quote
+
+        live_quote.stop()
+        thread = getattr(live_quote, "_ws_thread", None)
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=3)
+        scheduler.stop()
         try:
             os.unlink(test_db_path)
         except OSError:
@@ -175,7 +178,10 @@ def test_app():
 def test_client(test_app):
     """创建测试客户端"""
     client = TestClient(test_app)
-    yield client
+    try:
+        yield client
+    finally:
+        client.close()
 
 
 @pytest.fixture(autouse=True)
@@ -2022,7 +2028,7 @@ class TestFeatureGate:
 
         response = test_client.get("/trade/live", follow_redirects=False)
 
-        assert response.status_code == 403
+        assert response.status_code == 503
         assert "实盘交易功能已禁用" in response.text
         assert "/system/gateway/" in response.text
 
