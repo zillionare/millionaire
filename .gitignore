@@ -133,7 +133,8 @@ quantide.db-shm
 .specforge/
 .louke/agents/
 .louke/templates/
-.opencode/agents/
+.opencode/
 .claude/
 .louke/raw
 .dev/
+.kilo/
