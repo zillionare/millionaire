@@ -32,6 +32,9 @@ class TestPasswordHashing:
         hashed = hash_password("secret")
         assert verify_password("wrong", hashed) is False
 
+    def test_verify_malformed_hash_returns_false(self):
+        assert verify_password("secret", "not_a_valid_hash") is False
+
 
 class TestAuthenticate:
     """AC-FR0120-1: 正确凭据校验."""
@@ -43,6 +46,9 @@ class TestAuthenticate:
     def test_authenticate_with_wrong_password(self):
         hashed = hash_password("admin123")
         assert authenticate("admin", "wrong", hashed) is False
+
+    def test_authenticate_with_missing_hash(self):
+        assert authenticate("admin", "admin123", None) is False
 
 
 class TestCreateSession:
