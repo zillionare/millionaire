@@ -7,7 +7,7 @@ spec_id = "v0.2-003-coverage"
 release_branch = "releases/v0.2"
 
 [meta]
-smoke_test_issue = "#190 (closed)"
+smoke_test_issue = "#191 (closed)"
 smoke_test_pr = "#54 (Step 4b 权限冒烟用, closed)"
 dod = "单元测试覆盖率 ≥95% (安全审查已关闭)"
 security_audit = "disabled"
