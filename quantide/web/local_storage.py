@@ -68,9 +68,62 @@ def is_sensitive_key(key: str) -> bool:
     return any(sub in lowered for sub in _SENSITIVE_SUBSTRINGS)
 
 
+def read_persisted_state(
+    storage: dict[str, object],
+    key: str,
+    *,
+    default: str,
+) -> str:
+    """AC-NFR0070-4: 从 localStorage 读取状态, 失败时使用默认值.
+
+    Args:
+        storage: 模拟 localStorage 的字典.
+        key: 状态 key (需在白名单内).
+        default: 读取失败或 key 不存在时的默认值.
+
+    Returns:
+        存储值或默认值.
+    """
+    if not is_valid_local_storage_key(key):
+        return default
+    try:
+        value = storage[key]
+        if not isinstance(value, str):
+            return default
+        return value
+    except (KeyError, TypeError):
+        return default
+
+
+def write_persisted_state(
+    storage: dict[str, str],
+    key: str,
+    value: str,
+) -> None:
+    """AC-NFR0070-1~3, AC-5: 写入 localStorage 状态.
+
+    仅允许白名单 key, 禁止写入敏感 key.
+
+    Args:
+        storage: 模拟 localStorage 的字典.
+        key: 状态 key.
+        value: 要写入的字符串值.
+
+    Raises:
+        ValueError: 当 key 不在白名单或含敏感信息.
+    """
+    if is_sensitive_key(key):
+        raise ValueError(f"禁止将敏感信息写入 localStorage: {key}")
+    if not is_valid_local_storage_key(key):
+        raise ValueError(f"不允许的 localStorage key: {key}")
+    storage[key] = value
+
+
 __all__ = [
     "FORBIDDEN_KEYS",
     "LOCAL_STORAGE_KEYS",
     "is_sensitive_key",
     "is_valid_local_storage_key",
+    "read_persisted_state",
+    "write_persisted_state",
 ]
