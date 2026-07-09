@@ -38,9 +38,10 @@ def test_l1_paper_smoke_virtual_clock_advances():
     """
     db.init(":memory:")
     calendar_model.load(ASSETS_ROOT / "baseline_calendar.parquet")
-    daily_bars.load(ASSETS_ROOT / "2024_bars_ext_cols.parquet")
-    limit_price.load(ASSETS_ROOT / "2024_limit_price.parquet")
-
+    daily_bars.connect(
+        str(ASSETS_ROOT / "2024_bars_ext_cols.parquet"),
+        str(ASSETS_ROOT / "baseline_calendar.parquet"),
+    )
     t0 = datetime.datetime.combine(TEST_DATE, datetime.time(9, 30))
     clock = VirtualClock(t0=t0)
     runtime = make_paper_runtime(virtual_clock=clock, mode="paper")

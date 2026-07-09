@@ -50,12 +50,20 @@ class VirtualClock(ClockPort):
         cal = calendar_model or calendar
         current = self._now
         for frame in cal.get_frames(current.date(), current.date() + datetime.timedelta(days=7), frame_type):
-            if frame > current:
-                self._now = frame
-                return frame
+            next_frame = self._coerce_frame_datetime(frame)
+            if next_frame > current:
+                self._now = next_frame
+                return next_frame
         raise RuntimeError(
             f"VirtualClock.advance_to_next_frame: no next {frame_type} frame within 7 days of {current}"
         )
+
+    def _coerce_frame_datetime(
+        self, frame: datetime.date | datetime.datetime
+    ) -> datetime.datetime:
+        if isinstance(frame, datetime.datetime):
+            return frame
+        return datetime.datetime.combine(frame, self._now.timetz().replace(tzinfo=None))
 
     def iter_frames(
         self,
