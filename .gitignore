@@ -138,3 +138,5 @@ quantide.db-shm
 .louke/raw
 .dev/
 .kilo/
+
+coverage.json
