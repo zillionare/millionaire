@@ -208,3 +208,25 @@ description: v0.2-002-ui 阶段 Aaron 作出的 20 项关键决策，可追溯�
 
 > "跳过 Louke record-lock (Stage 2/3 仍阻塞, 不影响 M-LOCK 后流程)"  
 > `maestro-v0.2-002-stage-m-lock.md` line 17
+
+---
+
+## D-021 接受 M-DEV 单元测试覆盖率未达 DoD (Aaron 接受现状, 单独 spec 处理)
+**Round**: M-MILESTONE (2026-07-09)
+**决策**: 接受 M-DEV 单元测试覆盖率整体 69% (quantide/web/services/ 核心 99% 平均, quantide/core + quantide/data + quantide/service 未被 M-DEV 覆盖). Aaron 接受现状, 单独开新 spec 处理覆盖率不足问题 (不在 v0.2-002-ui 范围内).
+**证据**:
+> "A, 然后我们开新的 spec 来处理覆盖率不足的问题"
+> maestro-v0.2-002-stage-m-e2e-done.md line 50
+
+**覆盖率详情**:
+- 整体 (quantide/): 69% (1349 passed)
+- quantide/web/services/ (M-DEV 写的核心): 99% 平均 (18 个模块, 最低 93% strategy_management, 其余 96-100%)
+- quantide/web/theme.py: 100%
+- quantide/core/, quantide/data/, quantide/service/, quantide/web/components/: 未被 M-DEV 单元测试覆盖
+
+**DoD 现状**:
+- `dod = "e2e 全通过 + 单元测试覆盖率 ≥95% (安全审查已关闭)"`
+- e2e 全通过: ✅ 42 passed + 2 xfailed
+- 单元测试覆盖率 ≥95%: ⚠️ 整体 69% (核心 99%), 不严格达标
+
+**后续**: 新 spec (如 v0.2-003-coverage) 专门处理覆盖率补齐, 范围包括 quantide/core + data + service + components 单测.
