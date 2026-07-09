@@ -63,9 +63,10 @@ def _disabled_page_html(feature_name: str) -> str:
 
 
 def _feature_disabled_response(feature_name: str, *, htmx: bool = False):
+    """AC-2: A 类降级直接 URL 访问返回 503 + 提示页 (interfaces.md GATEWAY_NOT_CONFIGURED)."""
     if htmx:
-        return HTMLResponse(content=_disabled_fragment_html(feature_name), status_code=403)
-    return HTMLResponse(content=_disabled_page_html(feature_name), status_code=403)
+        return HTMLResponse(content=_disabled_fragment_html(feature_name), status_code=503)
+    return HTMLResponse(content=_disabled_page_html(feature_name), status_code=503)
 
 
 class FeatureCheckMiddleware(BaseHTTPMiddleware):
@@ -88,7 +89,7 @@ class FeatureCheckMiddleware(BaseHTTPMiddleware):
                     )
                 return JSONResponse(
                     {"error": f"{feature_name}功能已禁用，请先在交易网关页面配置 gateway"},
-                    status_code=403,
+                    status_code=503,
                 )
         response = await call_next(request)
         return response
