@@ -42,6 +42,11 @@ class TestReadPersistedState:
         )
         assert value == "false"
 
+    def test_returns_default_for_non_whitelisted_key(self):
+        storage: dict[str, str] = {"unknown": "x"}
+        value = read_persisted_state(storage, "unknown", default="default")
+        assert value == "default"
+
 
 class TestWritePersistedState:
     """AC-NFR0070-1~3, AC-5: 写入白名单 key, 禁止敏感 key."""
