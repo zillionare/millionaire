@@ -1,0 +1,5 @@
+{
+  "spec_id": "v0.2-003-coverage",
+  "description": "Temporary coverage waivers. Empty by default; every entry must be reviewed and linked to a follow-up issue.",
+  "waivers": []
+}
