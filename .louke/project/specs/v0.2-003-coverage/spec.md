@@ -8,9 +8,11 @@
   - [v0.2-001-strategy-framework](../v0.2-001-strategy-framework/spec.md) — 策略框架/调度/数据/SDK
   - [v0.2-002-ui](../v0.2-002-ui/spec.md) — UI 覆盖 (已 lock, web/services 99%, 但核心/数据/服务/UI 组件层未覆盖)
 
-> **Sage 注释 (草稿状态)**: 本 spec 中所有 inline-discussion quote 当前均为 **open 状态** (无 marker)。Sage 不能在 Aaron 回复前擅自标记 `[RESOLVED]` (per agent.md §3.2 "Silence is NOT consent")。待 Aaron IDE review 答复后, 由 Sage 在下一轮回复中将对应 root comment 加 `[RESOLVED]`。
+> **Sage 注释 (草稿状态) [RESOLVED]**: 本 spec 中所有 inline-discussion quote 当前均为 **open 状态** (无 marker)。Sage 不能在 Aaron 回复前擅自标记 `[RESOLVED]` (per agent.md §3.2 "Silence is NOT consent")。待 Aaron IDE review 答复后, 由 Sage 在下一轮回复中将对应 root comment 加 `[RESOLVED]`。
+>> **Aaron [RESOLVED]**: 默认全部同意 6 个 quote 回复, 你帮我直接标 `[RESOLVED]` 加 reply。
 
-> **Sage**: Q-Spec-Format FR 编号偏差 (关键开放问题): 任务原文 "FR 编号: `UI-TEST-XXXX` (4 位, 0.8 期望)" 与 louke 0.8.0 的 `verify_acceptance.py` 正则不兼容 (工具硬编码接受 `FR-XXXX` 或 `NFR-XXXX`, 不接受 `UI-TEST-XXXX`)。Sage 选择遵循工具约定, 使用 `FR-XXXX` (与 v0.2-002-ui 一致)。**请 Aaron 确认**: 是预期 fallback (`FR-XXXX`), 还是需要升级 louke 工具以支持 `UI-TEST-XXXX` 前缀? 如果是后者, 本 spec 在 lock 前需要阻塞。
+> **Sage** [RESOLVED]: Q-Spec-Format FR 编号偏差 (关键开放问题): 任务原文 "FR 编号: `UI-TEST-XXXX` (4 位, 0.8 期望)" 与 louke 0.8.0 的 `verify_acceptance.py` 正则不兼容 (工具硬编码接受 `FR-XXXX` 或 `NFR-XXXX`, 不接受 `UI-TEST-XXXX`)。Sage 选择遵循工具约定, 使用 `FR-XXXX` (与 v0.2-002-ui 一致)。**请 Aaron 确认**: 是预期 fallback (`FR-XXXX`), 还是需要升级 louke 工具以支持 `UI-TEST-XXXX` 前缀? 如果是后者, 本 spec 在 lock 前需要阻塞。
+>> **Aaron [RESOLVED]**: 同意 Sage 方案 1, 用 `FR-XXXX` (与 v0.2-002-ui 一致, louke 工具兼容)。先不解 louke 兼容性, 后续 spec 可以升级。
 >> **Sage Round 2 备选方案**: 如果 Aaron 坚持 `UI-TEST-XXXX`, 备选方案是用 `FR-XXXX` + 在 FR 标题加 `[UI-TEST]` 前缀 (例: `### FR-0101 [UI-TEST] pytest 配置与覆盖率命令`), 这样 verify-acceptance 通过, 但语义上仍能区分测试类 FR。但 Sage 推荐方案 1 (纯 `FR-XXXX`)。
 
 > **本 spec 仅定义测试覆盖率提升任务的需求与验收**, 不重复定义业务规则。
@@ -109,7 +111,8 @@
 story: 作为开发者, 我希望用统一命令 (`pytest --cov=quantide`) 跑覆盖率, CI 中能强制 ≥95% 整体阈值, 以便任何 PR 合并前都能看到覆盖率变化。
 priority: P0
 
-> **Sage**: Q-US-0101 阈值来源: story §6 已明确 "整体 ≥95%, 单模块 ≥80%", 而 `meta.dod` 同样写 "单元测试覆盖率 ≥95%"。这是双重确认, 不需要二次确认 — 但请 Aaron 在 IDE 中 **确认** 这个解读与你预期一致 (即 v0.2 必须达到 ≥95% 整体覆盖率才能 lock)。
+> **Sage** [RESOLVED]: Q-US-0101 阈值来源: story §6 已明确 "整体 ≥95%, 单模块 ≥80%", 而 `meta.dod` 同样写 "单元测试覆盖率 ≥95%"。这是双重确认, 不需要二次确认 — 但请 Aaron 在 IDE 中 **确认** 这个解读与你预期一致 (即 v0.2 必须达到 ≥95% 整体覆盖率才能 lock)。
+>> **Aaron [RESOLVED]**: 确认 ≥95% 整体, ≥80% 单模块, 双重约束。
 
 #### US-0102
 story: 作为开发者, 我希望共享 `conftest.py` 中的 fixture (mock 行情、mock 网关、mock 日历), 避免每个测试文件重复声明, 以便加速编写和保证一致性。
@@ -236,7 +239,8 @@ priority: P2 (可选, story §6 标注 "可选")
 - 不创建 `pytest.ini` / `setup.cfg` (避免多源)
 - `asyncio_mode = "auto"` 保留 (异步测试无需 `@pytest.mark.asyncio`)
 
-> **Sage**: Q-FR-0101 配置位置: story §1 提到 "pytest.ini 或 pyproject.toml"。本项目 pyproject.toml 已有 `[tool.pytest.ini_options]` 与 `[tool.coverage.*]`, 沿用现有结构, 不引入 pytest.ini。**请 Aaron 确认** 这一选择 (沿用 pyproject.toml) 与预期一致。
+> **Sage** [RESOLVED]: Q-FR-0101 配置位置: story §1 提到 "pytest.ini 或 pyproject.toml"。本项目 pyproject.toml 已有 `[tool.pytest.ini_options]` 与 `[tool.coverage.*]`, 沿用现有结构, 不引入 pytest.ini。**请 Aaron 确认** 这一选择 (沿用 pyproject.toml) 与预期一致。
+>> **Aaron [RESOLVED]**: 同意沿用 pyproject.toml, 不引入 pytest.ini。
 
 <a id="fr-0102"></a>
 ### FR-0102 覆盖率阈值与排除清单
@@ -737,7 +741,8 @@ CI 流水线配置:
 2. 在 `pyproject.toml` `[tool.coverage.report]` 加注释 (不修改 exclude_lines)
 3. 跟进 issue: 创建 `coverage-<module>` issue, 跟踪后续补齐
 
-> **Sage**: Q-NFR-0010 豁免清单 (开放问题): 本 spec 范围内, 哪些模块可以永久豁免? Sage 默认提议仅 `__init__.py` 空文件。其余模块即便实施阶段短期未达 80%, 也需要走 "临时豁免申请流程"。**请 Aaron 确认** 这一边界。
+> **Sage** [RESOLVED]: Q-NFR-0010 豁免清单 (开放问题): 本 spec 范围内, 哪些模块可以永久豁免? Sage 默认提议仅 `__init__.py` 空文件。其余模块即便实施阶段短期未达 80%, 也需要走 "临时豁免申请流程"。**请 Aaron 确认** 这一边界。
+>> **Aaron [RESOLVED]**: 同意仅 `__init__.py` 空文件永久豁免, 其余走临时豁免流程。
 >> **Sage Round 2**: 当前基线下, 没有模块被 Sage 标记为豁免 (除 `__init__.py`)。所有 ≥80% 目标都是"应达目标", 由实施阶段决定如何补齐。如果实施时发现某模块确实不可达, 走申请流程。
 
 <a id="nfr-0020"></a>
@@ -766,8 +771,9 @@ CI 流水线配置:
 
 ## 已知约束与排除
 
-> **Sage**: Q-Spec-Scope 整体 ≥95% 可达性 (关键开放问题): 当前覆盖率基线 **69%**, story §6 要求整体 **≥95%**, 缺口 **26pp**。这是大跨度提升, 需要约 **3100 行覆盖** (粗算: 4856 miss / 0.95 ≈ 4975 expected miss, 当前 4856, 即需要减少 ~113 条 miss 行 OR 新增 1320 行可执行代码 → 实际是两者皆有)。
+> **Sage** [RESOLVED]: Q-Spec-Scope 整体 ≥95% 可达性 (关键开放问题): 当前覆盖率基线 **69%**, story §6 要求整体 **≥95%**, 缺口 **26pp**。这是大跨度提升, 需要约 **3100 行覆盖** (粗算: 4856 miss / 0.95 ≈ 4975 expected miss, 当前 4856, 即需要减少 ~113 条 miss 行 OR 新增 1320 行可执行代码 → 实际是两者皆有)。
 > **请 Aaron 确认**: 这个 ≥95% 是 **v0.2 必达目标** (lock 阶段硬性), 还是 **阶段性目标** (v0.2-003 至少推到 90%, 95% 留给后续 spec)? 这个决定影响本 spec 的实施范围与工作量。
+>> **Aaron [RESOLVED]**: ≥95% 是 v0.2 必达目标, M-DEV 持续补齐, 用 NFR-0010 豁免清单管理个别不可达模块。
 >> **Sage Round 2 默认方案**: Sage 推荐 ≥95% 为 **v0.2 必达目标**, 但允许通过"豁免清单"或"模块分级"放宽个别不可达模块 (见 NFR-0010)。如果 Aaron 倾向阶段性 (90% for v0.2), 需要调整所有 FR 的目标值。
 
 ### 不在本 spec 范围 (与 v0.2-002-ui 边界)
