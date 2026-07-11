@@ -23,7 +23,7 @@ def test_config_directory_override_is_reversible_between_isolated_cases(tmp_path
 
 
 def test_temp_config_paths_are_deterministic_and_do_not_create_files(tmp_path):
-    """AC-NFR-0020-3..4: reading an isolated path has no filesystem side effect."""
+    """AC-NFR0020-3..4: reading an isolated path has no filesystem side effect."""
     target = tmp_path / "config"
     try:
         set_app_config_dir_override(target)

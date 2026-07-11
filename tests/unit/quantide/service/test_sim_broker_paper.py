@@ -76,7 +76,8 @@ def paper_broker() -> PaperBroker:
         market_data=DummyMarketData(),
         market_value_update_interval=0.0,
     )
-    return broker
+    yield broker
+    broker.close()
 
 
 @pytest.mark.asyncio

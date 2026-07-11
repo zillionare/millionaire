@@ -105,6 +105,83 @@ def _require_assets() -> None:
         )
 
 
+def _close_subscribed_paper_brokers() -> None:
+    """Close PaperBroker owners currently subscribed to the global MessageHub."""
+    from quantide.core.message import msg_hub
+    from quantide.service.sim_broker import PaperBroker
+
+    with msg_hub._lock:
+        callbacks = tuple(
+            callback
+            for topic_callbacks in msg_hub._subscribers.values()
+            for callback in topic_callbacks
+        )
+    brokers = {
+        owner
+        for callback in callbacks
+        if isinstance(owner := getattr(callback, "__self__", None), PaperBroker)
+    }
+    for broker in brokers:
+        broker.close()
+
+
+class _PaperBrokerCleanupProbe:
+    """Records one broker whose MessageHub cleanup is asserted after test teardown."""
+
+    def __init__(self) -> None:
+        self._broker: object | None = None
+
+    def expect_closed(self, broker: object) -> None:
+        """Record a broker expected to be unsubscribed by the unit cleanup fixture.
+
+        Args:
+            broker: The directly constructed PaperBroker to verify.
+
+        Returns:
+            None.
+        """
+        self._broker = broker
+
+    def assert_cleaned(self) -> None:
+        """Assert that the recorded broker is absent from global MessageHub callbacks.
+
+        Returns:
+            None.
+
+        Raises:
+            AssertionError: If teardown leaves the recorded broker subscribed.
+        """
+        if self._broker is None:
+            return
+        from quantide.core.message import msg_hub
+
+        with msg_hub._lock:
+            callbacks = tuple(
+                callback
+                for topic_callbacks in msg_hub._subscribers.values()
+                for callback in topic_callbacks
+            )
+        assert all(
+            getattr(callback, "__self__", None) is not self._broker
+            for callback in callbacks
+        )
+
+
+@pytest.fixture
+def paper_broker_cleanup_probe():
+    """Provide a teardown probe for direct PaperBroker cleanup tests."""
+    probe = _PaperBrokerCleanupProbe()
+    yield probe
+    probe.assert_cleaned()
+
+
+@pytest.fixture(autouse=True)
+def close_unit_paper_brokers(paper_broker_cleanup_probe):
+    """Release global MessageHub subscriptions owned by unit-test PaperBrokers."""
+    yield
+    _close_subscribed_paper_brokers()
+
+
 @pytest.fixture(scope="session")
 def env() -> TestEnv:
     """Session-scoped test environment per test plan §2.6.1."""

@@ -87,13 +87,30 @@ class PaperBroker(AbstractBroker):
         self._dry_run_signals: list[dict] = []
         self._limits: dict[str, dict[str, float]] = {}
         self._clock: datetime.datetime | None = None
+        self._closed = False
 
         # 初始化或加载状态
         self._init_or_sync_state()
 
         # 订阅行情
-        msg_hub.subscribe(Topics.QUOTES_ALL.value, self._on_quote_update)
-        msg_hub.subscribe(Topics.STOCK_LIMIT.value, self._on_limit_update)
+        self._quote_subscription = self._on_quote_update
+        self._limit_subscription = self._on_limit_update
+        msg_hub.subscribe(Topics.QUOTES_ALL.value, self._quote_subscription)
+        msg_hub.subscribe(Topics.STOCK_LIMIT.value, self._limit_subscription)
+
+    def close(self) -> None:
+        """Release MessageHub subscriptions held by this broker.
+
+        This method takes no inputs and returns ``None``. It is idempotent and
+        prevents callbacks already queued by the MessageHub from mutating the
+        broker after cleanup.
+        """
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            msg_hub.unsubscribe(Topics.QUOTES_ALL.value, self._quote_subscription)
+            msg_hub.unsubscribe(Topics.STOCK_LIMIT.value, self._limit_subscription)
 
     @classmethod
     def create(
@@ -173,12 +190,15 @@ class PaperBroker(AbstractBroker):
         目前 SimBroker 通过 live_quote 单例获取涨跌停数据，该单例会在此回调之前更新。
         此处订阅主要为了保持架构一致性（所有外部数据均来自 MessageHub）。
         """
-        for asset, limits in data.items():
-            if isinstance(limits, dict):
-                self._limits[asset] = {
-                    "up": float(limits.get("up", 0) or 0),
-                    "down": float(limits.get("down", 0) or 0),
-                }
+        with self._lock:
+            if self._closed:
+                return
+            for asset, limits in data.items():
+                if isinstance(limits, dict):
+                    self._limits[asset] = {
+                        "up": float(limits.get("up", 0) or 0),
+                        "down": float(limits.get("down", 0) or 0),
+                    }
 
     def _get_quote(self, asset: str) -> dict[str, Any] | None:
         """获取行情快照."""
@@ -601,6 +621,8 @@ class PaperBroker(AbstractBroker):
         """
         try:
             with self._lock:
+                if self._closed:
+                    return
                 self._update_positions_market_value(data)
 
                 if not self._active_orders:

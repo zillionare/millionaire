@@ -9,6 +9,7 @@ on:
 jobs:
   unit-coverage:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: ["3.13"]
@@ -30,7 +31,7 @@ jobs:
         # Enforces 95% overall coverage and the 80% per-file checker below.
         # --timeout=60 caps each test at 60 seconds.
         run: >-
-          poetry run pytest tests/unit --cov=quantide --cov-fail-under=95 --timeout=60
+          poetry run pytest tests/unit --cov=quantide --cov-fail-under=95 --timeout=60 -o faulthandler_timeout=90
           --cov-report=term-missing --cov-report=json:coverage.json
           --cov-report=html:htmlcov
       - name: Check per-file coverage
