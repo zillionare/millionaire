@@ -43,6 +43,7 @@ class IndexBarsStore(ParquetStorage):
             error_handler=None,
             partition_by=partition_by,
         )
+        self._id_cols = ["date", "sector_id"]
 
     def get(
         self,
