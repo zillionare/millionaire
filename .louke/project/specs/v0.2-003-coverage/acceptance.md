@@ -1,640 +1,776 @@
 # Millionaire Coverage — Acceptance Criteria
 
 - **Spec ID**: v0.2-003-coverage
-- **创建日期**: 2026-07-09
-- **对应 spec**: `.louke/project/specs/v0.2-003-coverage/spec.md`
+- **复核日期**: 2026-07-10
+- **对应 spec**: [spec.md](./spec.md)
 
-> 验收标准集中处。spec.md 仅保留 FR/NFR 的需求描述与元数据 (testability/resolved/valid),
-> 详细的可观察、可断言的通过条件放在本表里。
->
-> 编号约定:
-> - 每个 FR/NFR 单元内, AC-N 从 1 开始连续递增, 不可跨单元复用
-> - 完整 AC 引用: **AC-FRXXXX-YY** (4 位 FR + 2 位 AC 序号), 与 test-plan/issue schema 一致
->
-> Lex 阶段一/二审核时, 校验: (1) 本表存在; (2) spec.md 中出现的每个 FR/NFR 在本表都有对应节; (3) 每条 AC 都可被测试断言。
+编号约定：每个 FR/NFR 内 `AC-N` 从 1 开始。完整引用写作 `AC-FRXXXX-YY` 或 `AC-NFRXXXX-YY`。
 
-> **覆盖率基线** (2026-07-09): TOTAL 69% (15657 stmts / 4856 miss)。
-> **目标**: 整体 ≥95%, 单模块 ≥80% (NFR-0010)。每条覆盖率类 AC 在 `poetry run pytest --cov=quantide --cov-report=term-missing` 下可直接断言。
+只有同一次 `tests/unit` 运行满足“pytest 全绿 + 整体 ≥95% + 非豁免逐文件 ≥80%”时，覆盖率验收才成立。
 
----
+<a id="ac-fr-0001"></a>
+## FR-0001 契约来源与冲突判定
 
-## §1 测试基础设施
+### AC-1
+
+- 每个新增/修改测试文件的模块 docstring、测试 docstring 或紧邻断言注释至少含一个可解析引用：`v0.2-001 ... FR/AC`、`v0.2-002 ... FR/AC` 或 `v0.2-003 ... FR/AC`。
+
+### AC-2
+
+- 抽查本 spec 每个 FR 至少一项行为断言，期望值可追到上游公式/schema/示例或独立 fixture；不得通过调用被测函数生成 expected value。
+
+### AC-3
+
+- 当上游合同与当前实现冲突时，测试名或缺陷记录标为 `implementation-defect`，测试期望保持上游值；不得以“现有实现为准”让冲突测试通过。
+
+### AC-4
+
+- 对无上游引用、无生产消费方的模块，提交物包含 `rg` 消费方证据并标记 `dead-or-marker` 或 `spec-gap`；没有新造 CRUD、序列化、状态机或异常类型。
 
 <a id="ac-fr-0101"></a>
-## FR-0101 pytest 配置与覆盖率命令
+## FR-0101 pytest 配置与规范命令
 
 ### AC-1
-- 项目根目录跑 `poetry run pytest --cov=quantide --cov-report=term-missing` → 终端输出每文件 stmts/miss/cover 表格, 不报错 (exit 0)
+
+- 项目根执行规范命令 `poetry run pytest tests/unit --cov=quantide --cov-fail-under=95 --cov-report=term-missing --cov-report=json:coverage.json --cov-report=html:htmlcov`，发布候选上 exit 0。
+
 ### AC-2
-- 跑 `poetry run pytest --cov=quantide --cov-report=html:htmlcov` → 生成 `htmlcov/index.html` 文件, 内容包含可点击的源码链接
+
+- 若任一 unit test 失败或报错，即使已执行行的覆盖率 ≥95%，命令仍 exit 非 0。
+
 ### AC-3
-- 跑 `poetry run pytest --cov=quantide --cov-fail-under=95` → 当覆盖率 < 95% 时 exit 1 (当前 69% 应该 fail; lock 时 ≥95% 应该 pass)
+
+- 将整体阈值临时提高到高于实测值时命令 exit 非 0；恢复 95 后由真实覆盖率决定，证明门禁未被吞掉。
+
 ### AC-4
-- `pyproject.toml` 中 `[tool.pytest.ini_options]` 含 `asyncio_mode = "auto"` (与现有一致, 不破坏异步测试)
+
+- `coverage.json` 存在且 `totals.percent_covered >= 95`；`htmlcov/index.html` 存在并含生产源码链接。
+
 ### AC-5
-- 跑 `poetry run pytest tests/unit` 不跑 e2e 测试 (`tests/e2e/` 被排除或 e2e marker 自动 skip)
-### AC-6
-- 不存在 `pytest.ini` 或 `setup.cfg` (配置单一来源在 `pyproject.toml`)
+
+- pytest/coverage 配置只来自 `pyproject.toml`；不存在项目级 `pytest.ini`/`setup.cfg` 重复配置；`asyncio_mode = "auto"`。
 
 <a id="ac-fr-0102"></a>
-## FR-0102 覆盖率阈值与排除清单
+## FR-0102 逐文件覆盖率检查与豁免清单
 
 ### AC-1
-- 跑 `poetry run pytest --cov=quantide --cov-fail-under=95` → exit 0 (整体 ≥95% 时)
+
+- 给检查器输入 synthetic `coverage.json`：overall=96%，一个 79.99% 的非豁免生产文件 → exit 非 0，并输出该文件路径与百分比。
+
 ### AC-2
-- `quantide/core/__init__.py` / `quantide/data/services/__init__.py` 等空文件: 100% 覆盖 (0 stmts 或全部覆盖)
+
+- synthetic JSON 中所有 `quantide/**/*.py` 且 `num_statements>0` 文件 ≥80% → exit 0；`num_statements=0` 文件被跳过。
+
 ### AC-3
-- 实施阶段若某模块 < 80% 但需要临时豁免: 人工 review artifact 或 PR description 必须包含 (模块名 / 当前覆盖 / 原因 / 补救 issue 链接); 该项是人工 review gate, 不伪装为 push CI 自动 gate
+
+- 含 1 条 import/re-export statement 且覆盖率 <80% 的 `__init__.py` 仍触发失败，证明它未被误当空文件。
+
 ### AC-4
-- `pyproject.toml` 的 `[tool.coverage.report]` 不修改 `exclude_lines` 默认值; 临时豁免只写入 `coverage-waivers.json`
+
+- 合法 waiver 含 `module/current_coverage/reason/expires_at/followup_issue` 且未过期时可跳过对应文件；缺字段、过期、模块不存在或 issue 为空时 exit 非 0。
+
+### AC-5
+
+- 默认 [coverage-waivers.json](./coverage-waivers.json) 的 `waivers` 为空；`pyproject.toml` coverage omit/exclude 没有为本任务新增生产模块排除。
 
 <a id="ac-fr-0103"></a>
-## FR-0103 Mock 框架与 Fixture 共享
+## FR-0103 Mock 边界与共享 Fixture
 
 ### AC-1
-- `tests/unit/conftest.py` 存在并被 pytest 自动加载 (无需 `import conftest`); 该文件提供 `env` 等共享 fixture
+
+- pytest 自动加载 `tests/unit/conftest.py`；`env` 暴露 `manifest/universe/calendar/daily_bars/adj_factor/st_info/limit_price`，fixture version 与 manifest 一致。
+
 ### AC-2
-- `env` fixture (session scope) 提供 `manifest / universe / calendar / daily_bars / adj_factor / st_info / limit_price` 7 个属性, 任何单测可直接 `def test_xxx(env)` 获取
+
+- 网络、SMTP、Tushare 与 qmt-gateway 用例安装边界 mock 后，开启“禁止真实 socket”守卫仍全部通过。
+
 ### AC-3
-- 数据层 mock 使用 `unittest.mock.MagicMock` / `AsyncMock` / `patch` 或 pytest 内置 `monkeypatch`; 测试代码不依赖 `pytest-mock` 的 `mocker` fixture
+
+- app factory 测试调用 `create_app(app_config_dir=tmp_path, enforce_single_instance=False)` 或等价隔离 fixture；断言 DB/PID/runtime state 路径均在 tmp_path 下。
+
 ### AC-4
-- 时间依赖测试用 `@freeze_time("2024-01-02")` (freezegun) 或显式注入 `datetime`, 不用 `datetime.now()`
-### AC-5
-- 数据库 mock 用 `:memory:` SQLite 或 `tmp_path` 下的 SQLite 文件, `tests/` 目录不残留 .db / .sqlite
+
+- 新增测试没有 patch 当前被测函数/方法的主体；patch 目标仅为其外部边界或下游 port/service。
 
 <a id="ac-fr-0104"></a>
 ## FR-0104 测试隔离与确定性
 
 ### AC-1
-- 同一测试连续跑 100 次结果一致 (`for i in {1..100}; do poetry run pytest path/to/test.py::test_name; done`, 全部 pass; 不依赖 `pytest-count`)
+
+- 任取每个低覆盖域至少一条关键测试，单独运行与整套运行结果一致；随机化测试文件顺序时结果不变。
+
 ### AC-2
-- 任意测试可单独跑 (`poetry run pytest tests/unit/quantide/core/test_clock_bridge.py::test_backtest_clock_set_now_and_now`) 而不依赖其它测试状态
+
+- 使用全新临时 `HOME/XDG_CONFIG_HOME/data home` 运行完整 unit suite，测试不读取仓库 `.sesskey` 或开发者 `~/.config/quantide`。
+
 ### AC-3
-- 测试结束后, `tests/` 目录无新增 .db / .sqlite / .parquet / .log 等残留文件
+
+- suite 结束后没有存活的测试 scheduler/message-hub worker/async task，没有未关闭 SQLite client 警告，仓库内无新增 `.db/.sqlite/.parquet/.log/pid`。
+
 ### AC-4
-- 测试不修改 `quantide.*` 任何模块级全局变量 (可通过 `_pytest.monkeypatch.undo()` 验证 — monkeypatch 自动还原)
-### AC-5
-- 全局可变状态 (module-level `dict`/`list`/`set` 在测试间共享) 在 conftest 中无定义, 或在 setup/teardown 中清空
 
-
----
-
-## §2.2 quantide/core/ 单测
+- 重复运行完整 unit suite 两次，pass/fail/skip 数量相同，coverage 总 statements 与 covered statements 相同。
 
 <a id="ac-fr-0201"></a>
-## FR-0201 core/domain/ 单测
+## FR-0201 core/domain 事件 DTO
 
 ### AC-1
-- `poetry run pytest tests/unit/quantide/core/domain/` 全 pass, 0 failure / 0 error
+
+- 用完整字段构造 MarketEvent/QuoteSnapshot/OrderEvent/TradeEvent/ErrorEvent，逐字段读取值与输入完全一致。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/core/domain --cov-report=term-missing` → `events.py` 覆盖率 = 100% (基线已 100%, 本 FR 维护)
+
+- MarketEvent 未传 source/event_id 时分别为 `unknown`/空串；OrderEvent 的 filled_qty/filled_price 为 0.0、reason 为空串；ErrorEvent.retryable 为 False。
+
 ### AC-3
-- events 序列化 round-trip 测试: `event = Event.from_dict(d); e2 = Event.from_dict(event.to_dict()); assert e2 == event`
+
+- 创建两个 ErrorEvent，只修改第一个 `details`，第二个仍为空，证明 mutable default 不共享。
+
 ### AC-4
-- 缺失必填字段的反序列化测试: `with pytest.raises(ValidationError)` (或文档约定的异常类型)
-### AC-5
-- `__init__.py` 100% 覆盖 (基线 100%)
+
+- 事件测试不调用或要求 `to_dict/from_dict/to_json/from_json`；若未来添加，必须另有上游/兼容合同。
 
 <a id="ac-fr-0202"></a>
-## FR-0202 core/runtime/clock_bridge 单测
+## FR-0202 core/runtime 时钟适配
 
 ### AC-1
-- `poetry run pytest --cov=quantide/core/runtime/clock_bridge --cov-report=term-missing` → 覆盖率 ≥ 95% (基线 90%)
+
+- `BacktestClockAdapter.set_now(t)` 后 `now() is/equal t`；不同实例互不影响。
+
 ### AC-2
-- `BacktestClockAdapter.set_now(t)` 后 `clock.now() == t` (精确相等, 不带时区)
+
+- `SystemClockAdapter.set_now(t)` 抛 RuntimeError，消息包含不支持设置系统时钟的语义。
+
 ### AC-3
-- `BacktestClockAdapter.iter_frames(start, end, DAY)` 对给定交易日历 fixture 返回的首帧、末帧与帧数符合日历期望
+
+- monkeypatch 交易日历 `get_frames` 返回 sentinel iterable；两类 adapter 的 `iter_frames(start,end,frame_type)` 返回 sentinel，并把三个参数各传一次且不改写。
+
 ### AC-4
-- `SystemClockAdapter.set_now(t)` 抛 `RuntimeError` (live 模式不允许设置)
-### AC-5
-- 边界: `iter_frames` 的 start == end (单帧), start > end (空?) — 按现有实现断言
+
+- 依赖回测时钟的业务测试先 set/inject 固定时间；不存在断言真实“今天”的 flaky 用例。
 
 <a id="ac-fr-0203"></a>
-## FR-0203 core/runtime/gateway_broker + gateway_client 单测
+## FR-0203 core/runtime 网关客户端与 BrokerPort 适配
 
 ### AC-1
-- `poetry run pytest --cov=quantide/core/runtime/gateway_broker --cov-report=term-missing` → 覆盖率 ≥ 90% (基线 80%)
+
+- fake opener 连续执行两次 API 请求，只收到一次 `/auth/login`；登录表单含 username/password/auto_login=false，后续 GET/POST path、query/form 与输入相同。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/core/runtime/gateway_client --cov-report=term-missing` → 覆盖率 ≥ 90% (基线 75%)
+
+- application/json 或 text/plain 的 JSON body 返回解析对象；空 body 返回 None；text/html 与未允许 content type 抛 GatewayProtocolError。
+
 ### AC-3
-- gateway_broker 下单适配: 给定 GatewayBrokerAdapter + fake GatewayClient, 调用 buy/sell/cancel 后 fake client 收到对应 HTTP form path 与 payload, 返回 `OrderAck` / `CancelAck`
+
+- cookie jar 含两个 cookie 时 `cookie_header()` 同时包含 `name=value`；http/https/no-scheme base 分别产生 ws/wss/ws URL 且 path 不丢失。
+
 ### AC-4
-- gateway_broker 查询适配: fake client 返回 positions/assets/orders/trades payload 后, query_* 方法输出字段对齐 `PositionView` / `AssetView` / `OrderView` / `Trade`
+
+- fake GatewayClient 捕获 buy/sell/cancel/query 请求；GatewayBrokerAdapter 输出对应 OrderAck/ExecutionResult/CancelAck/PositionView/AssetView/OrderView/Trade 字段，与 001 interfaces 一致。
+
 ### AC-5
-- gateway_broker 一致性错误: 网关返回 qtoid / external id 不一致 payload → 抛 `GatewayTradeStateConsistencyError`
-### AC-6
-- gateway_client 登录与 GET/POST: fake opener 返回 2xx JSON → `ensure_login` 只登录一次, `get_json` / `post_form` 返回解析后的 dict
-### AC-7
-- gateway_client 协议保护: 响应 `Content-Type: text/html` → 抛 `GatewayProtocolError`; 空 body → 返回 None
-### AC-8
-- gateway_client 地址与 cookie: `cookie_header()` 输出已有 cookie; `ws_url()` 将 http/https base_url 正确转换为 ws/wss
+
+- 网关响应的 qtoid/external order id 与请求归因冲突时抛一致性错误；没有写入错误 portfolio 的 position/order/trade。
 
 <a id="ac-fr-0204"></a>
-## FR-0204 core/runtime/modes + port_broker 单测
+## FR-0204 core/runtime 装配与兼容 Broker
 
 ### AC-1
-- `poetry run pytest --cov=quantide/core/runtime/modes --cov-report=term-missing` → 覆盖率 ≥ 95% (基线 89%)
+
+- `RuntimeBootstrap(mode="paper", clock=fake_clock).bootstrap()` 输出 context.mode=`paper` 且 context.clock 为同一 fake；registry/adapters/market_data 非空并可按公开 API 查询。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/core/runtime/port_broker --cov-report=term-missing` → 覆盖率 ≥ 85% (基线 72%)
+
+- 自动 mode：配置 gateway disabled 或 livequote none → backtest；合法显式 live/paper/backtest 不被改写。
+
 ### AC-3
-- modes 枚举值测试: `assert Mode.BACKTEST != Mode.PAPER`, `Mode.value == "backtest"`
+
+- DB 返回 simulation、QMT 与损坏 portfolio 时，只成功加载合法 simulation；坏账户不阻止 context 创建。
+
 ### AC-4
-- 模式切换合法路径: `backtest → paper → live` 各自合法
+
+- PortBackedBroker 把 AssetView/PositionView/OrderView 映射为同 portfolio 的 Asset/Position/Order；query_assets=None 时返回零值 Asset。
+
 ### AC-5
-- 模式切换非法路径 (例: `idle → live` 跳过 paper): 抛 `InvalidTransitionError` (或文档约定异常)
+
+- buy/buy_percent/buy_amount/sell/sell_percent/sell_amount/trade_target_pct/cancel_order/cancel_all_orders 的参数与返回值原样透传；未知 side/status 映射 UNKNOWN。
+
 ### AC-6
-- PortBackedBroker 资产/持仓/委托适配: fake BrokerPort 返回 AssetView / PositionView / OrderView 后, wrapper 的 `asset` / `positions` / `orders` 输出旧 UI 可消费模型
-### AC-7
-- PortBackedBroker 交易方法透传: 调用 buy/sell/cancel/cancel_all/trade_target_pct 后, fake BrokerPort 收到相同 asset/shares/price/side 参数
-### AC-8
-- PortBackedBroker 状态映射: 网关订单状态字符串/整数/未知值映射为约定 `OrderStatus`, 未知值映射 `OrderStatus.UNKNOWN`
+
+- 本 FR 没有端口注册/注销、一对多消息路由或模式转换状态机测试。
 
 <a id="ac-fr-0205"></a>
-## FR-0205 core/strategy + strategy_discovery + scheduler 单测
+## FR-0205 core 策略、发现与调度
 
 ### AC-1
-- `poetry run pytest --cov=quantide/core/strategy --cov-report=term-missing` → 覆盖率 ≥ 90% (基线 79%)
+
+- 反射 `BaseStrategy.on_bar` 签名仅为 self+tm；Strategy 的 init/on_start/on_stop/on_day_open/on_day_close 默认 await 后无副作用。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/core/strategy_discovery --cov-report=term-missing` → 覆盖率 ≥ 90% (基线 82%)
+
+- fake broker 捕获 BaseStrategy 的 get_bars/record/九类交易与撤单委托；输入参数、返回 DTO 不丢失。
+
 ### AC-3
-- `poetry run pytest --cov=quantide/core/scheduler --cov-report=term-missing` → 覆盖率 ≥ 95% (基线 94%)
+
+- RiskStrategy 实例无 buy/buy_amount/buy_percent API；`sell_host_position(asset,shares,reason)` 归属宿主 broker，并能读取 get_prices/get_ticks。
+
 ### AC-4
-- strategy 生命周期: 通过公开运行入口驱动一个测试策略, 生命周期日志/事件顺序符合 v0.2-001 AC-010-02 (`init` → `on_start` → 日内钩子 → `on_stop`)
+
+- 临时策略目录含合法 Base/Risk 子类、普通类、损坏文件和子目录策略：discover 只返回根目录合法具体子类，元数据字段满足 001-FR-020，其他项进入 skipped 且整次扫描成功。
+
 ### AC-5
-- 参数注入: 默认参数 / 用户覆盖 / 类型校验失败抛错
+
+- SchedulerManager 首次访问 scheduler 才 init；重复 start/stop 不重复调用底层；add_job/add_listener 参数原样透传。
+
 ### AC-6
-- strategy_discovery 扫描: mock 文件系统 (有策略文件 / 无策略文件 / 损坏文件) → 断言发现列表正确
-### AC-7
-- scheduler.add_job / remove_job / list_jobs CRUD 测试
-### AC-8
-- scheduler 触发测试: mock 任务函数, 用 freezegun 推进时间 → 任务被执行 (断言 mock_called_once)
+
+- 测试不要求 SchedulerManager 提供 remove_job/list_jobs；若调用底层 scheduler 的对应方法，明确标为 APScheduler compatibility 而非本类 API。
 
 <a id="ac-fr-0206"></a>
-## FR-0206 core/ 基础模块单测
+## FR-0206 core 枚举、消息、SDK 与辅助规则
 
 ### AC-1
-- `poetry run pytest --cov=quantide/core/enums --cov-report=term-missing` → enums.py ≥ 90% (基线 75%)
+
+- FrameType 的已定义 int round-trip 与跨周期比较返回预期；非法 int/不可比对象走明确 ValueError/NotImplemented/TypeError 分支。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/core/message --cov-report=term-missing` → message.py ≥ 95% (基线 88%)
+
+- 同一 callback 重复 subscribe 只收到一次消息；unsubscribe 后不再收到；一个 callback 抛错不影响同 topic 的其他 callback。
+
 ### AC-3
-- `poetry run pytest --cov=quantide/core/errors --cov-report=term-missing` → errors.py ≥ 99% (基线 99%, 保持)
+
+- topic 无 subscriber 时 publish 的 payload 可由 get/get_no_wait 取得；不存在 topic 的 get_no_wait 抛可判定错误；stop 后 worker 在限定时间内退出。
+
 ### AC-4
-- `poetry run pytest --cov=quantide/core/sdk_metadata --cov-report=term-missing` → sdk_metadata.py ≥ 95% (基线 87%)
+
+- CalendarSDK 五个方法把输入原样交给 calendar 并返回 bool/date/int/list[date]；SecurityListSDK 对上市/退市/ST/未知/名称按 001-FR-015 返回。
+
 ### AC-5
-- enums 转换: `enum.from_str("backtest") == Mode.BACKTEST`, 无效字符串抛 `ValueError`
-### AC-6
-- message 编解码 round-trip: `assert msg == decode(encode(msg))`
-### AC-7
-- errors 异常链: `raise ServiceError("x") from IOError("y")` → `e.__cause__ is not None`
+
+- core 辅助 DTO/规则各有至少一个上游字段正常例与非法/边界例，异常消息不丢失原始 code/category/details。
 
 <a id="ac-fr-0207"></a>
-## FR-0207 core/ports/ 单测
+## FR-0207 core/ports 结构契约
 
 ### AC-1
-- `poetry run pytest --cov=quantide/core/ports --cov-report=term-missing` → 整体 ≥ 90%
+
+- 一个实现 BrokerPort 全部方法的 fake 可被 Strategy/adapter 消费；submit/buy/sell/cancel/query 的输入输出 DTO 字段完整。
+
 ### AC-2
-- `ports/broker.py` ≥ 90% (基线 84%)
+
+- ClockPort fake 可注入 RuntimeBootstrap/Runner；DataFetcherPort fake 可注入数据获取/存储消费方；MarketDataPort fake 可被 RuntimeBootstrap/PaperBroker 消费。
+
 ### AC-3
-- `ports/clock.py` ≥ 90% (基线 73%)
+
+- DataFetcherPort 的七个方法签名分别返回 DataFrame 或 `(DataFrame, errors)`；MarketDataPort.stream 可 async iterate MarketEvent，snapshot 返回 symbol→QuoteSnapshot。
+
 ### AC-4
-- `ports/data_fetcher.py` ≥ 85% (基线 65%)
+
+- 两个 OrderRequest/OrderAck/ExecutionResult 实例的 extra/trades 容器互不共享。
+
 ### AC-5
-- `ports/market_data.py` ≥ 85% (基线 62%)
-### AC-6
-- 抽象方法测试: 实例化抽象端口类抛 `TypeError` (不能用抽象方法直接实例化)
-### AC-7
-- mock 实现契约: 子类实现所有抽象方法 → 可正常实例化, 接口调用正常
 
-
----
-
-## §2.3 quantide/data/ 单测
+- 验收不以“Protocol 实例化抛 TypeError”为条件；使用结构化替身验证真实消费方兼容性。
 
 <a id="ac-fr-0301"></a>
-## FR-0301 data/fetchers/ 单测
+## FR-0301 data/fetchers
 
 ### AC-1
-- `poetry run pytest --cov=quantide/data/fetchers --cov-report=term-missing` → 整体 ≥ 90%
+
+- fake Tushare SDK 捕获 calendar/stock/adjust/daily/limit/ST 调用；日期边界和批次与输入一致，没有外网请求。
+
 ### AC-2
-- `tushare.py` ≥ 90% (基线 74%)
+
+- `fetch_bars_ext` 对固定 fixture 输出至少包含资产/日期、OHLCV、amount、adjust、is_st、up_limit、down_limit 可消费列，值与各上游 frame 的 join 结果一致。
+
 ### AC-3
-- `registry.py` ≥ 95% (基线 92%)
+
+- 单个日期批次失败时 errors 记录该批次而成功批次仍返回；整体鉴权失败和空结果分别有明确异常/空 frame 断言。
+
 ### AC-4
-- tushare 请求构建: 给定参数 (ts_code, start_date, end_date), 断言生成的请求 body 含正确参数 (用 `unittest.mock.patch` 或 `monkeypatch` 拦截网络边界)
-### AC-5
-- 响应解析: mock 原始响应 (DataFrame dict) → fetcher 返回 domain 对象, 字段正确
-### AC-6
-- 错误处理: 网络错误 / 限流 (mock `requests.post` 抛 ConnectionError) → fetcher 抛 `FetchError` (或约定异常)
-### AC-7
-- 重试: tenacity 配置生效, mock 第一次失败 → 第二次调用成功 (断言 2 次调用)
-### AC-8
-- registry: `register(FooFetcher); resolve("foo") is FooFetcher`, 未注册 name 抛 `KeyError`
+
+- DataFetcherRegistry 注册后 has/get/list_names 可观察；默认项通过 get(None) 返回；未知 name 抛 KeyError 或当前公开约定异常；重复注册行为有明确断言。
 
 <a id="ac-fr-0302"></a>
-## FR-0302 data/models/ 单测
+## FR-0302 data/models
 
 ### AC-1
-- `poetry run pytest --cov=quantide/data/models --cov-report=term-missing` → 整体 ≥ 90%
+
+- Calendar 用固定交易日 fixture 验证 date/time int round-trip、day/week/month shift、get_frames、get_trade_dates/count 和开闭市边界。
+
 ### AC-2
-- `calendar.py` ≥ 95% (基线 90%)
+
+- StockList 对代码/中文/拼音查询、上市前/退市后、ST 排除和 days_since_ipo 返回独立 fixture 期望。
+
 ### AC-3
-- `daily_bars.py` ≥ 95% (基线 85%)
+
+- DailyBars 对日期范围/count、price、price limits、close adjustment factor 和 match price 的正常/空数据输出列与值正确。
+
 ### AC-4
-- `stocks.py` ≥ 95% (基线 91%)
+
+- AppState 合法 dict round-trip；非法端口/日期/必填配置被拒；is_fully_initialized/can_use_live_trading/can_use_backtest 与步骤状态一致。
+
 ### AC-5
-- `app_state.py` ≥ 95% (基线 88%)
+
+- `IndexBars.SCHEMA` 精确含 `sector_id,date,open,high,low,close,volume,amount` 与约定 Polars 类型；测试不实例化并调用不存在的 CRUD/serialization。
+
 ### AC-6
-- `index_bars.py` ≥ 80% (基线 0%, 从 0 起步 — 本 FR 主要交付)
-### AC-7
-- 构造测试: 给定合法字段 → 模型构造成功, 字段可访问
-### AC-8
-- 校验测试: 缺失必填字段 / 类型错误 → 抛 `ValidationError`
-### AC-9
-- 序列化 round-trip: `m == Model.from_dict(m.to_dict())`
-### AC-10
-- 查询方法测试 (calendar.is_trade_day / stocks.find_by_code 等): 给定输入 → 返回正确结果
-### AC-11
-- index_bars 关键 API 测试 (从 0 起步, 至少覆盖核心构造/查询/序列化)
+
+- entities/strategy config 的 datetime/date/enum 默认和 `to_db_schema/to_dict` 输出与 001 interfaces §4 字段一致。
 
 <a id="ac-fr-0303"></a>
-## FR-0303 data/stores/ + sqlite 单测
+## FR-0303 data/stores 与 SQLite
 
 ### AC-1
-- `poetry run pytest --cov=quantide/data/stores --cov-report=term-missing` → 整体 ≥ 90%
+
+- 临时 Parquet store 从空状态 append 固定两年数据后，单文件/按年分区路径、size/start/end/available_dates 与输入一致。
+
 ### AC-2
-- `stores/base.py` ≥ 90% (基线 79%)
+
+- Parquet get 的 date 闭区间、columns、eager/lazy 与空 store 分支返回正确行列；fetch progress 与错误列表可断言。
+
 ### AC-3
-- `stores/index_bars.py` ≥ 80% (基线 38%)
+
+- IndexBarsStore.get 的 symbols 过滤命中 `sector_id`，start/end 为闭区间，eager 返回 DataFrame、lazy 返回 LazyFrame、空 store 返回对应空对象。
+
 ### AC-4
-- `poetry run pytest --cov=quantide/data/sqlite --cov-report=term-missing` → sqlite.py ≥ 95% (基线 90%)
+
+- IndexBarsStore.rec_counts_per_date 返回每个 date 的准确计数；fetch 总是抛包含“主体移除”语义的 RuntimeError，且不触发网络。
+
 ### AC-5
-- 基础 CRUD: 用 `:memory:` SQLite, create / read / update / delete 单条记录 → 断言表内容
+
+- 临时 SQLite 完成 portfolio→asset/position/order/trade/log 的 insert/upsert/query/update，字段与 001 interfaces §4 一致；过滤条件返回正确子集。
+
 ### AC-6
-- 批量操作: `bulk_insert(rows)` → 表行数 = len(rows)
-### AC-7
-- 事务: 模拟事务回滚 → 数据未持久化
-### AC-8
-- 查询: 按索引 / 条件查询 → 返回正确结果集
-### AC-9
-- index_bars 关键路径 (从 38% 起步, 至少覆盖 CRUD + 批量写入 + 简单查询)
-### AC-10
-- sqlite.py 表创建 / 索引 / 备份 / 迁移核心路径
+
+- delete_portfolio_cascade 后该 portfolio 的关联记录清空、其他 portfolio 不变；测试数据库/连接在 teardown 后可删除。
 
 <a id="ac-fr-0304"></a>
-## FR-0304 data/helper + utils/resampler 单测
+## FR-0304 data/helper 与 resampler
 
 ### AC-1
-- `poetry run pytest --cov=quantide/data/helper --cov-report=term-missing` → helper.py ≥ 80% (基线 49%, 大缺口)
+
+- 给定手算 OHLC+adjust fixture，qfq/hfq 输出与独立公式在容差内一致；空 frame 保持空，缺必需列走明确错误。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/data/utils/resampler --cov-report=term-missing` → resampler.py ≥ 90% (基线 83%)
+
+- pandas、Polars DataFrame、Polars LazyFrame 分别按整体和 asset group 切分，train/valid/test 时间有序、无重叠、合并后不丢业务行，输出类型与输入一致。
+
 ### AC-3
-- helper 函数核心路径: 数据加载 / 格式转换 / 校验
+
+- 周/月聚合满足 open=首、high=max、low=min、close=末、volume/amount=sum、adjust=末；空输入为空。
+
 ### AC-4
-- resampler: 日线 → 周线 / 月线 OHLC 重计算 (断言 open/close/high/low/vol 与期望一致)
-### AC-5
-- 缺失日期填充: 给定稀疏日期序列 → 补齐后日期连续
 
-
----
-
-## §2.4 quantide/service/ 单测
+- `calculate_ma(periods=[5,20])` 产生 ma5/ma20 并等于独立 rolling mean；非法 freq/period 走明确错误或当前公开边界。
 
 <a id="ac-fr-0401"></a>
-## FR-0401 service/ 策略运行时与执行器单测
+## FR-0401 service 策略加载、Runtime 与 Runner
 
 ### AC-1
-- `poetry run pytest --cov=quantide/service/strategy_runtime --cov-report=term-missing` → ≥ 90% (基线 65%, 大缺口)
+
+- StrategyLoader 在 builtin+user 同名时按 002-FR-0010 的用户优先级输出，list/get metadata schema 正确；坏文件只进入 skipped/失败计数。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/service/discovery --cov-report=term-missing` → ≥ 85% (基线 57%, 大缺口)
+
+- scan_and_cache 后新实例 load_from_cache 得到相同策略集合；clear/损坏 cache 不把旧脏策略当成功结果。
+
 ### AC-3
-- `poetry run pytest --cov=quantide/service/registry --cov-report=term-missing` → ≥ 95% (基线 90%)
+
+- copy_examples_to_directory 对首次复制/目标已存在/非法目标分别返回正确 copied/skipped 计数且不覆盖用户文件。
+
 ### AC-4
-- `poetry run pytest --cov=quantide/service/runner --cov-report=term-missing` → ≥ 95% (基线 94%)
+
+- BrokerRegistry 按 kind+portfolio_id 注册/get/list/list_by_kind/unregister；不存在返回 None，默认账户只指向已注册项。
+
 ### AC-5
-- strategy_runtime: 通过公开启动/停止入口操作运行实例, 对外状态查询、日志或事件反映 `running` / `stopping` / `stopped` / `failed` / `finished` / `blocked` 等当前实现状态; 非法操作返回约定错误
+
+- StrategyRuntimeManager 对 backtest create→complete→remove、paper/live deploy、start/stop、account/strategy block/unblock 的 row/status/risk event 符合 001-FR-230~250 与 002 runtime UI。
+
 ### AC-6
-- strategy_runtime 运行结果: mock strategy 正常完成 → 运行记录进入 `finished` 或约定完成状态, 清理后 active 列表不再包含该运行实例
-### AC-7
-- strategy_runtime 错误恢复: 模拟运行中异常 → 对外状态查询或错误事件包含失败原因, 后续清理/停止入口仍可调用
-### AC-8
-- discovery: mock 服务注册中心 → 扫描返回可用服务列表, 健康检查通过/失败分流
-### AC-9
-- registry: register / deregister / list CRUD 测试
-### AC-10
-- runner: 给定策略函数 → 启动执行器, 断言策略被调用, 异常时清理资源
+
+- BacktestRunner 拒绝 RiskStrategy；BaseStrategy 一日回调顺序为 init/on_start/on_day_open/on_bar/on_day_close/on_stop，异常时 on_stop/资源清理仍可观察。
 
 <a id="ac-fr-0402"></a>
-## FR-0402 service/ 三类 broker 单测
+## FR-0402 service Broker 与交易规则
 
 ### AC-1
-- `poetry run pytest --cov=quantide/service/abstract_broker --cov-report=term-missing` → ≥ 85% (基线 54%, 大缺口)
+
+- AbstractBroker submit/cancel/query 把内部 broker 输出转换为 BrokerPort DTO；wait timeout 与 awake result 可确定性断言，未知 status 不误报成功。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/service/backtest_broker --cov-report=term-missing` → ≥ 95% (基线 93%)
+
+- up_limit 以上买单、down_limit 以下卖单、停牌/volume=0、取整后 0 股、资金不足被拒且无成交/持仓变化。
+
 ### AC-3
-- `poetry run pytest --cov=quantide/service/sim_broker --cov-report=term-missing` → ≥ 92% (基线 87%)
+
+- 买入向下取整至 100 股；清仓/零股卖出例外；当日买入 avail=0，下一交易日结算后可卖。
+
 ### AC-4
-- abstract_broker: 子类未实现抽象方法 → 实例化抛 `TypeError`
+
+- 回测订单全成或拒绝；paper 在成交量限制下可部分成交并经历 submitted/partial/filled 或 cancelled/rejected 合法状态。
+
 ### AC-5
-- backtest_broker 撮合: 给定订单 + 历史数据 → 断言成交价 / 成交量
+
+- 固定买卖 fixture 的 cash、佣金、印花税、market value、total 与加权成本由独立公式计算且匹配 broker 输出。
+
 ### AC-6
-- backtest_broker 滑点 / 手续费: 断言成交后账户余额变化符合公式
-### AC-7
-- sim_broker 部分成交测试: mock 部分成交场景 → 订单状态部分填充
-### AC-8
-- sim_broker 订单生命周期: pending → filled / cancelled / rejected
+
+- 手工/风控/策略订单的 portfolio_id 与 qtoid 归属正确；一个 portfolio 的交易不修改另一 portfolio。
 
 <a id="ac-fr-0403"></a>
-## FR-0403 service/ 数据馈送与实时行情单测
+## FR-0403 service BarsFeed 与 LiveQuote
 
 ### AC-1
-- `poetry run pytest --cov=quantide/service/datafeed --cov-report=term-missing` → ≥ 80% (基线 22%, 极大缺口)
+
+- fake history store+live quote 下，BarsFeed.get_bars 返回标准列并按 end/count/frame 取历史；形成中 bar 仅在允许时追加且不重复最后一根历史 bar。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/service/livequote --cov-report=term-missing` → ≥ 90% (基线 72%)
+
+- get_price_limits/current_price/price_for_match/close_adjust_factor 对正常、空、缺 symbol 输出明确 tuple/float/None/frame，未笼统吞掉编程错误。
+
 ### AC-3
-- datafeed: 给定 fake DailyBars store, `get_bars(asset, start, end)` 返回规范列 (`asset/frame/open/high/low/close/volume/amount/...`) 与期望行数
+
+- LiveQuote 解析固定 websocket payload 后 all_quotes/all_limits/minute/daily cache 值正确；损坏 JSON/缺字段不污染已有 cache。
+
 ### AC-4
-- datafeed 错误/缺数据: store 抛异常或无数据 → 返回空 DataFrame, 不传播真实网络/数据库异常
+
+- subscribe(symbols) 与 unsubscribe(symbols) 更新下游订阅；stream 产出 MarketEvent；snapshot 对已知/未知 symbol 返回约定 QuoteSnapshot map。
+
 ### AC-5
-- livequote: subscribe 后 mock tick 会触发订阅者回调; unsubscribe 后同一订阅者不再收到后续 tick
+
+- start/stop 重复调用无重复 worker；stop 后 stream 可结束，测试无遗留线程/async task。
+
 ### AC-6
-- livequote stream: subscribe 后向消息总线注入 mock quote → async stream 产出 `MarketEvent`; unsubscribe 后同一 symbol 不再产出事件
-### AC-7
-- livequote tick → bar 聚合: 给定 tick 序列 → 生成的 bar OHLC 与期望一致
+
+- 本 FR 不要求 callback subscriber 或 tick→bar 聚合 API。
 
 <a id="ac-fr-0404"></a>
-## FR-0404 service/ 其它服务单测
+## FR-0404 service 辅助能力
 
 ### AC-1
-- `poetry run pytest --cov=quantide/service/backtest_logs --cov-report=term-missing` → ≥ 95% (基线 91%)
+
+- backtest log record/list/load/delete 保持时间、level、message、extra；文件写失败只降级一次并仍可从 DB/内存读取约定记录。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/service/grid_search --cov-report=term-missing` → ≥ 85% (基线 68%)
+
+- GridSearch 对参数网格执行全部且仅全部笛卡尔组合，结果每行含参数与指标；save_logs 的路径在 tmp_path 且内容可重读。
+
 ### AC-3
-- `poetry run pytest --cov=quantide/service/init_wizard --cov-report=term-missing` → ≥ 90% (基线 80%)
+
+- InitWizardService 对必填步骤失败停留、可选步骤跳过、gateway test 成功/鉴权失败/连接失败、complete/reset/progress/redirect 都有确定性输出，HTTP 全 mock。
+
 ### AC-4
-- `poetry run pytest --cov=quantide/service/metrics --cov-report=term-missing` → ≥ 96% (基线 96%, 保持)
+
+- metrics 对固定 returns/trades fixture 的年化、最大回撤、Sharpe、Sortino、Calmar、胜率、盈亏比、次数在约定容差内匹配独立计算；空输入边界明确。
+
 ### AC-5
-- `poetry run pytest --cov=quantide/service/trade_lightning --cov-report=term-missing` → ≥ 85% (基线 71%)
+
+- trade_lightning add/update/remove/clear/list 保持 entry 字段；非法 amount/price_ref/duplicate 或 missing entry 走明确错误/False；cached price reference 对固定行情值正确。
+
 ### AC-6
-- `poetry run pytest --cov=quantide/service/triple_barrier --cov-report=term-missing` → ≥ 96% (基线 96%, 保持)
-### AC-7
-- backtest_logs: write / read / clean 核心路径
-### AC-8
-- grid_search: 给定参数网格 → 断言所有组合被执行, 结果聚合正确
-### AC-9
-- init_wizard: 步骤序列 / 校验 / 跳过 / 重试流程
-### AC-10
-- metrics: 给定收益序列 → 断言 Sharpe / Sortino / 最大回撤 与已知值匹配 (容差 ≤ 1e-6)
-### AC-11
-- trade_lightning: 快速下单 / 取消流程, 性能断言 (mock 时间)
-### AC-12
-- triple_barrier: 给定价格序列 → 标签生成结果与文档期望一致
 
-
----
-
-## §2.5 quantide/web/components/ 单测
+- triple_barrier 的 up/down/expire 与同日双触障结果逐项匹配 001-FR-360 F-TB-1~5，阈值单位为百分点、收益为小数。
 
 <a id="ac-fr-0501"></a>
-## FR-0501 web/components/analysis/ 单测
+## FR-0501 web/components/analysis
 
 ### AC-1
-- `poetry run pytest --cov=quantide/web/components/analysis --cov-report=term-missing` → 整体 ≥ 85%
+
+- KlineChart.render 输出可序列化节点，含唯一 chart id、传入 OHLCV 数据和 update script；空数据仍输出稳定容器且不抛错。
+
 ### AC-2
-- `kline_chart.py` ≥ 85% (基线 26%, 大缺口)
+
+- freq_buttons/day-week-month 与 ma_buttons/periods 输出 action target 和 current/selected 状态，两个 chart_id 不串扰。
+
 ### AC-3
-- `stock_list.py` ≥ 85% (基线 33%, 大缺口)
+
+- StockList.render 对两条股票输出代码/名称与唯一 selected 状态；空列表输出明确空状态；toolbar 显示给定 sector name。
+
 ### AC-4
-- `backtest_charts.py` ≥ 100% (基线 100%, 保持)
+
+- StockList 测试不调用不存在的 filter/sort/search 方法；过滤/搜索在 API/service/page 对应 FR 验证。
+
 ### AC-5
-- kline_chart 渲染: 给定 OHLCV 数据 → 输出可解析的图表节点/HTML, 语义节点或 data 属性能对应日期、OHLC、成交量
-### AC-6
-- kline_chart 颜色规则: 涨绿 / 跌红 (断言 class 或颜色属性)
-### AC-7
-- stock_list 渲染: 给定股票列表 → 输出包含每个股票代码/名称的行或节点; 空列表显示约定空状态
-### AC-8
-- stock_list 过滤: 输入 "ma" → 输出仅含匹配股票的行
-### AC-9
-- stock_list 排序: 按代码升序 → 输出顺序正确
-### AC-10
-- backtest_charts (净值/回撤/热力图) 渲染测试: 给定数据 → 输出含 svg / canvas
+
+- equity/drawdown/heatmap ChartSpec 含正确 chart type、series/labels/render_target，validate 函数正常/缺 target 分别 True/False；不要求 Python spec 本身生成 SVG/canvas。
 
 <a id="ac-fr-0502"></a>
-## FR-0502 web/components/ 通用组件单测 (验证类)
+## FR-0502 web 通用组件与布局
 
 ### AC-1
-- `poetry run pytest --cov=quantide/web/components/header --cov-report=term-missing` → 100%
+
+- header 对 active nav、unread=0/>0、recent alert、anonymous/authenticated user 分支输出相应节点与 ARIA/target。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/web/components/sidebar --cov-report=term-missing` → 100%
+
+- sidebar 对折叠/active/disabled 与多级菜单输出符合 002-FR-0150；HTMX fragment 导航属性只在允许时出现。
+
 ### AC-3
-- `poetry run pytest --cov=quantide/web/components/toast --cov-report=term-missing` → 100%
+
+- toast success/error/warning/info 的 level、icon、ARIA role、自动关闭秒数符合 002-FR-0170/NFR-0040；error 为白底红边/字而非红底。
+
 ### AC-4
-- `poetry run pytest --cov=quantide/web/components/runtime_params --cov-report=term-missing` → 100%
+
+- RuntimeParams 的 principal/slippage/tax/commission/min commission 对合法边界通过，越界抛 RuntimeParamsError；asset label 已知/未知有稳定输出。
+
 ### AC-5
-- `poetry run pytest --cov=quantide/web/components/asset_label --cov-report=term-missing` → 100%
-### AC-6
-- 五个组件的现有行为覆盖保留; 如删除或重写测试, 必须用等价 FR/AC 行为断言替代, 不允许仅靠删除测试提升通过率
-### AC-7
-- 重构任一组件时, 同步更新其测试; 重构后掉覆盖, 必须补回 100%
+
+- MainLayout 普通请求输出 header+sidebar+main，HTMX fragment 只输出目标区域；theme/button/modal/spacing helper 满足 002-NFR-0020/0040。
 
 <a id="ac-fr-0503"></a>
-## FR-0503 web/pages/ 页面模块单测
+## FR-0503 web/pages 路由与页面输出
 
 ### AC-1
-- `poetry run pytest --cov=quantide/web/pages --cov-report=term-missing` → 域整体 ≥ 90%, 且每个 `web/pages/*.py` / `web/pages/system/*.py` 单模块 ≥ 80%
+
+- 自动 route inventory 将 002 interfaces §2 每个 in-scope method/path 映射到已注册 route 或显式 compatibility redirect；缺失项使测试失败并列出 method/path。
+
 ### AC-2
-- `strategy.py` / `trade_main.py` / `accounts.py` / `paper.py` / `live.py`: 给定 mock service 返回的策略、账户、订单、成交数据 → 页面输出包含 v0.2-002-ui 对应 FR 要求字段和按钮状态
+
+- strategy/accounts/trade/history 各选至少一个列表、详情、成功动作、非法输入和下游失败场景，response 字段/按钮/状态/确认语义匹配对应 002 FR 与 001 schema。
+
 ### AC-3
-- 表单校验: 本金 ≤ 0 / 空账户名 / 无策略选中 / 网关离线等输入 → 输出错误提示或 disabled 状态, 不调用下游真实服务
+
+- system calendar/stocks/market/tasks/integrity/gateway 各使用固定 service fixture；查询/分页/过滤/手动运行/保存/测试的输入映射与页面或 fragment 输出可断言。
+
 ### AC-4
-- `init_wizard.py`: 未初始化系统 → wizard 首步渲染; 已完成步骤 fixture → 从失败/待处理步骤继续; 可选步骤跳过显示待处理提示
+
+- init-wizard 未初始化首步、必填失败停留、可选 skip、恢复失败步骤、progress、complete 与 force reconfigure 分别匹配 002-FR-0460。
+
 ### AC-5
-- `data_*.py` 与 `system/*.py`: mock 任务/网关/完整性数据失败 → 只显示局部错误占位, 同页其它区域仍渲染
+
+- 对同一 page，普通请求返回完整 layout，HTMX 请求返回 fragment/正确 target；单区域 service 抛错时该区域有 retry 占位而其他区域仍存在。
+
 ### AC-6
-- 历史页面: 给定 orders/trades/positions fixture 和过滤条件 → 输出记录数、排序与字段值符合 v0.2-001 interfaces schema
+
+- page/app tests 的 DB/PID/config 全在 tmp_path；禁止通过真实 dev stub、真实用户 DB 或真实数据目录让断言通过。
 
 <a id="ac-fr-0504"></a>
-## FR-0504 web/auth + web/apis + middleware 单测
+## FR-0504 web/auth、API 与 middleware
 
 ### AC-1
-- `poetry run pytest --cov=quantide/web/auth --cov-report=term-missing` → auth 域整体 ≥ 90%, 且每个 `web/auth/*.py` 单模块 ≥ 80%
+
+- 未初始化 GET `/` → 303 到 wizard；已初始化未登录 → 303 到 `/login`（允许内部 `/auth/login` compatibility redirect，但用户可观察目标符合 002 interfaces）；已登录 → dashboard。
+
 ### AC-2
-- `poetry run pytest --cov=quantide/web/apis --cov-report=term-missing` → APIs 域整体 ≥ 90%, 且每个 `web/apis/*.py` 单模块 ≥ 80%
+
+- 正确凭证登录建立 session 并按安全 `next` redirect；错误凭证无 session 且显示错误；POST logout 清 session；改密覆盖旧密码错、两次不一致、成功。
+
 ### AC-3
-- `poetry run pytest --cov=quantide/web/middleware --cov=quantide/web/middleware_init --cov=quantide/web/middleware_feature --cov-report=term-missing` → 三个 middleware 模块均 ≥ 80%
+
+- 注册、forgot/reset、多用户 admin route 不作为 002 产品成功路径；若保留可执行代码，有 characterization test 且不得从登录 UI 暴露注册入口。
+
 ### AC-4
-- 登录成功: 正确用户名/密码 → response 建立 session 并 redirect 到目标页; 登录失败 → 不建立 session, 返回错误文案
+
+- 逐个 broker/analysis API 至少覆盖有效输入→2xx+schema、非法输入→4xx ErrorEnvelope、下游不可用→约定 5xx/503、空结果→约定空 schema/404。
+
 ### AC-5
-- 改密码: 旧密码错误 / 两次新密码不一致 / 成功 三个分支均有断言
+
+- Init/Auth/Feature middleware 对 public/protected、A/B 降级、HTMX/full page 和 exception handler 输出对应 redirect/status/ErrorEnvelope；错误 details 不含 password/token/api key。
+
 ### AC-6
-- 未登录访问受保护路径 → redirect 到 `/login?next=...`; 登录后按 `next` 返回
-### AC-7
-- broker API: 有效 payload → 2xx + body 含业务 ID; 无效 payload → 4xx + 结构化错误; service 抛异常 → 5xx 或约定错误码
-### AC-8
-- analysis API: K 线/搜索参数有效、空结果、非法参数、下游失败四类分支都有断言
-### AC-9
-- middleware: 未初始化路由、A/B 类降级、认证拦截、异常转响应均有单测, 且不读取真实凭证
 
+- BrokerRegistryMiddleware 把指定 registry 注入 request scope；并发两个 app/client 的 registry 不串扰。
 
----
+<a id="ac-fr-0505"></a>
+## FR-0505 web 跨切面与 service 合同
 
-## §2.6 CI/CD 与质量门禁
+### AC-1
+
+- web/services 的每个公开纯函数/DTO 至少有对应 002 FR/AC 正常与非法/边界断言；当前已覆盖行为不因本任务删测。
+
+### AC-2
+
+- ErrorEnvelope 固定 `ok=false` 并保留 code/message/details/retry/request id；PushEvent 五类 payload 的必填字段 validator 对缺字段返回 False。
+
+### AC-3
+
+- degradation 对 gateway 未配置/离线/在线产生 A/B/None，entrance availability 与 tooltip/banner 颜色符合 002-FR-0180。
+
+### AC-4
+
+- localStorage 只允许 002 interfaces §6 key；password/session/token/api_key 等敏感 key 被拒；损坏 JSON/读取异常返回默认值且不阻塞。
+
+### AC-5
+
+- accessibility/responsive/error degradation/long task/partial refresh/visual helper 的阈值和结构逐项匹配 002-NFR-0010~0070。
 
 <a id="ac-fr-0601"></a>
-## FR-0601 CI 强制覆盖率门槛
+## FR-0601 CI 单元测试与双重覆盖率门禁
 
 ### AC-1
-- `.github/workflows/unit-coverage.yml` 存在, 触发条件: `push` 到 `releases/**` 与 `pull_request` 到 `main` / `releases/**`
+
+- `.github/workflows/unit-coverage.yml` 或等价独立 job 在 push/PR 的 main 与 releases/** 触发，Python 版本满足 `>=3.13,<4.0`。
+
 ### AC-2
-- workflow 步骤使用项目当前依赖方式: `pip install poetry` → `poetry install --with test --no-interaction` → `poetry run pytest tests/unit --cov=quantide --cov-fail-under=95 --cov-report=term-missing --cov-report=json:coverage.json`
+
+- job 安装 test dependency group，并设置隔离 HOME/XDG_CONFIG_HOME/data/config；不依赖开发者 `.sesskey` 或外部 dev stub。
+
 ### AC-3
-- 整体覆盖率 < 95%, 或覆盖率阈值检查脚本发现任何非豁免生产模块 <80% 时, workflow fail (exit 1), 阻断合并
+
+- job 运行 FR-0101 规范命令；注入一个 failing test 时 job 失败，整体 coverage=94.99% 时失败。
+
 ### AC-4
-- `.github/workflows/louke-ci.yml` 不被本 spec 修改 (Louke 项目自身维护)
+
+- job 随后执行 FR-0102 检查器；synthetic/fixture 79% 非豁免文件使 job 失败，合法未过期 waiver 才能放行该文件。
+
 ### AC-5
-- workflow 不引入 codecov 等第三方服务作为门禁
+
+- 主 pytest 与逐文件 gate 步骤没有 `continue-on-error: true`；现有 louke-ci 可并存但不替代 unit coverage gate。
 
 <a id="ac-fr-0602"></a>
-## FR-0602 HTML 覆盖率报告 + 增量覆盖率 (可选)
+## FR-0602 覆盖率 Artifact 与可选增量检查
 
 ### AC-1
-- workflow 步骤追加 `--cov-report=html:htmlcov`, 紧跟 `actions/upload-artifact@v4`, artifact 名 `coverage-html`
+
+- CI 产物包含 `coverage.json` 与 `htmlcov/index.html`，artifact 名稳定、`retention-days: 30`。
+
 ### AC-2
-- artifact 保留 30 天 (`retention-days: 30`)
+
+- 主测试失败但报告已生成时，artifact 步骤可通过 `if: always()` 执行；job 最终状态仍为失败。
+
 ### AC-3
-- HTML 报告**不阻断** CI (即便生成失败也不 fail job)
-### AC-4
-- (可选) diff-cover 步骤: `pip install diff-cover` → `diff-cover coverage.xml --compare-branch=origin/main --fail-under=95` 或类似命令
-### AC-5
-- (可选) diff-cover 步骤默认 `continue-on-error: true`, 仅作 warning, 不阻断合并
 
-
----
-
-## §2.7 其它 v0.2 已交付模块
+- 若启用 diff-cover，使用本次 coverage XML、明确 compare branch 与 95 阈值，且标记为非阻断；禁用时不影响主门禁。
 
 <a id="ac-fr-0701"></a>
-## FR-0701 notify/ 通知通道单测
+## FR-0701 notify 通道与遗留市场 helper
 
 ### AC-1
-- `poetry run pytest --cov=quantide/notify --cov-report=term-missing` → 域整体 ≥ 90%, 且每个 `quantide/notify/*.py` 单模块 ≥ 80%
+
+- compose 对 plain/html/attachment 分别生成正确 Subject/content type/attachment bytes；缺正文或 msg 与 subject/body 同时提供时抛 TypeError/AssertionError 的明确输入错误。
+
 ### AC-2
-- mail 通道: 给定事件 payload 和配置 → 生成主题/正文/收件人正确; SMTP 成功时返回成功状态
+
+- send_mail/mail_notify 用 fake aiosmtplib 捕获 From/To/Cc/Bcc/subject/body/host/port/username，不发网络；SMTP connect failure 的 retry 次数可控且最终失败可观察。
+
 ### AC-3
-- mail 通道失败: SMTP 连接失败 / 鉴权失败 / 缺少收件人 → 抛约定异常或返回失败结果, 错误消息不包含密码
+
+- DingTalk string 构造 text payload，title/text dict 构造 markdown payload；token 缺失抛 ValueError；固定 time+secret 的 timestamp/sign 与独立 HMAC 结果一致。
+
 ### AC-4
-- dingtalk 通道: 给定事件 payload → webhook JSON 含 title、text、事件类型; HTTP 2xx 成功
+
+- DingTalk HTTP 2xx+errcode0 返回成功；HTTP 非 2xx、业务 errcode、timeout 分别记录/返回失败且不报告成功，日志不含 secret/access token/password。
+
 ### AC-5
-- dingtalk 通道失败: HTTP 4xx/5xx / timeout / 缺失 webhook → 失败结果可断言, 日志不泄露 webhook secret
-### AC-6
-- notify 导出/工厂: 已知通道可解析, 未知通道抛 `KeyError` 或约定异常
+
+- `notify/__init__.py` 对沪深北代表代码输出 hson/xt/jq 目标格式；普通与 300/688 涨跌停、9:30~15:00 时间差匹配独立规则 fixture。
 
 <a id="ac-fr-0702"></a>
-## FR-0702 strategies/ 内置与示例策略单测
+## FR-0702 内置策略
 
 ### AC-1
-- `poetry run pytest --cov=quantide/strategies --cov-report=term-missing` → 域整体 ≥ 90%, 且每个策略模块单模块 ≥ 80%
+
+- DualMAStrategy.default_config 精确为 fast=5/slow=20；反射 on_bar 只有 self+tm，并通过 get_bars 拉取日线而非接收 quote/frame_type 参数。
+
 ### AC-2
-- dual_ma: 给定短均线上穿长均线行情 → 产生买入信号或调用 broker buy; 下穿 → 产生卖出信号或调用 broker sell
+
+- T-1 fast≤slow、T fast>slow 且空仓 → 一次买入；T-1 fast≥slow、T fast<slow 且有仓 → 一次卖出；窗口不足/无交叉不下单。
+
 ### AC-3
-- dual_ma: 均线窗口不足 / 无交叉 / 缺失价格 → 不下单或返回约定空信号
+
+- Pullback 默认 m=7/k=0.5/n=1；达到 m 后在 n 分钟内回落超过 k 且 avail>0 → 一次 `sell_host_position(..., reason="drawback")`。
+
 ### AC-4
-- pullback_sell: 回落超过阈值且有持仓 → 产生卖出; 未超过阈值或无持仓 → 不卖出
+
+- Pullback 在 n 分钟窗口外回落、无有效 price、avail=0 或同日已触发 → 不卖；新交易日清空触发状态。
+
 ### AC-5
-- cost_stop_loss: 当前价低于成本止损阈值 → 只卖宿主持仓; 当前价高于阈值 / 成本缺失 → 不卖出或抛约定异常
+
+- Cost stop 在 cost=10/k=-5 时 price=9.50 和 9.49 触发、9.51 不触发；只卖 avail，reason=`cost_stop`，无成本/价格/avail 不卖且不重复。
+
 ### AC-6
-- 测试断言策略外部输出或 broker 边界调用, 不断言私有 helper 调用次数
+
+- 以上策略输出只断言 broker 边界和公开日志/订单，不断言私有 helper 调用次数；当前代码若不满足 AC-1/AC-3，测试以 implementation-defect 失败。
 
 <a id="ac-fr-0703"></a>
-## FR-0703 config/ 与 app bootstrap 单测
+## FR-0703 config 与 app bootstrap
 
 ### AC-1
-- `poetry run pytest --cov=quantide/config --cov=quantide/app --cov=quantide/app_factory --cov-report=term-missing` → `config/*.py`、`app.py`、`app_factory.py` 单模块均 ≥ 80%, 合计域整体 ≥ 90%
+
+- config 默认值、环境覆盖、branding、normalize_data_home 与 app config override 在合法/空/非法输入下输出明确；monkeypatch teardown 后恢复原环境。
+
 ### AC-2
-- dev_stubs: 安装/卸载/重复安装/非法配置四类路径均有断言, 且不污染真实 HOME 或用户配置
+
+- dev stub start/stop/重复 start 在 fake process/server 边界幂等；禁用或非法配置不访问真实端口、不读取仓库 `.sesskey`。
+
 ### AC-3
-- paths/settings/branding: 默认值、环境变量覆盖、路径解析、品牌文本导出均有断言
+
+- `create_app(app_config_dir=tmp_path, enforce_single_instance=False)` 在未初始化和已初始化 fixture 均返回 app；所有 sqlite/pid/runtime/backtest-log 路径位于 tmp_path。
+
 ### AC-4
-- app_factory: 未初始化系统 → 注册/返回 init-wizard 路由; 已初始化系统 → 注册/返回登录或主界面路由
+
+- 未初始化 root 走 wizard，已初始化 root 走 login/dashboard；runtime bootstrap 单点失败被记录并降级，不让 app factory 无响应。
+
 ### AC-5
-- app_factory 依赖注入: 给定 mock settings/services → app 对象创建成功, route 列表或 handler 可观察
+
+- route inventory 含 002 interfaces 所需 mount/route，middleware 顺序含 init/feature/registry/auth 与 exception handler；两个 app fixture 状态不串扰。
+
 ### AC-6
-- app/app_factory 错误路径: 缺少配置目录或无效配置 → 返回约定错误或抛约定异常, 不启动真实 Web server
 
-
----
-
-## §8 非功能需求
+- 在 tmp_path 中启用 enforce_single_instance：首次写 PID，模拟存活重复 PID 抛明确错误，stale PID 可恢复；不接触真实用户 PID。
 
 <a id="ac-nfr-0010"></a>
-## NFR-0010 覆盖率阈值与豁免机制
+## NFR-0010 发布覆盖率与豁免
 
 ### AC-1
-- 跑 `poetry run pytest --cov=quantide --cov-fail-under=95` → 当覆盖率 < 95% 时 exit 1; ≥ 95% 时 exit 0
+
+- 发布证据中的 unit pytest 为 0 failed/0 errors，且同次 `coverage.json.totals.percent_covered >= 95`。
+
 ### AC-2
-- 跑 `poetry run pytest --cov=quantide/core --cov-fail-under=80` → 单模块 ≥ 80% 时 exit 0; < 80% 时 exit 1
+
+- 检查器报告每个 `quantide/**/*.py`、`num_statements>0` 文件 ≥80%，或列出唯一合法未过期 waiver；未列入 coverage JSON 的生产文件使检查失败。
+
 ### AC-3
-- `quantide/core/__init__.py` / `quantide/data/services/__init__.py` 等空 `__init__.py` 100% 覆盖 (0 stmts 时为 100% 自动)
+
+- 空/0-statement 文件不进入检查；含 executable import/re-export 的文件进入检查，未设置永久豁免。
+
 ### AC-4
-- 临时豁免模块必须写入 `.louke/project/specs/v0.2-003-coverage/coverage-waivers.json`, 且每条包含 `module / current_coverage / reason / expires_at / followup_issue`; 人工 review artifact 或 PR description 说明豁免理由
-### AC-5
-- `pyproject.toml` 的 `[tool.coverage.report]` `exclude_lines` 不修改默认值 (与现有配置一致)
-### AC-6
-- 默认豁免清单 `coverage-waivers.json` 的 `waivers` 为空; 除空 `__init__.py` 外, 其它模块必须达 ≥80% 或走临时豁免申请
+
+- CI 主门禁阈值为 overall 95 / per-file 80，步骤无 continue-on-error，coverage source 为完整 quantide。
 
 <a id="ac-nfr-0020"></a>
-## NFR-0020 测试隔离与确定性
+## NFR-0020 隔离、确定性与资源清理
 
 ### AC-1
-- 同一测试连续跑 100 次结果一致 (`for i in {1..100}; do poetry run pytest tests/unit/quantide/core/test_xxx.py; done`, 全部 pass)
+
+- 完整 suite 在无网络、空临时 HOME/config/data 环境通过；断开/未启动真实 qmt-gateway、SMTP、Tushare 不改变结果。
+
 ### AC-2
-- 任意测试可单独跑 (`poetry run pytest path/to/test.py::test_yyy`) 而不依赖其它测试状态
+
+- 完整 suite 连续运行两次，测试计数与 coverage totals 相同；代表性用例单独运行结果相同。
+
 ### AC-3
-- 测试结束后, `tests/` 目录无新增 `.db` / `.sqlite` / `.parquet` / `.log` 等残留文件 (`find tests -newer .gitignore -type f` 无输出)
+
+- suite 无 ResourceWarning/unclosed database、pending async task、存活 worker/scheduler；仓库工作区无测试残留文件。
+
 ### AC-4
-- 测试不持久修改 `quantide.*` 模块级全局变量; 如需 monkeypatch, 必须使用 pytest `monkeypatch` 或 context manager 自动还原
-### AC-5
-- 全局可变状态 (module-level `dict`/`list`/`set` 在测试间共享) 在 conftest.py 中无定义, 或 setup/teardown 中清空
-### AC-6
-- 时间依赖测试用 `@freeze_time` 或显式注入 `datetime`; 不存在裸 `datetime.now()` 在测试中
+
+- 时间/并发测试使用 injected clock/event/condition；无为等待生产异步行为而使用超过必要范围的固定 sleep。
 
 <a id="ac-nfr-0030"></a>
 ## NFR-0030 有意义覆盖与反作弊
 
 ### AC-1
-- 对每个新增测试文件抽样检查: 至少一个测试名、模块 docstring 或注释引用 v0.2-001/v0.2-002 或本 spec 的 FR/AC
+
+- 每个从 <80% 提升的生产文件至少有正常路径和失败/边界路径，且含 assert/raises/response/schema/state/persistence/boundary-call 中至少一种实质断言。
+
 ### AC-2
-- 对每个从 <80% 提升到 ≥80% 的模块, 新增测试至少包含一个正常路径和一个错误/边界路径断言
+
+- 新增测试不存在仅 import、仅实例化、仅断言常量存在却声称完成该模块行为覆盖的文件。
+
 ### AC-3
-- 测试代码中不存在只 import 目标模块且无行为断言的 coverage-only 测试; 静态检查: 新增测试文件中至少出现 `assert` / `pytest.raises` / response 状态断言 / mock 边界调用断言之一
+
+- mock 不替换被测主体；expected value 不调用被测实现；network/time/storage/downstream mock 的输入输出在断言中可观察。
+
 ### AC-4
-- 新增测试不 mock 当前被测函数或类的主体逻辑; mock 仅允许外部 IO、时间、网络、数据库、下游 service 边界
+
+- diff 审查确认未扩大 omit/exclude、未批量 pragma:no cover、未降低阈值、未仅为百分比删除有效生产代码。
+
 ### AC-5
-- `pyproject.toml` `[tool.coverage.run] omit` 未新增生产模块排除, `[tool.coverage.report] exclude_lines` 未新增大范围排除
-### AC-6
-- 新增或修改的生产代码未批量添加 `# pragma: no cover`; 若单行添加, review artifact 或 PR description 必须解释原因并链接 follow-up
-### AC-7
-- `--cov-fail-under=95` 与单模块 `--cov-fail-under=80` 未被降低; CI workflow 不允许用 `continue-on-error: true` 包住主覆盖率门禁
 
-
----
+- marker/dead code 的删除或保留附上上游引用与消费方搜索证据，并经过独立代码评审。
 
 ## No Acceptance
 
-以下 FR 在 `acceptance.md` 中**没有专属 AC 章节**, AC 来源在 spec.md 章节或 test-plan 中:
-
-- 所有 US-* 用户故事 (无独立 AC 节, AC 在对应 FR-* 中)
-
-> **整体验证命令**:
-> ```bash
-> # 1. 单元测试 + 覆盖率
-> poetry run pytest tests/unit --cov=quantide --cov-fail-under=95 --cov-report=term-missing --cov-report=json:coverage.json
->
-> # 2. 单模块验证
-> poetry run pytest tests/unit/quantide/core --cov=quantide/core --cov-fail-under=80
->
-> # 3. HTML 报告
-> poetry run pytest tests/unit --cov=quantide --cov-report=html:htmlcov
->
-> # 4. (可选) 增量覆盖率
-> diff-cover coverage.xml --compare-branch=origin/main --fail-under=95
-> ```
+- 所有 US-* 用户故事由对应 FR-* 验收，不设独立 AC 节。

@@ -140,3 +140,6 @@ quantide.db-shm
 .kilo/
 
 coverage.json
+.opencode/agents/
+.louke/web-users.json
+.louke/project/.serve-activity.jsonl
