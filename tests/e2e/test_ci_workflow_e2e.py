@@ -21,7 +21,7 @@ WORKFLOW = Path(".github/workflows/unit-coverage.yml")
 @pytest.fixture
 def workflow() -> dict:
     if not WORKFLOW.exists():
-        pytest.skip(f"workflow file not found: {WORKFLOW} — see #214 (FR-0601)")
+        pytest.skip(f"workflow file not found: {WORKFLOW} — see issue #214 (FR-0601)")
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 

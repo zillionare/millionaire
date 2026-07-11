@@ -40,9 +40,9 @@ def _supports_random_order() -> bool:
 
 
 def test_random_order_yields_identical_totals(tmp_path: Path) -> None:
-    """AC-NFR0020-02: same tests, different order -> identical totals."""
+    """AC-FR0104-04 / AC-NFR0020-02: same tests, different order -> identical totals."""
     if not Path(TARGET_DIR).exists():
-        pytest.skip(f"target dir not found: {TARGET_DIR} — see #217 (NFR-0020)")
+        pytest.skip(f"target dir not found: {TARGET_DIR} — see issue #217 (NFR-0020)")
 
     use_random = _supports_random_order()
     args = [
@@ -64,7 +64,7 @@ def test_random_order_yields_identical_totals(tmp_path: Path) -> None:
     if r1.returncode != 0 or r2.returncode != 0:
         pytest.skip(
             f"pytest run failed: r1={r1.returncode} r2={r2.returncode} "
-            f"(random={use_random}); skipping determinism check — see #217 (NFR-0020)"
+            f"(random={use_random}); skipping determinism check — see issue #217 (NFR-0020)"
         )
 
     total1 = _parse_passing_total(r1.stdout)

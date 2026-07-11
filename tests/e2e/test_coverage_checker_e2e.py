@@ -78,7 +78,7 @@ def test_checker_fails_when_file_below_threshold() -> None:
 
 
 def test_checker_fails_when_overall_below_threshold() -> None:
-    """AC-NFR0010-01: overall <95% with files >=80% -> exit non-zero."""
+    """AC-FR0102-02 / AC-NFR0010-01: overall <95% with files >=80% -> exit non-zero."""
     cov = {
         "totals": {"percent_covered": 94.99, "num_statements": 1000},
         "files": {
