@@ -11,6 +11,12 @@ smoke_test_issue = "#192 (closed)"
 smoke_test_pr = "#54 (Step 4b 权限冒烟用, closed)"
 dod = "单元测试覆盖率 ≥95% (安全审查已关闭)"
 security_audit = "disabled"
-current_stage = "M-TESTPLAN"
+current_stage = "M-ARCH"
 created = "2026-07-03"
 test_framework = "pytest"
+
+# v0.2-003-coverage 主体范围是单元测试 + 覆盖率门禁, e2e 占位由 Shield 在 M-E2E 阶段填充
+[e2e]
+run = "pytest tests/e2e -v"
+cwd = "tests/e2e"
+paths = ["tests/e2e/"]
