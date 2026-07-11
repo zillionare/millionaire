@@ -32,8 +32,10 @@ jobs:
         # For this milestone we report coverage but do not fail the gate.
         # Re-enable --cov-fail-under=95 and per-file check in a follow-up spec
         # (v0.2-005-ga) once v0.2-001-era tests are filled in.
+        # --timeout=60 caps each test at 60s so a single v0.2-001-era flaky test
+        # cannot block the entire CI run for >1 hour.
         run: >-
-          poetry run pytest tests/unit --cov=quantide
+          poetry run pytest tests/unit --cov=quantide --timeout=60
           --cov-report=term-missing --cov-report=json:coverage.json
           --cov-report=html:htmlcov || true
       - name: Check per-file coverage
