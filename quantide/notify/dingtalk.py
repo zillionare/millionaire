@@ -91,6 +91,7 @@ class DingTalkMessage:
             logger.error(
                 f"failed to send message, content: {msg}, response from Dingtalk: {rsp}"
             )
+            return None
         return response.content.decode()
 
     @classmethod
@@ -109,6 +110,7 @@ class DingTalkMessage:
                 logger.error(
                     f"failed to send message, content: {msg}, response from Dingtalk: {rsp}"
                 )
+                return None
             return r.content.decode()
 
 
