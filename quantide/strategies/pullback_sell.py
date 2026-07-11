@@ -45,12 +45,14 @@ class PullbackSellStrategy(RiskStrategy):
         self.k = float(self.config.get("k", 0.5))
         self._open_prices: dict[str, float] = {}
         self._peak_prices: dict[str, float] = {}
+        self._monitoring_started_at: dict[str, datetime.datetime] = {}
         self._monitoring: set[str] = set()
         self._triggered: set[str] = set()
 
     async def on_day_open(self, tm: datetime.datetime) -> None:
         self._open_prices.clear()
         self._peak_prices.clear()
+        self._monitoring_started_at.clear()
         self._monitoring.clear()
         self._triggered.clear()
 
@@ -79,8 +81,13 @@ class PullbackSellStrategy(RiskStrategy):
             open_p = self._open_prices[asset]
             if open_p > 0 and price >= open_p * (1 + self.m / 100):
                 self._monitoring.add(asset)
+                self._monitoring_started_at.setdefault(asset, tm)
 
             if asset in self._monitoring:
+                started_at = self._monitoring_started_at[asset]
+                if tm - started_at > datetime.timedelta(minutes=self.config.get("n", 1)):
+                    self._monitoring.discard(asset)
+                    continue
                 peak = self._peak_prices[asset]
                 if peak > 0 and price <= peak * (1 - self.k / 100):
                     shares = getattr(pos, "avail", None)
