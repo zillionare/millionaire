@@ -150,6 +150,8 @@ module = "fire"
 ignore_missing_imports = true
 
 [tool.coverage.run]
+source = ["quantide"]
+branch = true
 # uncomment the following to omit files during running
 #omit =
 
