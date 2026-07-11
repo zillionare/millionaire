@@ -10,7 +10,7 @@ This plan is derived **strictly** from spec FR-0001 contract-source priority: v0
 
 ---
 
-## §1. Test scope & strategy
+## 1. 立场与边界 / Test scope & strategy
 
 **In scope**
 
