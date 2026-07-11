@@ -18,6 +18,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install test dependencies
+        env:
+          HOME: ${{ runner.temp }}/quantide-home
+          XDG_CONFIG_HOME: ${{ runner.temp }}/quantide-config
         run: pip install poetry && poetry install --with test --without doc
       - name: Run unit coverage gate
         env:
@@ -29,6 +32,9 @@ jobs:
           --cov-report=term-missing --cov-report=json:coverage.json
           --cov-report=html:htmlcov
       - name: Check per-file coverage
+        env:
+          HOME: ${{ runner.temp }}/quantide-home
+          XDG_CONFIG_HOME: ${{ runner.temp }}/quantide-config
         run: poetry run python tests/unit/_checkers/per_file_coverage.py coverage.json
       - name: Upload coverage report
         if: always()
