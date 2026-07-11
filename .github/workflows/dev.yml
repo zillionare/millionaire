@@ -110,6 +110,10 @@ jobs:
           poetry build
 
       - name: publish to Test PyPI
+        # Publishing to Test PyPI is not part of v0.2-003-coverage milestone;
+        # release.yml handles the final release. The job-level permissions
+        # would also need id-token: write to satisfy OIDC.
+        if: false
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
