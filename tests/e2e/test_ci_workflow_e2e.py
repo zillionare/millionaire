@@ -21,12 +21,12 @@ WORKFLOW = Path(".github/workflows/unit-coverage.yml")
 @pytest.fixture
 def workflow() -> dict:
     if not WORKFLOW.exists():
-        pytest.skip(f"workflow file not found: {WORKFLOW}")
+        pytest.skip(f"workflow file not found: {WORKFLOW} — see #214 (FR-0601)")
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
 def test_workflow_python_matrix_3_13_plus(workflow: dict) -> None:
-    """FR-0601 AC-1: matrix.python includes 3.13."""
+    """AC-FR0601-01: matrix.python includes 3.13."""
     job = workflow["jobs"]["unit-coverage"]
     matrix = job["strategy"]["matrix"]
     python_versions = matrix.get("python") or matrix.get("python-version")
@@ -37,13 +37,13 @@ def test_workflow_python_matrix_3_13_plus(workflow: dict) -> None:
 
 
 def test_workflow_invokes_coverage_checker(workflow: dict) -> None:
-    """FR-0601 AC-4 + FR-0102 AC-1..AC-5: workflow references per_file_coverage."""
+    """AC-FR0601-04 / AC-FR0102-01..05: workflow references per_file_coverage."""
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "per_file_coverage" in text or "FR-0102" in text or "coverage_check" in text
 
 
 def test_workflow_no_continue_on_error_on_coverage_gate(workflow: dict) -> None:
-    """FR-0601 AC-5 + NFR-0010 AC-4: main gate steps must NOT silence failures."""
+    """AC-FR0601-05 / AC-NFR0010-04: main gate steps must NOT silence failures."""
     job = workflow["jobs"]["unit-coverage"]
     steps = job["steps"]
     for step in steps:
@@ -56,7 +56,7 @@ def test_workflow_no_continue_on_error_on_coverage_gate(workflow: dict) -> None:
 
 
 def test_workflow_triggers_on_releases_branches(workflow: dict) -> None:
-    """FR-0601 AC-1: triggers include push/PR to main + releases/**."""
+    """AC-FR0601-01: triggers include push/PR to main + releases/**."""
     on = workflow.get(True, workflow.get("on", {}))
     push_branches = on.get("push", {}).get("branches", [])
     pr_branches = on.get("pull_request", {}).get("branches", [])

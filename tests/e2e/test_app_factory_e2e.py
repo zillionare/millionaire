@@ -16,7 +16,7 @@ from quantide.app_factory import create_app
 
 
 def test_create_app_isolated_config_dirs() -> None:
-    """FR-0703 AC-3/AC-4: two apps in two tmp dirs coexist without PID collision."""
+    """AC-FR0703-03 / AC-FR0703-04: two apps in two tmp dirs coexist without PID collision."""
     with TemporaryDirectory() as tmp:
         app_a = create_app(app_config_dir=Path(tmp) / "a", enforce_single_instance=False)
         app_b = create_app(app_config_dir=Path(tmp) / "b", enforce_single_instance=False)
@@ -26,7 +26,7 @@ def test_create_app_isolated_config_dirs() -> None:
 
 
 def test_create_app_registers_login_route() -> None:
-    """FR-0703 AC-5: /login route is registered on the app instance."""
+    """AC-FR0703-05: /login route is registered on the app instance."""
     with TemporaryDirectory() as tmp:
         app = create_app(app_config_dir=Path(tmp), enforce_single_instance=False)
         paths = [r.path for r in app.routes if hasattr(r, "path")]

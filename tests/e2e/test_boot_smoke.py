@@ -21,7 +21,7 @@ from quantide.app_factory import create_app
 
 
 def test_app_boot_and_login_page_returns_200() -> None:
-    """FR-0101: pytest config + app boot + /login page renders."""
+    """AC-FR0101-01 / AC-FR0101-02: pytest config + app boot + /login page renders."""
     with TemporaryDirectory() as tmp:
         app = create_app(app_config_dir=Path(tmp), enforce_single_instance=False)
         client = TestClient(app)

@@ -44,7 +44,7 @@ def _run_checker(cov: dict, waivers: dict) -> subprocess.CompletedProcess:
 
 
 def test_checker_passes_when_all_above_threshold() -> None:
-    """FR-0102 AC-2 + NFR-0010 AC-1: all files >=80% + overall >=95% -> exit 0."""
+    """AC-FR0102-02 / AC-NFR0010-01: all files >=80% + overall >=95% -> exit 0."""
     cov = {
         "totals": {"percent_covered": 96.0, "num_statements": 1000},
         "files": {
@@ -63,7 +63,7 @@ def test_checker_passes_when_all_above_threshold() -> None:
 
 
 def test_checker_fails_when_file_below_threshold() -> None:
-    """FR-0102 AC-1: file at 79.99% without waiver -> exit non-zero."""
+    """AC-FR0102-01: file at 79.99% without waiver -> exit non-zero."""
     cov = {
         "totals": {"percent_covered": 96.0, "num_statements": 1000},
         "files": {
@@ -78,7 +78,7 @@ def test_checker_fails_when_file_below_threshold() -> None:
 
 
 def test_checker_fails_when_overall_below_threshold() -> None:
-    """NFR-0010 AC-1: overall <95% with files >=80% -> exit non-zero."""
+    """AC-NFR0010-01: overall <95% with files >=80% -> exit non-zero."""
     cov = {
         "totals": {"percent_covered": 94.99, "num_statements": 1000},
         "files": {
