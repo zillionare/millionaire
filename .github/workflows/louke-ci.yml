@@ -16,11 +16,11 @@ jobs:
       - name: AC traceability scan
         run: |
           if [ -n "${SPEC_ID:-}" ]; then
-            lk archer ci-scan --spec "$SPEC_ID"
+            lk agent archer ci-scan --spec "$SPEC_ID"
           elif [ -d .louke/project/specs ]; then
             for spec in .louke/project/specs/*; do
               [ -d "$spec" ] || continue
-              lk archer ci-scan --spec "$(basename "$spec")"
+              lk agent archer ci-scan --spec "$(basename "$spec")"
             done
           else
             echo "No .louke specs found; skipping louke ci-scan"
