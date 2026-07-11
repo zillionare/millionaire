@@ -30,3 +30,12 @@ jobs:
           --cov-report=html:htmlcov
       - name: Check per-file coverage
         run: poetry run python tests/unit/_checkers/per_file_coverage.py coverage.json
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage-report
+          path: |
+            coverage.json
+            htmlcov/
+          retention-days: 30
