@@ -125,12 +125,14 @@ jobs:
     needs: [test,publish_dev_build]
     if: always()
     runs-on: ubuntu-latest
+    env:
+      BUILD_NOTIFY_MAIL_RCPT: ${{ secrets.BUILD_NOTIFY_MAIL_RCPT }}
     steps:
       - uses: martialonline/workflow-status@v2
         id: check
 
       - name: build success notification via email
-        if: ${{ steps.check.outputs.status == 'success' }}
+        if: ${{ steps.check.outputs.status == 'success' && env.BUILD_NOTIFY_MAIL_RCPT != '' }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.BUILD_NOTIFY_MAIL_SERVER }}
@@ -138,23 +140,20 @@ jobs:
           username: ${{ secrets.BUILD_NOTIFY_MAIL_FROM }}
           password: ${{ secrets.BUILD_NOTIFY_MAIL_PASSWORD }}
           from: build-bot
-          to: ${{ secrets.BUILD_NOTIFY_MAIL_RCPT }}
+          to: ${{ env.BUILD_NOTIFY_MAIL_RCPT }}
           subject: ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version}}.dev.${{ github.run_number }} build successfully
           convert_markdown: true
           html_body: |
             ## Build Success
-            ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version }}.dev.${{ github.run_number }} is built and published to test pypi
+            ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version }}.dev.${{ github.run_number }} is built successfully
 
             ## Change Details
             ${{ github.event.head_commit.message }}
 
             For more information, please check change history at https://${{ needs.test.outputs.repo_owner }}.github.io/${{ needs.test.outputs.repo_name }}/${{ needs.test.outputs.package_version }}.dev/history
 
-            ## Package Download
-            The pacakge is available at: https://test.pypi.org/project/${{ needs.test.outputs.package_name }}/
-
       - name: build failure notification via email
-        if: ${{ steps.check.outputs.status == 'failure' }}
+        if: ${{ steps.check.outputs.status == 'failure' && env.BUILD_NOTIFY_MAIL_RCPT != '' }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.BUILD_NOTIFY_MAIL_SERVER }}
@@ -162,7 +161,7 @@ jobs:
           username: ${{ secrets.BUILD_NOTIFY_MAIL_FROM }}
           password: ${{ secrets.BUILD_NOTIFY_MAIL_PASSWORD }}
           from: build-bot
-          to: ${{ secrets.BUILD_NOTIFY_MAIL_RCPT }}
+          to: ${{ env.BUILD_NOTIFY_MAIL_RCPT }}
           subject: ${{ needs.test.outputs.package_name }}.${{ needs.test.outputs.package_version}}.dev.${{ github.run_number }} build failure
           convert_markdown: true
           html_body: |
