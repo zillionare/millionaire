@@ -1,0 +1,32 @@
+name: Unit coverage
+
+on:
+  push:
+    branches: [main, releases/**]
+  pull_request:
+    branches: [main, releases/**]
+
+jobs:
+  unit-coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test dependencies
+        run: pip install poetry && poetry install --only main,test
+      - name: Run unit coverage gate
+        env:
+          HOME: ${{ runner.temp }}/quantide-home
+          XDG_CONFIG_HOME: ${{ runner.temp }}/quantide-config
+          QUANTIDE_DATA_HOME: ${{ runner.temp }}/quantide-data
+        run: >-
+          poetry run pytest tests/unit --cov=quantide --cov-fail-under=95
+          --cov-report=term-missing --cov-report=json:coverage.json
+          --cov-report=html:htmlcov
+      - name: Check per-file coverage
+        run: poetry run python tests/unit/_checkers/per_file_coverage.py coverage.json
