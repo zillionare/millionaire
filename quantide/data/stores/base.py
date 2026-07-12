@@ -6,19 +6,36 @@
 import datetime
 import glob
 import inspect
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from collections.abc import Callable
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 import pandas as pd
 import polars as pl
 from loguru import logger
 
-from quantide.config.runtime import get_runtime_timezone
+from quantide.config.settings import get_timezone
 from quantide.core.enums import FrameType
 from quantide.core.message import msg_hub
 from quantide.data.models.calendar import Calendar
-from quantide.data.protocols import ErrorHandler, FetchDataCallback
+
+
+def _as_datetime_bound(value: datetime.date | datetime.datetime) -> pl.Expr:
+    if isinstance(value, datetime.datetime):
+        return pl.lit(value)
+    return pl.lit(
+        datetime.datetime.combine(value, datetime.time.min),
+        dtype=pl.Datetime("ms"),
+    )
+
+
+def _as_date_bound(value: datetime.date | datetime.datetime) -> pl.Expr:
+    if isinstance(value, datetime.datetime):
+        value = value.date()
+    return pl.lit(
+        datetime.datetime.combine(value, datetime.time.min),
+        dtype=pl.Date,
+    )
 
 
 class ParquetStorage:
@@ -39,8 +56,8 @@ class ParquetStorage:
         store_name: str,
         store_path: str | Path,
         calendar: Calendar,
-        fetch_data_func: FetchDataCallback | None = None,
-        error_handler: ErrorHandler | None = None,
+        fetch_data_func: Callable[..., Any] | None = None,
+        error_handler: Callable[[list[list]], None] | None = None,
         partition_by: Literal["year", "month", "day"] | None = None,
     ):
         """初始化ParquetStorage
@@ -539,7 +556,7 @@ class ParquetStorage:
         """
         start = self.end or self._calendar.epoch
 
-        now = datetime.datetime.now(tz=get_runtime_timezone())
+        now = datetime.datetime.now(tz=get_timezone())
         end = self._calendar.floor(now, FrameType.DAY)
 
         logger.info("开始更新日线数据: {} 到 {}", start, end)
@@ -668,10 +685,10 @@ class ParquetStorage:
             filters.append(pl.col("asset").is_in(assets))
 
         if start is not None:
-            filters.append(pl.col("date") >= start)
+            filters.append(pl.col("date") >= _as_datetime_bound(start))
 
         if end is not None:
-            filters.append(pl.col("date") <= end)
+            filters.append(pl.col("date") <= _as_datetime_bound(end))
 
         if filters:
             lf = lf.filter(pl.all_horizontal(filters))
@@ -696,7 +713,7 @@ class ParquetStorage:
         if self._partition_by is None:
             lf = self._scan_store(keep_partition_col=False)
             if lf is not None:
-                lf = lf.filter(pl.col("date") == date)
+                lf = lf.filter(pl.col("date") == _as_datetime_bound(date))
         else:
             lf = self._read_partition(
                 start=self._to_partition_key(date),
@@ -704,7 +721,7 @@ class ParquetStorage:
                 keep_partition_col=False,
             )
             if lf is not None:
-                lf = lf.filter(pl.col("date") == date)
+                lf = lf.filter(pl.col("date") == _as_datetime_bound(date))
 
         if lf is None:
             if eager_mode:
@@ -719,7 +736,6 @@ class ParquetStorage:
 
     def _group_dates(self, dates: list[datetime.date]) -> list[list[datetime.date]]:
         """根据分区策略对缺失日期进行分组
-
 
         - None/月分区：按月分组，避免批次过大
         - 年分区：按年分片

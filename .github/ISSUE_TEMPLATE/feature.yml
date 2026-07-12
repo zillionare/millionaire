@@ -1,0 +1,38 @@
+name: Feature
+description: A single FR requirement unit (must map 1:1 to a FR-XXXX section in spec.md)
+title: "[FR-XXXX] Brief description"
+labels: ["Feature"]
+body:
+  - type: input
+    id: fr_id
+    attributes:
+      label: Requirement ID
+      description: Must strictly match the FR code in spec.md (4-digit zero-padded, e.g. FR-0001)
+      placeholder: FR-0001
+    validations:
+      required: true
+      regex: "^FR-\\d{4}$"
+
+  - type: input
+    id: spec_url
+    attributes:
+      label: Spec Link
+      description: Full GitHub URL; the fragment must be lowercase (#fr-0001, not #FR-0001).
+      placeholder: https://github.com/{owner}/{repo}/blob/{branch}/.louke/project/specs/{spec-id}/spec.md#fr-0001
+    validations:
+      required: true
+      regex: "^https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/blob/[A-Za-z0-9._/-]+/\\.louke/project/(specs/)?[A-Za-z0-9._-]+/spec(-\\w+)?\\.md#(fr|nfr)-\\d{4}$"
+
+  - type: input
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: |
+        Points to the AC source; one of three options:
+        1. acceptance.md#ac-fr-0001 URL
+        2. spec(-vol)?.md#fr-0001 URL
+        3. The literal value "None"
+      placeholder: https://github.com/{owner}/{repo}/blob/{branch}/.louke/project/specs/{spec-id}/acceptance.md#ac-fr-0001
+    validations:
+      required: true
+      regex: "^(None|none|https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/blob/[A-Za-z0-9._/-]+/\\.louke/project/(specs/)?[A-Za-z0-9._-]+/(spec(-\\w+)?\\.md#(fr|nfr)-\\d{4}|acceptance\\.md#ac-(fr|nfr)-\\d{4}))$"

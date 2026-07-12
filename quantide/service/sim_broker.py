@@ -3,13 +3,12 @@
 本模块实现了 PaperBroker（兼容别名 SimulationBroker），用于仿真交易。
 """
 
-import asyncio
 import datetime
-import threading
 import time
 from collections import defaultdict
-from typing import Any, List
+from typing import Any
 
+import polars as pl
 from loguru import logger
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus, Topics
@@ -17,13 +16,18 @@ from quantide.core.errors import (
     InsufficientCash,
     InsufficientPosition,
     NonMultipleOfLotSize,
-    TradeError,
+    PriceOutOfLimit,
+    TradingHaltedError,
 )
 from quantide.core.message import msg_hub
 from quantide.core.ports import MarketDataPort
-from quantide.data.sqlite import Asset, Order, Portfolio, Position, Trade, db
+from quantide.core.ports.broker import ExecutionResult
+from quantide.data.helper import qfq_adjustment
+from quantide.data.models import Asset, Order, Portfolio, Position, Trade
+from quantide.data.models.calendar import calendar
+from quantide.data.models.daily_bars import daily_bars
+from quantide.data.sqlite import db
 from quantide.service.abstract_broker import AbstractBroker
-from quantide.service.base_broker import TradeResult
 from quantide.service.livequote import live_quote
 
 
@@ -33,11 +37,15 @@ class PaperBroker(AbstractBroker):
     PaperBroker 模拟真实的交易环境，订阅实时行情，并在本地进行撮合。
     它维护自己的账户状态（现金、持仓），并将交易记录保存到数据库。
     """
+
     def __init__(
         self,
         portfolio_id: str,
         principal: float = 1_000_000,
         commission: float = 1e-4,
+        stamp_tax: float = 0.001,
+        slippage: float = 0.0,
+        dry_run: bool = False,
         portfolio_name: str = "simulation",
         info: str = "",
         market_value_update_interval: float = 10.0,
@@ -48,7 +56,10 @@ class PaperBroker(AbstractBroker):
         Args:
             portfolio_id: 账户ID
             principal: 初始资金
-            commission: 佣金费率
+            commission: 佣金费率 (默认 1e-4 = 0.01%, A 股双边)
+            stamp_tax: 印花税率 (默认 0.001 = 0.1%, A 股仅卖方, FR-180)
+            slippage: 滑点 (比率, 默认 0.0, FR-200)
+            dry_run: dry-run 模式 (默认 False, FR-440): True 时 buy/sell 记录信号不实际下单
             portfolio_name: 账户名称
             info: 账户描述信息
             market_value_update_interval: 持仓市值更新间隔（秒），默认10秒
@@ -70,14 +81,36 @@ class PaperBroker(AbstractBroker):
         self._market_value_update_interval = market_value_update_interval
         self._last_mv_update_time = 0.0
         self._market_data = market_data
+        self._stamp_tax = stamp_tax
+        self._slippage = slippage
+        self._dry_run = dry_run
+        self._dry_run_signals: list[dict] = []
         self._limits: dict[str, dict[str, float]] = {}
+        self._clock: datetime.datetime | None = None
+        self._closed = False
 
         # 初始化或加载状态
         self._init_or_sync_state()
 
         # 订阅行情
-        msg_hub.subscribe(Topics.QUOTES_ALL.value, self._on_quote_update)
-        msg_hub.subscribe(Topics.STOCK_LIMIT.value, self._on_limit_update)
+        self._quote_subscription = self._on_quote_update
+        self._limit_subscription = self._on_limit_update
+        msg_hub.subscribe(Topics.QUOTES_ALL.value, self._quote_subscription)
+        msg_hub.subscribe(Topics.STOCK_LIMIT.value, self._limit_subscription)
+
+    def close(self) -> None:
+        """Release MessageHub subscriptions held by this broker.
+
+        This method takes no inputs and returns ``None``. It is idempotent and
+        prevents callbacks already queued by the MessageHub from mutating the
+        broker after cleanup.
+        """
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            msg_hub.unsubscribe(Topics.QUOTES_ALL.value, self._quote_subscription)
+            msg_hub.unsubscribe(Topics.STOCK_LIMIT.value, self._limit_subscription)
 
     @classmethod
     def create(
@@ -157,12 +190,15 @@ class PaperBroker(AbstractBroker):
         目前 SimBroker 通过 live_quote 单例获取涨跌停数据，该单例会在此回调之前更新。
         此处订阅主要为了保持架构一致性（所有外部数据均来自 MessageHub）。
         """
-        for asset, limits in data.items():
-            if isinstance(limits, dict):
-                self._limits[asset] = {
-                    "up": float(limits.get("up", 0) or 0),
-                    "down": float(limits.get("down", 0) or 0),
-                }
+        with self._lock:
+            if self._closed:
+                return
+            for asset, limits in data.items():
+                if isinstance(limits, dict):
+                    self._limits[asset] = {
+                        "up": float(limits.get("up", 0) or 0),
+                        "down": float(limits.get("down", 0) or 0),
+                    }
 
     def _get_quote(self, asset: str) -> dict[str, Any] | None:
         """获取行情快照."""
@@ -187,6 +223,248 @@ class PaperBroker(AbstractBroker):
         if self._market_data is not None:
             return 0.0, 0.0
         return live_quote.get_price_limits(asset)
+
+    def get_history(
+        self,
+        asset: str,
+        count: int,
+        end_dt: datetime.datetime | None = None,
+        frame_type: str = "1d",
+        include_forming_bar: bool = True,
+    ) -> pl.DataFrame:
+        """获取 paper 模式策略所需的历史日线数据。
+
+        Issue #20：默认 ``include_forming_bar=True``，当 ``end_dt`` 落在今日且
+        LiveQuote 已收到今日 tick 时，合并今日 forming bar 在末尾；close/high/low
+        反映盘中最新状态。
+
+        Args:
+            asset: 资产代码。
+            count: 历史 bar 数量。
+            end_dt: 截止时间，包含边界。
+            frame_type: 周期类型，目前仅支持 ``1d``。
+            include_forming_bar: 是否合并今日 forming bar（默认 True）。
+                end_dt 早于今日时此参数无效。
+        """
+        if frame_type != "1d":
+            raise NotImplementedError("PaperBroker currently only supports 1d history")
+
+        end_date = self._resolve_history_end_date(end_dt)
+        # 当 include_forming_bar=False 且 end_date 落在今日时，强制只看昨日及更早。
+        if (
+            not include_forming_bar
+            and end_date == self._get_today()
+        ):
+            end_date = self._previous_trade_date(end_date)
+            hist = self._get_history_bars(asset, count, end_date, frame_type)
+        else:
+            hist = self._get_history_bars(asset, count, end_date, frame_type)
+
+        forming_applied = False
+        if include_forming_bar and self._should_attach_forming_bar(end_date, end_dt):
+            forming = self._extract_forming_bar(asset, end_date)
+            if forming is not None:
+                hist = self._concat_with_forming(hist, forming, count)
+                forming_applied = True
+            elif end_date == self._get_today():
+                # include_forming_bar=True 但 LiveQuote 还没收到今日 tick — 今日的
+                # 历史 close 还没固定，按"看昨日及更早"回退。
+                hist = self._get_history_bars(
+                    asset, count, self._previous_trade_date(end_date), frame_type
+                )
+
+        if (
+            not forming_applied
+            and "adjust" in hist.columns
+            and not hist.is_empty()
+        ):
+            hist = qfq_adjustment(hist, adj_factor_col="adjust", eager_mode=True)
+
+        return hist
+
+    def _previous_trade_date(self, today: datetime.date) -> datetime.date:
+        """返回 today 的前一个交易日（基于 calendar 优先，fallback 自然日 -1）。"""
+        try:
+            return calendar.day_shift(today, -1)
+        except Exception:
+            return today - datetime.timedelta(days=1)
+
+    def _get_history_bars(
+        self,
+        asset: str,
+        count: int,
+        end_date: datetime.date,
+        frame_type: str,
+    ) -> pl.DataFrame:
+        """统一的 history 数据源获取（market_data 优先，回落 daily_bars）。
+
+        返**未复权**的原始 bars（``adjust`` 列保留原始因子）。复权由
+        :func:`quantide.data.helper.qfq_adjustment` 在 ``get_history`` 末尾
+        或 :meth:`_concat_with_forming` 中**统一**应用一次，避免双重复权。
+        """
+        if self._market_data is not None and hasattr(self._market_data, "get_history"):
+            return self._market_data.get_history(asset, count, end_date, frame_type)
+
+        if self._market_data is not None and hasattr(self._market_data, "get_bars"):
+            return self._market_data.get_bars(
+                n=count,
+                end=end_date,
+                assets=[asset],
+                adjust=None,
+                eager_mode=True,
+            )
+
+        if getattr(daily_bars, "_store", None) is not None:
+            return daily_bars.get_bars(
+                n=count,
+                end=end_date,
+                assets=[asset],
+                adjust=None,
+                eager_mode=True,
+            )
+
+        return self._empty_history_frame()
+
+    def _should_attach_forming_bar(
+        self,
+        end_date: datetime.date,
+        end_dt: datetime.datetime | None,
+    ) -> bool:
+        """end_date 落在今日且不是凌晨 9:30 之前才挂 forming bar。"""
+        if end_date != self._get_today():
+            return False
+        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
+            return False
+        return True
+
+    def _extract_forming_bar(
+        self, asset: str, end_date: datetime.date
+    ) -> dict[str, Any] | None:
+        """从 LiveQuote 拿今日 forming bar（若没有则返回 None）。"""
+        bar = live_quote.get_daily_bar(asset)
+        if bar is None:
+            return None
+        bar_dt = bar.get("dt")
+        if hasattr(bar_dt, "date"):
+            bar_dt = bar_dt.date()
+        if bar_dt != end_date:
+            return None
+        return bar
+
+    @staticmethod
+    def _concat_with_forming(
+        hist: pl.DataFrame, forming: dict[str, Any], count: int
+    ) -> pl.DataFrame:
+        """把 forming bar（dict）拼到 history 末尾，裁剪到 count 行，并应用 qfq_adjustment.
+
+        forming 行的 4 个补齐字段（#43）：
+        - ``adjust`` ← hist 今日行的 adjust 因子（未复权）
+        - ``is_st`` ← hist 今日行的 is_st
+        - ``up_limit`` / ``down_limit`` ← ``live_quote._limits[asset]``（highest priority）
+
+        合并后整体调 ``qfq_adjustment``（``quantide/data/helper.py:8`` 现成函数）
+        把 hist 历史的 OHLCV 按今日 adjust 因子调整到前复权；forming 行的
+        adjust=今日/latest, 所以 close 不变。``adjust`` 列最终 = 1.0。
+        """
+        forming_clean: dict[str, Any] = dict(forming)
+        if "frame" in forming_clean and not isinstance(
+            forming_clean["frame"], (datetime.date, datetime.datetime)
+        ):
+            forming_clean.pop("frame")
+        hist_date_col = "frame" if "frame" in hist.columns else (
+            "date" if "date" in hist.columns else None
+        )
+        if hist_date_col is None:
+            return hist
+        if "dt" in forming_clean and "dt" != hist_date_col:
+            dt_value = forming_clean.pop("dt")
+            if isinstance(dt_value, datetime.date) and not isinstance(
+                dt_value, datetime.datetime
+            ):
+                dt_value = datetime.datetime.combine(dt_value, datetime.time.min)
+            forming_clean[hist_date_col] = dt_value
+
+        if hist.is_empty():
+            return hist
+
+        today_adjust = hist["adjust"][-1] if "adjust" in hist.columns else 1.0
+        today_is_st = bool(hist["is_st"][-1]) if "is_st" in hist.columns else False
+        limits = live_quote._limits.get(forming_clean.get("asset", ""), {}) or {}
+        today_up_limit = limits.get("up_limit")
+        today_down_limit = limits.get("down_limit")
+
+        for col, val in (
+            ("adjust", today_adjust),
+            ("is_st", today_is_st),
+            ("up_limit", today_up_limit),
+            ("down_limit", today_down_limit),
+        ):
+            if col in hist.columns and col not in forming_clean:
+                forming_clean[col] = val
+
+        for col in hist.columns:
+            if col not in forming_clean:
+                forming_clean[col] = None
+        forming_clean = {k: v for k, v in forming_clean.items() if k in hist.columns}
+        forming_df = pl.DataFrame([forming_clean])
+        for col in hist.columns:
+            if col in forming_df.columns and hist.schema[col] != forming_df.schema[col]:
+                try:
+                    forming_df = forming_df.with_columns(
+                        pl.col(col).cast(hist.schema[col]).alias(col)
+                    )
+                except Exception:
+                    forming_df = forming_df.drop(col)
+        merged = pl.concat([hist, forming_df.select(hist.columns)], how="vertical")
+        if "asset" in merged.columns:
+            merged = merged.unique(subset=[hist_date_col, "asset"], keep="last")
+        else:
+            merged = merged.unique(subset=[hist_date_col], keep="last")
+        merged = merged.sort(hist_date_col)
+        if len(merged) > count:
+            merged = merged.tail(count)
+
+        if "adjust" in merged.columns:
+            merged = qfq_adjustment(merged, adj_factor_col="adjust", eager_mode=True)
+
+        return merged
+
+    def _resolve_history_end_date(
+        self,
+        end_dt: datetime.datetime | None,
+    ) -> datetime.date:
+        end_date = self.as_date(end_dt) if end_dt else self._get_today()
+        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
+            try:
+                return calendar.day_shift(end_date, -1)
+            except Exception:
+                return end_date - datetime.timedelta(days=1)
+        return end_date
+
+    def _empty_history_frame(self) -> pl.DataFrame:
+        return pl.DataFrame(
+            schema={
+                "date": pl.Date,
+                "asset": pl.Utf8,
+                "open": pl.Float64,
+                "high": pl.Float64,
+                "low": pl.Float64,
+                "close": pl.Float64,
+                "volume": pl.Float64,
+                "amount": pl.Float64,
+                "adjust": pl.Float64,
+                "is_st": pl.Boolean,
+                "up_limit": pl.Float64,
+                "down_limit": pl.Float64,
+            }
+        )
+
+    def set_clock(self, dt: datetime.datetime | None) -> None:
+        """设置当前仿真时钟。"""
+        self._clock = dt
+
+    def _now(self) -> datetime.datetime:
+        return self._clock or datetime.datetime.now()
 
     def _validate_data_consistency(self):
         """校验数据一致性。
@@ -224,7 +502,41 @@ class PaperBroker(AbstractBroker):
         asyncio、Redis 客户端等依赖时间的组件出现死锁或行为异常。
         因此，这里封装一个专用的方法，以便在测试中通过 patch 简单安全地 mock 日期，而不影响系统其他部分。
         """
+        if self._clock is not None:
+            return self._clock.date()
         return datetime.date.today()
+
+    def _is_halted(self, asset: str) -> bool:
+        """FR-170: 判定 asset 是否停牌 (volume == 0).
+
+        quote 不存在视为未 setup (paper/live 推送前), 不阻止下单.
+        只在显式 volume == 0 时判定为停牌.
+        看 snap.volume 而非 quote["volume"] (后者经 `or 0` 把 None 转 0).
+        """
+        if self._market_data is None:
+            return False
+        snap = self._market_data.snapshot([asset]).get(asset)
+        if snap is None:
+            return False
+        return snap.volume == 0
+
+    @staticmethod
+    def _floor_lot_size(shares: float) -> int:
+        """买入数量向下取整到 100 整倍数 (FR-150).
+
+        Returns:
+            floor(shares / 100) * 100, 或 0 当 shares < 100.
+        """
+        return (int(shares) // 100) * 100
+
+    def settle_t1(self) -> None:
+        """T+1 结算: 当日买入的 in-transit 持仓 (shares > avail) 在 day_end 后转为 avail (FR-160).
+
+        维护 avail (可卖) + shares (总持仓) 分别记账; 调用此方法 (一般 day_end scheduler 触发) 把当日 buy 的 in-transit shares 转入 avail.
+        """
+        for asset, pos in self._positions.items():
+            if pos.shares > pos.avail:
+                pos.avail = pos.shares
 
     def _init_or_sync_state(self):
         """初始化或同步账户状态。
@@ -232,7 +544,6 @@ class PaperBroker(AbstractBroker):
         如果在数据库中找不到对应的 portfolio，则创建新的。
         如果存在，则从数据库加载资产和持仓信息。
         """
-
         # 数据一致性检查
         self._validate_data_consistency()
 
@@ -291,7 +602,7 @@ class PaperBroker(AbstractBroker):
         return self._cash + market_value
 
     @property
-    def positions(self) -> List[Position]:
+    def positions(self) -> list[Position]:
         """获取当前持仓列表。"""
         return list(self._positions.values())
 
@@ -310,6 +621,8 @@ class PaperBroker(AbstractBroker):
         """
         try:
             with self._lock:
+                if self._closed:
+                    return
                 self._update_positions_market_value(data)
 
                 if not self._active_orders:
@@ -407,7 +720,7 @@ class PaperBroker(AbstractBroker):
 
         # 唤醒等待的协程，返回所有成交记录
         all_trades = self._order_trades.pop(order.qtoid)
-        self.awake(order.qtoid, TradeResult(order.qtoid, all_trades))
+        self.awake(order.qtoid, ExecutionResult(qt_oid=order.qtoid, trades=all_trades))
 
     def _handle_order_partial(self, order: Order):
         """处理订单部分成交。"""
@@ -477,6 +790,9 @@ class PaperBroker(AbstractBroker):
 
         # 价格判断
         match_price = last_price
+        if self._slippage > 0:
+            direction = 1 if order.side == OrderSide.BUY else -1
+            match_price = round(last_price * (1.0 + self._slippage * direction), 4)
         if order.bid_type == BidType.FIXED:
             if order.side == OrderSide.BUY and order.price < last_price:
                 return 0.0, None
@@ -505,25 +821,28 @@ class PaperBroker(AbstractBroker):
             shares=matched_shares,
             price=match_price,
             amount=match_price * matched_shares,
-            tm=datetime.datetime.now(),
+            tm=order.tm or self._now(),
             side=order.side,
             cid="",
             fee=0 # 暂不计算手续费
         )
         # 计算手续费
-        trade.fee = self._calculate_commission(trade.amount)
+        trade.fee = self._calculate_fee(trade.amount, order.side)
         return matched_shares, trade
 
-    def _calculate_commission(self, amount: float) -> float:
-        """计算手续费。
+    def _calculate_fee(self, amount: float, side: OrderSide) -> float:
+        """计算手续费 (FR-180).
 
         Args:
             amount: 成交金额
+            side: 订单方向
 
         Returns:
-            手续费
+            fee = 佣金 (max(5.0, amount * commission)) + 印花税 (仅卖方, amount * stamp_tax)
         """
-        return max(5.0, amount * self._commission)
+        commission = max(5.0, amount * self._commission)
+        stamp = amount * self._stamp_tax if side == OrderSide.SELL else 0.0
+        return commission + stamp
 
     def _apply_trade_to_portfolio(self, trade: Trade):
         """应用成交到投资组合（仅更新内存状态）。
@@ -578,7 +897,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """买入指令。
 
         Args:
@@ -589,13 +908,35 @@ class PaperBroker(AbstractBroker):
             timeout: 超时时间（秒）
 
         Returns:
-            成交结果
+            成交结果. dry-run 模式下返回空 ExecutionResult, 信号记录到 _dry_run_signals.
 
         Raises:
             InsufficientCash: 资金不足
         """
-        if int(shares) % 100 != 0:
-            raise NonMultipleOfLotSize(asset, shares)
+        if self._dry_run:
+            self._dry_run_signals.append({
+                "side": OrderSide.BUY,
+                "asset": asset,
+                "shares": shares,
+                "price": price,
+                "tm": order_time or self._now(),
+            })
+            return ExecutionResult(qt_oid="dry-run", trades=[])
+
+        if shares % 100 != 0:
+            floored = self._floor_lot_size(shares)
+            if floored <= 0:
+                raise NonMultipleOfLotSize(asset, shares)
+            shares = floored
+
+        if price != 0:
+            down_limit, up_limit = self._get_price_limits(asset)
+            if up_limit > 0 and down_limit > 0:
+                if price > up_limit or price < down_limit:
+                    raise PriceOutOfLimit(asset, price, down_limit, up_limit)
+
+        if self._is_halted(asset):
+            raise TradingHaltedError(asset)
 
         est_price = price
         if est_price == 0:
@@ -620,7 +961,7 @@ class PaperBroker(AbstractBroker):
             shares=shares,
             side=OrderSide.BUY,
             bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
-            tm=order_time or datetime.datetime.now(),
+            tm=order_time or self._now(),
         )
         db.insert_order(order)
 
@@ -635,7 +976,7 @@ class PaperBroker(AbstractBroker):
         if res is None:
             # 超时，返回已有的部分成交记录（如果有）
             partial_trades = self._order_trades.get(order.qtoid, [])
-            return TradeResult(order.qtoid, list(partial_trades))
+            return ExecutionResult(qt_oid=order.qtoid, trades=list(partial_trades))
         return res
 
     async def sell(
@@ -645,7 +986,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """卖出指令。
 
         Args:
@@ -656,17 +997,33 @@ class PaperBroker(AbstractBroker):
             timeout: 超时时间（秒）
 
         Returns:
-            成交结果
+            成交结果. dry-run 模式下返回空 ExecutionResult, 信号记录到 _dry_run_signals.
 
         Raises:
             InsufficientPosition: 持仓不足
             NonMultipleOfLotSize: 卖出数量不符合手数限制（非清仓时）
         """
+        if self._dry_run:
+            self._dry_run_signals.append({
+                "side": OrderSide.SELL,
+                "asset": asset,
+                "shares": shares,
+                "price": price,
+                "tm": order_time or self._now(),
+            })
+            return ExecutionResult(qt_oid="dry-run", trades=[])
+
         # 1. 检查持仓
         if asset not in self._positions:
             raise InsufficientPosition(security=asset, amount=shares)
         pos = self._positions[asset]
         self._validate_sell_shares(pos, shares)
+
+        if price != 0:
+            down_limit, up_limit = self._get_price_limits(asset)
+            if up_limit > 0 and down_limit > 0:
+                if price > up_limit or price < down_limit:
+                    raise PriceOutOfLimit(asset, price, down_limit, up_limit)
 
         # 2. 创建订单
         order = Order(
@@ -676,7 +1033,7 @@ class PaperBroker(AbstractBroker):
             shares=shares,
             side=OrderSide.SELL,
             bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
-            tm=order_time or datetime.datetime.now(),
+            tm=order_time or self._now(),
         )
         db.insert_order(order)
 
@@ -687,7 +1044,7 @@ class PaperBroker(AbstractBroker):
         if res is None:
             # 超时，返回已有的部分成交记录（如果有）
             partial_trades = self._order_trades.get(order.qtoid, [])
-            return TradeResult(order.qtoid, list(partial_trades))
+            return ExecutionResult(qt_oid=order.qtoid, trades=list(partial_trades))
         return res
 
     async def buy_percent(
@@ -697,7 +1054,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按总资产比例买入。
 
         Args:
@@ -713,7 +1070,7 @@ class PaperBroker(AbstractBroker):
         # 计算数量
         quote = self._get_quote(asset)
         if not quote:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         if price > 0:
             p = price
@@ -721,14 +1078,14 @@ class PaperBroker(AbstractBroker):
             _, up_limit = self._get_price_limits(asset)
             p = up_limit or quote.get("lastPrice", 0)
         if p <= 0:
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
         # 使用总资产计算
         target_value = self.total_assets * percent
 
         shares = int(target_value / p / 100) * 100
         if shares == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         return await self.buy(asset, shares, price, order_time, timeout)
 
@@ -739,7 +1096,7 @@ class PaperBroker(AbstractBroker):
         price: int | float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按金额买入。
 
         Args:
@@ -754,7 +1111,7 @@ class PaperBroker(AbstractBroker):
         """
         quote = self._get_quote(asset)
         if not quote and price == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         if price > 0:
             p = price
@@ -762,11 +1119,11 @@ class PaperBroker(AbstractBroker):
             _, up_limit = self._get_price_limits(asset)
             p = up_limit or quote.get("lastPrice", 0)
         if p <= 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         shares = int(amount / p / 100) * 100
         if shares == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         return await self.buy(asset, shares, price, order_time, timeout)
 
@@ -777,7 +1134,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按持仓比例卖出。
 
         Args:
@@ -791,7 +1148,7 @@ class PaperBroker(AbstractBroker):
             成交结果
         """
         if asset not in self._positions:
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
         pos = self._positions[asset]
         # 如果是 1.0 (100%)，则是清仓
@@ -801,7 +1158,7 @@ class PaperBroker(AbstractBroker):
             shares = int(pos.shares * percent / 100) * 100
 
         if shares == 0:
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
         return await self.sell(asset, shares, price, order_time, timeout)
 
@@ -812,7 +1169,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按金额卖出。
 
         Args:
@@ -827,7 +1184,7 @@ class PaperBroker(AbstractBroker):
         """
         quote = self._get_quote(asset)
         if not quote and price == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         if price > 0:
             p = price
@@ -835,13 +1192,13 @@ class PaperBroker(AbstractBroker):
             down_limit, _ = self._get_price_limits(asset)
             p = down_limit or quote.get("lastPrice", 0)
         if p <= 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         shares = int(amount / p / 100) * 100
         if shares == 0:
             # 如果金额不足1手，是否尝试卖出1手？通常不。
             # 但是如果 amount 很大导致 shares > pos.shares，sell 方法会检查并抛出异常
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
         return await self.sell(asset, shares, price, order_time, timeout)
 
@@ -852,7 +1209,7 @@ class PaperBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """调整持仓至目标比例。
 
         如果当前比例低于目标，则买入；如果高于目标，则卖出。
@@ -869,7 +1226,7 @@ class PaperBroker(AbstractBroker):
         """
         quote = self._get_quote(asset)
         if not quote and price == 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         # 计算当前价值和目标价值应该统一使用参考价格（通常是 lastPrice）
         # 只有在计算买入/卖出数量时，为了保守起见，才可能使用 limit price
@@ -883,7 +1240,7 @@ class PaperBroker(AbstractBroker):
                 ref_price = up_limit if up_limit > 0 else 0
 
         if ref_price <= 0:
-             return TradeResult("", [])
+             return ExecutionResult.empty()
 
         total = self.total_assets
         target_val = total * target_pct
@@ -907,7 +1264,7 @@ class PaperBroker(AbstractBroker):
                 return await self.sell_percent(asset, 1.0, order_time, timeout)
             return await self.sell_amount(asset, -diff, price, order_time, timeout)
         else:
-            return TradeResult("", [])
+            return ExecutionResult.empty()
 
     async def cancel_order(self, qt_oid: str):
         """取消订单。
@@ -936,7 +1293,7 @@ class PaperBroker(AbstractBroker):
 
                         # 唤醒等待者（如果还在等待）
                         all_trades = self._order_trades.pop(qt_oid, [])
-                        self.awake(qt_oid, TradeResult(qt_oid, all_trades))
+                        self.awake(qt_oid, ExecutionResult(qt_oid=qt_oid, trades=all_trades))
                         break
                 if found:
                     if not orders:
@@ -965,7 +1322,7 @@ class PaperBroker(AbstractBroker):
                         db.update_order(order.qtoid, status=order.status.value, status_msg="Canceled by user", filled=order.filled)
 
                         all_trades = self._order_trades.pop(order.qtoid, [])
-                        self.awake(order.qtoid, TradeResult(order.qtoid, all_trades))
+                        self.awake(order.qtoid, ExecutionResult(qt_oid=order.qtoid, trades=all_trades))
                     else:
                         remaining.append(order)
 

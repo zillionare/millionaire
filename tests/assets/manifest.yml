@@ -1,0 +1,239 @@
+version: 1
+spec: .dev/specs/01-e2e-accuracy-contract.md
+generated_on: 2026-05-13
+status: draft
+
+layout:
+  root: tests/assets
+  active_dirs:
+    market: tests/assets/market
+    scenarios: tests/assets/scenarios
+    baselines: tests/assets/baselines
+  policy: Keep existing parquet fixtures in tests/assets root during T01-T05, and map them into the target layout through this manifest before any physical migration.
+
+datasets:
+  - logical_name: market.calendar
+    file: tests/assets/baseline_calendar.parquet
+    target_path: tests/assets/market/calendar.parquet
+    kind: market
+    unique_key:
+      - date
+    schema:
+      is_open: Int64
+      prev: Date
+      date: Date
+    rows: 7305
+    date_column: date
+    date_range:
+      start: '2005-01-01'
+      end: '2024-12-31'
+    sha256: 00a3eeeaca5b2135785df5f4dc244425390cfa4d9cd91a4cf098d20e055c0997
+
+  - logical_name: market.daily_bars_2024
+    file: tests/assets/2024_bars.parquet
+    target_path: tests/assets/market/daily_bars.parquet
+    kind: market
+    unique_key:
+      - asset
+      - date
+    schema:
+      date: Datetime(ms)
+      asset: String
+      open: Float64
+      high: Float64
+      low: Float64
+      close: Float64
+      volume: Float64
+      amount: Float64
+    rows: 1293893
+    date_column: date
+    date_range:
+      start: '2024-01-02 00:00:00'
+      end: '2024-12-31 00:00:00'
+    asset_count: 5433
+    sample_assets:
+      - 000001.SZ
+      - 000002.SZ
+      - 000004.SZ
+      - 000005.SZ
+      - 000006.SZ
+    sha256: 4c59e34f6302331be28b9fbe40f83ec1f3e1c26b9c47199ef2c1fd78004dc585
+
+  - logical_name: market.daily_bars_2024_extended
+    file: tests/assets/2024_bars_ext_cols.parquet
+    target_path: tests/assets/market/daily_bars_extended.parquet
+    kind: market
+    unique_key:
+      - asset
+      - date
+    schema:
+      date: Datetime(ms)
+      asset: String
+      open: Float64
+      high: Float64
+      low: Float64
+      close: Float64
+      volume: Float64
+      amount: Float64
+      adjust: Float64
+      is_st: Boolean
+      up_limit: Float64
+      down_limit: Float64
+    rows: 1293893
+    date_column: date
+    date_range:
+      start: '2024-01-02 00:00:00'
+      end: '2024-12-31 00:00:00'
+    asset_count: 5433
+    sample_assets:
+      - 000001.SZ
+      - 000002.SZ
+      - 000004.SZ
+      - 000005.SZ
+      - 000006.SZ
+    sha256: 260acd5c9829010c6573896ba7e0391b5a7524d30bb6a4c51a65f62d7c5553f3
+
+  - logical_name: market.adjust_factor_2024
+    file: tests/assets/2024_adjust_factor.parquet
+    target_path: tests/assets/market/adjust_factor.parquet
+    kind: market
+    unique_key:
+      - asset
+      - date
+    schema:
+      asset: String
+      date: Datetime(ms)
+      adjust: Float64
+    rows: 1303184
+    date_column: date
+    date_range:
+      start: '2024-01-02 00:00:00'
+      end: '2024-12-31 00:00:00'
+    asset_count: 5456
+    sample_assets:
+      - 000001.SZ
+      - 000002.SZ
+      - 000004.SZ
+      - 000005.SZ
+      - 000006.SZ
+    sha256: 70c623f2c64d5f1b2f96ae38bfdc93f37c86a2d35d014009e6246796c73d1adc
+
+  - logical_name: market.limit_price_2024
+    file: tests/assets/2024_limit_price.parquet
+    target_path: tests/assets/market/limit_price.parquet
+    kind: market
+    unique_key:
+      - asset
+      - date
+    schema:
+      asset: String
+      date: Datetime(ms)
+      up_limit: Float64
+      down_limit: Float64
+    rows: 1655131
+    date_column: date
+    date_range:
+      start: '2024-01-02 00:00:00'
+      end: '2024-12-31 00:00:00'
+    asset_count: 7052
+    sample_assets:
+      - 000001.SZ
+      - 000002.SZ
+      - 000004.SZ
+      - 000005.SZ
+      - 000006.SZ
+    sha256: f5e64ea2df2f8c73a8cb341cdd8e929813db4b4601185290ff1f08a8ea9e44ce
+
+  - logical_name: market.st_info_2024
+    file: tests/assets/2024_st_info.parquet
+    target_path: tests/assets/market/st_info.parquet
+    kind: market
+    unique_key:
+      - asset
+      - date
+    schema:
+      asset: String
+      date: Datetime(ms)
+      is_st: Boolean
+    rows: 31735
+    date_column: date
+    date_range:
+      start: '2024-01-02 00:00:00'
+      end: '2024-12-31 00:00:00'
+    asset_count: 211
+    sample_assets:
+      - 000005.SZ
+      - 000007.SZ
+      - 000023.SZ
+      - 000040.SZ
+      - 000046.SZ
+    sha256: b5f56ef3d4f1820b25a4fc98aa11d0efae6fa93679f81f85ebe17dcaa51b042f
+
+  - logical_name: market.daily_bars_small_2021_2024
+    file: tests/assets/bars_2021_2024.small.parquet
+    target_path: tests/assets/market/daily_bars_small_2021_2024.parquet
+    kind: auxiliary
+    unique_key:
+      - asset
+      - date
+    schema:
+      date: Datetime(ms)
+      asset: String
+      open: Float64
+      high: Float64
+      low: Float64
+      close: Float64
+      volume: Float64
+      amount: Float64
+    rows: 8512
+    date_column: date
+    date_range:
+      start: '2021-01-04 00:00:00'
+      end: '2024-12-31 00:00:00'
+    asset_count: 9
+    sample_assets:
+      - 000001.SZ
+      - 000002.SZ
+      - 000004.SZ
+      - 000005.SZ
+      - 000006.SZ
+    sha256: 2e26af77b6490436796b37cc12d2f366b26c5a90176759fbc5ab7bf1e490cce6
+
+scenario_slices:
+  - name: dual_ma_2024_demo
+    modes:
+      - backtest
+      - paper
+      - live
+    source_file: tests/assets/2024_bars_ext_cols.parquet
+    asset: 000001.SZ
+    date_range:
+      start: '2024-01-02 00:00:00'
+      end: '2024-05-31 00:00:00'
+    rows: 98
+    fixed_facts:
+      adjust_values:
+        - 116.713
+      is_st_values:
+        - false
+    required_fields:
+      - date
+      - asset
+      - open
+      - high
+      - low
+      - close
+      - volume
+      - amount
+      - adjust
+      - is_st
+      - up_limit
+      - down_limit
+    baseline_targets:
+      - tests/assets/baselines/dual_ma_2024.backtest.json
+      - tests/assets/baselines/dual_ma_2024.paper.json
+      - tests/assets/baselines/dual_ma_2024.live.json
+
+notes:
+  - "2024_bars_ext_cols.parquet is the current authoritative release-gate source for the dual-MA accuracy demo because it already carries adjust, ST, and limit-price fields in one file."
+  - "The market/, scenarios/, and baselines/ directories are created in T01, but fixture migration remains logical until a later task physically moves or regenerates files."

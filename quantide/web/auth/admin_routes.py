@@ -1,8 +1,11 @@
 # auth/admin_routes.py
 import math  # For pagination calculations
-from typing import Optional
 
 from fasthtml.common import *
+from fasthtml.common import Input as _Input
+
+# Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
+from fasthtml.common import Label as _Label
 from monsterui.all import *
 
 from .forms import create_message_alert
@@ -538,7 +541,7 @@ class AdminRoutes:
                     ),
                     Grid(
                         Div(
-                            Label("Role", cls="block text-sm font-medium mb-2"),
+                            _Label("Role", cls="block text-sm font-medium mb-2"),
                             Select(
                                 Option("User", value="user"),
                                 Option("Manager", value="manager"),
@@ -548,9 +551,9 @@ class AdminRoutes:
                             ),
                         ),
                         Div(
-                            Label("Status", cls="block text-sm font-medium mb-2"),
-                            Label(
-                                CheckboxX(name="active", selected=True),
+                            _Label("Status", cls="block text-sm font-medium mb-2"),
+                            _Label(
+                                _Input(name="active", type="checkbox", cls="uk-checkbox mr-2", checked=""),
                                 Span(" Active", cls="ml-2"),
                                 cls="flex items-center cursor-pointer",
                             ),
@@ -633,7 +636,7 @@ class AdminRoutes:
                     Hr(cls="my-6"),
                     Grid(
                         Div(
-                            Label("Role", cls="block text-sm font-medium mb-2"),
+                            _Label("Role", cls="block text-sm font-medium mb-2"),
                             Select(
                                 Option(
                                     "User", value="user", selected=user.role == "user"
@@ -653,11 +656,13 @@ class AdminRoutes:
                             ),
                         ),
                         Div(
-                            Label("Status", cls="block text-sm font-medium mb-2"),
-                            Label(
-                                CheckboxX(
+                            _Label("Status", cls="block text-sm font-medium mb-2"),
+                            _Label(
+                                _Input(
                                     name="active",
-                                    checked=True if user.active else False,
+                                    type="checkbox",
+                                    cls="uk-checkbox mr-2",
+                                    checked="" if user.active else None,
                                 ),
                                 Span(" Active", cls="ml-2"),
                                 cls="flex items-center cursor-pointer",
@@ -712,7 +717,7 @@ class AdminRoutes:
                 Alert(
                     Div(
                         P(Strong("Warning:"), " This action cannot be undone."),
-                        P(f"You are about to delete user: ", Strong(user.username)),
+                        P("You are about to delete user: ", Strong(user.username)),
                         P(f"Email: {user.email}"),
                         P(f"Role: {user.role.title()}"),
                         cls="space-y-2",

@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import datetime
 import itertools
 from pathlib import Path
-from typing import List, Union
 
 import arrow
 import numpy as np
@@ -17,10 +15,10 @@ from arrow import Arrow
 from loguru import logger
 from numpy import ndarray
 
-from quantide.config.runtime import get_runtime_epoch, get_runtime_timezone
+from quantide.config.settings import get_epoch, get_timezone
 from quantide.core.enums import FrameType
 from quantide.core.singleton import singleton
-from quantide.data.fetchers.tushare import fetch_calendar
+from quantide.data.fetchers.registry import get_data_fetcher
 
 Frame = datetime.datetime | datetime.date
 
@@ -76,7 +74,7 @@ class Calendar:
     def epoch(self) -> datetime.date:
         """日历的起始日期"""
         if self._data is None or len(self._data) == 0:
-            return get_runtime_epoch()
+            return get_epoch()
         dates = self._data.column("date")
         return dates[0].as_py()
 
@@ -91,7 +89,7 @@ class Calendar:
         Returns:
             最近一个交易日日期。
         """
-        now = datetime.datetime.now(tz=get_runtime_timezone())
+        now = datetime.datetime.now(tz=get_timezone())
         return self.floor(now, FrameType.DAY)
 
     @property
@@ -138,7 +136,7 @@ class Calendar:
         except Exception as e:
             logger.warning("Calendar 读取日历数据失败，重新从服务器获取")
             logger.exception(e)
-            df = fetch_calendar(get_runtime_epoch())
+            df = get_data_fetcher().fetch_calendar(get_epoch())
             self._data = pa.Table.from_pandas(df)
             self.save(df)
 
@@ -150,8 +148,7 @@ class Calendar:
 
     def update(self) -> None:
         """更新日历数据并重建帧"""
-
-        df = fetch_calendar(self.epoch)
+        df = get_data_fetcher().fetch_calendar(self.epoch)
         self._data = pa.Table.from_pandas(df)
         self.save(df)
         self.day_frames, self.week_frames, self.month_frames = self._build_frames_arrow(
@@ -213,7 +210,7 @@ class Calendar:
             int(s[6:8]),
             int(s[8:10]),
             int(s[10:12]),
-            tzinfo=get_runtime_timezone(),
+            tzinfo=get_timezone(),
         )
 
     def time2int(self, tm: datetime.datetime) -> int:
@@ -233,7 +230,7 @@ class Calendar:
         """
         return int(f"{tm.year:04}{tm.month:02}{tm.day:02}{tm.hour:02}{tm.minute:02}")
 
-    def date2int(self, d: Union[datetime.datetime, datetime.date]) -> int:
+    def date2int(self, d: datetime.datetime | datetime.date) -> int:
         """将日期转换为整数表示
 
         在zillionare中，如果要对时间和日期进行持久化操作，我们一般将其转换为int类型
@@ -250,7 +247,7 @@ class Calendar:
         """
         return int(f"{d.year:04}{d.month:02}{d.day:02}")
 
-    def int2date(self, d: Union[int, str]) -> datetime.date:
+    def int2date(self, d: int | str) -> datetime.date:
         """将数字表示的日期转换成为日期格式
 
         Examples:
@@ -347,7 +344,7 @@ class Calendar:
         new_idx = max(0, min(len(arr) - 1, base_idx + offset))
         return arr[new_idx].as_py()
 
-    def get_ticks(self, frame_type: FrameType) -> Union[List, ndarray]:
+    def get_ticks(self, frame_type: FrameType) -> list | ndarray:
         """取月线、周线、日线及各分钟线对应的frame
 
         对分钟线，返回值仅包含时间，不包含日期（均为整数表示）
@@ -391,7 +388,6 @@ class Calendar:
         如果moment没有对齐到frame_type对应的时间，将首先进行对齐。
 
         See also:
-
         - [day_shift][omicron.core.timeframe.TimeFrame.day_shift]
         - [week_shift][omicron.core.timeframe.TimeFrame.week_shift]
         - [month_shift][omicron.core.timeframe.TimeFrame.month_shift]
@@ -453,9 +449,9 @@ class Calendar:
         return max(0, min(len(arr) - 1, cnt - 1))
 
     def count_day_frames(
-        self, start: Union[datetime.date, Arrow], end: Union[datetime.date, Arrow]
+        self, start: datetime.date | Arrow, end: datetime.date | Arrow
     ) -> int:
-        """calc trade days between start and end in close-to-close way.
+        """Calc trade days between start and end in close-to-close way.
 
         if start == end, this will returns 1. Both start/end will be aligned to open
         trade day before calculation.
@@ -494,7 +490,7 @@ class Calendar:
 
     def count_week_frames(self, start: datetime.date, end: datetime.date) -> int:
         """
-        calc trade weeks between start and end in close-to-close way. Both start and
+        Calc trade weeks between start and end in close-to-close way. Both start and
         end will be aligned to open trade day before calculation. After that, if start
          == end, this will returns 1
 
@@ -508,7 +504,7 @@ class Calendar:
         return max(0, j - i + 1)
 
     def count_month_frames(self, start: datetime.date, end: datetime.date) -> int:
-        """calc trade months between start and end date in close-to-close way
+        """Calc trade months between start and end date in close-to-close way
         Both start and end will be aligned to open trade day before calculation. After
         that, if start == end, this will returns 1.
 
@@ -527,14 +523,13 @@ class Calendar:
 
     def count_frames(
         self,
-        start: Union[datetime.date, datetime.datetime, Arrow],
-        end: Union[datetime.date, datetime.datetime, Arrow],
+        start: datetime.date | datetime.datetime | Arrow,
+        end: datetime.date | datetime.datetime | Arrow,
         frame_type,
     ) -> int:
         """计算start与end之间有多少个周期为frame_type的frames
 
         See also:
-
         - [count_day_frames][omicron.core.timeframe.TimeFrame.count_day_frames]
         - [count_week_frames][omicron.core.timeframe.TimeFrame.count_week_frames]
         - [count_month_frames][omicron.core.timeframe.TimeFrame.count_month_frames]
@@ -592,7 +587,7 @@ class Calendar:
         moment = dt.date() if isinstance(dt, datetime.datetime) else dt
         return self.day_frames.index(moment).as_py() >= 0
 
-    def is_open_time(self, tm: Union[datetime.datetime, Arrow] = None) -> bool:
+    def is_open_time(self, tm: datetime.datetime | Arrow = None) -> bool:
         """判断`tm`指定的时间是否处在交易时间段。
 
         交易时间段是指集合竞价时间段之外的开盘时间
@@ -609,7 +604,7 @@ class Calendar:
         Returns:
             [description]
         """
-        tm = tm or datetime.datetime.now(tz=get_runtime_timezone())
+        tm = tm or datetime.datetime.now(tz=get_timezone())
 
         if not self.is_trade_day(tm):
             return False
@@ -627,7 +622,7 @@ class Calendar:
             [description]
         """
         if tm is None:
-            tm = datetime.datetime.now(tz=get_runtime_timezone())
+            tm = datetime.datetime.now(tz=get_timezone())
 
         if not self.is_trade_day(tm):
             return False
@@ -644,7 +639,7 @@ class Calendar:
         Args:
             tm : Defaults to None，使用系统时间
         """
-        tm = tm or datetime.datetime.now(tz=get_runtime_timezone())
+        tm = tm or datetime.datetime.now(tz=get_timezone())
 
         if not self.is_trade_day(tm):
             return False
@@ -738,7 +733,7 @@ class Calendar:
 
         if type(moment) == datetime.date:
             if moment == datetime.date.today():
-                moment = datetime.datetime.now(tz=get_runtime_timezone())
+                moment = datetime.datetime.now(tz=get_timezone())
             else:
                 moment = self.replace_time(moment, 15, 0)
 
@@ -762,7 +757,7 @@ class Calendar:
         return result[-1].as_py()
 
     def last_min_frame(
-        self, day: Union[str, datetime.date], frame_type: FrameType
+        self, day: str | datetime.date, frame_type: FrameType
     ) -> Frame:
         """获取`day`日周期为`frame_type`的结束frame。
 
@@ -796,7 +791,7 @@ class Calendar:
                 day.day,
                 hour=15,
                 minute=0,
-                tzinfo=get_runtime_timezone(),
+                tzinfo=get_timezone(),
             )
         else:  # pragma: no cover
             raise ValueError(f"{frame_type} not supported")
@@ -816,7 +811,6 @@ class Calendar:
         Returns:
 
         """
-
         if frame_type == FrameType.MIN1:
             return 1
         elif frame_type == FrameType.MIN5:
@@ -831,7 +825,7 @@ class Calendar:
             return 240
 
     def first_min_frame(
-        self, day: Union[str, datetime.date], frame_type: FrameType
+        self, day: str | datetime.date, frame_type: FrameType
     ) -> Frame:
         """获取指定日期下，类型为 `frame_type` 的第一个frame。
 
@@ -847,7 +841,6 @@ class Calendar:
         Returns:
 
         """
-
         if isinstance(day, str):
             day = arrow.get(day).datetime
 
@@ -862,7 +855,7 @@ class Calendar:
                 floor_day.day,
                 hour=9,
                 minute=31,
-                tzinfo=get_runtime_timezone(),
+                tzinfo=get_timezone(),
             )
         elif frame_type == FrameType.MIN5:
             return datetime.datetime(
@@ -871,7 +864,7 @@ class Calendar:
                 floor_day.day,
                 hour=9,
                 minute=35,
-                tzinfo=get_runtime_timezone(),
+                tzinfo=get_timezone(),
             )
         elif frame_type == FrameType.MIN15:
             return datetime.datetime(
@@ -880,7 +873,7 @@ class Calendar:
                 floor_day.day,
                 hour=9,
                 minute=45,
-                tzinfo=get_runtime_timezone(),
+                tzinfo=get_timezone(),
             )
         elif frame_type == FrameType.MIN30:
             return datetime.datetime(
@@ -888,7 +881,7 @@ class Calendar:
                 floor_day.month,
                 floor_day.day,
                 hour=10,
-                tzinfo=get_runtime_timezone(),
+                tzinfo=get_timezone(),
             )
         elif frame_type == FrameType.MIN60:
             return datetime.datetime(
@@ -897,21 +890,21 @@ class Calendar:
                 floor_day.day,
                 hour=10,
                 minute=30,
-                tzinfo=get_runtime_timezone(),
+                tzinfo=get_timezone(),
             )
         else:  # pragma: no cover
             raise ValueError(f"{frame_type} not supported")
 
     def get_frames(
         self, start: Frame, end: Frame, frame_type: FrameType
-    ) -> List[datetime.date | datetime.datetime]:
+    ) -> list[datetime.date | datetime.datetime]:
         """取[start, end]间所有类型为frame_type的frames
 
         调用本函数前，请先通过`floor`或者`ceiling`将时间帧对齐到`frame_type`的边界值
 
         Example:
-            >>> start = datetime.datetime(2020, 1, 13, 10, 0, tzinfo=get_runtime_timezone())
-            >>> end = datetime.datetime(2020, 1, 13, 13, 30, tzinfo=get_runtime_timezone())
+            >>> start = datetime.datetime(2020, 1, 13, 10, 0, tzinfo=get_timezone())
+            >>> end = datetime.datetime(2020, 1, 13, 13, 30, tzinfo=get_timezone())
             >>> tf.get_frames(start, end, FrameType.MIN30)
             [datetime.datetime(2020,1,13,10,0), datetime.datetime(2020,1,13,10,30), datetime.datetime(2020,1,13,11,0), datetime.datetime(2020,1,13,11,30), datetime.datetime(2020,1,13,13,30)]
 
@@ -928,16 +921,16 @@ class Calendar:
 
     def get_frames_by_count(
         self, end: datetime.datetime | datetime.date, n: int, frame_type: FrameType
-    ) -> List[datetime.date | datetime.datetime]:
+    ) -> list[datetime.date | datetime.datetime]:
         """取以end为结束点,周期为frame_type的n个frame
 
         调用前请将`end`对齐到`frame_type`的边界
 
         Examples:
-            >>> end = datetime.datetime(2020, 1, 6, 14, 30, tzinfo=get_runtime_timezone())
+            >>> end = datetime.datetime(2020, 1, 6, 14, 30, tzinfo=get_timezone())
             >>> tf.get_frames_by_count(end, 2, FrameType.MIN30)
-            [datetime.datetime(2020, 1, 6, 14, 0, tzinfo=get_runtime_timezone()),
-             datetime.datetime(2020, 1, 6, 14, 30, tzinfo=get_runtime_timezone())]
+            [datetime.datetime(2020, 1, 6, 14, 0, tzinfo=get_timezone()),
+             datetime.datetime(2020, 1, 6, 14, 30, tzinfo=get_timezone())]
 
         Args:
             end:
@@ -1132,6 +1125,21 @@ class Calendar:
 
         filtered_dates = filtered_table.column("date")
         return [date.as_py() for date in filtered_dates]
+
+    def count_trading_days(
+        self, start: datetime.date, end: datetime.date
+    ) -> int:
+        """[start, end] 区间内的交易日数(含起止)。
+
+        spec FR-014 命名;等价于 count_day_frames。
+        spec AC-014-03-03: start == end 且非交易日 → 0
+        """
+        if start > end:
+            raise ValueError(f"开始日期 {start} 不能大于结束日期 {end}")
+        # spec AC-014-03-03: start == end 且非交易日 → 0
+        if start == end and not self.is_trade_day(start):
+            return 0
+        return self.count_day_frames(start, end)
 
 
 calendar = Calendar()

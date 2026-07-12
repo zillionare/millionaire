@@ -1,13 +1,11 @@
 import asyncio
 import mimetypes
 import os
+from collections.abc import Awaitable
 from email.message import EmailMessage
-from typing import Awaitable, List
 
 import aiosmtplib
 import aiosmtplib.errors
-import cfg4py
-from loguru import logger
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -15,23 +13,24 @@ from tenacity import (
     wait_exponential,
 )
 
-from quantide.config.runtime import (
-    get_runtime_mail_receivers,
-    get_runtime_mail_sender,
-    get_runtime_mail_server,
+from quantide.config.branding import get_branding
+from quantide.config.settings import (
+    get_mail_receivers,
+    get_mail_sender,
+    get_mail_server,
 )
 
 
 def mail_notify(
-    subject: str = "Quantide 交易通知",
+    subject: str | None = None,
     body: str | None = None,
     msg: EmailMessage | None = None,
-    html=False,
-    receivers=None,
+    html: bool = False,
+    receivers: list[str] | None = None,
 ) -> Awaitable:
     """发送邮件通知。
 
-    发送者、接收者及邮件服务器等配置请通过cfg4py配置
+    发送者、接收者及邮件服务器等配置请通过系统设置配置
 
     ```
     notify:
@@ -65,21 +64,23 @@ def mail_notify(
 
     if msg is None:
         assert body is not None
+        if subject is None:
+            subject = f"{get_branding().product_name} 交易通知"
         if html:
             msg = compose(subject, html=body)
         else:
             msg = compose(subject, plain_txt=body)
 
     if not receivers:
-        receivers = get_runtime_mail_receivers()
+        receivers = get_mail_receivers()
 
     password = os.environ.get("QUANTIDE_MAIL_PASSWORD")
     return send_mail(
-        get_runtime_mail_sender(),
+        get_mail_sender(),
         receivers,
         password,
         msg,
-        host=get_runtime_mail_server(),
+        host=get_mail_server(),
     )
 
 
@@ -90,13 +91,13 @@ def mail_notify(
 )
 def send_mail(
     sender: str,
-    receivers: List[str],
+    receivers: list[str],
     password: str,
     msg: EmailMessage | None = None,
     host: str | None = None,
     port: int = 25,
-    cc: List[str] | None = None,
-    bcc: List[str] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
     subject: str | None = None,
     body: str | None = None,
     username: str | None = None,

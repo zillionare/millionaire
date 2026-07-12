@@ -11,7 +11,6 @@ Model class 自动将 dataclass 转换为数据库字段(schema)声明，从而�
 具体的Entity 在继承 Entity 之后，可根据需要改写__post_init__方法，以完成数据库类型与 python 类型的转换。
 
 Example:
-
 ```python
 db = SQLiteDB("path/to/sqlite.db")
 
@@ -38,202 +37,32 @@ get_*_by_*表明通过某个字段查询
 import datetime
 import sqlite3
 import threading
-import types
-import uuid
-from dataclasses import asdict, dataclass, field, fields
-from enum import Enum, IntEnum
+from collections.abc import Iterable
+from dataclasses import fields
 from pathlib import Path
 from typing import (
     Any,
-    ClassVar,
-    Iterable,
-    List,
-    Literal,
-    Tuple,
     TypeVar,
-    Union,
-    get_args,
-    get_origin,
 )
 
 import polars as pl
 import sqlite_utils as su
-from loguru import logger
 
-from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
 from quantide.core.singleton import singleton
-from quantide.data.models.base import Entity, new_uuid_id
 from quantide.data.models.app_state import AppState
+from quantide.data.models.base import Entity, new_uuid_id
+from quantide.data.models.entities import (
+    Asset,
+    BacktestLogEntry,
+    Order,
+    Portfolio,
+    Position,
+    StrategyLog,
+    Trade,
+)
 from quantide.data.models.strategy_config import StrategyConfig, StrategyInfo
 
 T = TypeVar("T")
-
-@dataclass
-class Order(Entity):
-    __table_name__ = "orders"
-    __pk__ = "qtoid"
-    __indexes__ = (["qtoid", "tm"], True)
-
-    portfolio_id: str
-    asset: str  # 资产代码
-    side: OrderSide
-    shares: float | int  # 委托数量。调用者需要保证符合交易要求
-    bid_type: BidType  # 委托类型，比如限价单、市价单
-    tm: datetime.datetime = field(default_factory=datetime.datetime.now)
-    price: float = 0
-    filled: float = 0.0
-
-    foid: str | None = None  # 代理(比如QMT)指定的 id，透传，一般用以查错
-    cid: str | None = None  # 券商柜台合约 id
-    status: OrderStatus = (
-        OrderStatus.UNREPORTED
-    )  # 委托状态，比如未报、待报、已报、部成等
-    status_msg: str = ""  # 委托状态描述，比如废单原因
-
-    # 本委托 ID, pk
-    qtoid: str = field(default_factory=new_uuid_id)
-    error: str = ""  # 报单错误信息，包括错误码和错误信息,以:分隔
-    extra: str = ""  # 额外信息，json 格式
-
-    def __post_init__(self):
-        if isinstance(self.tm, str):
-            self.tm = datetime.datetime.fromisoformat(self.tm)
-        if isinstance(self.status, int):
-            self.status = OrderStatus(self.status)
-        if isinstance(self.side, int):
-            self.side = OrderSide(self.side)
-        if isinstance(self.bid_type, int):
-            self.bid_type = BidType(self.bid_type)
-
-
-@dataclass
-class Trade(Entity):
-    __table_name__ = "trades"
-    __pk__ = "tid"
-    __indexes__ = (["tid", "tm"], True)
-    __foreign_keys__ = [("qtoid", "orders", "qtoid")]
-
-    portfolio_id: str
-    tid: str  # 成交 id，pk。可使用代理（比如 qmt）返回值
-    qtoid: str  # 对应的 Order id (quantide order id) - 外键引用 orders 表的 qtoid
-    foid: str  # 代理（比如qmt）给出的 order id
-    asset: str  # 资产代码
-    shares: float | int  # 成交数量
-    price: float  # 成交价格
-    amount: float  # 成交金额 = 成交数量 * 成交价格
-    tm: datetime.datetime  # 成交时间
-    side: OrderSide  # 成交方向
-
-    cid: str  # 柜台合同编号，应与同 qtoid 中的 cid 相一致
-
-    fee: float = 0  # 本笔交易手续费
-
-    def __post_init__(self):
-        if isinstance(self.tm, str):
-            self.tm = datetime.datetime.fromisoformat(self.tm)
-        if isinstance(self.side, int):
-            self.side = OrderSide(self.side)
-
-
-@dataclass
-class Position(Entity):
-    __table_name__ = "positions"
-    __pk__ = ["portfolio_id", "dt", "asset"]
-    __indexes__ = (["portfolio_id", "asset", "dt"], False)
-
-    portfolio_id: str
-    dt: datetime.date
-    asset: str
-    shares: float
-    avail: float  # 可用数量
-    price: float  # 持仓成本
-    profit: float  # 盈亏比，本字段主要供实盘快速查询使用，在回测、模拟时都不使用。
-    mv: float  # 市值
-
-    def __post_init__(self):
-        if isinstance(self.dt, str):
-            # 处理可能包含时间的ISO格式字符串
-            if self.dt.find("T") != -1:
-                self.dt = datetime.datetime.fromisoformat(self.dt).date()
-            else:
-                self.dt = datetime.datetime.strptime(self.dt, "%Y-%m-%d").date()
-        elif isinstance(self.dt, datetime.datetime):
-            self.dt = self.dt.date()
-
-
-@dataclass
-class Asset(Entity):
-    __table_name__ = "assets"
-    __pk__ = ["portfolio_id", "dt"]
-    __indexes__ = (["portfolio_id", "dt"], True)
-
-    portfolio_id: str
-    dt: datetime.date
-    principal: float
-    cash: float
-    frozen_cash: float
-    market_value: float
-    total: float
-
-    def __post_init__(self):
-        if isinstance(self.dt, str):
-            # 处理可能包含时间的ISO格式字符串
-            if self.dt.find("T") != -1:
-                self.dt = datetime.datetime.fromisoformat(self.dt).date()
-            else:
-                self.dt = datetime.datetime.strptime(self.dt, "%Y-%m-%d").date()
-        elif isinstance(self.dt, datetime.datetime):
-            self.dt = self.dt.date()
-
-
-@dataclass
-class Portfolio(Entity):
-    __table_name__ = "portfolios"
-    __pk__ = "portfolio_id"
-    __indexes__ = (["portfolio_id"], True)
-
-    portfolio_id: str
-    kind: BrokerKind
-    start: datetime.date
-    name: str = ""
-    info: str = ""
-    end: datetime.date | None = None
-    status: bool = True
-
-    def __post_init__(self):
-        if isinstance(self.start, str):
-            self.start = datetime.datetime.strptime(self.start, "%Y-%m-%d").date()
-
-        if self.end is not None and isinstance(self.end, str):
-            self.end = datetime.datetime.strptime(self.end, "%Y-%m-%d").date()
-
-        if isinstance(self.kind, str):
-            self.kind = BrokerKind(self.kind)
-
-        if not isinstance(self.status, bool):
-            self.status = bool(self.status)
-
-
-@dataclass
-class StrategyLog(Entity):
-    __table_name__ = "strategy_logs"
-    __pk__ = ["portfolio_id", "dt", "key"]
-    __indexes__ = (["portfolio_id", "dt", "key"], True)
-    __foreign_keys__ = [("portfolio_id", "portfolios", "portfolio_id")]
-
-    portfolio_id: str
-    dt: datetime.datetime
-    key: str
-    value: float
-    extra: str = ""
-
-    def __post_init__(self):
-        if isinstance(self.dt, str):
-            if self.dt.find("T") != -1:
-                self.dt = datetime.datetime.fromisoformat(self.dt)
-            else:
-                self.dt = datetime.datetime.strptime(self.dt, "%Y-%m-%d")
-
 
 @singleton
 class SQLiteDB:
@@ -243,9 +72,13 @@ class SQLiteDB:
         self.db_path: str = ""
         self._initialized = False
 
+    def is_initialized_for(self, db_path: str | Path) -> bool:
+        next_path = str(Path(db_path).expanduser())
+        return self._initialized and self.db_path == next_path and next_path != ":memory:"
+
     def init(self, db_path: str | Path):
         next_path = str(Path(db_path).expanduser())
-        if self._initialized and self.db_path == next_path and next_path != ":memory:":
+        if self.is_initialized_for(next_path):
             return
 
         # 强制重置连接，特别是对于 :memory: 或者路径改变的情况
@@ -294,7 +127,18 @@ class SQLiteDB:
         """
         self._drop_obsolete_market_tables(db)
 
-        for e in [Order, Trade, Asset, Position, Portfolio, StrategyLog, StrategyConfig, StrategyInfo, AppState]:
+        for e in [
+            Order,
+            Trade,
+            Asset,
+            Position,
+            Portfolio,
+            StrategyLog,
+            BacktestLogEntry,
+            StrategyConfig,
+            StrategyInfo,
+            AppState,
+        ]:
             table = e.__table_name__
             pk = e.__pk__
 
@@ -543,6 +387,23 @@ class SQLiteDB:
 
         self["strategy_logs"].insert_all([log.to_dict() for log in logs], ignore=True)  # type: ignore
 
+    def insert_backtest_logs(
+        self,
+        logs: list[BacktestLogEntry] | BacktestLogEntry,
+    ) -> None:
+        """保存回测文本日志。
+
+        Args:
+            logs: 回测日志或日志列表。
+        """
+        if isinstance(logs, BacktestLogEntry):
+            logs = [logs]
+
+        self["backtest_logs"].insert_all(
+            [log.to_dict() for log in logs],
+            ignore=True,
+        )  # type: ignore
+
     def get_strategy_logs(
         self, portfolio_id: str | None = None, start: datetime.date | None = None, end: datetime.date | None = None
     ) -> pl.DataFrame:
@@ -575,6 +436,48 @@ class SQLiteDB:
             rows = self["strategy_logs"].rows_where(where, params)
         else:
             rows = self["strategy_logs"].rows
+
+        df = pl.DataFrame(rows)
+        if len(df) == 0:
+            return pl.DataFrame()
+
+        return df.with_columns(pl.col("dt").cast(pl.Datetime))
+
+    def get_backtest_logs(
+        self,
+        portfolio_id: str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+    ) -> pl.DataFrame:
+        """获取回测文本日志。
+
+        Args:
+            portfolio_id: 组合 ID。
+            start: 开始日期。
+            end: 结束日期。
+
+        Returns:
+            回测日志 DataFrame。
+        """
+        where_clauses = []
+        params = []
+
+        if portfolio_id:
+            where_clauses.append("portfolio_id = ?")
+            params.append(portfolio_id)
+        if start:
+            where_clauses.append("dt >= ?")
+            params.append(start)
+        if end:
+            where_clauses.append("dt <= ?")
+            params.append(end)
+
+        where = " AND ".join(where_clauses) if where_clauses else None
+
+        if where:
+            rows = self["backtest_logs"].rows_where(where, params)
+        else:
+            rows = self["backtest_logs"].rows
 
         df = pl.DataFrame(rows)
         if len(df) == 0:
@@ -827,6 +730,26 @@ class SQLiteDB:
         """删除组合信息"""
         self["portfolios"].delete(portfolio_id)
 
+    def delete_portfolio_cascade(self, portfolio_id: str) -> None:
+        """级联删除组合及其所有关联数据。
+
+        按外键依赖顺序删除：backtest_logs -> strategy_logs -> trades -> orders
+        -> positions -> assets -> portfolio。
+
+        Args:
+            portfolio_id: 组合 ID。
+        """
+        self["backtest_logs"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["strategy_logs"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["trades"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["orders"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["positions"].delete_where("portfolio_id = ?", (portfolio_id,))
+        self["assets"].delete_where("portfolio_id = ?", (portfolio_id,))
+        try:
+            self["portfolios"].delete(portfolio_id)
+        except Exception:
+            pass
+
     def portfolios_all(self) -> pl.DataFrame:
         """获取所有组合信息"""
         return pl.DataFrame(self["portfolios"].rows)
@@ -856,4 +779,15 @@ class SQLiteDB:
 
 db: SQLiteDB = SQLiteDB()
 
-__all__ = ["db", "new_uuid_id", "Asset", "Position", "Order", "Trade"]
+__all__ = [
+    "Asset",
+    "BacktestLogEntry",
+    "Entity",
+    "Order",
+    "Portfolio",
+    "Position",
+    "StrategyLog",
+    "Trade",
+    "db",
+    "new_uuid_id",
+]

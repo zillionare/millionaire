@@ -1,21 +1,98 @@
-MIT License
+Millionaire Source-Available License v2.0
 
-Copyright (c) 2023, aaron yang
+Copyright (c) 2023-2026, aaron yang
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. PERMITTED USES
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Subject to the terms below, you may:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  a. View, read, and study this software and its source code.
+  b. Fork this repository on code-hosting platforms such as GitHub. A
+     "fork" in this context means a repository automatically tracked
+     as derived from the original on the hosting platform; it does not
+     include publishing or mirroring the source code to other
+     locations.
+  c. Make personal copies of the source code.
+  d. Modify this software and create derivative works.
+  e. Use the original or modified software, in source or compiled form,
+     for your own purposes, whether personal, educational, or commercial,
+     within your own organization.
+  f. Build, install, and run release packages and other artifacts
+     derived from this software (or your modifications of it) for your
+     own use. Such internal artifacts may not be made available to
+     third parties.
+  g. Submit contributions (e.g., pull requests) back to the original
+     project.
+
+2. RESERVED DISTRIBUTION RIGHTS
+
+The following rights are reserved to the copyright holder and may not
+be exercised by any other party without prior written permission:
+
+  a. Publishing official release packages, built distributions, container
+     images, wheels, sdist tarballs, or other compiled or packaged
+     artifacts derived from this software (or any modification of it)
+     to public package registries, container registries, or any other
+     public distribution channel. Examples include, but are not limited
+     to: PyPI, npm, Maven Central, RubyGems, Docker Hub, GitHub Container
+     Registry, and similar services.
+  b. Redistributing the source code, in original or modified form, by
+     any means other than the GitHub-fork mechanism in Section 1(b).
+     Prohibited forms of redistribution include, but are not limited
+     to: publishing the source to another public repository that is
+     not a fork of the original, mirroring the repository to other
+     hosting services, including the source code in a larger
+     distributable work, sending copies to third parties by email or
+     other direct means, and bundling the source with software or
+     documentation that is itself distributed to third parties.
+
+3. NO COMPETING USE
+
+You may not, without prior written permission from the copyright holder,
+use this software (in original or modified form, in whole or in part)
+to develop, market, provide, or support a product or service that
+competes with this software or with any product or service offered by
+the copyright holder. This restriction does not affect your right
+under Section 1 to study, modify, fork, and use the software for your
+own non-competing purposes.
+
+4. THIRD-PARTY COMPONENTS
+
+This software includes or depends on third-party components, each of
+which is governed by its own license. A current list of such components
+is available in the project's package metadata and source tree.
+
+  a. The restrictions in Sections 2 and 3 do not apply to the
+     third-party components themselves; those components remain governed
+     by their own licenses.
+  b. You must preserve all copyright notices, license texts, NOTICE
+     files, and attribution statements associated with third-party
+     components when using, modifying, or distributing this software.
+  c. Nothing in this License limits, supersedes, or otherwise affects
+     any rights or obligations you may have under those third-party
+     licenses.
+
+5. NO BRAND USE
+
+You may not use the names, logos, trademarks, or branding of this
+project (including "Millionaire" and any related marks) to
+advertise, promote, or identify your derivative works, products, or
+services without prior written permission from the copyright holder.
+You may, of course, use the project's name in factual references (for
+example, "based on Millionaire") in source files and documentation.
+
+6. NO WARRANTY
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+7. TERMINATION
+
+Any breach of these terms automatically terminates your rights under this
+License. Upon termination, you must stop using the software in any manner
+that requires rights under this License.

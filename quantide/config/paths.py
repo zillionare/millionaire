@@ -4,8 +4,8 @@ import os
 import sys
 from pathlib import Path
 
-
 DEFAULT_DATA_HOME = "~/.quantide"
+_APP_CONFIG_DIR_OVERRIDE: Path | None = None
 
 
 def normalize_data_home(home: str | Path | None = None) -> str:
@@ -18,8 +18,32 @@ def normalize_data_home(home: str | Path | None = None) -> str:
     return str(Path(text).expanduser())
 
 
+def set_app_config_dir_override(path: str | Path | None) -> Path | None:
+    """Override the app config directory for the current process.
+
+    This is primarily used by tests that need an isolated sqlite database,
+    pid file, and other runtime state under a temporary directory.
+    """
+    global _APP_CONFIG_DIR_OVERRIDE
+    previous = _APP_CONFIG_DIR_OVERRIDE
+    if path is None or not str(path).strip():
+        _APP_CONFIG_DIR_OVERRIDE = None
+    else:
+        _APP_CONFIG_DIR_OVERRIDE = Path(path).expanduser()
+    return previous
+
+
+def clear_app_config_dir_override() -> None:
+    """Clear the process-level app config directory override."""
+    global _APP_CONFIG_DIR_OVERRIDE
+    _APP_CONFIG_DIR_OVERRIDE = None
+
+
 def get_app_config_dir() -> Path:
     """Return the per-user configuration directory for Quantide."""
+    if _APP_CONFIG_DIR_OVERRIDE is not None:
+        return _APP_CONFIG_DIR_OVERRIDE
+
     if sys.platform.startswith("win"):
         base = os.environ.get("APPDATA")
         if base:
@@ -54,12 +78,29 @@ def get_strategy_runtime_state_path() -> Path:
     return ensure_app_config_dir() / "strategy_runtimes.json"
 
 
+def get_backtest_log_dir() -> Path:
+    """Return the directory used to store saved backtest log files."""
+    path = ensure_app_config_dir() / "backtest_logs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_backtest_log_path(portfolio_id: str) -> Path:
+    """Return the deterministic JSONL path for a backtest portfolio log."""
+    filename = f"{portfolio_id}.jsonl"
+    return get_backtest_log_dir() / filename
+
+
 __all__ = [
     "DEFAULT_DATA_HOME",
+    "clear_app_config_dir_override",
     "ensure_app_config_dir",
     "get_app_config_dir",
     "get_app_db_path",
+    "get_backtest_log_dir",
+    "get_backtest_log_path",
     "get_pid_file_path",
     "get_strategy_runtime_state_path",
     "normalize_data_home",
+    "set_app_config_dir_override",
 ]

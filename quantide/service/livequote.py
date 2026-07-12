@@ -4,17 +4,19 @@ import json
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import AsyncIterator
 from typing import Any
 
 import polars as pl
 import websockets
 from loguru import logger
 
-from quantide.config.runtime import get_runtime_config
+from quantide.config.settings import get_settings
+from quantide.core.domain import MarketEvent, QuoteSnapshot
 from quantide.core.enums import Topics
 from quantide.core.message import msg_hub
 from quantide.core.scheduler import scheduler
-from quantide.data.fetchers.tushare import fetch_limit_price
+from quantide.data.fetchers.registry import get_data_fetcher
 
 
 class LiveQuote:
@@ -39,6 +41,11 @@ class LiveQuote:
         self._lock = threading.RLock()
         self._ws_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        # MarketDataPort stream state
+        self._subscribed: set[str] = set()
+        self._stream_queue: asyncio.Queue[MarketEvent] | None = None
+        self._stream_loop: asyncio.AbstractEventLoop | None = None
+        self._streaming = False
 
     def start(self):
         if self._is_running:
@@ -51,8 +58,14 @@ class LiveQuote:
         self._ws_thread.start()
 
     def stop(self):
+        self._streaming = False
         self._is_running = False
         self._stop_event.set()
+        # 注入 sentinel 唤醒可能阻塞在 queue.get() 的 stream() 消费者
+        if self._stream_queue is not None and self._stream_loop is not None:
+            self._stream_loop.call_soon_threadsafe(
+                self._stream_queue.put_nowait, None,
+            )
 
     def _run_ws(self):
         asyncio.run(self._ws_loop())
@@ -73,7 +86,7 @@ class LiveQuote:
                 await asyncio.sleep(2)
 
     def _build_ws_url(self) -> str:
-        base_url = get_runtime_config().gateway_base_url.rstrip("/")
+        base_url = get_settings().gateway_base_url.rstrip("/")
         if base_url.startswith("https://"):
             return "wss://" + base_url[len("https://") :] + "/ws/quotes"
         if base_url.startswith("http://"):
@@ -98,38 +111,93 @@ class LiveQuote:
         d1_raw = data.get("1d")
         m1: dict[str, Any] = m1_raw if isinstance(m1_raw, dict) else {}
         d1: dict[str, Any] = d1_raw if isinstance(d1_raw, dict) else {}
-        close_value = self._to_float(m1.get("close"), self._to_float(d1.get("close"), 0.0))
+
+        # Issue #20：forming daily bar 从首个 tick 起累积。后续 tick 缺字段时
+        # 不可被 0/默认值覆盖；open 锁首日开盘、high/low 取 max/min、close 跟最新价、
+        # volume/amount 跨 tick 累加。
+        with self._lock:
+            prev_raw = self._daily_bars.get(symbol) or {}
+            new_dt = datetime.datetime.fromtimestamp(ts_ms / 1000).date()
+            prev_dt = prev_raw.get("dt")
+            # 跨日切换：丢掉旧日缓存，按新 tick 重建（LiveQuote 只跟踪当前交易
+            # 日的 forming bar；旧日应该是已结算的 fixed bar，不应再被"累积"）。
+            is_new_day = prev_dt is not None and prev_dt != new_dt
+            prev = {} if is_new_day else prev_raw
+            prev_open = self._to_float(prev.get("open"), 0.0)
+            prev_high = self._to_float(prev.get("high"), 0.0)
+            prev_low = self._to_float(prev.get("low"), 0.0)
+            prev_close = self._to_float(prev.get("close"), 0.0)
+            prev_volume = self._to_float(prev.get("volume"), 0.0)
+            prev_amount = self._to_float(prev.get("amount"), 0.0)
+
+        new_close = self._to_float(m1.get("close"), self._to_float(d1.get("close"), 0.0))
+        new_open_d1 = self._to_float(d1.get("open"), 0.0)
+        new_open_m1 = self._to_float(m1.get("open"), 0.0)
+        new_high_m1 = self._to_float(m1.get("high"), 0.0)
+        new_low_m1 = self._to_float(m1.get("low"), 0.0)
+        new_high_d1 = self._to_float(d1.get("high"), 0.0)
+        new_low_d1 = self._to_float(d1.get("low"), 0.0)
+        # volume/amount 必须有 1d 字段才累加（1d 是日内累计；m1 是单分钟，
+        # 不可与日内累计相加，否则一分钟一次推送会让成交量膨胀 240 倍）。
+        if d1:
+            new_volume = self._to_float(d1.get("vol"), 0.0)
+            new_amount = self._to_float(d1.get("amount"), 0.0)
+            has_d1_volume = True
+        else:
+            new_volume = 0.0
+            new_amount = 0.0
+            has_d1_volume = False
+
+        if new_close <= 0:
+            new_close = prev_close
+        daily_open = new_open_d1 if new_open_d1 > 0 else (prev_open if prev_open > 0 else new_open_m1)
+        # 1d 字段本身就是日内 running high/low（gateway 已聚合），
+        # 直接用最新；只有当 1d 缺字段时才退化到与 m1 联合 max/min。
+        if new_high_d1 > 0:
+            daily_high = new_high_d1
+        else:
+            candidate_highs = [v for v in (prev_high, new_high_m1) if v > 0]
+            daily_high = max(candidate_highs) if candidate_highs else new_close
+        if new_low_d1 > 0:
+            daily_low = new_low_d1
+        else:
+            candidate_lows = [v for v in (prev_low, new_low_m1) if v > 0]
+            daily_low = min(candidate_lows) if candidate_lows else new_close
+        daily_volume = prev_volume + new_volume if has_d1_volume else prev_volume
+        daily_amount = prev_amount + new_amount if has_d1_volume else prev_amount
+        daily_dt = new_dt
+
         quote = {
-            "price": close_value,
-            "lastPrice": close_value,
-            "open": self._to_float(m1.get("open"), self._to_float(d1.get("open"), close_value)),
-            "high": self._to_float(m1.get("high"), self._to_float(d1.get("high"), close_value)),
-            "low": self._to_float(m1.get("low"), self._to_float(d1.get("low"), close_value)),
-            "volume": self._to_float(m1.get("vol"), self._to_float(d1.get("vol"), 0.0)),
-            "amount": self._to_float(m1.get("amount"), self._to_float(d1.get("amount"), 0.0)),
+            "price": new_close,
+            "lastPrice": new_close,
+            "open": new_open_m1 if new_open_m1 > 0 else daily_open,
+            "high": new_high_m1 if new_high_m1 > 0 else daily_high,
+            "low": new_low_m1 if new_low_m1 > 0 else daily_low,
+            "volume": daily_volume,
+            "amount": daily_amount,
             "time": ts_ms,
         }
         minute_bar = {
             "asset": symbol,
             "frame": "1m",
             "dt": datetime.datetime.fromtimestamp(ts_ms / 1000),
-            "open": quote["open"],
-            "high": quote["high"],
-            "low": quote["low"],
-            "close": quote["price"],
-            "volume": quote["volume"],
-            "amount": quote["amount"],
+            "open": new_open_m1 if new_open_m1 > 0 else daily_open,
+            "high": new_high_m1 if new_high_m1 > 0 else daily_high,
+            "low": new_low_m1 if new_low_m1 > 0 else daily_low,
+            "close": new_close,
+            "volume": self._to_float(m1.get("vol"), 0.0),
+            "amount": self._to_float(m1.get("amount"), 0.0),
         }
         daily_bar = {
             "asset": symbol,
             "frame": "1d",
-            "dt": datetime.datetime.fromtimestamp(ts_ms / 1000).date(),
-            "open": self._to_float(d1.get("open"), quote["open"]),
-            "high": self._to_float(d1.get("high"), quote["high"]),
-            "low": self._to_float(d1.get("low"), quote["low"]),
-            "close": self._to_float(d1.get("close"), quote["price"]),
-            "volume": self._to_float(d1.get("vol"), quote["volume"]),
-            "amount": self._to_float(d1.get("amount"), quote["amount"]),
+            "dt": daily_dt,
+            "open": daily_open,
+            "high": daily_high,
+            "low": daily_low,
+            "close": new_close,
+            "volume": daily_volume,
+            "amount": daily_amount,
         }
         with self._lock:
             self._minute_bars[symbol].append(minute_bar)
@@ -149,7 +217,7 @@ class LiveQuote:
     def _refresh_limits(self, dt: datetime.date | None = None):
         dt = dt or datetime.date.today()
         try:
-            df, _ = fetch_limit_price(dt)
+            df, _ = get_data_fetcher().fetch_limit_price(dt)
         except Exception as e:
             logger.warning(f"refresh limits failed: {e}")
             return
@@ -251,6 +319,104 @@ class LiveQuote:
     @property
     def is_running(self) -> bool:
         return self._is_running
+
+
+    # ── MarketDataPort methods ──────────────────────────────────────────
+
+    def subscribe(self, symbols: list[str]) -> None:
+        """登记关注标的."""
+        for symbol in symbols:
+            if symbol:
+                self._subscribed.add(symbol)
+
+    def unsubscribe(self, symbols: list[str]) -> None:
+        """移除关注标的."""
+        for symbol in symbols:
+            self._subscribed.discard(symbol)
+
+    async def stream(self) -> AsyncIterator[MarketEvent]:
+        """获取行情事件流 (async generator).
+
+        使用 asyncio.Queue + call_soon_threadsafe 桥接
+        msg_hub dispatch 线程与 asyncio 事件循环。
+        """
+        if self._stream_queue is not None:
+            raise RuntimeError("stream already started")
+        self._stream_queue = asyncio.Queue(maxsize=2000)
+        self._stream_loop = asyncio.get_running_loop()
+        self._streaming = True
+        msg_hub.subscribe(Topics.QUOTES_ALL.value, self._on_quotes_all)
+        try:
+            while self._streaming:
+                event = await self._stream_queue.get()
+                if event is None:  # sentinel from stop()
+                    break
+                yield event
+        finally:
+            self._streaming = False
+            msg_hub.unsubscribe(Topics.QUOTES_ALL.value, self._on_quotes_all)
+            self._stream_queue = None
+            self._stream_loop = None
+
+    def snapshot(self, symbols: list[str]) -> dict[str, QuoteSnapshot]:
+        """获取行情快照."""
+        result: dict[str, QuoteSnapshot] = {}
+        for symbol in symbols:
+            quote = self.get_quote(symbol)
+            if quote is None:
+                continue
+            ts_raw = quote.get("time")
+            ts = None
+            if isinstance(ts_raw, (int, float)) and ts_raw > 0:
+                ts = datetime.datetime.fromtimestamp(ts_raw / 1000)
+            result[symbol] = QuoteSnapshot(
+                symbol=symbol,
+                price=self._to_float_or_none(quote.get("price")),
+                open=self._to_float_or_none(quote.get("open")),
+                high=self._to_float_or_none(quote.get("high")),
+                low=self._to_float_or_none(quote.get("low")),
+                volume=self._to_float_or_none(quote.get("volume")),
+                amount=self._to_float_or_none(quote.get("amount")),
+                ts=ts,
+            )
+        return result
+
+    def _on_quotes_all(self, payload: dict[str, dict[str, Any]]) -> None:
+        """接收消息总线行情推送, 桥接到 async stream."""
+        if self._stream_queue is None or self._stream_loop is None:
+            return
+        if not payload:
+            return
+        now = datetime.datetime.now()
+        for symbol, quote in payload.items():
+            if self._subscribed and symbol not in self._subscribed:
+                continue
+            event = MarketEvent(
+                symbol=symbol,
+                event_type="tick",
+                ts=now,
+                payload=dict(quote),
+                source="live_quote",
+            )
+            self._stream_loop.call_soon_threadsafe(self._put_event_safe, event)
+
+    def _put_event_safe(self, event: MarketEvent) -> None:
+        """将事件写入队列 (从 event loop 线程调用)."""
+        if self._stream_queue is None:
+            return
+        try:
+            self._stream_queue.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
+
+    def _to_float_or_none(self, value: Any) -> float | None:
+        """将任意值转换为浮点, 失败时返回 None."""
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     def _to_float(self, value: Any, default: float = 0.0) -> float:
         try:

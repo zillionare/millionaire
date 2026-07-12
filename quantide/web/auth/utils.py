@@ -3,7 +3,6 @@
 import re
 import secrets
 import string
-from typing import Optional
 
 
 def generate_token(length: int = 32) -> str:

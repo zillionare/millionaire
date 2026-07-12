@@ -7,27 +7,29 @@ import datetime
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
+from quantide.config.dev_stubs import dev_stubs_enabled, ensure_dev_stubs_started
+from quantide.config.paths import get_app_db_path, normalize_data_home
+from quantide.config.settings import (
+    get_data_source,
+    get_dingtalk_access_token,
+    get_dingtalk_keyword,
+    get_dingtalk_secret,
+    get_mail_receivers,
+    get_mail_sender,
+    get_mail_server,
+    get_settings,
+    get_tushare_token,
+)
 from quantide.core.init_wizard_steps import (
     WIZARD_FINAL_STEP,
     WIZARD_TOTAL_STEPS,
     build_wizard_steps,
 )
-from quantide.config.paths import get_app_db_path, normalize_data_home
-from quantide.config.runtime import (
-    get_runtime_config,
-    get_runtime_dingtalk_access_token,
-    get_runtime_dingtalk_keyword,
-    get_runtime_dingtalk_secret,
-    get_runtime_mail_receivers,
-    get_runtime_mail_sender,
-    get_runtime_mail_server,
-    get_runtime_tushare_token,
-)
+from quantide.data.fetchers.registry import register_builtin_fetchers
 from quantide.data.models.app_state import AppState
 from quantide.data.sqlite import db
 from quantide.web.auth.manager import AuthManager
@@ -64,36 +66,36 @@ class InitWizardService:
             AppState: 默认初始化状态。
         """
         state = AppState()
-        runtime = get_runtime_config()
+        settings = get_settings()
 
-        state.app_home = runtime.app_home
-        state.app_host = runtime.app_host
-        state.app_port = runtime.app_port
-        state.app_prefix = runtime.app_prefix
+        state.app_home = settings.app_home
+        state.app_host = settings.app_host
+        state.app_port = settings.app_port
+        state.app_prefix = settings.app_prefix
 
-        base_url = runtime.gateway_base_url.strip()
+        base_url = settings.gateway_base_url.strip()
         parsed = urllib.parse.urlparse(base_url)
         state.gateway_base_url = parsed.path or "/"
-        state.gateway_scheme = parsed.scheme or runtime.gateway_scheme or "http"
+        state.gateway_scheme = parsed.scheme or settings.gateway_scheme or "http"
         state.gateway_server = parsed.hostname or ""
-        state.gateway_port = parsed.port or runtime.gateway_port
+        state.gateway_port = parsed.port or settings.gateway_port
         state.gateway_enabled = bool(parsed.hostname)
-        state.gateway_username = runtime.gateway_username
-        state.gateway_password = runtime.gateway_password
-        state.gateway_timeout = int(runtime.gateway_timeout)
-        state.livequote_mode = runtime.livequote_mode
-        state.runtime_mode = runtime.runtime_mode
-        state.runtime_market_adapter = runtime.runtime_market_adapter
-        state.runtime_broker_adapter = runtime.runtime_broker_adapter
-        state.gateway_api_key = runtime.gateway_api_key
-        state.notify_dingtalk_access_token = get_runtime_dingtalk_access_token()
-        state.notify_dingtalk_secret = get_runtime_dingtalk_secret()
-        state.notify_dingtalk_keyword = get_runtime_dingtalk_keyword()
-        state.notify_mail_to = ",".join(get_runtime_mail_receivers())
-        state.notify_mail_from = get_runtime_mail_sender()
-        state.notify_mail_server = get_runtime_mail_server()
-        state.tushare_token = get_runtime_tushare_token()
-        state.epoch = runtime.epoch
+        state.gateway_username = settings.gateway_username
+        state.gateway_password = settings.gateway_password
+        state.gateway_timeout = int(settings.gateway_timeout)
+        state.livequote_mode = settings.livequote_mode
+        state.runtime_mode = settings.runtime_mode
+        state.runtime_broker_adapter = settings.runtime_broker_adapter
+        state.gateway_api_key = settings.gateway_api_key
+        state.data_source = settings.data_source
+        state.notify_dingtalk_access_token = get_dingtalk_access_token()
+        state.notify_dingtalk_secret = get_dingtalk_secret()
+        state.notify_dingtalk_keyword = get_dingtalk_keyword()
+        state.notify_mail_to = ",".join(get_mail_receivers())
+        state.notify_mail_from = get_mail_sender()
+        state.notify_mail_server = get_mail_server()
+        state.tushare_token = get_tushare_token()
+        state.epoch = settings.epoch
         state.history_years = 3
         state.history_start_date = self._compute_history_start_date(
             epoch=state.epoch,
@@ -191,12 +193,36 @@ class InitWizardService:
             - live_trading: 实盘交易是否可用
         """
         state = self.get_state()
+        backtest_available = state.is_fully_initialized and (
+            dev_stubs_enabled() or bool(str(state.tushare_token or "").strip())
+        )
+        live_trading_available = self._is_gateway_available(state)
 
         return {
-            "backtest": state.can_use_backtest(),
-            "simulation": state.can_use_live_trading(),
-            "live_trading": state.can_use_live_trading(),
+            "backtest": backtest_available,
+            "simulation": live_trading_available,
+            "live_trading": live_trading_available,
         }
+
+    def _is_gateway_available(self, state: AppState) -> bool:
+        """判断 gateway 是否处于可用状态。"""
+        if dev_stubs_enabled() and state.is_fully_initialized:
+            return ensure_dev_stubs_started() is not None
+        if not state.can_use_live_trading():
+            return False
+        if not str(state.gateway_server or "").strip():
+            return False
+        if not str(state.gateway_api_key or "").strip():
+            return False
+
+        ok, _ = self.test_gateway_connection(
+            server=state.gateway_server,
+            port=state.gateway_port,
+            prefix=state.gateway_base_url or "/",
+            api_key=str(state.gateway_api_key or ""),
+            timeout=min(float(state.gateway_timeout or 3), 1.0),
+        )
+        return ok
 
     def start_initialization(self, reset_step: bool = False) -> AppState:
         """开始初始化流程
@@ -263,6 +289,7 @@ class InitWizardService:
         port: int,
         prefix: str,
         api_key: str,
+        timeout: int | None = None,
     ) -> None:
         """保存网关配置.
 
@@ -275,6 +302,11 @@ class InitWizardService:
         """
         state = self.get_state()
         normalized_server = str(server or "").strip()
+        normalized_api_key = str(api_key or "").strip()
+        if enabled and not normalized_server:
+            raise ValueError("启用 gateway 时必须填写服务器地址")
+        if enabled and not normalized_api_key:
+            raise ValueError("启用 gateway 时必须填写访问密钥")
         parsed = urllib.parse.urlparse(normalized_server)
         if parsed.scheme and parsed.hostname:
             state.gateway_scheme = parsed.scheme
@@ -287,38 +319,11 @@ class InitWizardService:
         state.gateway_enabled = bool(enabled)
         state.gateway_port = int(port)
         state.gateway_base_url = prefix.strip() or "/"
-        state.gateway_api_key = api_key.strip()
+        state.gateway_api_key = normalized_api_key
+        if timeout is not None:
+            state.gateway_timeout = max(1, int(timeout))
         self.save_state(state)
         logger.info("网关配置已保存")
-
-    def save_notify_config(
-        self,
-        dingtalk_access_token: str,
-        dingtalk_secret: str,
-        dingtalk_keyword: str,
-        mail_to: str,
-        mail_from: str,
-        mail_server: str,
-    ) -> None:
-        """保存通知配置.
-
-        Args:
-            dingtalk_access_token: 钉钉 token。
-            dingtalk_secret: 钉钉 secret。
-            dingtalk_keyword: 钉钉 keyword。
-            mail_to: 邮件收件人。
-            mail_from: 邮件发件人。
-            mail_server: 邮件服务器。
-        """
-        state = self.get_state()
-        state.notify_dingtalk_access_token = dingtalk_access_token.strip()
-        state.notify_dingtalk_secret = dingtalk_secret.strip()
-        state.notify_dingtalk_keyword = dingtalk_keyword.strip()
-        state.notify_mail_to = mail_to.strip()
-        state.notify_mail_from = mail_from.strip()
-        state.notify_mail_server = mail_server.strip()
-        self.save_state(state)
-        logger.info("通知配置已保存")
 
     def save_admin_password(self, password: str) -> None:
         """保存管理员密码。
@@ -360,34 +365,56 @@ class InitWizardService:
         epoch: datetime.date,
         tushare_token: str,
         history_years: int,
+        data_source: str = "tushare",
     ) -> None:
         """保存数据初始化配置.
 
         Args:
             epoch: 数据起点日期。
+            data_source: 当前数据源。
             tushare_token: tushare token。
             history_years: 历史下载年数。
         """
         years = max(1, int(history_years))
+        normalized_source = (
+            str(data_source or get_data_source() or "tushare").strip().lower()
+            or "tushare"
+        )
+        normalized_token = str(tushare_token or "").strip()
+        registry = register_builtin_fetchers()
+        if normalized_source not in registry.list_names():
+            raise ValueError(f"不支持的数据源: {normalized_source}")
+        if normalized_source == "tushare" and not normalized_token:
+            raise ValueError("必须填写 Tushare Token")
         state = self.get_state()
         state.epoch = epoch
-        state.tushare_token = tushare_token.strip()
+        state.data_source = normalized_source
+        state.tushare_token = normalized_token
         state.history_years = years
         state.history_start_date = self._compute_history_start_date(epoch, years)
         self.save_state(state)
         logger.info("数据初始化配置已保存")
 
     def test_gateway_connection(
-        self, server: str, port: int, prefix: str = "/", timeout: float = 3.0
+        self,
+        server: str,
+        port: int,
+        prefix: str = "/",
+        api_key: str = "",
+        timeout: float = 3.0,
     ) -> tuple[bool, str]:
         """测试网关连通性.
 
-        调用 http://gateway:port/prefix/ping 检查是否能返回200.
+        真实 qmt-gateway 不暴露 ``/ping``，所有业务端点位于 ``/api/...`` 且要求
+        ``X-API-Key`` 请求头或登录会话；这里改用 ``GET /api/ping``，由网关
+        实现一个轻量的鉴权体检端点（见 qmt-gateway 的 ``apis/ping.py``）。
 
         Args:
             server: 网关地址。
             port: 网关端口。
             prefix: 网关路径前缀。
+            api_key: 网关 API key；为 ``""`` 时不发送 ``X-API-Key`` 头（连接真实
+                网关会因为 401/403 而失败，这是预期行为）。
             timeout: 超时秒数。
 
         Returns:
@@ -402,12 +429,17 @@ class InitWizardService:
         p = str(prefix or "/").strip() or "/"
         if not p.startswith("/"):
             p = "/" + p
-        if not p.endswith("/"):
-            p = p + "/"
-        url = f"http://{host}:{int(port)}{p}ping"
+        if p == "/":
+            url = f"http://{host}:{int(port)}/api/ping"
+        else:
+            url = f"http://{host}:{int(port)}{p.rstrip('/')}/api/ping"
+
+        headers: dict[str, str] = {"Accept": "application/json"}
+        if api_key:
+            headers["X-API-Key"] = api_key
 
         try:
-            req = urllib.request.Request(url, method="GET")
+            req = urllib.request.Request(url, method="GET", headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 code = resp.getcode()
                 if code == 200:
@@ -416,6 +448,8 @@ class InitWizardService:
                     return False, f"网关返回非200状态码: {code}"
         except urllib.error.HTTPError as e:
             logger.warning(f"网关连通性测试失败: {url}, HTTP {e.code}")
+            if e.code in (401, 403):
+                return False, "网关鉴权失败，请检查 API key"
             return False, f"无法连接 gateway（HTTP {e.code}），请检查配置或暂时不勾选启用"
         except Exception as e:
             logger.warning(f"网关连通性测试失败: {url}, {e}")
@@ -461,15 +495,7 @@ class InitWizardService:
         Returns:
             str: 目标路径。
         """
-        runtime = get_runtime_config()
-        state = self.get_state()
-        if state.can_use_backtest() and state.can_use_live_trading():
-            return "/trade"
-        if state.can_use_backtest():
-            return "/strategy"
-        if runtime.gateway_enabled and runtime.gateway_base_url:
-            return "/auth/login"
-        return "/auth/login"
+        return "/"
 
     def get_progress(self) -> dict[str, Any]:
         """获取初始化进度信息

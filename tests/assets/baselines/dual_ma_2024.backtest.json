@@ -1,0 +1,1097 @@
+{
+  "data": {
+    "source": "/Users/aaronyang/workspace/quantide/tests/assets/2024_bars_ext_cols.parquet",
+    "asset": "000001.SZ",
+    "fixture_columns": {
+      "date": "Datetime(time_unit='ms', time_zone=None)",
+      "asset": "String",
+      "open": "Float64",
+      "high": "Float64",
+      "low": "Float64",
+      "close": "Float64",
+      "volume": "Float64",
+      "amount": "Float64",
+      "adjust": "Float64",
+      "is_st": "Boolean",
+      "up_limit": "Float64",
+      "down_limit": "Float64"
+    },
+    "fixture_asset_count": 5433,
+    "fixture_date_min": "2024-01-02 00:00:00",
+    "fixture_date_max": "2024-12-31 00:00:00",
+    "scenario_start": "2024-01-02",
+    "scenario_end": "2024-05-31",
+    "scenario_rows": 98
+  },
+  "strategy": {
+    "name": "DualMAStrategy",
+    "fast": 5,
+    "slow": 10,
+    "invest": 100000.0,
+    "initial_cash": 200000.0,
+    "commission": 0.0005,
+    "buy_quantity_rule": "floor(invest / (up_limit * (1 + commission)) / 100) * 100",
+    "match_rule": "market order at same-day open after previous-day signal"
+  },
+  "equity_curve": [
+    {
+      "dt": "2024-01-02",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.21,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-03",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.2,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-04",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.11,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-05",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.27,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-08",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.15,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-09",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.18,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-10",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.09,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-11",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.17,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-12",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.19,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-15",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.21,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-16",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.34,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-17",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.23,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-18",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.2,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-19",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.17,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-22",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.1,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-23",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.16,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-24",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.33,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-25",
+      "cash": 200000.0,
+      "shares": 0,
+      "close": 9.5,
+      "market_value": 0.0,
+      "total": 200000.0
+    },
+    {
+      "dt": "2024-01-26",
+      "cash": 109990.0175,
+      "shares": 9500,
+      "close": 9.62,
+      "market_value": 91390.0,
+      "total": 201380.0175
+    },
+    {
+      "dt": "2024-01-29",
+      "cash": 109990.0175,
+      "shares": 9500,
+      "close": 9.7,
+      "market_value": 92150.0,
+      "total": 202140.0175
+    },
+    {
+      "dt": "2024-01-30",
+      "cash": 109990.0175,
+      "shares": 9500,
+      "close": 9.5,
+      "market_value": 90250.0,
+      "total": 200240.0175
+    },
+    {
+      "dt": "2024-01-31",
+      "cash": 109990.0175,
+      "shares": 9500,
+      "close": 9.46,
+      "market_value": 89870.0,
+      "total": 199860.0175
+    },
+    {
+      "dt": "2024-02-01",
+      "cash": 109990.0175,
+      "shares": 9500,
+      "close": 9.41,
+      "market_value": 89395.0,
+      "total": 199385.0175
+    },
+    {
+      "dt": "2024-02-02",
+      "cash": 109990.0175,
+      "shares": 9500,
+      "close": 9.27,
+      "market_value": 88065.0,
+      "total": 198055.0175
+    },
+    {
+      "dt": "2024-02-05",
+      "cash": 109990.0175,
+      "shares": 9500,
+      "close": 9.38,
+      "market_value": 89110.0,
+      "total": 199100.0175
+    },
+    {
+      "dt": "2024-02-06",
+      "cash": 198295.8425,
+      "shares": 0,
+      "close": 9.68,
+      "market_value": 0.0,
+      "total": 198295.8425
+    },
+    {
+      "dt": "2024-02-07",
+      "cash": 198295.8425,
+      "shares": 0,
+      "close": 9.61,
+      "market_value": 0.0,
+      "total": 198295.8425
+    },
+    {
+      "dt": "2024-02-08",
+      "cash": 198295.8425,
+      "shares": 0,
+      "close": 9.67,
+      "market_value": 0.0,
+      "total": 198295.8425
+    },
+    {
+      "dt": "2024-02-19",
+      "cash": 198295.8425,
+      "shares": 0,
+      "close": 9.81,
+      "market_value": 0.0,
+      "total": 198295.8425
+    },
+    {
+      "dt": "2024-02-20",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 9.82,
+      "market_value": 90344.0,
+      "total": 198526.8085
+    },
+    {
+      "dt": "2024-02-21",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.8,
+      "market_value": 99360.0,
+      "total": 207542.8085
+    },
+    {
+      "dt": "2024-02-22",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.9,
+      "market_value": 100280.0,
+      "total": 208462.8085
+    },
+    {
+      "dt": "2024-02-23",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.85,
+      "market_value": 99820.0,
+      "total": 208002.8085
+    },
+    {
+      "dt": "2024-02-26",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.53,
+      "market_value": 96876.0,
+      "total": 205058.8085
+    },
+    {
+      "dt": "2024-02-27",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.5,
+      "market_value": 96600.0,
+      "total": 204782.8085
+    },
+    {
+      "dt": "2024-02-28",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.49,
+      "market_value": 96508.0,
+      "total": 204690.8085
+    },
+    {
+      "dt": "2024-02-29",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.59,
+      "market_value": 97428.0,
+      "total": 205610.8085
+    },
+    {
+      "dt": "2024-03-01",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.49,
+      "market_value": 96508.0,
+      "total": 204690.8085
+    },
+    {
+      "dt": "2024-03-04",
+      "cash": 108182.8085,
+      "shares": 9200,
+      "close": 10.33,
+      "market_value": 95036.0,
+      "total": 203218.8085
+    },
+    {
+      "dt": "2024-03-05",
+      "cash": 202895.4285,
+      "shares": 0,
+      "close": 10.43,
+      "market_value": 0.0,
+      "total": 202895.4285
+    },
+    {
+      "dt": "2024-03-06",
+      "cash": 202895.4285,
+      "shares": 0,
+      "close": 10.33,
+      "market_value": 0.0,
+      "total": 202895.4285
+    },
+    {
+      "dt": "2024-03-07",
+      "cash": 202895.4285,
+      "shares": 0,
+      "close": 10.38,
+      "market_value": 0.0,
+      "total": 202895.4285
+    },
+    {
+      "dt": "2024-03-08",
+      "cash": 202895.4285,
+      "shares": 0,
+      "close": 10.38,
+      "market_value": 0.0,
+      "total": 202895.4285
+    },
+    {
+      "dt": "2024-03-11",
+      "cash": 202895.4285,
+      "shares": 0,
+      "close": 10.47,
+      "market_value": 0.0,
+      "total": 202895.4285
+    },
+    {
+      "dt": "2024-03-12",
+      "cash": 202895.4285,
+      "shares": 0,
+      "close": 10.56,
+      "market_value": 0.0,
+      "total": 202895.4285
+    },
+    {
+      "dt": "2024-03-13",
+      "cash": 202895.4285,
+      "shares": 0,
+      "close": 10.33,
+      "market_value": 0.0,
+      "total": 202895.4285
+    },
+    {
+      "dt": "2024-03-14",
+      "cash": 202895.4285,
+      "shares": 0,
+      "close": 10.23,
+      "market_value": 0.0,
+      "total": 202895.4285
+    },
+    {
+      "dt": "2024-03-15",
+      "cash": 110009.0085,
+      "shares": 8800,
+      "close": 10.6,
+      "market_value": 93280.0,
+      "total": 203289.0085
+    },
+    {
+      "dt": "2024-03-18",
+      "cash": 110009.0085,
+      "shares": 8800,
+      "close": 10.54,
+      "market_value": 92752.0,
+      "total": 202761.0085
+    },
+    {
+      "dt": "2024-03-19",
+      "cash": 110009.0085,
+      "shares": 8800,
+      "close": 10.4,
+      "market_value": 91520.0,
+      "total": 201529.0085
+    },
+    {
+      "dt": "2024-03-20",
+      "cash": 201307.3365,
+      "shares": 0,
+      "close": 10.45,
+      "market_value": 0.0,
+      "total": 201307.3365
+    },
+    {
+      "dt": "2024-03-21",
+      "cash": 111392.4015,
+      "shares": 8600,
+      "close": 10.47,
+      "market_value": 90042.0,
+      "total": 201434.4015
+    },
+    {
+      "dt": "2024-03-22",
+      "cash": 111392.4015,
+      "shares": 8600,
+      "close": 10.36,
+      "market_value": 89096.0,
+      "total": 200488.4015
+    },
+    {
+      "dt": "2024-03-25",
+      "cash": 111392.4015,
+      "shares": 8600,
+      "close": 10.4,
+      "market_value": 89440.0,
+      "total": 200832.4015
+    },
+    {
+      "dt": "2024-03-26",
+      "cash": 201217.4665,
+      "shares": 0,
+      "close": 10.6,
+      "market_value": 0.0,
+      "total": 201217.4665
+    },
+    {
+      "dt": "2024-03-27",
+      "cash": 111412.5865,
+      "shares": 8500,
+      "close": 10.53,
+      "market_value": 89505.0,
+      "total": 200917.5865
+    },
+    {
+      "dt": "2024-03-28",
+      "cash": 111412.5865,
+      "shares": 8500,
+      "close": 10.49,
+      "market_value": 89165.0,
+      "total": 200577.5865
+    },
+    {
+      "dt": "2024-03-29",
+      "cash": 200193.174,
+      "shares": 0,
+      "close": 10.52,
+      "market_value": 0.0,
+      "total": 200193.174
+    },
+    {
+      "dt": "2024-04-01",
+      "cash": 109675.938,
+      "shares": 8600,
+      "close": 10.64,
+      "market_value": 91504.0,
+      "total": 201179.938
+    },
+    {
+      "dt": "2024-04-02",
+      "cash": 109675.938,
+      "shares": 8600,
+      "close": 10.55,
+      "market_value": 90730.0,
+      "total": 200405.938
+    },
+    {
+      "dt": "2024-04-03",
+      "cash": 109675.938,
+      "shares": 8600,
+      "close": 10.46,
+      "market_value": 89956.0,
+      "total": 199631.938
+    },
+    {
+      "dt": "2024-04-08",
+      "cash": 109675.938,
+      "shares": 8600,
+      "close": 10.43,
+      "market_value": 89698.0,
+      "total": 199373.938
+    },
+    {
+      "dt": "2024-04-09",
+      "cash": 109675.938,
+      "shares": 8600,
+      "close": 10.4,
+      "market_value": 89440.0,
+      "total": 199115.938
+    },
+    {
+      "dt": "2024-04-10",
+      "cash": 198899.304,
+      "shares": 0,
+      "close": 10.28,
+      "market_value": 0.0,
+      "total": 198899.304
+    },
+    {
+      "dt": "2024-04-11",
+      "cash": 198899.304,
+      "shares": 0,
+      "close": 10.25,
+      "market_value": 0.0,
+      "total": 198899.304
+    },
+    {
+      "dt": "2024-04-12",
+      "cash": 198899.304,
+      "shares": 0,
+      "close": 10.06,
+      "market_value": 0.0,
+      "total": 198899.304
+    },
+    {
+      "dt": "2024-04-15",
+      "cash": 198899.304,
+      "shares": 0,
+      "close": 10.29,
+      "market_value": 0.0,
+      "total": 198899.304
+    },
+    {
+      "dt": "2024-04-16",
+      "cash": 198899.304,
+      "shares": 0,
+      "close": 10.28,
+      "market_value": 0.0,
+      "total": 198899.304
+    },
+    {
+      "dt": "2024-04-17",
+      "cash": 198899.304,
+      "shares": 0,
+      "close": 10.62,
+      "market_value": 0.0,
+      "total": 198899.304
+    },
+    {
+      "dt": "2024-04-18",
+      "cash": 198899.304,
+      "shares": 0,
+      "close": 10.8,
+      "market_value": 0.0,
+      "total": 198899.304
+    },
+    {
+      "dt": "2024-04-19",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.69,
+      "market_value": 89796.0,
+      "total": 198686.322
+    },
+    {
+      "dt": "2024-04-22",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.5,
+      "market_value": 88200.0,
+      "total": 197090.322
+    },
+    {
+      "dt": "2024-04-23",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.54,
+      "market_value": 88536.0,
+      "total": 197426.322
+    },
+    {
+      "dt": "2024-04-24",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.53,
+      "market_value": 88452.0,
+      "total": 197342.322
+    },
+    {
+      "dt": "2024-04-25",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.61,
+      "market_value": 89124.0,
+      "total": 198014.322
+    },
+    {
+      "dt": "2024-04-26",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.6,
+      "market_value": 89040.0,
+      "total": 197930.322
+    },
+    {
+      "dt": "2024-04-29",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.81,
+      "market_value": 90804.0,
+      "total": 199694.322
+    },
+    {
+      "dt": "2024-04-30",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.79,
+      "market_value": 90636.0,
+      "total": 199526.322
+    },
+    {
+      "dt": "2024-05-06",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.89,
+      "market_value": 91476.0,
+      "total": 200366.322
+    },
+    {
+      "dt": "2024-05-07",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.88,
+      "market_value": 91392.0,
+      "total": 200282.322
+    },
+    {
+      "dt": "2024-05-08",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.73,
+      "market_value": 90132.0,
+      "total": 199022.322
+    },
+    {
+      "dt": "2024-05-09",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.76,
+      "market_value": 90384.0,
+      "total": 199274.322
+    },
+    {
+      "dt": "2024-05-10",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.94,
+      "market_value": 91896.0,
+      "total": 200786.322
+    },
+    {
+      "dt": "2024-05-13",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.97,
+      "market_value": 92148.0,
+      "total": 201038.322
+    },
+    {
+      "dt": "2024-05-14",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.91,
+      "market_value": 91644.0,
+      "total": 200534.322
+    },
+    {
+      "dt": "2024-05-15",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 10.83,
+      "market_value": 90972.0,
+      "total": 199862.322
+    },
+    {
+      "dt": "2024-05-16",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.17,
+      "market_value": 93828.0,
+      "total": 202718.322
+    },
+    {
+      "dt": "2024-05-17",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.42,
+      "market_value": 95928.0,
+      "total": 204818.322
+    },
+    {
+      "dt": "2024-05-20",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.38,
+      "market_value": 95592.0,
+      "total": 204482.322
+    },
+    {
+      "dt": "2024-05-21",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.55,
+      "market_value": 97020.0,
+      "total": 205910.322
+    },
+    {
+      "dt": "2024-05-22",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.56,
+      "market_value": 97104.0,
+      "total": 205994.322
+    },
+    {
+      "dt": "2024-05-23",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.4,
+      "market_value": 95760.0,
+      "total": 204650.322
+    },
+    {
+      "dt": "2024-05-24",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.31,
+      "market_value": 95004.0,
+      "total": 203894.322
+    },
+    {
+      "dt": "2024-05-27",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.51,
+      "market_value": 96684.0,
+      "total": 205574.322
+    },
+    {
+      "dt": "2024-05-28",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.4,
+      "market_value": 95760.0,
+      "total": 204650.322
+    },
+    {
+      "dt": "2024-05-29",
+      "cash": 108890.322,
+      "shares": 8400,
+      "close": 11.26,
+      "market_value": 94584.0,
+      "total": 203474.322
+    },
+    {
+      "dt": "2024-05-30",
+      "cash": 203259.114,
+      "shares": 0,
+      "close": 11.12,
+      "market_value": 0.0,
+      "total": 203259.114
+    },
+    {
+      "dt": "2024-05-31",
+      "cash": 203259.114,
+      "shares": 0,
+      "close": 11.11,
+      "market_value": 0.0,
+      "total": 203259.114
+    }
+  ],
+  "trades": [
+    {
+      "trade_date": "2024-01-26",
+      "signal_date": "2024-01-25",
+      "side": "BUY",
+      "shares": 9500,
+      "price": 9.47,
+      "amount": 89965.0,
+      "fee": 44.9825,
+      "cash_after": 109990.0175,
+      "position_after": 9500,
+      "market_value_after": 91390.0,
+      "total_after": 201380.0175,
+      "prev_fast": 9.192,
+      "prev_slow": 9.21,
+      "curr_fast": 9.252,
+      "curr_slow": 9.243
+    },
+    {
+      "trade_date": "2024-02-06",
+      "signal_date": "2024-02-05",
+      "side": "SELL",
+      "shares": 9500,
+      "price": 9.3,
+      "amount": 88350.0,
+      "fee": 44.175,
+      "cash_after": 198295.8425,
+      "position_after": 0,
+      "market_value_after": 0.0,
+      "total_after": 198295.8425,
+      "prev_fast": 9.468,
+      "prev_slow": 9.405,
+      "curr_fast": 9.404,
+      "curr_slow": 9.433
+    },
+    {
+      "trade_date": "2024-02-20",
+      "signal_date": "2024-02-19",
+      "side": "BUY",
+      "shares": 9200,
+      "price": 9.79,
+      "amount": 90068.0,
+      "fee": 45.034,
+      "cash_after": 108182.8085,
+      "position_after": 9200,
+      "market_value_after": 90344.0,
+      "total_after": 198526.8085,
+      "prev_fast": 9.522,
+      "prev_slow": 9.53,
+      "curr_fast": 9.63,
+      "curr_slow": 9.549
+    },
+    {
+      "trade_date": "2024-03-05",
+      "signal_date": "2024-03-04",
+      "side": "SELL",
+      "shares": 9200,
+      "price": 10.3,
+      "amount": 94760.0,
+      "fee": 47.38,
+      "cash_after": 202895.4285,
+      "position_after": 0,
+      "market_value_after": 0.0,
+      "total_after": 202895.4285,
+      "prev_fast": 10.52,
+      "prev_slow": 10.478,
+      "curr_fast": 10.48,
+      "curr_slow": 10.53
+    },
+    {
+      "trade_date": "2024-03-15",
+      "signal_date": "2024-03-14",
+      "side": "BUY",
+      "shares": 8800,
+      "price": 10.55,
+      "amount": 92840.0,
+      "fee": 46.42,
+      "cash_after": 110009.0085,
+      "position_after": 8800,
+      "market_value_after": 93280.0,
+      "total_after": 203289.0085,
+      "prev_fast": 10.424,
+      "prev_slow": 10.429,
+      "curr_fast": 10.394,
+      "curr_slow": 10.393
+    },
+    {
+      "trade_date": "2024-03-20",
+      "signal_date": "2024-03-19",
+      "side": "SELL",
+      "shares": 8800,
+      "price": 10.38,
+      "amount": 91344.0,
+      "fee": 45.672,
+      "cash_after": 201307.3365,
+      "position_after": 0,
+      "market_value_after": 0.0,
+      "total_after": 201307.3365,
+      "prev_fast": 10.452,
+      "prev_slow": 10.425,
+      "curr_fast": 10.42,
+      "curr_slow": 10.422
+    },
+    {
+      "trade_date": "2024-03-21",
+      "signal_date": "2024-03-20",
+      "side": "BUY",
+      "shares": 8600,
+      "price": 10.45,
+      "amount": 89870.0,
+      "fee": 44.935,
+      "cash_after": 111392.4015,
+      "position_after": 8600,
+      "market_value_after": 90042.0,
+      "total_after": 201434.4015,
+      "prev_fast": 10.42,
+      "prev_slow": 10.422,
+      "curr_fast": 10.444,
+      "curr_slow": 10.434
+    },
+    {
+      "trade_date": "2024-03-26",
+      "signal_date": "2024-03-25",
+      "side": "SELL",
+      "shares": 8600,
+      "price": 10.45,
+      "amount": 89870.0,
+      "fee": 44.935,
+      "cash_after": 201217.4665,
+      "position_after": 0,
+      "market_value_after": 0.0,
+      "total_after": 201217.4665,
+      "prev_fast": 10.444,
+      "prev_slow": 10.441,
+      "curr_fast": 10.416,
+      "curr_slow": 10.434
+    },
+    {
+      "trade_date": "2024-03-27",
+      "signal_date": "2024-03-26",
+      "side": "BUY",
+      "shares": 8500,
+      "price": 10.56,
+      "amount": 89760.0,
+      "fee": 44.88,
+      "cash_after": 111412.5865,
+      "position_after": 8500,
+      "market_value_after": 89505.0,
+      "total_after": 200917.5865,
+      "prev_fast": 10.416,
+      "prev_slow": 10.434,
+      "curr_fast": 10.456,
+      "curr_slow": 10.438
+    },
+    {
+      "trade_date": "2024-03-29",
+      "signal_date": "2024-03-28",
+      "side": "SELL",
+      "shares": 8500,
+      "price": 10.45,
+      "amount": 88825.0,
+      "fee": 44.4125,
+      "cash_after": 200193.174,
+      "position_after": 0,
+      "market_value_after": 0.0,
+      "total_after": 200193.174,
+      "prev_fast": 10.472,
+      "prev_slow": 10.458,
+      "curr_fast": 10.476,
+      "curr_slow": 10.484
+    },
+    {
+      "trade_date": "2024-04-01",
+      "signal_date": "2024-03-29",
+      "side": "BUY",
+      "shares": 8600,
+      "price": 10.52,
+      "amount": 90472.0,
+      "fee": 45.236,
+      "cash_after": 109675.938,
+      "position_after": 8600,
+      "market_value_after": 91504.0,
+      "total_after": 201179.938,
+      "prev_fast": 10.476,
+      "prev_slow": 10.484,
+      "curr_fast": 10.508,
+      "curr_slow": 10.476
+    },
+    {
+      "trade_date": "2024-04-10",
+      "signal_date": "2024-04-09",
+      "side": "SELL",
+      "shares": 8600,
+      "price": 10.38,
+      "amount": 89268.0,
+      "fee": 44.634,
+      "cash_after": 198899.304,
+      "position_after": 0,
+      "market_value_after": 0.0,
+      "total_after": 198899.304,
+      "prev_fast": 10.52,
+      "prev_slow": 10.498,
+      "curr_fast": 10.496,
+      "curr_slow": 10.502
+    },
+    {
+      "trade_date": "2024-04-19",
+      "signal_date": "2024-04-18",
+      "side": "BUY",
+      "shares": 8400,
+      "price": 10.71,
+      "amount": 89964.0,
+      "fee": 44.982,
+      "cash_after": 108890.322,
+      "position_after": 8400,
+      "market_value_after": 89796.0,
+      "total_after": 198686.322,
+      "prev_fast": 10.3,
+      "prev_slow": 10.362,
+      "curr_fast": 10.41,
+      "curr_slow": 10.387
+    },
+    {
+      "trade_date": "2024-05-30",
+      "signal_date": "2024-05-29",
+      "side": "SELL",
+      "shares": 8400,
+      "price": 11.24,
+      "amount": 94416.0,
+      "fee": 47.208,
+      "cash_after": 203259.114,
+      "position_after": 0,
+      "market_value_after": 0.0,
+      "total_after": 203259.114,
+      "prev_fast": 11.436,
+      "prev_slow": 11.353,
+      "curr_fast": 11.376,
+      "curr_slow": 11.396
+    }
+  ],
+  "metrics": {
+    "raw": {
+      "start_date": "2024-01-03",
+      "end_date": "2024-05-31",
+      "trading_days": 97,
+      "ending_total": 203259.114,
+      "total_return": 0.016296,
+      "cagr": 0.042888,
+      "volatility_ann": 0.097386,
+      "sharpe_ratio": 0.478634,
+      "max_drawdown": -0.054554
+    },
+    "formatted": {
+      "Total Return": "1.63%",
+      "CAGR": "4.29%",
+      "Volatility (ann.)": "9.74%",
+      "Sharpe Ratio": "0.48",
+      "Max Drawdown": "-5.46%"
+    }
+  },
+  "stub_contract": {
+    "tushare_stub": [
+      "trade_cal returns baseline_calendar for the scenario window",
+      "daily returns 2024_bars_ext_cols open/high/low/close/volume/amount",
+      "adj_factor returns adjust for the same asset/date keys",
+      "stk_limit returns up_limit/down_limit for the same asset/date keys",
+      "stock_st returns is_st rows; missing rows mean false for this asset"
+    ],
+    "gateway_stub": [
+      "quote stream replays the scenario rows in date order",
+      "paper/live matching uses the same open price and limit-price fields",
+      "order acknowledgements preserve qtoid and include an external_order_id only as mapping data",
+      "fills match the baseline trade_date, side, shares, price, amount, and fee"
+    ]
+  }
+}

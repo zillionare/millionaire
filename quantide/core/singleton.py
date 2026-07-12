@@ -1,12 +1,12 @@
 from functools import wraps
-from typing import Any, Dict, Type, TypeVar, cast
+from typing import Any, TypeVar, cast
 
-_instances: Dict[Type[Any], Any] = {}
+_instances: dict[type[Any], Any] = {}
 
 T = TypeVar("T")
 
 
-def singleton(cls: Type[T]) -> Type[T]:
+def singleton(cls: type[T]) -> type[T]:
     """单例装饰器，用于将类转换为单例模式"""
 
     @wraps(cls)
@@ -24,4 +24,4 @@ def singleton(cls: Type[T]) -> Type[T]:
     # 添加对实例字典的访问
     get_instance._instances = _instances  # type: ignore[attr-defined]
 
-    return cast(Type[T], get_instance)
+    return cast(type[T], get_instance)

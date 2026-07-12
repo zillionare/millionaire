@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "kind": "unit",
+  "data_source": "tushare",
+  "date_range": [
+    "20220101",
+    "20221231"
+  ],
+  "generated_at": "2026-06-18T05:36:10.550907Z",
+  "asset_count": 102,
+  "categories": {
+    "chinext_star": 9,
+    "st": 10,
+    "ordinary": 50,
+    "delisted": 9,
+    "dividend_adjust": 5,
+    "suspended": 9,
+    "ipo": 10
+  },
+  "row_counts": {
+    "daily": 21337,
+    "adj_factor": 22084,
+    "st_info": 86,
+    "limit_price": 21662,
+    "calendar": 365
+  },
+  "expected_trading_days": 242,
+  "tushare_token": "ce9f8c37***",
+  "excludes_e2e_universe": true
+}

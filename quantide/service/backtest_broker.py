@@ -1,7 +1,7 @@
 import datetime
 import math
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import polars as pl
@@ -14,7 +14,6 @@ from quantide.core.errors import (
     ClockBeforeStart,
     ClockRewind,
     DupPortfolio,
-    InsufficientAmount,
     InsufficientCash,
     InsufficientPosition,
     LimitPrice,
@@ -23,11 +22,11 @@ from quantide.core.errors import (
     PriceNotMeet,
     TradeError,
 )
+from quantide.core.ports.broker import ExecutionResult
+from quantide.data.models import Asset, Order, Portfolio, Position, Trade
 from quantide.data.models.calendar import calendar
-from quantide.data.models.daily_bars import daily_bars
-from quantide.data.sqlite import Asset, Order, Portfolio, Position, Trade, db
+from quantide.data.sqlite import db
 from quantide.service.abstract_broker import AbstractBroker
-from quantide.service.base_broker import TradeResult
 from quantide.service.datafeed import BarsFeedImpl
 
 
@@ -43,6 +42,7 @@ class BacktestBroker(AbstractBroker):
         portfolio_name: str = "backtest",
         match_level: Literal["day", "minute"] = "day",
         desc: str = "",
+        save_logs: bool = False,
     ):
         """回测 broker
 
@@ -54,6 +54,7 @@ class BacktestBroker(AbstractBroker):
             - data_feed, 行情数据源
             - match_level, 匹配模式，day为日线，minute为分钟线
             - desc, 账户/策略描述
+            - save_logs, 是否同步写入回测日志文件
         """
         super().__init__(
             portfolio_id=portfolio_id,
@@ -69,6 +70,7 @@ class BacktestBroker(AbstractBroker):
         self._bt_end: datetime.datetime = calendar.replace_time(bt_end, 16, 0)
         self._bt_stopped: bool = False
         self._desc: str = desc
+        self._save_backtest_logs = save_logs
 
         # 回测时钟，初始化为 bt_start 的前一个交易日 (Day 0)
         prev = calendar.day_shift(bt_start, -1)
@@ -82,6 +84,24 @@ class BacktestBroker(AbstractBroker):
 
         # Use patched logger to support time-travel logging
         self.logger = logger.bind(portfolio_id=portfolio_id)
+
+    def _log(
+        self,
+        level: str,
+        message: str,
+        dt: datetime.date | datetime.datetime | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """同时写入 loguru 与回测日志存储。"""
+        log_dt = dt or self._clock
+        self.logger.log(level.upper(), message)
+        self.write_backtest_log(
+            level=level,
+            source="broker",
+            message=message,
+            dt=log_dt,
+            extra=extra,
+        )
 
     @property
     def positions(self) -> dict[str, Position]:
@@ -183,8 +203,12 @@ class BacktestBroker(AbstractBroker):
         if not fill_dates:
             return
 
-        # 2. 获取最新持仓
-        latest_pos = db.get_positions(dt=None, portfolio_id=self._portfolio_id)
+        # 2. 获取与最新资产记录同日的持仓快照。
+        #
+        # 清仓后的最新资产日可能已经没有任何持仓记录；如果这里退回到 positions
+        # 表中的“最新日期”，会把更早一天的历史仓位重新带回来，导致后续填仓时在
+        # 空仓日期重新出现 market_value。
+        latest_pos = db.get_positions(dt=latest_asset.dt, portfolio_id=self._portfolio_id)
 
         if latest_pos.is_empty():
             self._fill_assets_only(fill_dates, latest_asset)
@@ -224,20 +248,38 @@ class BacktestBroker(AbstractBroker):
 
         # 1. 获取行情与复权因子（包含前一交易日，用于基准）
         old_date = calendar.day_shift(start, -1)
-        prices_df = self._data_feed.get_close_adjust_factor(assets, old_date, end)
-        base_factors = prices_df.filter(pl.col("date") == old_date).select([
-            pl.col("asset"),
-            pl.col("adjust").alias("base_adjust")
-        ])
+        prices_df = self._get_close_adjust_factors(assets, old_date, end)
+        prices_df = prices_df.sort(["asset", "date"])
+
+        base_factors = prices_df.filter(pl.col("date") == old_date).select(
+            [
+                pl.col("asset"),
+                pl.col("adjust").alias("base_adjust"),
+            ]
+        )
+        first_factors = prices_df.group_by("asset").agg(
+            pl.col("adjust").first().alias("first_adjust")
+        )
 
         # 3. 构造填充模板
-        pos_template = latest_pos.select([
-            pl.col("asset"),
-            pl.col("shares"),
-            pl.col("price"),
-            (pl.col("mv") / pl.col("shares")).alias("last_mkt_price")
-        ]).join(base_factors, on="asset", how="left").with_columns(
-            pl.col("base_adjust").fill_null(1.0)
+        pos_template = (
+            latest_pos.select(
+                [
+                    pl.col("asset"),
+                    pl.col("shares"),
+                    pl.col("price"),
+                    (pl.col("mv") / pl.col("shares")).alias("last_mkt_price"),
+                ]
+            )
+            .join(base_factors, on="asset", how="left")
+            .join(first_factors, on="asset", how="left")
+            .with_columns(
+                pl.coalesce(
+                    pl.col("base_adjust"),
+                    pl.col("first_adjust"),
+                    pl.lit(1.0),
+                ).alias("seed_adjust")
+            )
         )
 
         fill_df = pl.DataFrame({"date": fill_dates}).join(pos_template, how="cross")
@@ -252,16 +294,30 @@ class BacktestBroker(AbstractBroker):
             pl.col("adjust").fill_null(strategy="forward").over("asset"),
         ]).with_columns([
             pl.col("close").fill_null(pl.col("last_mkt_price")).over("asset"),
-            pl.col("adjust").fill_null(pl.col("base_adjust")).over("asset"),
+            pl.col("adjust").fill_null(pl.col("seed_adjust")).over("asset"),
         ])
 
-        # 5. 计算复权变动比例及产生的现金补偿
-        # 补偿公式：(new_adjust - prev_adjust) * shares * close
+        # 5. 计算复权变动比例及产生的现金补偿。
+        #
+        # adjust 是累计复权因子，资产价值的连续性由相邻因子的比值决定，
+        # 不能直接使用差值，否则会在除权日凭空放大现金。
+        #
+        # 当缺少前一交易日因子时，seed_adjust 会退化为首个观测到的因子，
+        # 这样首个有效 bar 不会错误地产生一次“从 1 跳到当前因子”的伪补偿。
         fill_df = fill_df.with_columns(
-            pl.col("adjust").shift(1).over("asset").fill_null(pl.col("base_adjust")).alias("prev_adjust")
+            pl.col("adjust")
+            .shift(1)
+            .over("asset")
+            .fill_null(pl.col("seed_adjust"))
+            .alias("prev_adjust")
         ).with_columns([
-            ((pl.col("adjust") - pl.col("prev_adjust")) * pl.col("shares") * pl.col("close")).alias("cash_adj"),
-            (pl.col("shares") * pl.col("close")).alias("mv") # 新增 mv 列
+            pl.when((pl.col("adjust") > 0) & (pl.col("prev_adjust") > 0))
+            .then(pl.col("adjust") / pl.col("prev_adjust"))
+            .otherwise(pl.lit(1.0))
+            .alias("adjust_ratio"),
+        ]).with_columns([
+            ((pl.col("adjust_ratio") - 1.0) * pl.col("shares") * pl.col("close")).alias("cash_adj"),
+            (pl.col("shares") * pl.col("close")).alias("mv"),
         ])
 
         # 6. 汇总每日统计量
@@ -329,7 +385,7 @@ class BacktestBroker(AbstractBroker):
             raise ClockRewind(dt, self._clock)
 
         if not calendar.is_trade_day(self.as_date(dt)):
-            self.logger.warning(f"{dt} is not a valid trade day, skip set_clock")
+            self._log("WARNING", f"{dt} is not a valid trade day, skip set_clock", dt=dt)
             return
 
         new_dt = self.as_date(dt)
@@ -355,7 +411,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         # 在回测中，timeout 参数无效，直接忽略
         _ = timeout
 
@@ -369,7 +425,11 @@ class BacktestBroker(AbstractBroker):
         # 2. 获取撮合所需的行情数据
         bars = self._data_feed.get_price_for_match(asset, order_time)
         if bars is None or bars.is_empty():
-            self.logger.warning(f"failed to match {asset}, no data at {order_time}")
+            self._log(
+                "WARNING",
+                f"failed to match {asset}, no data at {order_time}",
+                dt=order_time,
+            )
             raise NoDataForMatch(asset, order_time)
 
         # 3. 根据报单价格（考虑涨停）和 shares 确定现金是否充足
@@ -402,12 +462,19 @@ class BacktestBroker(AbstractBroker):
             else:
                 trade =self._match_bid_day(order, bars)
 
-            return TradeResult(order.qtoid, [trade])
+            return ExecutionResult(qt_oid=order.qtoid, trades=[trade])
         except TradeError as e:
-            # 在废单的情况下，没必要返回 Order id，但可以记录状态
+            # 在废单的情况下，保留已插入的订单记录并更新状态，
+            # 避免重复插入同一个 qtoid 触发唯一约束异常。
             order.status = OrderStatus.JUNK
             order.status_msg = str(e)
-            db.insert_order(order)
+            db.update_order(
+                order.qtoid,
+                status=order.status.value,
+                status_msg=order.status_msg,
+                filled=order.filled,
+                error=str(e),
+            )
             raise e
 
     def _match_bid_day(
@@ -438,19 +505,27 @@ class BacktestBroker(AbstractBroker):
 
         # 成交时间点已涨停，不允许成交
         if up_limit > 0 and match_price >= up_limit:
-            self.logger.warning(f"资产 {order.asset} 在 {row['date']} 处于涨停，无法成交")
+            self._log(
+                "WARNING",
+                f"资产 {order.asset} 在 {row['date']} 处于涨停，无法成交",
+                dt=order.tm,
+            )
             raise LimitPrice(order.asset, match_price)
 
         if bid_price > 0 and bid_price < match_price:
-            self.logger.warning(
-                f"资产 {order.asset} 委托价 {bid_price} 低于撮合价 {match_price}，无法成交"
+            self._log(
+                "WARNING",
+                f"资产 {order.asset} 委托价 {bid_price} 低于撮合价 {match_price}，无法成交",
+                dt=order.tm,
             )
             raise PriceNotMeet(order.asset, bid_price, match_price)
 
         required_cash = order.shares * bid_price * (1 + self._commission)
         if required_cash > self._cash:
-            self.logger.info(
-                f"委买失败：{order.asset}, 资金({self._cash:.2f})不足以按价格 {bid_price:.2f} 购买 {order.shares} 股。"
+            self._log(
+                "INFO",
+                f"委买失败：{order.asset}, 资金({self._cash:.2f})不足以按价格 {bid_price:.2f} 购买 {order.shares} 股。",
+                dt=order.tm,
             )
             raise InsufficientCash(self._portfolio_name, required_cash, self._cash)
 
@@ -615,7 +690,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         _ = timeout
 
         if not 0 < percent <= 1:
@@ -633,7 +708,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         _ = timeout
         assert order_time is not None, "order_time must be present in backtest mode"
 
@@ -653,7 +728,7 @@ class BacktestBroker(AbstractBroker):
 
         shares = int(shares // 100) * 100
         if shares == 0:
-            return TradeResult.empty()
+            return ExecutionResult.empty()
 
         return await self.buy(
             asset, shares, price, order_time, timeout, **kwargs
@@ -667,7 +742,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         _ = timeout
 
         assert order_time is not None, "order_time must be present in backtest mode"
@@ -676,7 +751,11 @@ class BacktestBroker(AbstractBroker):
         # 1. 获取撮合所需的行情数据
         bars = self._data_feed.get_price_for_match(asset, order_time)
         if bars is None:
-            logger.warning(f"failed to match {asset}, no data at {order_time}")
+            self._log(
+                "WARNING",
+                f"failed to match {asset}, no data at {order_time}",
+                dt=order_time,
+            )
             raise NoDataForMatch(asset, order_time)
 
         # 2. 确定基准价格
@@ -685,7 +764,11 @@ class BacktestBroker(AbstractBroker):
         ask_price = price or down_limit
 
         if ask_price == 0:
-            logger.warning(f"failed to match {asset}, no valid price at {order_time}")
+            self._log(
+                "WARNING",
+                f"failed to match {asset}, no valid price at {order_time}",
+                dt=order_time,
+            )
             raise NoDataForMatch(asset, order_time)
 
         # 3. 严格校验：份额必须是 100 的整数倍（除非清仓）且有可用持仓
@@ -720,12 +803,18 @@ class BacktestBroker(AbstractBroker):
             else:
                 trade = self._match_ask_day(order, bars)
 
-            return TradeResult(order.qtoid, [trade])
+            return ExecutionResult(qt_oid=order.qtoid, trades=[trade])
         except TradeError as e:
-            # 在废单的情况下，没必要返回 Order id
+            # 在废单的情况下，保留已插入的订单记录并更新状态。
             order.status = OrderStatus.JUNK
             order.status_msg = str(e)
-            db.insert_order(order)
+            db.update_order(
+                order.qtoid,
+                status=order.status.value,
+                status_msg=order.status_msg,
+                filled=order.filled,
+                error=str(e),
+            )
             raise e
 
     def _match_ask_day(
@@ -747,12 +836,18 @@ class BacktestBroker(AbstractBroker):
         match_price = row["open"] if order.tm.time() <= market_open else row["close"]
 
         if down_limit > 0 and match_price <= down_limit:
-            logger.warning(f"资产 {order.asset} 在 {row['date']} 处于跌停，无法成交")
+            self._log(
+                "WARNING",
+                f"资产 {order.asset} 在 {row['date']} 处于跌停，无法成交",
+                dt=order.tm,
+            )
             raise LimitPrice(order.asset, match_price)
 
         if ask_price > 0 and ask_price > match_price:
-            logger.warning(
-                f"资产 {order.asset} 委托价 {ask_price} 高于撮合价 {match_price}，无法成交"
+            self._log(
+                "WARNING",
+                f"资产 {order.asset} 委托价 {ask_price} 高于撮合价 {match_price}，无法成交",
+                dt=order.tm,
             )
             raise PriceNotMeet(order.asset, ask_price, match_price)
 
@@ -860,7 +955,7 @@ class BacktestBroker(AbstractBroker):
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """按持仓百分比卖出"""
         _ = timeout
 
@@ -890,7 +985,7 @@ class BacktestBroker(AbstractBroker):
         timeout: float = 0.5,
         method: Literal["ceil", "floor"] = "ceil",
         **kwargs,
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         _ = timeout
 
         assert order_time is not None, "order_time must be present in backtest mode"
@@ -913,7 +1008,7 @@ class BacktestBroker(AbstractBroker):
             shares = int(amount / est_price / 100) * 100
 
         if shares == 0:
-            return TradeResult.empty()
+            return ExecutionResult.empty()
 
         return await self.sell(
             asset, shares, est_price, order_time, timeout, **kwargs
@@ -926,11 +1021,11 @@ class BacktestBroker(AbstractBroker):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5
-    ) -> TradeResult:
+    ) -> ExecutionResult:
         """将`asset`仓位调整到占总市值的`target_pct`
 
         受市值波动影响，以及可能还有其它标的的仓位也要调整，所以最终仓位可能与目标仓位不完全一致。
-        如果当前仓位非常接近目标仓位（差别不足一手），则不进行调整，此时返回`TradeResult.empty()`
+        如果当前仓位非常接近目标仓位（差别不足一手），则不进行调整，此时返回`ExecutionResult.empty()`
 
         Args:
             asset: 资产代码，"symbol.SZ"风格
@@ -939,7 +1034,7 @@ class BacktestBroker(AbstractBroker):
             order_time: 委托时间.
 
         Returns:
-            TradeResult: 交易结果
+            ExecutionResult: 交易结果
         """
         _ = timeout
 
@@ -972,17 +1067,84 @@ class BacktestBroker(AbstractBroker):
         frame_type: str = "1d",
         skip_suspended: bool = True,
         fill_value: bool = True,
+        include_forming_bar: bool = True,
     ) -> pl.DataFrame:
+        """获取回测历史行情。
+
+        日线回测默认在开盘时生成信号，因此当 ``end_dt`` 落在开盘时刻或更早时，
+        当前交易日尚未完成，历史窗口只能看到上一交易日的数据，避免前视偏差。
+
+        Args:
+            asset: 资产代码。
+            count: 历史 bar 数量。
+            end_dt: 截止时间，包含边界。
+            frame_type: 周期类型，目前仅支持 ``1d``。
+            skip_suspended: 预留参数，当前未使用。
+            fill_value: 预留参数，当前未使用。
+            include_forming_bar: 回测模式下不适用（无实时 tick 注入），保留参数以
+                与 sim/gateway broker 接口一致。
+
+        Returns:
+            历史日线数据。
+        """
+        _ = skip_suspended
+        _ = fill_value
+        _ = include_forming_bar
         if frame_type != "1d":
             # 目前只支持日线，后续可扩展
             raise NotImplementedError("BacktestBroker currently only supports 1d history")
 
         end_date = self.as_date(end_dt) if end_dt else self.as_date(self._clock)
+        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
+            end_date = calendar.day_shift(end_date, -1)
 
-        # 使用 daily_bars 获取历史数据
-        return daily_bars.get_bars(
+        # 使用数据源获取历史数据
+        return self._data_feed.get_bars(
             n=count,
             end=end_date,
             assets=[asset],
-            adjust="qfq"
+            adjust="qfq",
+        )
+
+    def _get_close_adjust_factors(
+        self,
+        assets: list[str],
+        start: datetime.date,
+        end: datetime.date,
+    ) -> pl.DataFrame:
+        """读取用于展仓的收盘价与复权因子，并兼容旧测试桩接口。"""
+        if hasattr(self._data_feed, "get_close_adjust_factor"):
+            frame = self._data_feed.get_close_adjust_factor(assets, start, end)
+        elif hasattr(self._data_feed, "get_close_factor"):
+            frame = self._data_feed.get_close_factor(assets, start, end)
+        else:
+            frame = None
+
+        if frame is None or frame.is_empty():
+            return pl.DataFrame(
+                schema={
+                    "date": pl.Date,
+                    "asset": pl.Utf8,
+                    "close": pl.Float64,
+                    "adjust": pl.Float64,
+                }
+            )
+
+        rename_map: dict[str, str] = {}
+        if "dt" in frame.columns and "date" not in frame.columns:
+            rename_map["dt"] = "date"
+        if "factor" in frame.columns and "adjust" not in frame.columns:
+            rename_map["factor"] = "adjust"
+        if rename_map:
+            frame = frame.rename(rename_map)
+
+        if "adjust" not in frame.columns:
+            frame = frame.with_columns(pl.lit(1.0).alias("adjust"))
+
+        return frame.select(["date", "asset", "close", "adjust"]).with_columns(
+            [
+                pl.col("date").cast(pl.Date),
+                pl.col("close").cast(pl.Float64),
+                pl.col("adjust").cast(pl.Float64),
+            ]
         )

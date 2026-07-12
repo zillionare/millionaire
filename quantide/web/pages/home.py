@@ -1,16 +1,20 @@
-import datetime
 from typing import Any
 
 from fasthtml.common import *
+
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
 from loguru import logger
 from monsterui.all import *
+from starlette.responses import RedirectResponse
 
+from quantide.config.branding import get_branding
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
-from quantide.data.sqlite import Position, db
+from quantide.data.models import Position
+from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
 from quantide.web.apis.broker import build_asset_overview
-from quantide.web.layouts.main import MainLayout
-
+from quantide.web.components.asset_label import resolve_asset_name
 from quantide.web.theme import AppTheme
 
 home_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -173,7 +177,7 @@ def PositionInfo(positions: list[Position] | None = None):
             rows.append(
                 Tr(
                     Td(p.asset),
-                    Td(p.asset),  # 暂无名称
+                    Td(resolve_asset_name(p.asset)),
                     Td(f"{p.shares:,}"),
                     Td(f"{p.avail:,}"),
                     Td(f"{p.shares - p.avail:,}"),
@@ -261,14 +265,14 @@ def TradePanel():
             Input(type="hidden", id="side", name="side", value="BUY"),
             # Inputs
             Div(
-                Label("股票代码", cls=label_cls),
+                _Label("股票代码", cls=label_cls),
                 Input(
                     name="asset",
                     placeholder="例如: 000001.SZ",
                     cls=input_cls,
                     required=True,
                 ),
-                Label("买入价格", cls=label_cls),
+                _Label("买入价格", cls=label_cls),
                 Input(
                     name="price",
                     type="number",
@@ -276,7 +280,7 @@ def TradePanel():
                     value="0.00",
                     cls=input_cls,
                 ),
-                Label("仓位选择", cls=label_cls),
+                _Label("仓位选择", cls=label_cls),
                 Div(
                     Button("满仓", type="button", cls=ratio_btn_cls),
                     Button("1/2", type="button", cls=ratio_btn_cls),
@@ -285,7 +289,7 @@ def TradePanel():
                     Button("1/10", type="button", cls=ratio_btn_cls),
                     cls="flex gap-1 mb-4 mt-1",
                 ),
-                Label("交易数量 (股)", cls=label_cls),
+                _Label("交易数量 (股)", cls=label_cls),
                 Input(
                     name="shares", type="number", step="100", cls=input_cls, required=True
                 ),
@@ -637,6 +641,7 @@ def OrderTable(orders: list[dict] | None = None):
 
 def NoAccountDialog():
     """无账户提示对话框"""
+    branding = get_branding()
     return Div(
         Div(
             Div(
@@ -646,7 +651,10 @@ def NoAccountDialog():
                     cls="flex justify-center mb-4",
                 ),
                 # 标题
-                H3("欢迎使用匡醍", cls="text-xl font-semibold text-gray-900 text-center mb-2"),
+                H3(
+                    f"欢迎使用 {branding.product_name}",
+                    cls="text-xl font-semibold text-gray-900 text-center mb-2",
+                ),
                 # 说明
                 P("您还没有配置任何交易账号。请创建至少一个模拟交易账户或配置实盘账户，才能开始使用系统。",
                   cls="text-gray-600 text-center mb-6"),
@@ -671,6 +679,27 @@ def NoAccountDialog():
         ),
         cls="max-w-[1400px] mx-auto w-full",
     )
+
+
+def _should_show_no_account_dialog(accounts: list[dict]) -> bool:
+    """首页不主动弹出账号创建对话框。
+
+    交易账号创建属于交易入口流程的一部分，不应在用户访问首页时抢占界面。
+    """
+    return False
+
+
+def _should_redirect_to_strategy() -> bool:
+    """首页是否应重定向到策略页。
+
+    等价于 `not live_trading_available`（即 `not gateway_enabled`）。
+    函数体保留以维持调用点语义清晰；`get_feature_status()["live_trading"]`
+    已封装 dev-stub 模式、gateway 配置与连接性测试为单一标志。
+    """
+    try:
+        return not bool(init_wizard.get_feature_status().get("live_trading"))
+    except Exception:
+        return True
 
 
 def main_block(
@@ -761,93 +790,10 @@ def _auto_select_account(reg: BrokerRegistry, session: dict) -> tuple[str, str] 
 
 @rt("/", methods="get")
 def index(req, session):
-    layout = MainLayout(
-        title="首页",
-        user=session.get("auth"),
-    )
+    if _should_redirect_to_strategy():
+        return RedirectResponse("/strategy/", status_code=303)
+    return RedirectResponse("/trade/live/", status_code=303)
 
-    asset_overview = None
-    brokers = []
-    positions = []
-    orders = []
-    accounts = []
-    active_account = None
-    reg: BrokerRegistry | None = req.scope.get("registry")
-
-    if reg is not None:
-        # 获取所有账户
-        for kind in [BrokerKind.QMT, BrokerKind.SIMULATION]:
-            for info in reg.list_by_kind(kind):
-                account = {
-                    "id": info.get("id"),
-                    "name": info.get("name") or info.get("id"),
-                    "kind": kind.value,
-                    "label": "实盘" if kind == BrokerKind.QMT else "仿真",
-                    "status": info.get("status", False),
-                    "is_live": kind == BrokerKind.QMT,
-                    "switch_url": f"/home?kind={kind.value}&id={info.get('id')}",
-                }
-                accounts.append(account)
-
-        # 检查是否有任何账户
-        show_no_account_dialog = not accounts
-
-        # 检查 session 中是否有活动账户
-        active_kind = session.get("active_account_kind")
-        active_id = session.get("active_account_id")
-
-        if active_kind and active_id:
-            # 验证活动账户是否仍然存在
-            broker = reg.get(BrokerKind(active_kind), active_id)
-            if broker is None:
-                # 活动账户已不存在，需要重新选择
-                selected = _auto_select_account(reg, session)
-                if selected:
-                    session["active_account_kind"] = selected[0]
-                    session["active_account_id"] = selected[1]
-                    active_kind, active_id = selected
-        else:
-            # 没有活动账户，自动选择
-            selected = _auto_select_account(reg, session)
-            if selected:
-                session["active_account_kind"] = selected[0]
-                session["active_account_id"] = selected[1]
-                active_kind, active_id = selected
-
-        # 获取当前活动账户信息
-        if active_kind and active_id:
-            for acc in accounts:
-                if acc["kind"] == active_kind and acc["id"] == active_id:
-                    active_account = acc
-                    break
-
-        # 获取经纪人数据
-        broker = _get_broker(req)
-        if broker is not None:
-            asset_overview = _build_broker_asset_overview(broker)
-            positions = _normalize_positions(_safe_broker_attr(broker, "positions", []))
-            portfolio_id = _safe_broker_attr(broker, "portfolio_id")
-            if portfolio_id:
-                orders_df = db.get_orders(datetime.date.today(), portfolio_id)
-                if orders_df is not None and not orders_df.is_empty():
-                    orders = [
-                        {
-                            "tm": str(row.get("tm", ""))[:19],
-                            "asset": row.get("asset", ""),
-                            "side": row.get("side", OrderSide.BUY),
-                            "price": row.get("price", 0.0),
-                            "shares": row.get("shares", 0),
-                            "filled": row.get("filled", 0),
-                            "status": row.get("status", OrderStatus.UNREPORTED),
-                        }
-                        for row in orders_df.iter_rows(named=True)
-                    ]
-
-    layout.header_accounts = accounts
-    layout.active_account = active_account
-    layout.main_block = lambda: main_block(asset_overview, brokers, positions, orders, show_no_account_dialog)
-
-    return layout.render()
 
 @rt("/positions")
 async def get_positions(req):

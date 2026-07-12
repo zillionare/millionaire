@@ -87,13 +87,10 @@ class AppState(Entity):
     runtime_mode: str = "live"
     """运行模式"""
 
-    runtime_market_adapter: str = ""
-    """运行时行情适配器"""
-
     runtime_broker_adapter: str = ""
     """运行时交易适配器"""
 
-    # ========== 通知配置 ==========
+    # ========== 通知配置（运行时使用，不由 init wizard 管理） ==========
     notify_dingtalk_access_token: str = ""
     """钉钉 access_token"""
 
@@ -115,6 +112,12 @@ class AppState(Entity):
     # ========== 数据初始化 ==========
     epoch: datetime.date = field(default_factory=lambda: datetime.date(2005, 1, 1))
     """数据起始日期"""
+
+    data_source: str = "tushare"
+    """当前标准数据源适配器名称"""
+
+    cheat_on_close_time: str = "14:57"
+    """cheat_on_close 模式下 bar_tm 的撮合时间（HH:MM 格式，09:00-15:00 范围内）"""
 
     tushare_token: str = ""
     """Tushare API Token"""
@@ -208,6 +211,12 @@ class AppState(Entity):
         valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
         filtered_data = {k: v for k, v in data.items() if k in valid_fields}
         return cls(**filtered_data)
+
+    def to_settings(self, timezone: datetime.tzinfo | None = None) -> "Settings":
+        """转换为运行时设置视图。"""
+        from quantide.config.settings import DEFAULT_TIMEZONE, Settings
+
+        return Settings.from_state(self, timezone=timezone or DEFAULT_TIMEZONE)
 
     @property
     def is_fully_initialized(self) -> bool:

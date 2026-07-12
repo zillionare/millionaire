@@ -3,17 +3,20 @@
 import asyncio
 import datetime
 import json
+
 from fasthtml.common import *
+
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
+from loguru import logger
 from monsterui.all import *
 from starlette.responses import StreamingResponse
+
 from quantide.core.message import msg_hub
-from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.calendar import calendar
-from quantide.data.models.stocks import stock_list
-from quantide.data.services import StockSyncService
+from quantide.data.models.daily_bars import daily_bars
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
-from loguru import logger
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 data_market_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -38,7 +41,7 @@ def _TabNav(active_tab: str):
         ("update", "手动补全"),
         ("browse", "浏览"),
     ]
-    
+
     tab_items = []
     for tab_id, label in tabs:
         is_active = active_tab == tab_id
@@ -47,9 +50,9 @@ def _TabNav(active_tab: str):
             cls = f"{base_cls} text-red-600 border-b-2 border-red-600"
         else:
             cls = f"{base_cls} text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300"
-        
+
         tab_items.append(A(label, href=f"/data/market?tab={tab_id}", cls=cls))
-        
+
     return Div(
         Div(*tab_items, cls="flex space-x-2"),
         cls="border-b border-gray-200 mb-6"
@@ -67,13 +70,13 @@ def _OverviewTab():
             size_str = f"{size_bytes / (1024*1024*1024):.2f} GB"
         else:
             size_str = f"{size_bytes / (1024*1024):.2f} MB"
-            
+
         # 检查是否过期 (简单逻辑：如果结束日期早于上个交易日)
         is_stale = False
         last_trade = calendar.last_trade_date()
         if end_date and last_trade and end_date < last_trade:
             is_stale = True
-            
+
     except Exception as e:
         return Div(Card(CardBody(P(f"获取行情信息失败: {e}", cls="text-red-500"))))
 
@@ -118,22 +121,22 @@ def _VerifyTab():
             Form(
                 Div(
                     Div(
-                        Label("资产 (逗号分隔，可选)", cls="block text-sm font-medium mb-1"),
+                        _Label("资产 (逗号分隔，可选)", cls="block text-sm font-medium mb-1"),
                         Input(name="assets", placeholder="例如: 000001.SZ, 600000.SH", cls="input w-full"),
                         cls="flex-1"
                     ),
                     Div(
-                        Label("开始年份", cls="block text-sm font-medium mb-1"),
+                        _Label("开始年份", cls="block text-sm font-medium mb-1"),
                         Input(name="start_year", type="number", value="2024", cls="input w-full"),
                         cls="w-32"
                     ),
                     Div(
-                        Label("结束年份", cls="block text-sm font-medium mb-1"),
+                        _Label("结束年份", cls="block text-sm font-medium mb-1"),
                         Input(name="end_year", type="number", value="2024", cls="input w-full"),
                         cls="w-32"
                     ),
                     Div(
-                        Label(" ", cls="block text-sm mb-1"),
+                        Div(cls="block text-sm mb-1"),
                         Button("手动校验", type="submit", cls="btn btn-primary w-full"),
                         cls="w-32"
                     ),
@@ -165,17 +168,17 @@ def _UpdateTab():
             Form(
                 Div(
                     Div(
-                        Label("开始日期", cls="block text-sm font-medium mb-1"),
+                        _Label("开始日期", cls="block text-sm font-medium mb-1"),
                         Input(name="start_date", type="date", value="2024-01-01", cls="input w-full"),
                         cls="flex-1"
                     ),
                     Div(
-                        Label("结束日期", cls="block text-sm font-medium mb-1"),
+                        _Label("结束日期", cls="block text-sm font-medium mb-1"),
                         Input(name="end_date", type="date", value=today_str, cls="input w-full"),
                         cls="flex-1"
                     ),
                     Div(
-                        Label(" ", cls="block text-sm mb-1"),
+                        Div(cls="block text-sm mb-1"),
                         Button(
                             Div(UkIcon("download", cls="mr-2"), "立即更新", cls="flex items-center"),
                             type="submit",
@@ -201,7 +204,7 @@ def _BrowseTab(req):
     asset = req.query_params.get("asset", "")
     start = req.query_params.get("start", "")
     end = req.query_params.get("end", "")
-    
+
     # 默认显示最新 100 条
     df = None
     if asset:
@@ -214,12 +217,12 @@ def _BrowseTab(req):
                 df = df.sort("date", descending=True).head(100)
         except Exception as e:
             logger.error(f"查询行情失败: {e}")
-            
+
     table_content = P("输入证券代码并点击搜索查看数据...", cls="text-gray-400 text-center py-12")
     if df is not None and not df.is_empty():
         headers = ["日期", "代码", "开盘", "最高", "最低", "收盘", "成交量", "成交额", "复权", "ST"]
         header_row = Tr(*[Th(h) for h in headers])
-        
+
         rows = []
         for row in df.to_dicts():
             rows.append(Tr(
@@ -232,7 +235,7 @@ def _BrowseTab(req):
                 Td(f"{row['volume']:.0f}"),
                 Td(f"{row['amount']:.0f}"),
                 Td(f"{row['adjust']:.4f}"),
-                Td(Input(type="checkbox", checked=row.get("st", False), disabled=True, cls="checkbox checkbox-sm")),
+                Td(Input(type="checkbox", checked=row.get("is_st", False), disabled=True, cls="checkbox checkbox-sm")),
             ))
         table_content = Table(Thead(header_row), Tbody(*rows), cls="uk-table uk-table-divider uk-table-small text-sm")
     elif asset:
@@ -259,7 +262,7 @@ def _BrowseTab(req):
 @rt("/")
 async def index(req):
     active_tab = _get_active_tab(req)
-    
+
     if active_tab == "verify":
         content = _VerifyTab()
     elif active_tab == "update":
@@ -268,10 +271,10 @@ async def index(req):
         content = _BrowseTab(req)
     else:
         content = _OverviewTab()
-        
+
     layout = MainLayout()
     layout.set_sidebar_active("/data/market")
-    
+
     page_content = Div(
         Div(
             Div(
@@ -285,7 +288,7 @@ async def index(req):
         content,
         cls="p-8"
     )
-    
+
     layout.main_block = page_content
     return layout.render()
 
@@ -295,7 +298,7 @@ async def do_verify(form: dict):
     assets = form.get("assets", "").split(",")
     start_year = int(form.get("start_year", 2024))
     end_year = int(form.get("end_year", 2024))
-    
+
     return Div(
         Div(
             UkIcon("check-circle", cls="text-green-500 mr-2"),
@@ -316,14 +319,12 @@ async def _run_market_sync(start_date, end_date):
     _sync_status["message"] = "准备同步..."
 
     try:
-        stock_sync = StockSyncService(stock_list, daily_bars.store, calendar)
-        
         def _on_progress(payload):
             if not isinstance(payload, dict): return
             if payload.get("error"):
                 _sync_status["error"] = str(payload["error"])
                 return
-            
+
             completed = payload.get("completed", 0)
             total = payload.get("total", 0)
             if total > 0:
@@ -332,13 +333,13 @@ async def _run_market_sync(start_date, end_date):
 
         msg_hub.subscribe("fetch_data_progress", _on_progress)
         try:
-            await asyncio.to_thread(stock_sync.sync_daily_bars, start_date, end_date)
+            await asyncio.to_thread(daily_bars.fetch_with_daily_progress, start_date, end_date)
             _sync_status["progress"] = 100
             _sync_status["message"] = "同步完成"
             _sync_status["completed"] = True
         finally:
             msg_hub.unsubscribe("fetch_data_progress", _on_progress)
-            
+
     except Exception as e:
         _sync_status["error"] = str(e)
     finally:
@@ -349,7 +350,7 @@ async def do_update(req):
     form = await req.form()
     start_date_str = form.get("start_date")
     end_date_str = form.get("end_date")
-    
+
     try:
         s_dt = datetime.datetime.strptime(start_date_str, "%Y-%m-%d").date()
         e_dt = datetime.datetime.strptime(end_date_str, "%Y-%m-%d").date()
@@ -357,7 +358,7 @@ async def do_update(req):
         return Div("日期格式不正确", cls="text-red-500")
 
     asyncio.create_task(_run_market_sync(s_dt, e_dt))
-    
+
     # 返回进度对话框 (简化版)
     return Div(
         Div(
@@ -376,23 +377,23 @@ async def do_update(req):
             ),
             cls="fixed inset-0 bg-black/50 flex items-center justify-center z-50",
         ),
-        Script(f"""
-            (function() {{
+        Script("""
+            (function() {
                 const bar = document.getElementById('market-progress-bar');
                 const status = document.getElementById('market-status');
                 const btn = document.getElementById('close-btn');
                 const es = new EventSource('/data/market/sync-progress');
-                es.onmessage = function(e) {{
+                es.onmessage = function(e) {
                     const data = JSON.parse(e.data);
                     bar.style.width = data.progress + '%';
                     status.textContent = data.message;
-                    if (data.completed || data.error) {{
+                    if (data.completed || data.error) {
                         if (data.error) status.textContent = '错误: ' + data.error;
                         btn.disabled = false;
                         es.close();
-                    }}
-                }};
-            }})();
+                    }
+                };
+            })();
         """)
     )
 

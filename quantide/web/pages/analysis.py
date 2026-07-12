@@ -4,10 +4,11 @@ The subject application no longer exposes sector or index analysis management
 as a published feature.
 """
 
-from fasthtml.common import Div, H2, P, Title, to_xml
+from fasthtml.common import H2, Div, P, Title, to_xml
 from starlette.requests import Request
 from starlette.responses import HTMLResponse
 
+from quantide.config.branding import get_branding
 from quantide.web.components.header import header_component
 
 
@@ -47,7 +48,7 @@ def analysis_page(request: Request):
     page_content = Div(
         header_component(
             logo="/static/logo.png",
-            brand="匡醍",
+            brand=get_branding().product_name,
             nav_items=header_menu,
             user=user,
             accounts=[],

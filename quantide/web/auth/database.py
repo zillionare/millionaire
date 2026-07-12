@@ -1,7 +1,7 @@
 # auth/database.py
 from pathlib import Path
 
-from fasthtml.common import database
+from fastlite import database
 
 from quantide.config.paths import get_app_db_path
 
@@ -27,7 +27,7 @@ class AuthDatabase:
         # Force User to be fully processed as a dataclass
         import dataclasses
 
-        from .models import Session, User
+        from .models import User
 
         if not dataclasses.is_dataclass(User):
             raise Exception("User is not a proper dataclass!")

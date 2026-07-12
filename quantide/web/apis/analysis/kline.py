@@ -7,9 +7,8 @@ from fasthtml.common import *
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from quantide.data.models.index_bars import index_bars
+from quantide.data import get_index_bars_store
 from quantide.data.models.daily_bars import daily_bars
-from quantide.data.sqlite import db
 from quantide.data.utils.resampler import Resampler
 
 app, rt = fast_app()
@@ -33,7 +32,7 @@ def bars_to_list(df) -> list[dict]:
             "high": float(row["high"]),
             "low": float(row["low"]),
             "close": float(row["close"]),
-            "volume": int(row["volume"]),
+            "volume": float(row["volume"]),
             "amount": float(row["amount"]),
         })
     return result
@@ -52,7 +51,7 @@ def add_ma_to_list(df, ma_periods: list[int]) -> list[dict]:
             "high": float(row["high"]),
             "low": float(row["low"]),
             "close": float(row["close"]),
-            "volume": int(row["volume"]),
+            "volume": float(row["volume"]),
             "amount": float(row["amount"]),
         }
 
@@ -90,7 +89,7 @@ def _get_stock_bars(
             "high": pl.Float64,
             "low": pl.Float64,
             "close": pl.Float64,
-            "volume": pl.Int64,
+            "volume": pl.Float64,
             "amount": pl.Float64,
         })
 
@@ -111,10 +110,10 @@ def _get_index_bars(
     freq: str = "day",
 ) -> pl.DataFrame:
     """从 IndexBars 获取指数行情数据。"""
-    df = index_bars.get_bars_in_range(
+    df = get_index_bars_store().get(
+        symbols=[symbol],
         start=start,
         end=end,
-        symbols=[symbol],
         eager_mode=True,
     )
 
@@ -126,7 +125,7 @@ def _get_index_bars(
             "high": pl.Float64,
             "low": pl.Float64,
             "close": pl.Float64,
-            "volume": pl.Int64,
+            "volume": pl.Float64,
             "amount": pl.Float64,
         })
 

@@ -1,0 +1,119 @@
+{
+  "meta": {
+    "scenario": "dual_ma_2024",
+    "source": "tests/assets/2024_bars_ext_cols.parquet",
+    "purpose": "Gateway-driven live accuracy checks for qtoid lifecycle, state transitions, and strategy-path compatibility."
+  },
+  "strategy_full_fill": {
+    "signal_date": "2024-01-25",
+    "trade_date": "2024-01-26",
+    "qtoid": "qt-live-buy-1",
+    "external_order_id": "ext-live-buy-1",
+    "side": "BUY",
+    "shares": 9500,
+    "price": 9.47,
+    "amount": 89965.0,
+    "fee": 44.9825,
+    "limits": {
+      "down": 8.53,
+      "up": 10.47
+    },
+    "asset_after": {
+      "principal": 200000.0,
+      "total": 199955.0175,
+      "cash": 109990.0175,
+      "market_value": 89965.0,
+      "frozen_cash": 0.0
+    },
+    "positions_after": [
+      {
+        "symbol": "000001.SZ",
+        "shares": 9500,
+        "avail": 9500,
+        "cost": 9.474735,
+        "market_value": 89965.0
+      }
+    ]
+  },
+  "partial_cancel": {
+    "qtoid": "qt-partial-1",
+    "external_order_id": "ext-partial-1",
+    "side": "BUY",
+    "requested_shares": 500,
+    "filled_shares": 100,
+    "price": 10.0,
+    "amount": 1000.0,
+    "fee": 0.5,
+    "asset_after": {
+      "principal": 200000.0,
+      "total": 199999.5,
+      "cash": 198999.5,
+      "market_value": 1000.0,
+      "frozen_cash": 0.0
+    },
+    "positions_after": [
+      {
+        "symbol": "000001.SZ",
+        "shares": 100,
+        "avail": 100,
+        "cost": 10.005,
+        "market_value": 1000.0
+      }
+    ]
+  },
+  "reject": {
+    "qtoid": "qt-reject-1",
+    "error": "limit reject"
+  },
+  "out_of_order_replay": {
+    "qtoid": "qt-replay-1",
+    "external_order_id": "ext-replay-1",
+    "side": "BUY",
+    "shares": 200,
+    "price": 10.2,
+    "amount": 2040.0,
+    "fee": 1.02,
+    "asset_after": {
+      "principal": 100000.0,
+      "total": 99998.98,
+      "cash": 97958.98,
+      "market_value": 2040.0,
+      "frozen_cash": 0.0
+    },
+    "positions_after": [
+      {
+        "symbol": "000001.SZ",
+        "shares": 200,
+        "avail": 200,
+        "cost": 10.2051,
+        "market_value": 2040.0
+      }
+    ]
+  },
+  "mapping_break": {
+    "orders": [
+      {
+        "qtoid": "qt-break-a",
+        "order_id": "ext-break-shared",
+        "symbol": "000001.SZ",
+        "side": "buy",
+        "shares": 100,
+        "price": 10.1,
+        "status": "submitted",
+        "filled": 0,
+        "time": "2026-05-13 10:01:00"
+      },
+      {
+        "qtoid": "qt-break-b",
+        "order_id": "ext-break-shared",
+        "symbol": "000001.SZ",
+        "side": "buy",
+        "shares": 100,
+        "price": 10.1,
+        "status": "submitted",
+        "filled": 0,
+        "time": "2026-05-13 10:01:01"
+      }
+    ]
+  }
+}

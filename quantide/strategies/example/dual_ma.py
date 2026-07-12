@@ -1,17 +1,18 @@
 import datetime
-from typing import Any, Dict
-
-from quantide.core.enums import FrameType
 from quantide.core.strategy import BaseStrategy
 
 
 class DualMAStrategy(BaseStrategy):
-    """双均线策略示例"""
+    """双均线策略示例 (FR-090)"""
+
+    @staticmethod
+    def default_config() -> dict:
+        return {"fast": 5, "slow": 20}
 
     def __init__(self, broker, config):
         super().__init__(broker, config)
         self.fast_window = int(self.config.get("fast", 5))
-        self.slow_window = int(self.config.get("slow", 10))
+        self.slow_window = int(self.config.get("slow", 20))
         self.symbol = self.config.get("symbol", "000001.SZ")
         self.invest_amount = float(self.config.get("invest", 100000))
 
@@ -24,16 +25,16 @@ class DualMAStrategy(BaseStrategy):
         """开盘回调。"""
         pass
 
-    async def on_bar(
-        self, tm: datetime.datetime, quote: Dict[str, Any], frame_type: FrameType
-    ):
-        # 仅在日线级别运行
-        if frame_type != FrameType.DAY:
-            return
+    async def on_bar(self, tm: datetime.datetime) -> None:
+        """Evaluate daily moving-average crossings at *tm* and submit an order.
 
-        # 获取历史数据 (slow_window + 2 用于计算上一期均线，预留多一点buffer)
-        count = self.slow_window + 5
-        hist = self.get_history(self.symbol, count, tm, "1d")
+        Args:
+            tm: The bar timestamp used as the history boundary and order time.
+
+        Returns:
+            None. A qualifying cross delegates one order to the configured broker.
+        """
+        hist = self.get_bars(self.symbol, self.slow_window + 2, tm, "1d")
 
         # 数据不足
         if len(hist) < self.slow_window + 2:

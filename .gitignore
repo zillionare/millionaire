@@ -110,6 +110,36 @@ site/
 # vscode extension - local history
 .history/
 tests/assets/DailyBars-dates.pq
+tests/assets/synthetic/
+tests/assets/real/
+tests/assets/real/_cache/
 agents
+!agents/
+
+.specforge/agents
+.omc/**
+.playwright-mcp
+.sisyphus
+.cc-connect/
+.trae/
+.sesskey
+
+**/.DS_Store
+.DS_Store
+quantide.db-wal
+quantide.db
+quantide.db-shm
 
 .specforge/
+.louke/agents/
+.louke/templates/
+.opencode/
+.claude/
+.louke/raw
+.dev/
+.kilo/
+
+coverage.json
+.opencode/agents/
+.louke/web-users.json
+.louke/project/.serve-activity.jsonl

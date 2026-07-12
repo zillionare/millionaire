@@ -1,69 +1,66 @@
 import datetime
-from typing import Any, Dict, Optional
+from abc import ABC
+from typing import Any
 
 import polars as pl
 from loguru import logger
 
-from quantide.core.enums import FrameType
-from quantide.service.base_broker import Broker
+from quantide.core.ports import BrokerPort
+from quantide.core.ports.broker import ExecutionResult
 
 
-class BaseStrategy:
-    """策略基类"""
-
-    def __init__(self, broker: Broker, config: Dict[str, Any]):
+class Strategy(ABC):
+    def __init__(self, broker: BrokerPort, config: dict[str, Any]):
         self.broker = broker
         self.config = config
-        self.logger = logger.bind(strategy=self.__class__.__name__)
-        self.interval: str = "1d"  # Default, set by Runner
+        logger_kwargs = {"strategy": self.__class__.__name__}
+        portfolio_id = getattr(broker, "portfolio_id", "")
+        if portfolio_id:
+            logger_kwargs["portfolio_id"] = portfolio_id
+        self.logger = logger.bind(**logger_kwargs)
+        self.interval: str = "1d"
         self._current_time: datetime.datetime | None = None
 
+    @staticmethod
+    def default_config() -> dict[str, Any]:
+        return {}
 
-    async def init(self):
-        """策略初始化，在实例化后立即调用"""
+    async def init(self) -> None:
         pass
 
-    async def on_start(self):
-        """回测/实盘开始前调用"""
+    async def on_start(self) -> None:
         pass
 
-    async def on_stop(self):
-        """回测/实盘结束后调用"""
+    async def on_stop(self) -> None:
         pass
 
-    async def on_day_open(self, tm: datetime.datetime):
-        """每日开盘前调用"""
+    async def on_day_open(self, tm: datetime.datetime) -> None:
         pass
 
-    async def on_day_close(self, tm: datetime.datetime):
-        """每日收盘后调用"""
+    async def on_day_close(self, tm: datetime.datetime) -> None:
         pass
 
-    async def on_bar(
-        self, tm: datetime.datetime, quote: Dict[str, Any], frame_type: FrameType
-    ):
-        """核心驱动方法，每个周期调用一次"""
-        pass
-
-    def get_history(
+    def get_bars(
         self,
         asset: str,
         count: int,
         end_dt: datetime.datetime | None = None,
         frame_type: str = "1d",
+        include_forming_bar: bool = True,
     ) -> pl.DataFrame:
-        """获取历史数据
+        return self.broker.get_history(
+            asset, count, end_dt, frame_type, include_forming_bar=include_forming_bar
+        )
 
-        Args:
-            asset: 资产代码
-            count: 数量
-            end_dt: 截止时间 (包含)，默认为当前回测/实盘时间
-            frame_type: 周期
+    get_history = get_bars
 
-        Returns:
-            pl.DataFrame: 历史数据
-        """
-        return self.broker.get_history(asset, count, end_dt, frame_type)
+    def _render_log_message(self, msg: str, *args: Any, **kwargs: Any) -> str:
+        if not args and not kwargs:
+            return msg
+        try:
+            return msg.format(*args, **kwargs)
+        except Exception:
+            return msg
 
     def log(
         self,
@@ -73,34 +70,24 @@ class BaseStrategy:
         level: str = "INFO",
         **kwargs,
     ):
-        """日志辅助方法
-
-        用户可以通过 tm 参数显式指定日志时间。
-        如果 tm 为 None，则尝试使用当前的仿真时间。
-
-        Args:
-            msg: 日志内容
-            tm: 指定时间
-            level: 日志级别
-        """
-        # 1. 优先使用显式传入的时间
         log_time = tm
-
-        # 2. 其次使用 runner 维护的当前时间
         if log_time is None:
             log_time = self._current_time
-
-        # 3. 构造 patcher
-        # 注意：这里我们为每条日志临时创建一个 patcher，这在极高频日志下可能有性能损耗，
-        # 但考虑到日志量通常可控，且为了正确显示时间，这是必要的。
+        rendered_message = self._render_log_message(msg, *args, **kwargs)
         if log_time:
             def _temp_patcher(record):
                 record["time"] = log_time
-
             self.logger.patch(_temp_patcher).log(level, msg, *args, **kwargs)
         else:
-            # 如果都没有时间，则使用系统时间（直接打印）
             self.logger.log(level, msg, *args, **kwargs)
+        write_backtest_log = getattr(self.broker, "write_backtest_log", None)
+        if callable(write_backtest_log):
+            write_backtest_log(
+                level=level,
+                source="strategy",
+                message=rendered_message,
+                dt=log_time,
+            )
 
     def record(
         self,
@@ -109,17 +96,114 @@ class BaseStrategy:
         dt: datetime.datetime | None = None,
         extra: dict | None = None,
     ):
-        """记录策略指标/信号
-
-        用于记录策略运行过程中的关键变量，便于后续分析。
-
-        Args:
-            key: 指标名称
-            value: 指标值
-            dt: 时间（可选），若不填则使用当前仿真时间
-            extra: 额外信息（字典）
-        """
         if dt is None:
             dt = self._current_time
-
         self.broker.record(key, value, dt, extra)
+
+
+class BaseStrategy(Strategy):
+    @staticmethod
+    def default_config() -> dict[str, Any]:
+        return {}
+
+    async def on_bar(self, tm: datetime.datetime) -> None:
+        pass
+
+    @property
+    def positions(self) -> dict[str, Any]:
+        return self.broker.positions
+
+    @property
+    def cash(self) -> float:
+        return self.broker.cash
+
+    async def buy(self, asset: str, shares: int, price: float = 0,
+                  order_time: datetime.datetime | None = None) -> ExecutionResult:
+        return await self.broker.buy(asset, shares, price, order_time)
+
+    async def buy_percent(self, asset: str, percent: float, price: float = 0,
+                          order_time: datetime.datetime | None = None) -> ExecutionResult:
+        return await self.broker.buy_percent(asset, percent, price, order_time)
+
+    async def buy_amount(self, asset: str, amount: int | float, price: float = 0,
+                         order_time: datetime.datetime | None = None) -> ExecutionResult:
+        return await self.broker.buy_amount(asset, amount, price, order_time)
+
+    async def sell(self, asset: str, shares: int, price: float = 0,
+                   order_time: datetime.datetime | None = None) -> ExecutionResult:
+        return await self.broker.sell(asset, shares, price, order_time)
+
+    async def sell_percent(self, asset: str, percent: float, price: float = 0,
+                           order_time: datetime.datetime | None = None) -> ExecutionResult:
+        return await self.broker.sell_percent(asset, percent, price, order_time)
+
+    async def sell_amount(self, asset: str, amount: int | float, price: float = 0,
+                          order_time: datetime.datetime | None = None) -> ExecutionResult:
+        return await self.broker.sell_amount(asset, amount, price, order_time)
+
+    async def cancel_order(self, qt_oid: str) -> None:
+        return await self.broker.cancel_order(qt_oid)
+
+    async def cancel_all_orders(self, side: str | None = None) -> int:
+        return await self.broker.cancel_all_orders(side)
+
+    async def trade_target_pct(self, asset: str, target_pct: float,
+                               price: float = 0,
+                               order_time: datetime.datetime | None = None) -> ExecutionResult:
+        return await self.broker.trade_target_pct(asset, target_pct, price, order_time)
+
+
+class RiskStrategy(Strategy):
+    def __init__(self, broker, config: dict):
+        super().__init__(broker, config)
+        import uuid
+        self.activation_id: str = str(uuid.uuid4())
+        self.host_strategy_id: str = getattr(broker, "portfolio_id", "")
+        self.risk_strategy_id: str = f"{type(self).__module__}.{type(self).__name__}"
+
+    async def on_check(self, positions: dict[str, Any],
+                       tm: datetime.datetime) -> None:
+        pass
+
+    def get_prices(self, assets: list[str]) -> dict[str, float]:
+        if hasattr(self.broker, "get_prices"):
+            return self.broker.get_prices(assets)
+        raise NotImplementedError("get_prices is only available in paper/live mode")
+
+    def get_ticks(self, asset: str, count: int) -> pl.DataFrame:
+        if hasattr(self.broker, "get_ticks"):
+            return self.broker.get_ticks(asset, count)
+        raise NotImplementedError("get_ticks is only available in paper/live mode")
+
+    async def sell_host_position(self, asset: str, shares: int,
+                                  reason: str = "") -> ExecutionResult:
+        from quantide.core.risk_events import BarrierHit, emit_risk_triggered
+        price = 0.0
+        if hasattr(self.broker, "get_prices"):
+            try:
+                prices = self.broker.get_prices([asset])
+                price = float(prices.get(asset, 0.0) or 0.0)
+            except Exception:
+                price = 0.0
+        cost_basis = None
+        positions = self.broker.positions
+        if isinstance(positions, dict):
+            pos = positions.get(asset)
+        elif isinstance(positions, list):
+            pos = next((p for p in positions if getattr(p, "asset", None) == asset), None)
+        else:
+            pos = None
+        if pos is not None:
+            cost_basis = getattr(pos, "price", None)
+        emit_risk_triggered(
+            activation_id=self.activation_id,
+            risk_strategy_id=self.risk_strategy_id,
+            host_strategy_id=self.host_strategy_id,
+            asset=asset,
+            trigger_price=price,
+            cost_basis=cost_basis,
+            reason=reason,
+            trigger_ts=getattr(self, "_current_time", None) or datetime.datetime.now(),
+            barrier_hit=BarrierHit.EXPIRE,
+        )
+        return await self.broker.sell(asset, shares, price=0)

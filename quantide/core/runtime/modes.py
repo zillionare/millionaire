@@ -3,19 +3,15 @@
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from quantide.config.runtime import get_runtime_config
+from quantide.config.settings import get_settings
 from quantide.core.enums import BrokerKind
 from quantide.core.ports import MarketDataPort
+from quantide.core.ports.clock import ClockPort
 from quantide.core.runtime.adapter_registry import AdapterRegistry
-from quantide.core.runtime.broker_bridge import LegacyBrokerPortAdapter
+from quantide.core.runtime.clock_bridge import SystemClockAdapter
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.gateway_client import GatewayClient
-from quantide.core.runtime.gateway_market import GatewayMarketDataAdapter
-from quantide.core.runtime.market_bridge import LiveQuoteMarketDataAdapter
-from quantide.core.runtime.registration import (
-    register_legacy_broker,
-    register_port_backed_broker,
-)
+from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.core.scheduler import scheduler
 from quantide.data import db
 from quantide.service.livequote import live_quote
@@ -33,28 +29,7 @@ class RuntimeContext:
     registry: BrokerRegistry
     adapters: AdapterRegistry
     market_data: MarketDataPort
-
-    def register_legacy_broker(
-        self,
-        broker: Any,
-        portfolio_id: str,
-        kind: BrokerKind | str,
-        *,
-        portfolio_name: str = "",
-        status: bool | None = None,
-        is_connected: bool | None = None,
-    ):
-        """将 legacy broker 注册到正式运行时。"""
-        return register_legacy_broker(
-            registry=self.registry,
-            adapters=self.adapters,
-            broker=broker,
-            portfolio_id=portfolio_id,
-            kind=kind,
-            portfolio_name=portfolio_name,
-            status=status,
-            is_connected=is_connected,
-        )
+    clock: ClockPort
 
     def register_port_broker(
         self,
@@ -66,7 +41,6 @@ class RuntimeContext:
         portfolio_name: str = "",
         status: bool = True,
         is_connected: bool | None = None,
-        legacy: Any | None = None,
     ):
         """将正式 broker port 注册到运行时。"""
         return register_port_backed_broker(
@@ -79,20 +53,22 @@ class RuntimeContext:
             portfolio_name=portfolio_name,
             status=status,
             is_connected=is_connected,
-            legacy=legacy,
         )
 
 
 class RuntimeBootstrap:
     """运行时装配器."""
 
-    def __init__(self, mode: RuntimeMode | None = None):
+    def __init__(self, mode: RuntimeMode | None = None, clock: ClockPort | None = None):
         """初始化装配器.
 
         Args:
             mode: 指定运行模式，不传则自动解析。
+            clock: 时钟端口 (NFR-060), 不传则默认注入 `SystemClockAdapter` (生产语义: 返回墙钟).
+                  测试侧可传入 `VirtualClock` (见 tests/e2e/support/virtual_clock.py) 替换时间.
         """
         self._mode = mode or self._resolve_mode()
+        self._clock = clock if clock is not None else SystemClockAdapter()
 
     def bootstrap(self) -> RuntimeContext:
         """执行运行时装配."""
@@ -103,17 +79,18 @@ class RuntimeBootstrap:
         self._registry_ref = registry
         self._load_accounts_from_db(registry, market_data=market_data)
         self._register_broker_adapters(registry, adapters)
-        self._register_gateway_broker_adapter(adapters)
+        self._register_gateway_broker_adapter(adapters, market_data)
         return RuntimeContext(
             mode=self._mode,
             registry=registry,
             adapters=adapters,
             market_data=market_data,
+            clock=self._clock,
         )
 
     def _resolve_mode(self) -> RuntimeMode:
         """解析运行模式."""
-        runtime = get_runtime_config()
+        runtime = get_settings()
         raw = runtime.runtime_mode
         if raw in {"live", "paper", "backtest"}:
             return raw  # type: ignore
@@ -122,21 +99,13 @@ class RuntimeBootstrap:
         return "live"
 
     def _build_market_data(self, adapters: AdapterRegistry) -> MarketDataPort:
-        """构建行情适配器."""
-        runtime = get_runtime_config()
-        adapter_name = runtime.runtime_market_adapter
-        mode_name = runtime.livequote_mode
-        use_gateway = runtime.gateway_enabled and (
-            adapter_name == "gateway" or mode_name == "gateway"
-        )
-        if use_gateway:
-            client = GatewayClient.from_config()
-            market_data = GatewayMarketDataAdapter(client)
-            market_data.start()
-            adapters.register("market_data", "gateway", market_data)
-            return market_data
+        """构建行情适配器.
+
+        数据源统一策略 (#48): 不再根据 runtime_market_adapter 分流 gateway / live_quote,
+        一律走 LiveQuote。gateway 行情接入点保留在 service 层 (`live_quote` 的实现里)。
+        """
         live_quote.start()
-        market_data = LiveQuoteMarketDataAdapter(live_quote)
+        market_data = live_quote
         adapters.register("market_data", "live_quote", market_data)
         return market_data
 
@@ -153,10 +122,11 @@ class RuntimeBootstrap:
             if broker is None:
                 continue
             name = f"{kind}:{portfolio_id}"
-            register_legacy_broker(
+            port = broker
+            register_port_backed_broker(
                 registry=registry,
                 adapters=adapters,
-                broker=broker,
+                port=port,
                 portfolio_id=portfolio_id,
                 kind=kind,
                 adapter_name=name,
@@ -184,9 +154,13 @@ class RuntimeBootstrap:
             except Exception:
                 continue
 
-    def _register_gateway_broker_adapter(self, adapters: AdapterRegistry) -> None:
+    def _register_gateway_broker_adapter(
+        self,
+        adapters: AdapterRegistry,
+        market_data: MarketDataPort,
+    ) -> None:
         """注册 gateway 交易适配器."""
-        runtime = get_runtime_config()
+        runtime = get_settings()
         broker_name = runtime.runtime_broker_adapter
         mode_name = runtime.livequote_mode
         use_gateway = runtime.gateway_enabled and (

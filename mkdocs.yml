@@ -1,6 +1,6 @@
-site_name: quantide
-repo_url: https://github.com/zillionare/quantide
-repo_name: quantide
+site_name: Millionaire
+repo_url: https://github.com/zillionare/millionaire
+repo_name: millionaire
 
 nav:
   - home: index.md

@@ -1,8 +1,5 @@
 import datetime
 from enum import IntEnum
-from typing import Optional, Protocol
-
-import bidict
 
 
 class WebErrors(IntEnum):
@@ -33,6 +30,7 @@ class TradeErrors(IntEnum):
     ERROR_INSUF_POSITION = 11       # 委卖时，持仓不足或者没有持仓
     ERROR_LIMIT_PRICE = 12          # 委托时，价格超出涨跌停
     ERROR_PRICE_NOT_MET = 13        # 委托时，价格不满足要求
+    ERROR_HALT = 14                # 委托时，标的停牌（数据缺失或成交量为 0）
     ERROR_NO_DATA = 14              # 撮合时缺少数据
     ERROR_BAD_PERCENT = 15          # 委托时，percent 不在 (0, 1] 范围内
 
@@ -76,18 +74,18 @@ class NoDataForMatch(TradeError):
     ):
         super().__init__(
             TradeErrors.ERROR_BAD_PARAMS,
-            f"failed to match %s, no data at %s",
+            "failed to match %s, no data at %s",
             security,
             dt,
         )
 
 class InsufficientCash(TradeError):
-    """ 委托时，现金不足 """
+    """委托时，现金不足"""
 
     def __init__(self, security: str, amount: float, cash: float):
         super().__init__(
             TradeErrors.ERROR_INSUF_CASH,
-            f"Insufficient cash for %s, required: %s, got cash: %s",
+            "Insufficient cash for %s, required: %s, got cash: %s",
             security,
             amount,
             cash
@@ -98,7 +96,7 @@ class InsufficientAmount(TradeError):
     def __init__(self, security: str, amount: float):
         super().__init__(
             TradeErrors.ERROR_INSUF_AMOUNT,
-            f"Insufficient amount for %s at %s",
+            "Insufficient amount for %s at %s",
             security,
             amount,
         )
@@ -109,7 +107,7 @@ class LimitPrice(TradeError):
     def __init__(self, security: str, price: float):
         super().__init__(
             TradeErrors.ERROR_LIMIT_PRICE,
-            f"Limit price reached for %s at %s",
+            "Limit price reached for %s at %s",
             security,
             price
         )
@@ -120,7 +118,7 @@ class PriceNotMeet(TradeError):
     def __init__(self, security: str, price: float, required_price: float):
         super().__init__(
             TradeErrors.ERROR_PRICE_NOT_MET,
-            f"Price not meet for %s, required: %s, got: %s",
+            "Price not meet for %s, required: %s, got: %s",
             security,
             required_price,
             price
@@ -132,7 +130,7 @@ class DupPortfolio(TradeError):
     def __init__(self, portfolio_id: str):
         super().__init__(
             TradeErrors.ERROR_DUP_PORTFOLIO,
-            f"Duplicate portfolio id: %s",
+            "Duplicate portfolio id: %s",
             portfolio_id
         )
 
@@ -142,7 +140,7 @@ class ClockRewind(TradeError):
     def __init__(self, dt: datetime.datetime, clock: datetime.datetime):
         super().__init__(
             TradeErrors.ERROR_CLOCK_REWIND,
-            f"Clock rewind to %s, current is %s",
+            "Clock rewind to %s, current is %s",
             dt,
             clock
         )
@@ -153,7 +151,7 @@ class ClockBeforeStart(TradeError):
     def __init__(self, dt: datetime.datetime, bt_start: datetime.datetime):
         super().__init__(
             TradeErrors.ERROR_CLOCK_BEFORE_START,
-            f"Clock %s is before bt_start %s",
+            "Clock %s is before bt_start %s",
             dt,
             bt_start
         )
@@ -164,7 +162,7 @@ class ClockAfterEnd(TradeError):
     def __init__(self, dt: datetime.datetime, bt_end: datetime.datetime):
         super().__init__(
             TradeErrors.ERROR_CLOCK_AFTER_END,
-            f"Clock %s is after bt_end %s",
+            "Clock %s is after bt_end %s",
             dt,
             bt_end
         )
@@ -175,7 +173,7 @@ class NonMultipleOfLotSize(TradeError):
     def __init__(self, security: str, shares: float):
         super().__init__(
             TradeErrors.ERROR_NONMULTIPLEOFLOTSIZE,
-            f"Non multiple of lot size for %s at %s",
+            "Non multiple of lot size for %s at %s",
             security,
             shares
         )
@@ -186,7 +184,7 @@ class BadPercent(TradeError):
     def __init__(self, percent: float):
         super().__init__(
             TradeErrors.ERROR_BAD_PERCENT,
-            f"Percent %s is not in (0, 1]",
+            "Percent %s is not in (0, 1]",
             percent
         )
 
@@ -196,7 +194,56 @@ class InsufficientPosition(TradeError):
     def __init__(self, security: str, amount: float):
         super().__init__(
             TradeErrors.ERROR_INSUF_POSITION,
-            f"Insufficient position for %s at %s",
+            "Insufficient position for %s at %s",
             security,
             amount
         )
+
+
+class PriceOutOfLimit(TradeError):
+    """限价单价格超出涨跌停范围 (FR-140).
+
+    限价单指定价必须落在 [down_limit, up_limit] 内, 否则下单直接拒绝.
+    市价单 (price == 0) 不受此校验.
+    """
+
+    def __init__(self, security: str, price: float, down_limit: float, up_limit: float):
+        self.security = security
+        self.price = price
+        self.down_limit = down_limit
+        self.up_limit = up_limit
+        super().__init__(
+            TradeErrors.ERROR_LIMIT_PRICE,
+            "限价单价格 %s 超出涨跌停范围 [%s, %s] for %s",
+            price, down_limit, up_limit, security,
+        )
+
+
+class TradingHaltedError(TradeError):
+    """停牌标的不可下单 (FR-170).
+
+    停牌判定: 数据缺失 (quote 为空) 或 volume == 0.
+    持仓中的停牌标的按停牌前最后收盘价估值, 不阻止卖单 (但实际业务中可能拒绝).
+    """
+
+    def __init__(self, security: str, reason: str = "数据缺失或成交量为 0"):
+        self.security = security
+        self.reason = reason
+        super().__init__(
+            TradeErrors.ERROR_HALT,
+            "停牌标的 %s 不可下单: %s",
+            security, reason,
+        )
+
+
+class UnsupportedFrameTypeForBacktest(RuntimeError):
+    def __init__(self, frame_type: str):
+        super().__init__(f"Unsupported frame_type '{frame_type}' for backtest")
+        self.frame_type = frame_type
+
+
+class RiskStrategyNotBacktestable(RuntimeError):
+    def __init__(self, strategy_id: str = ""):
+        msg = f"RiskStrategy '{strategy_id}' is not backtestable" if strategy_id else "RiskStrategy is not backtestable"
+        super().__init__(msg)
+        self.strategy_id = strategy_id

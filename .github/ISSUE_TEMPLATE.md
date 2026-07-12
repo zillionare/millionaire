@@ -1,4 +1,4 @@
-* quantide version:
+* millionaire version:
 * Python version:
 * Operating System:
 

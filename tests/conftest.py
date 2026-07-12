@@ -3,22 +3,25 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
-import cfg4py
 import pandas as pd
 import pyarrow.parquet as pq
 import pytest
 
+from quantide.config.paths import normalize_data_home
+from quantide.config.settings import DEFAULT_TIMEZONE
 from quantide.data.sqlite import db as _db
 
 
 @pytest.fixture(scope="session")
 def cfg():
-    """Initialize cfg before running tests."""
-    tests = Path(__file__).parent
-    cfg = cfg4py.init(str(tests / "assets"))
-    cfg.epoch = datetime.date(2024, 1, 1)
-    yield cfg
+    """Provide a small test-only config object for legacy-style test helpers."""
+    yield SimpleNamespace(
+        TIMEZONE=DEFAULT_TIMEZONE,
+        epoch=datetime.date(2024, 1, 1),
+        home=normalize_data_home(),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -56,6 +59,9 @@ def asset_dir():
         src = Path(__file__).parent / "assets"
         dst = Path(tmpdir) / "assets"
         shutil.copytree(src, dst)
+        stock_list_src = Path(__file__).resolve().parent.parent / "data" / "stock_list.parquet"
+        if stock_list_src.exists():
+            shutil.copy2(stock_list_src, dst / "stock_list.parquet")
 
         yield dst
         try:

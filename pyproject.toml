@@ -1,17 +1,17 @@
 [tool]
 
 [tool.poetry]
-name = "quantide"
+name = "millionaire"
 version = "0.1.0"
-homepage = "https://github.com/zillionare/quantide"
-description = "Skeleton project created by Python Project Wizard (ppw)."
+homepage = "https://github.com/zillionare/millionaire"
+description = "Millionaire — Zillionare's flagship quantitative trading platform."
 authors = ["aaron yang <aaron_yang@jieyu.ai>"]
 readme = "README.md"
-license =  "MIT"
+license = "MIT"
 classifiers=[
     'Development Status :: 2 - Pre-Alpha',
     'Intended Audience :: Developers',
-    'License :: OSI Approved :: MIT License',
+    'License :: Other/Proprietary License',
     'Natural Language :: English',
     'Programming Language :: Python :: 3',
     'Programming Language :: Python :: 3.13'
@@ -27,7 +27,6 @@ python = ">=3.13,<4.0"
 
 apscheduler = "^3.10.4"
 arrow = "^1.3.0"
-cfg4py = "^0.12.1"
 python-fasthtml = "^0.12.36"
 bcrypt = "^5.0.0"
 loguru = "^0.7.3"
@@ -37,6 +36,7 @@ tenacity = "^9.1.2"
 sqlite-utils = "^3.39"
 polars = "^1.36.1"
 polars-talib = "^0.1.5"
+empyrical-reloaded = "^0.5.12"  # v0.2 评估指标第三方库 (empyrical 已停维, 用 reloaded fork)
 pandas = "^2.3.3"
 pyarrow = "^22.0.0"
 monsterui = "^1.0.36"
@@ -48,7 +48,6 @@ websockets = "^15.0.1"
 [[tool.poetry.source]]
 name = "tsinghua"
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
-priority = "primary"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -69,6 +68,7 @@ extend-exclude = [
     "buck-out",
     "build",
     "dist",
+    "tests",
 ]
 
 [tool.ruff.lint]
@@ -94,6 +94,16 @@ ignore = [
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "e2e: HTTP-level end-to-end tests organized by user journey",
+    "release_gate: QA release-gate evidence tracked in the three-mode acceptance checklist",
+    "e2e_paper: L1 paper E2E (test-plan §5.3, §6.3.1) — 默认 CI 跑 (虚拟时钟 + 公共 support)",
+    "e2e_gateway: L2 网关契约仿真 E2E (test-plan §5.3, §6.3.2) — 默认 CI 跑 (假网关 + 公共 support)",
+    "e2e_live_smoke: L3 实盘路径冒烟 E2E (test-plan §5.3, §6.3.3) — **默认 deselect**, 仅在 Windows+QMT 真机环境跑",
+]
+
 [dependency-groups]
 dev = [
     "mypy (>=1.19.1,<2.0.0)",
@@ -102,6 +112,7 @@ dev = [
     "tox (>=3.24.5,<4.0.0)",
     "pre-commit (>=2.17.0,<3.0.0)",
     "twine (>=3.8.0,<4.0.0)",
+    "html2image (>=2.0.7,<3.0.0)",
 ]
 
 test = [
@@ -109,6 +120,7 @@ test = [
     "pytest (>=9.0.2,<10.0.0)",
     "pytest-asyncio (>=1.3.0,<2.0.0)",
     "pytest-cov (>=7.0.0,<8.0.0)",
+    "pytest-timeout (>=2.4.0,<3.0.0)",
 ]
 
 doc = [
@@ -120,4 +132,66 @@ doc = [
     "mkdocstrings (>=0.25.2,<2.0.0)",
     "mkdocstrings-python (>=0.9.0,<3.0.0)",
     "mike (>=1.1.2,<3.0.0)",
+]
+
+# Poetry 2.x group definitions — mirrors [dependency-groups] above for CI install
+[tool.poetry.group.dev.dependencies]
+mypy = ">=1.19.1,<2.0.0"
+pyarrow-stubs = ">=20.0.0.20251215"
+ruff = ">=0.11.0,<1.0.0"
+tox = ">=3.24.5,<4.0.0"
+pre-commit = ">=2.17.0,<3.0.0"
+twine = ">=3.8.0,<4.0.0"
+html2image = ">=2.0.7,<3.0.0"
+
+[tool.poetry.group.test.dependencies]
+freezegun = ">=1.5.5,<2.0.0"
+pytest = ">=9.0.2,<10.0.0"
+pytest-asyncio = ">=1.3.0,<2.0.0"
+pytest-cov = ">=7.0.0,<8.0.0"
+pytest-timeout = ">=2.4.0,<3.0.0"
+
+[tool.poetry.group.doc.dependencies]
+mkdocs = ">=1.2.3,<2.0.0"
+mkdocs-autorefs = ">=0.3.1,<2.0.0"
+mkdocs-include-markdown-plugin = ">=3.2.3,<8.0.0"
+mkdocs-material = ">=8.1.11,<10.0.0"
+mkdocs-material-extensions = ">=1.0.3,<2.0.0"
+mkdocstrings = ">=0.25.2,<2.0.0"
+mkdocstrings-python = ">=0.9.0,<3.0.0"
+mike = ">=1.1.2,<3.0.0"
+
+[tool.mypy]
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unused_configs = true
+ignore_missing_imports = false
+disallow_untyped_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+show_error_codes = true
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = "fire"
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["quantide"]
+branch = true
+# uncomment the following to omit files during running
+#omit =
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "def main",
 ]

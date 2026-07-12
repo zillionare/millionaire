@@ -4,7 +4,7 @@ import types
 import uuid
 from dataclasses import asdict, dataclass, fields
 from enum import Enum
-from typing import ClassVar, List, Union, get_args, get_origin
+from typing import ClassVar, Union, get_args, get_origin
 
 
 def new_uuid_id() -> str:
@@ -16,8 +16,8 @@ class Entity:
     """模型基类，提供数据库操作方法， 提供转换为数据库 schema 字典的方法"""
 
     __table_name__: ClassVar[str]
-    __pk__: ClassVar[Union[str, List[str]]]
-    __indexes__: ClassVar[tuple[List[str], bool]]
+    __pk__: ClassVar[str | list[str]]
+    __indexes__: ClassVar[tuple[list[str], bool]]
 
     @classmethod
     def to_db_schema(cls) -> dict:

@@ -5,7 +5,7 @@ from typing import Any
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
 from quantide.core.ports import BrokerPort
-from quantide.data.sqlite import Asset, Order, Position
+from quantide.data.models import Asset, Order, Position
 
 
 class PortBackedBroker:
@@ -19,7 +19,6 @@ class PortBackedBroker:
         portfolio_name: str = "",
         status: bool = True,
         is_connected: bool | None = None,
-        legacy: Any | None = None,
     ):
         self._port = port
         self._portfolio_id = portfolio_id
@@ -27,12 +26,6 @@ class PortBackedBroker:
         self._portfolio_name = portfolio_name or portfolio_id
         self._status = status
         self._is_connected = status if is_connected is None else is_connected
-        self._legacy = legacy
-
-    def __getattr__(self, name: str) -> Any:
-        if self._legacy is not None:
-            return getattr(self._legacy, name)
-        raise AttributeError(name)
 
     @property
     def port(self) -> BrokerPort:
@@ -72,15 +65,14 @@ class PortBackedBroker:
                 market_value=view.market_value,
                 total=view.total,
             )
-        principal = float(getattr(self._legacy, "principal", 0.0) or 0.0)
         return Asset(
             portfolio_id=self._portfolio_id,
             dt=datetime.date.today(),
-            principal=principal,
+            principal=0.0,
             cash=0.0,
             frozen_cash=0.0,
             market_value=0.0,
-            total=principal,
+            total=0.0,
         )
 
     @property
@@ -123,6 +115,12 @@ class PortBackedBroker:
         extra: dict | None = None,
     ) -> None:
         self._port.record(key, value, dt=dt, extra=extra)
+
+    def set_clock(self, now: datetime.datetime) -> None:
+        """设置底层 broker 时钟 (paper/live 策略循环用)."""
+        broker = getattr(self._port, "_broker", None)
+        if broker is not None and hasattr(broker, "set_clock"):
+            broker.set_clock(now)
 
     async def buy(
         self,

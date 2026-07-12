@@ -2,11 +2,13 @@
 
 import calendar as cal_lib
 import datetime
+
 from fasthtml.common import *
 from monsterui.all import *
+
 from quantide.data.models.calendar import calendar
 from quantide.web.layouts.main import MainLayout
-from quantide.web.theme import AppTheme, PRIMARY_COLOR
+from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
 data_calendar_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -21,7 +23,7 @@ def _TabNav(active_tab: str):
         ("calendar", "日历"),
         ("update", "手动更新"),
     ]
-    
+
     tab_items = []
     for tab_id, label in tabs:
         is_active = active_tab == tab_id
@@ -30,9 +32,9 @@ def _TabNav(active_tab: str):
             cls = f"{base_cls} text-red-600 border-b-2 border-red-600"
         else:
             cls = f"{base_cls} text-gray-500 hover:text-gray-700 hover:border-b-2 hover:border-gray-300"
-        
+
         tab_items.append(A(label, href=f"/data/calendar?tab={tab_id}", cls=cls))
-        
+
     return Div(
         Div(*tab_items, cls="flex space-x-2"),
         cls="border-b border-gray-200 mb-6"
@@ -62,14 +64,14 @@ def _CalendarGrid(year: int, month: int):
     """构建单月日历网格"""
     month_days = cal_lib.monthcalendar(year, month)
     month_name = f"{year}年{month}月"
-    
+
     # 获取该月的所有交易日，用于比对
     start_of_month = datetime.date(year, month, 1)
     if month == 12:
         end_of_month = datetime.date(year + 1, 1, 1) - datetime.timedelta(days=1)
     else:
         end_of_month = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1)
-    
+
     try:
         trade_dates = set(calendar.get_trade_dates(start_of_month, end_of_month))
     except Exception:
@@ -77,7 +79,7 @@ def _CalendarGrid(year: int, month: int):
 
     headers = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     header_row = Tr(*[Th(h, cls="text-center py-2 bg-gray-50 border") for h in headers])
-    
+
     rows = []
     for week in month_days:
         cells = []
@@ -87,12 +89,12 @@ def _CalendarGrid(year: int, month: int):
             else:
                 curr_date = datetime.date(year, month, day)
                 is_trade = curr_date in trade_dates
-                
+
                 # 样式处理
                 content_cls = "flex flex-col h-full p-2"
                 date_cls = "text-sm font-semibold"
                 status_cls = "text-xs mt-auto self-end"
-                
+
                 if is_trade:
                     bg_cls = "bg-white"
                     status_text = ""
@@ -101,7 +103,7 @@ def _CalendarGrid(year: int, month: int):
                     bg_cls = "bg-red-50/30"
                     status_text = "休市"
                     status_color = "text-red-500"
-                
+
                 cells.append(Td(
                     Div(
                         Span(str(day), cls=date_cls),
@@ -111,7 +113,7 @@ def _CalendarGrid(year: int, month: int):
                     cls=f"{bg_cls} border h-24 p-0 align-top"
                 ))
         rows.append(Tr(*cells))
-        
+
     return Div(
         Div(
             H4(month_name, cls="text-lg font-bold"),
@@ -130,24 +132,24 @@ def _CalendarTab(req):
     # 默认显示当前月和下个月
     today = datetime.date.today()
     curr_year, curr_month = today.year, today.month
-    
+
     # 允许通过 query 参数切换年份/月份
     try:
         year = int(req.query_params.get("year", curr_year))
         month = int(req.query_params.get("month", curr_month))
     except:
         year, month = curr_year, curr_month
-        
+
     # 计算上个月和下个月
     prev_year, prev_month = (year, month - 1) if month > 1 else (year - 1, 12)
     next_year, next_month = (year, month + 1) if month < 12 else (year + 1, 1)
 
     return Div(
         Div(
-            A(UkIcon("chevron-left"), href=f"/data/calendar?tab=calendar&year={prev_year}&month={prev_month}", 
+            A(UkIcon("chevron-left"), href=f"/data/calendar?tab=calendar&year={prev_year}&month={prev_month}",
               cls="btn btn-ghost btn-sm"),
             H3(f"{year}年{month}月", cls="text-xl font-semibold mx-4"),
-            A(UkIcon("chevron-right"), href=f"/data/calendar?tab=calendar&year={next_year}&month={next_month}", 
+            A(UkIcon("chevron-right"), href=f"/data/calendar?tab=calendar&year={next_year}&month={next_month}",
               cls="btn btn-ghost btn-sm"),
             cls="flex items-center justify-center mb-6"
         ),
@@ -185,7 +187,7 @@ def _UpdateTab():
 @rt("/")
 async def index(req):
     active_tab = _get_active_tab(req)
-    
+
     # 根据 Tab 选择内容
     if active_tab == "calendar":
         content = _CalendarTab(req)
@@ -193,10 +195,10 @@ async def index(req):
         content = _UpdateTab()
     else:
         content = _OverviewTab()
-        
+
     layout = MainLayout()
     layout.set_sidebar_active("/data/calendar")
-    
+
     page_content = Div(
         # 页面标题
         Div(
@@ -213,7 +215,7 @@ async def index(req):
         content,
         cls="p-8"
     )
-    
+
     layout.main_block = page_content
     return layout.render()
 

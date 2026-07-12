@@ -2,13 +2,13 @@ import asyncio
 import itertools
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import date
-from typing import Any, Dict, List, Type
+from multiprocessing import get_context
+from typing import Any
 
 import pandas as pd
 from loguru import logger
 
-from quantide.config import init_config
-from quantide.config.runtime import get_runtime_home
+from quantide.config.settings import get_data_home
 from quantide.core.enums import FrameType
 from quantide.core.strategy import BaseStrategy
 from quantide.data import init_data
@@ -16,21 +16,19 @@ from quantide.service.runner import BacktestRunner
 
 
 def _run_task(
-    strategy_cls: Type[BaseStrategy],
-    config: Dict[str, Any],
+    strategy_cls: type[BaseStrategy],
+    config: dict[str, Any],
     start_date: date,
     end_date: date,
     interval: str,
     initial_cash: float,
     db_path: str = ":memory:",
     home_dir: str | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Worker function for running backtest in a separate process."""
     # Initialize config and data for this process
-    init_config()
-
     # Use provided home_dir or default from config
-    data_home = home_dir or get_runtime_home()
+    data_home = home_dir or get_data_home()
     # Only init db if db_path is NOT provided or if it's not :memory:
     # Actually, if db_path is provided (like :memory:), we should skip default quantide.db init
     # because runner.run will init db with db_path.
@@ -91,9 +89,9 @@ def _run_task(
 class GridSearch:
     def __init__(
         self,
-        strategy_cls: Type[BaseStrategy],
-        base_config: Dict[str, Any],
-        param_grid: Dict[str, List[Any]],
+        strategy_cls: type[BaseStrategy],
+        base_config: dict[str, Any],
+        param_grid: dict[str, list[Any]],
         start_date: date,
         end_date: date,
         interval: str = "1d",
@@ -131,9 +129,19 @@ class GridSearch:
         logger.info(f"Starting grid search with {len(configs)} combinations...")
 
         results = []
-        from quantide.data.sqlite import Asset, Portfolio, Position, StrategyLog, Trade, db
+        from quantide.data.models import (
+            Asset,
+            Portfolio,
+            Position,
+            StrategyLog,
+            Trade,
+        )
+        from quantide.data.sqlite import db
 
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+        with ProcessPoolExecutor(
+            max_workers=self.max_workers,
+            mp_context=get_context("spawn"),
+        ) as executor:
             future_to_config = {
                 executor.submit(
                     _run_task,

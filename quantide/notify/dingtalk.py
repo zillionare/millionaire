@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import asyncio
 import base64
 import hashlib
@@ -7,15 +6,14 @@ import json
 import logging
 import time
 import urllib.parse
-from typing import Awaitable, Union
+from collections.abc import Awaitable
 
-import cfg4py
 import httpx
 from loguru import logger
 
-from quantide.config.runtime import (
-    get_runtime_dingtalk_access_token,
-    get_runtime_dingtalk_secret,
+from quantide.config.settings import (
+    get_dingtalk_access_token,
+    get_dingtalk_secret,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,10 +22,10 @@ logger = logging.getLogger(__name__)
 class DingTalkMessage:
     """
     钉钉的机器人消息推送类，封装了常用的消息类型以及加密算法
-    需要在配置文件中配置钉钉的机器人的access_token
-    如果配置了加签，需要在配置文件中配置钉钉的机器人的secret
-    如果配置了自定义关键词，需要在配置文件中配置钉钉的机器人的keyword，多个关键词用英文逗号分隔
-    全部的配置文件示例如下, 其中secret和keyword可以不配置, access_token必须配置
+        需要在运行时配置中提供机器人的 access_token。
+        如果配置了加签，需要同时提供机器人的 secret。
+        如果配置了自定义关键词，需要同时提供 keyword，多个关键词用英文逗号分隔。
+        其中 secret 和 keyword 可以不配置，access_token 必须配置。
     notify:
       dingtalk_access_token: xxxx
       dingtalk_secret: xxxx
@@ -38,7 +36,7 @@ class DingTalkMessage:
     @classmethod
     def _get_access_token(cls):
         """获取钉钉机器人的access_token"""
-        token = get_runtime_dingtalk_access_token()
+        token = get_dingtalk_access_token()
         if token:
             return token
         logger.error(
@@ -52,7 +50,7 @@ class DingTalkMessage:
     @classmethod
     def _get_secret(cls):
         """获取钉钉机器人的secret"""
-        return get_runtime_dingtalk_secret() or None
+        return get_dingtalk_secret() or None
 
     @classmethod
     def _get_url(cls):
@@ -70,7 +68,7 @@ class DingTalkMessage:
         """获取签名发送给钉钉机器人"""
         timestamp = str(round(time.time() * 1000))
         secret_enc = secret.encode("utf-8")
-        string_to_sign = "{}\n{}".format(timestamp, secret)
+        string_to_sign = f"{timestamp}\n{secret}"
         string_to_sign_enc = string_to_sign.encode("utf-8")
         hmac_code = hmac.new(
             secret_enc, string_to_sign_enc, digestmod=hashlib.sha256
@@ -93,6 +91,7 @@ class DingTalkMessage:
             logger.error(
                 f"failed to send message, content: {msg}, response from Dingtalk: {rsp}"
             )
+            return None
         return response.content.decode()
 
     @classmethod
@@ -111,11 +110,12 @@ class DingTalkMessage:
                 logger.error(
                     f"failed to send message, content: {msg}, response from Dingtalk: {rsp}"
                 )
+                return None
             return r.content.decode()
 
 
 def ding(
-    msg: Union[str, dict], sync: bool = False, at_all: bool = False
+    msg: str | dict, sync: bool = False, at_all: bool = False
 ) -> Awaitable | str | None:
     """发送消息到钉钉机器人
 

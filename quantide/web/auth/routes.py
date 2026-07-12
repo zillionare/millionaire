@@ -1,6 +1,11 @@
 # auth/routes.py
 from fasthtml.common import *
+
+# Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
+from fasthtml.common import Label as _Label
 from monsterui.all import *
+
+from quantide.config.branding import get_branding
 
 from .forms import (
     create_forgot_password_form,
@@ -211,7 +216,7 @@ class AuthRoutes:
             error = req.query_params.get("error")
             # Get redirect destination from query params
             redirect_to = req.query_params.get("redirect_to", "/")
-            return Title("匡醍量化登录"), (
+            return Title(f"{get_branding().product_name} 登录"), (
                 create_login_form(
                     error=error, action=f"{prefix}/login", redirect_to=redirect_to
                 )
@@ -370,8 +375,65 @@ class AuthRoutes:
             user = req.scope["user"]  # Added by beforeware
             success = req.query_params.get("success")
             error = req.query_params.get("error")
-            return Title("Profile"), create_profile_form(
+            return Title("个人设置"), create_profile_form(
                 user=user, success=success, error=error, action=f"{prefix}/profile"
+            )
+
+        @rt(f"{prefix}/modal/reset-password", methods=["GET"])
+        def reset_password_modal(req):
+            error = req.query_params.get("error")
+
+            # Simple form for the modal
+            form_content = Form(
+                Input(type="hidden", name="modal", value="1"),
+                Div(
+                    _Label("当前密码", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    Input(type="password", name="current_password", required=True, cls="w-full h-10 px-3 rounded-md border border-gray-300"),
+                    cls="mb-4"
+                ),
+                Div(
+                    _Label("新密码", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    Input(type="password", name="new_password", required=True, cls="w-full h-10 px-3 rounded-md border border-gray-300"),
+                    cls="mb-4"
+                ),
+                Div(
+                    _Label("确认新密码", cls="block text-sm font-medium text-gray-700 mb-1"),
+                    Input(type="password", name="confirm_password", required=True, cls="w-full h-10 px-3 rounded-md border border-gray-300"),
+                    cls="mb-4"
+                ),
+                Div(
+                    Div(error, cls="text-sm text-red-500 mb-4") if error else None,
+                    Div(
+                        Button("取消", type="button", cls=ButtonT.ghost, onclick="document.getElementById('global-reset-password-modal-container').innerHTML=''"),
+                        Button("确认修改", type="submit", cls=ButtonT.primary),
+                        cls="flex justify-end gap-2"
+                    )
+                ),
+                hx_post=f"{prefix}/profile",
+                hx_target="#global-reset-password-modal-container"
+            )
+
+            return Div(
+                Div(cls="fixed inset-0 bg-black/50 transition-opacity"),
+                Div(
+                    Div(
+                        Div(
+                            Div(
+                                H3("重设密码", cls="text-lg font-medium leading-6 text-gray-900"),
+                                cls="px-4 py-5 sm:px-6 border-b border-gray-200"
+                            ),
+                            Div(
+                                form_content,
+                                cls="px-4 py-5 sm:p-6"
+                            ),
+                            cls="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:align-middle"
+                        ),
+                        cls="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
+                    ),
+                    cls="fixed inset-0 z-10 overflow-y-auto"
+                ),
+                id="global-reset-password-modal",
+                cls="relative z-[100]"
             )
 
         @rt(f"{prefix}/profile", methods=["POST"])
@@ -389,43 +451,54 @@ class AuthRoutes:
                 current_password = form.get("current_password", "")
                 new_password = form.get("new_password", "")
                 confirm_password = form.get("confirm_password", "")
+                is_modal = form.get("modal") == "1"
 
                 if current_password or new_password:
                     if not current_password:
+                        if is_modal:
+                            return RedirectResponse(f"{prefix}/modal/reset-password?error=当前密码不能为空", status_code=303)
                         return RedirectResponse(
-                            f"{prefix}/profile?error=Current password required",
+                            f"{prefix}/profile?error=当前密码不能为空",
                             status_code=303,
                         )
 
                     if not self.auth.user_repo.verify_password(
                         current_password, user.password
                     ):
+                        if is_modal:
+                            return RedirectResponse(f"{prefix}/modal/reset-password?error=当前密码不正确", status_code=303)
                         return RedirectResponse(
-                            f"{prefix}/profile?error=Invalid current password",
+                            f"{prefix}/profile?error=当前密码不正确",
                             status_code=303,
                         )
 
                     if new_password != confirm_password:
+                        if is_modal:
+                            return RedirectResponse(f"{prefix}/modal/reset-password?error=两次输入的新密码不一致", status_code=303)
                         return RedirectResponse(
-                            f"{prefix}/profile?error=New passwords do not match",
-                            status_code=303,
-                        )
-
-                    if len(new_password) < 8:
-                        return RedirectResponse(
-                            f"{prefix}/profile?error=Password must be at least 8 characters",
+                            f"{prefix}/profile?error=两次输入的新密码不一致",
                             status_code=303,
                         )
 
                     # Update password (repository will handle hashing)
                     self.auth.user_repo.update(user.id, password=new_password)
 
+                    # Clear session and redirect to login
+                    req.scope["session"].clear()
+
+                    if is_modal:
+                        return Response(headers={"HX-Redirect": f"{prefix}/login?success=password_changed"})
+                    return RedirectResponse(f"{prefix}/login?success=password_changed", status_code=303)
+
                 return RedirectResponse(f"{prefix}/profile?success=1", status_code=303)
 
             except Exception as e:
                 print(f"Profile update error: {e}")
+                is_modal = await req.form() if hasattr(req, "form") else {}
+                if isinstance(is_modal, dict) and is_modal.get("modal") == "1" or getattr(is_modal, "get", lambda x: None)("modal") == "1":
+                    return RedirectResponse(f"{prefix}/modal/reset-password?error=保存失败", status_code=303)
                 return RedirectResponse(
-                    f"{prefix}/profile?error=Update failed", status_code=303
+                    f"{prefix}/profile?error=保存失败", status_code=303
                 )
 
         self.routes["profile_page"] = profile_page

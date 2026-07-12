@@ -10,3 +10,7 @@ Formal UI behavior drafts:
 - `init-wizard.md`: initialization wizard baseline and agreed follow-up behavior
 
 Current gateway follow-ups are tracked in `.dev/gateway-runtime-followups.md`.
+
+## Developer Guide
+
+For local startup and minimum developer-side acceptance, see `developer-acceptance.md`.
