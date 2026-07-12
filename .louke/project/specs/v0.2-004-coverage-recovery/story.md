@@ -1,0 +1,60 @@
+Millionaire Coverage Recovery — Story
+
+## 0. 背景与目标
+
+v0.2-003-coverage 被关闭时未达到 DoD（整体覆盖率 <95%、逐文件门禁未通过、部分测试未全绿）。本 spec v0.2-004-coverage-recovery 继承 v0.2-003 的全部已锁定合同，不做任何 DoD 降级或放宽，仅增加一项文件分类审计流程和一条更严格的 v0.2 新增文件覆盖率要求。
+
+## 1. 继承的上游合同
+
+以下文件从 v0.2-003-coverage 完整继承，本 spec 不重新定义其内容：
+
+- `story.md`（继承背景、契约来源优先级、测试基础设施与发布口径）
+- `spec.md`（继承 FR/NFR 编号方案、契约判定规则、Traceability Matrix）
+- `acceptance.md`（继承所有 AC 条目及其编号约定）
+- `test-plan.md`（继承测试范围、测试金字塔、覆盖率门禁规则）
+- `architecture.md`（继承模块架构与测试分层）
+- `interfaces.md`（继承端口契约定义）
+
+## 2. v0.2-004 新增要求
+
+### 2.1 文件分类审计（新增 FR-0801）
+
+在覆盖率门禁检查之前，增加文件分类步骤：
+
+1. 枚举 `quantide/` 下所有含可执行语句的生产 `.py` 文件。
+2. 将每个文件标记为 **v0.2-added** 或 **pre-v0.2-retained**：
+   - v0.2-added：在 v0.2 开发周期中新增或大规模重写的文件（由 `git log --diff-filter=A -- v0.2-001..HEAD` 等证据判定）。
+   - pre-v0.2-retained：在 v0.2 之前已存在、本次仅作兼容性修改或无修改的文件。
+3. 输出分类清单 `coverage-file-classification.json` 作为门禁附件。
+
+### 2.2 分档覆盖率门禁（新增 FR-0802）
+
+| 文件分类 | 逐文件覆盖率要求 | 豁免规则 |
+|---|---|---|
+| v0.2-added | ≥95% | 不适用；新增文件必须达标 |
+| pre-v0.2-retained | ≥80%（继承 v0.2-003 FR-0102） | 可申请临时豁免，但需在 spec 中记录原因并指定到期版本 |
+
+### 2.3 豁免升级流程（新增 FR-0803）
+
+pre-v0.2-retained 文件如无法达到 ≥80%，必须：
+
+1. 在 `coverage-waivers.json` 中登记文件路径、当前覆盖率、豁免原因、到期版本。
+2. 到期版本未达标时自动升级为 blocker，不允许发布。
+3. v0.2-added 文件不允许任何豁免。
+
+## 3. DoD（继承 v0.2-003，仅增加第 6 项）
+
+1. 全量 unit suite 全绿（pytest exit 0）。
+2. 整体 statement/line coverage >95%。
+3. 每个含可执行语句的生产 `.py` 文件 ≥80%（pre-v0.2-retained）或 ≥95%（v0.2-added），除非有合法豁免。
+4. 无 fake tests（测试必须断言真实行为，不能使用 `assert True`、`pass` 或未断言的 mock）。
+5. 覆盖率测量必须来自全绿运行的同一 pytest 调用，不能从非绿运行中提取覆盖率数据。
+6. **新增**：`coverage-file-classification.json` 已生成，v0.2-added 文件覆盖率 ≥95% 已通过逐文件验证。
+
+## 4. 不纳入范围
+
+- 不修改 v0.2-003 的 FR/NFR 编号或语义。
+- 不修改 v0.2-003 的测试框架、pytest 配置或覆盖率口径。
+- 不引入新的业务功能。
+- 不修改生产代码或测试代码（仅新增文件分类审计工具）。
+- 不运行单元测试套件（由后续 Archer/Sage 代理执行）。
