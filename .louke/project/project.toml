@@ -5,15 +5,15 @@ project = "millionaire-v0.2-004-coverage-recovery"
 project_id = "https://github.com/users/zillionare/projects/5"
 spec_id = "v0.2-004-coverage-recovery"
 release_branch = "releases/v0.2-004-coverage-recovery"
-acknowledged_orphan_releases = ["releases/v0.2"]
 
 [meta]
 pre_commit = "installed (python + base)"
 created = "2026-07-12T15:23:54"
 current_stage = "M-FOUND"
 security_audit = "disabled"
-smoke_test_issue = "#222 (closed)"
-smoke_test_pr = "#223 (closed)"
+smoke_test_issue = "#224 (closed)"
+smoke_test_pr = "#225 (closed)"
 dod = "full unit suite green; overall coverage >95%; every executable production file >=80% (pre-v0.2-retained) or >=95% (v0.2-added) unless legitimate waiver; no fake tests; no coverage measurement from a non-green run; coverage-file-classification.json generated and v0.2-added per-file >=95% verified"
 test_framework = "pytest"
 backlog_project = "https://github.com/users/zillionare/projects/7"
+acknowledged_orphan_releases = ["releases/v0.2"]
