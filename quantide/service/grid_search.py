@@ -2,6 +2,7 @@ import asyncio
 import itertools
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import date
+from multiprocessing import get_context
 from typing import Any
 
 import pandas as pd
@@ -137,7 +138,10 @@ class GridSearch:
         )
         from quantide.data.sqlite import db
 
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+        with ProcessPoolExecutor(
+            max_workers=self.max_workers,
+            mp_context=get_context("spawn"),
+        ) as executor:
             future_to_config = {
                 executor.submit(
                     _run_task,

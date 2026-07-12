@@ -1,46 +1,20 @@
+"""Integration tests for parallel GridSearch worker execution."""
+
 import datetime
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 import pytest
-from loguru import logger
 
-from quantide.core.enums import FrameType
-from quantide.core.strategy import BaseStrategy
 from quantide.service.grid_search import GridSearch
-
-
-class MockStrategy(BaseStrategy):
-    async def init(self):
-        # Record initial parameter
-        param1 = self.config.get("param1", 0)
-
-        # Debug: Check if portfolio exists
-        from quantide.data.sqlite import db
-        pfs = db.portfolios_all()
-        logger.info(f"Portfolios in DB: {pfs}")
-        logger.info(f"My portfolio_id: {self.broker.portfolio_id}")
-
-        self.record("param1", float(param1), self._current_time or datetime.datetime.now())
-
-    async def on_start(self):
-        pass
-
-    async def on_day_open(self, tm: datetime.datetime):
-        pass
-
-    async def on_bar(
-        self, tm: datetime.datetime, quote: dict[str, Any], frame_type: FrameType
-    ):
-        pass
+from tests.grid_search_support import GridSearchRecordingStrategy
 
 
 @pytest.fixture
 def grid_search_env(asset_dir):
-    """Setup a temporary environment for grid search worker processes."""
+    """Set up a temporary environment for grid search worker processes."""
     # Create a temporary directory structure mimicking the production environment
     tmp_home = tempfile.mkdtemp()
     tmp_path = Path(tmp_home)
@@ -131,7 +105,7 @@ def test_grid_search_save_logs(grid_search_env, db):
     end_date = datetime.date(2024, 1, 8)
 
     gs = GridSearch(
-        strategy_cls=MockStrategy,
+        strategy_cls=GridSearchRecordingStrategy,
         base_config=base_config,
         param_grid=param_grid,
         start_date=start_date,

@@ -28,9 +28,10 @@ class _Executor:
     """FR-0404 process-pool double recording submitted parameter combinations."""
 
     submitted = []
+    contexts = []
 
-    def __init__(self, **_kwargs):
-        pass
+    def __init__(self, **kwargs):
+        self.contexts.append(kwargs["mp_context"])
 
     def __enter__(self):
         return self
@@ -84,6 +85,25 @@ def test_grid_search_submits_each_parameter_combination_once(monkeypatch) -> Non
         (1, "x"), (1, "y"), (2, "x"), (2, "y"),
     }
     assert result.shape[0] == 4
+
+
+def test_grid_search_uses_fresh_worker_processes_for_cleanup(monkeypatch) -> None:
+    """v0.2-003 AC-NFR0020-3: workers use spawn so inherited resources cannot block cleanup."""
+    _Executor.submitted = []
+    _Executor.contexts = []
+    monkeypatch.setattr(grid_search_module, "ProcessPoolExecutor", _Executor)
+    monkeypatch.setattr(grid_search_module, "as_completed", lambda futures: futures)
+    search = GridSearch(
+        strategy_cls=object,
+        base_config={},
+        param_grid={"alpha": [1]},
+        start_date=datetime.date(2024, 1, 1),
+        end_date=datetime.date(2024, 1, 2),
+    )
+
+    search.run()
+
+    assert [context.get_start_method() for context in _Executor.contexts] == ["spawn"]
 
 
 def test_metrics_formats_fixed_return_series_without_database() -> None:
