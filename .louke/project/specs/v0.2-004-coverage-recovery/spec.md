@@ -1,3 +1,8 @@
+---
+locked: true
+locked-at: 2026-07-13T09:00:13Z
+locked-by: lk agent sage record-lock
+---
 # Millionaire Coverage Recovery — Spec
 
 - **Spec ID**: v0.2-004-coverage-recovery
