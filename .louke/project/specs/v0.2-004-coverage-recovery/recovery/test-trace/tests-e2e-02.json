@@ -1,0 +1,1124 @@
+{
+  "spec_id": "v0.2-004-coverage-recovery",
+  "schema": "test-trace-shard/v1",
+  "family": "tests-e2e",
+  "part": 2,
+  "module_count": 14,
+  "function_count": 35,
+  "records_sha256": "dd8cc1dfc4a3027ef8ba21f0c5ce6bc49fb06157c0cdd2743e60ffb4e9095abf",
+  "modules": [
+    {
+      "path": "tests/e2e/test_ci_workflow_e2e.py",
+      "role": "test-module",
+      "test_function_count": 4,
+      "functions": [
+        {
+          "id": "tests/e2e/test_ci_workflow_e2e.py::test_workflow_python_matrix_3_13_plus",
+          "name": "test_workflow_python_matrix_3_13_plus",
+          "qualname": "test_workflow_python_matrix_3_13_plus",
+          "line": 28,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "AC-FR0601-01: matrix.python includes 3.13.; observes `assert python_versions, 'matrix.python (or python-version) is required'; assert any((str(v).startswith('3.13') for v in python_versions)), f'python matrix does not contain 3.13: {python_versions}'`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert python_versions, 'matrix.python (or python-version) is required'",
+              "assert any((str(v).startswith('3.13') for v in python_versions)), f'python matrix does not contain 3.13: {python_versions}'"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_ci_workflow_e2e.py::test_workflow_invokes_coverage_checker",
+          "name": "test_workflow_invokes_coverage_checker",
+          "qualname": "test_workflow_invokes_coverage_checker",
+          "line": 39,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "AC-FR0601-04 / AC-FR0102-01..05: workflow references per_file_coverage.; observes `assert 'per_file_coverage' in text or 'FR-0102' in text or 'coverage_check' in text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert 'per_file_coverage' in text or 'FR-0102' in text or 'coverage_check' in text"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_ci_workflow_e2e.py::test_workflow_no_continue_on_error_on_coverage_gate",
+          "name": "test_workflow_no_continue_on_error_on_coverage_gate",
+          "qualname": "test_workflow_no_continue_on_error_on_coverage_gate",
+          "line": 45,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "AC-FR0601-05 / AC-NFR0010-04: main gate steps must NOT silence failures.; observes `assert value in (False, 'false'), f\"step {step.get('name', '?')} has continue-on-error: {value!r}; FR-0601 AC-5 forbids silencing the coverage gate.\"`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert value in (False, 'false'), f\"step {step.get('name', '?')} has continue-on-error: {value!r}; FR-0601 AC-5 forbids silencing the coverage gate.\""
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_ci_workflow_e2e.py::test_workflow_triggers_on_releases_branches",
+          "name": "test_workflow_triggers_on_releases_branches",
+          "qualname": "test_workflow_triggers_on_releases_branches",
+          "line": 58,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "AC-FR0601-01: triggers include push/PR to main + releases/**.; observes `assert any(('releases/**' in b or 'releases/*' in b for b in push_branches)), f'push.branches missing releases/**: {push_branches}'; assert any(('releases/**' in b or 'releases/*' in b for b in pr_branches)), f'pull_request.branches missing releases/**: {pr_branches}'`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert any(('releases/**' in b or 'releases/*' in b for b in push_branches)), f'push.branches missing releases/**: {push_branches}'",
+              "assert any(('releases/**' in b or 'releases/*' in b for b in pr_branches)), f'pull_request.branches missing releases/**: {pr_branches}'"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "needs-Sage-contract",
+      "reason": "function-level dispositions: {'needs-Sage-contract': 4}",
+      "consumer_evidence": [],
+      "record_id": "testmod-6cebff91eb07",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/test_ci_workflow_e2e.py`\n\n- **Role/recommendation**: `test-module` / `needs-Sage-contract` — function-level dispositions: {'needs-Sage-contract': 4}.\n- `test_workflow_python_matrix_3_13_plus` (L28): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: AC-FR0601-01: matrix.python includes 3.13.; observes `assert python_versions, 'matrix.python (or python-version) is required'; assert any((str(v).startswith('3.13') for v in python_versions)), f'python matrix does not contain 3.13: {python_versions}'`\n  - evidence/work: assert python_versions, 'matrix.python (or python-version) is required'; assert any((str(v).startswith('3.13') for v in python_versions)), f'python matrix does not contain 3.13: {python_versions}'; Sage must assign a spec-qualified behavior AC before retention\n- `test_workflow_invokes_coverage_checker` (L39): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: AC-FR0601-04 / AC-FR0102-01..05: workflow references per_file_coverage.; observes `assert 'per_file_coverage' in text or 'FR-0102' in text or 'coverage_check' in text`\n  - evidence/work: assert 'per_file_coverage' in text or 'FR-0102' in text or 'coverage_check' in text; Sage must assign a spec-qualified behavior AC before retention\n- `test_workflow_no_continue_on_error_on_coverage_gate` (L45): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: AC-FR0601-05 / AC-NFR0010-04: main gate steps must NOT silence failures.; observes `assert value in (False, 'false'), f\"step {step.get('name', '?')} has continue-on-error: {value!r}; FR-0601 AC-5 forbids silencing the coverage gate.\"`\n  - evidence/work: assert value in (False, 'false'), f\"step {step.get('name', '?')} has continue-on-error: {value!r}; FR-0601 AC-5 forbids silencing the coverage gate.\"; Sage must assign a spec-qualified behavior AC before retention\n- `test_workflow_triggers_on_releases_branches` (L58): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: AC-FR0601-01: triggers include push/PR to main + releases/**.; observes `assert any(('releases/**' in b or 'releases/*' in b for b in push_branches)), f'push.branches missing releases/**: {push_branches}'; assert any(('releases/**' in b or 'releases/*' in b for b in pr_branches)), f'pull_request.branches missing releases/**: {pr_branches}'`\n  - evidence/work: assert any(('releases/**' in b or 'releases/*' in b for b in push_branches)), f'push.branches missing releases/**: {push_branches}'; assert any(('releases/**' in b or 'releases/*' in b for b in pr_branches)), f'pull_request.branches missing releases/**: {pr_branches}'; Sage must assign a spec-qualified behavior AC before retention\n"
+      }
+    },
+    {
+      "path": "tests/e2e/test_coverage_checker_e2e.py",
+      "role": "test-module",
+      "test_function_count": 3,
+      "functions": [
+        {
+          "id": "tests/e2e/test_coverage_checker_e2e.py::test_checker_passes_when_all_above_threshold",
+          "name": "test_checker_passes_when_all_above_threshold",
+          "qualname": "test_checker_passes_when_all_above_threshold",
+          "line": 46,
+          "target_refs": [
+            "v0.2-003-coverage FR-0101 / AC-FR0101-03"
+          ],
+          "production_targets": [],
+          "target_behavior": "AC-FR0102-02 / AC-NFR0010-01: all files >=80% + overall >=95% -> exit 0.; observes `assert r.returncode == 0, f'checker failed unexpectedly:\\nSTDOUT:\\n{r.stdout}\\nSTDERR:\\n{r.stderr}'`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert r.returncode == 0, f'checker failed unexpectedly:\\nSTDOUT:\\n{r.stdout}\\nSTDERR:\\n{r.stderr}'"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_coverage_checker_e2e.py::test_checker_fails_when_file_below_threshold",
+          "name": "test_checker_fails_when_file_below_threshold",
+          "qualname": "test_checker_fails_when_file_below_threshold",
+          "line": 65,
+          "target_refs": [
+            "v0.2-003-coverage FR-0102 / AC-FR0102-05"
+          ],
+          "production_targets": [],
+          "target_behavior": "AC-FR0102-01: file at 79.99% without waiver -> exit non-zero.; observes `assert r.returncode != 0; assert 'below 80%' in r.stderr or 'is below 80%' in r.stderr`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert r.returncode != 0",
+              "assert 'below 80%' in r.stderr or 'is below 80%' in r.stderr"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_coverage_checker_e2e.py::test_checker_fails_when_overall_below_threshold",
+          "name": "test_checker_fails_when_overall_below_threshold",
+          "qualname": "test_checker_fails_when_overall_below_threshold",
+          "line": 80,
+          "target_refs": [
+            "v0.2-003-coverage FR-0101 / AC-FR0101-04"
+          ],
+          "production_targets": [],
+          "target_behavior": "AC-FR0102-02 / AC-NFR0010-01: overall <95% with files >=80% -> exit non-zero.; observes `assert r.returncode != 0; assert 'overall coverage' in r.stderr`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert r.returncode != 0",
+              "assert 'overall coverage' in r.stderr"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "keep",
+      "reason": "function-level dispositions: {'aligned': 3}",
+      "consumer_evidence": [],
+      "record_id": "testmod-6b059aae3b64",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/test_coverage_checker_e2e.py`\n\n- **Role/recommendation**: `test-module` / `keep` — function-level dispositions: {'aligned': 3}.\n- `test_checker_passes_when_all_above_threshold` (L46): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0101 / AC-FR0101-03\n  - production paths: none established\n  - target behavior: AC-FR0102-02 / AC-NFR0010-01: all files >=80% + overall >=95% -> exit 0.; observes `assert r.returncode == 0, f'checker failed unexpectedly:\\nSTDOUT:\\n{r.stdout}\\nSTDERR:\\n{r.stderr}'`\n  - evidence/work: assert r.returncode == 0, f'checker failed unexpectedly:\\nSTDOUT:\\n{r.stdout}\\nSTDERR:\\n{r.stderr}'; none\n- `test_checker_fails_when_file_below_threshold` (L65): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0102 / AC-FR0102-05\n  - production paths: none established\n  - target behavior: AC-FR0102-01: file at 79.99% without waiver -> exit non-zero.; observes `assert r.returncode != 0; assert 'below 80%' in r.stderr or 'is below 80%' in r.stderr`\n  - evidence/work: assert r.returncode != 0; assert 'below 80%' in r.stderr or 'is below 80%' in r.stderr; none\n- `test_checker_fails_when_overall_below_threshold` (L80): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0101 / AC-FR0101-04\n  - production paths: none established\n  - target behavior: AC-FR0102-02 / AC-NFR0010-01: overall <95% with files >=80% -> exit non-zero.; observes `assert r.returncode != 0; assert 'overall coverage' in r.stderr`\n  - evidence/work: assert r.returncode != 0; assert 'overall coverage' in r.stderr; none\n"
+      }
+    },
+    {
+      "path": "tests/e2e/test_gateway.py",
+      "role": "test-module",
+      "test_function_count": 3,
+      "functions": [
+        {
+          "id": "tests/e2e/test_gateway.py::test_gateway_settings_page_can_test_and_save_configuration",
+          "name": "test_gateway_settings_page_can_test_and_save_configuration",
+          "qualname": "test_gateway_settings_page_can_test_and_save_configuration",
+          "line": 17,
+          "target_refs": [
+            "v0.2-003-coverage NFR-0020 / AC-NFR0020-01"
+          ],
+          "production_targets": [],
+          "target_behavior": "AC-FR0340-01 AC-FR0340-02: 网关页可连通性测试并持久化保存配置.; observes `assert page.status_code == 200; assert test_response.status_code == 200; assert '连通性测试通过' in test_response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert page.status_code == 200",
+              "assert test_response.status_code == 200",
+              "assert '连通性测试通过' in test_response.text"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_gateway.py::test_missing_gateway_disables_live_trade_but_keeps_gateway_page_available",
+          "name": "test_missing_gateway_disables_live_trade_but_keeps_gateway_page_available",
+          "qualname": "test_missing_gateway_disables_live_trade_but_keeps_gateway_page_available",
+          "line": 55,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "AC-FR0180-01 AC-FR0180-03 AC-FR0340-03: A 类降级下实盘入口返回 503, 网关管理页仍可访问.; observes `assert live_page.status_code == 503; assert gateway_page.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert live_page.status_code == 503",
+              "assert gateway_page.status_code == 200"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_gateway.py::test_gateway_reject_response_does_not_create_local_trade_state",
+          "name": "test_gateway_reject_response_does_not_create_local_trade_state",
+          "qualname": "test_gateway_reject_response_does_not_create_local_trade_state",
+          "line": 69,
+          "target_refs": [
+            "v0.2-003-coverage FR-0203 / AC-FR0203-03"
+          ],
+          "production_targets": [
+            "quantide/core/enums.py",
+            "quantide/core/ports/__init__.py",
+            "quantide/core/runtime/gateway_broker.py",
+            "quantide/core/runtime/gateway_client.py"
+          ],
+          "target_behavior": "GatewayBrokerAdapter, GatewayClient, OrderRequest, OrderSide: AC-FR0180-10 AC-FR0420-09: 网关拒单时不产生本地委托/成交残留.; observes `assert ack.order_id is None; assert ack.status == 'rejected'; assert 'price out of range' in ack.message`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert ack.order_id is None",
+              "assert ack.status == 'rejected'",
+              "assert 'price out of range' in ack.message"
+            ],
+            "production_symbols_used": [
+              "GatewayBrokerAdapter",
+              "GatewayClient",
+              "OrderRequest",
+              "OrderSide"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "needs-Sage-contract",
+      "reason": "function-level dispositions: {'aligned': 2, 'needs-Sage-contract': 1}",
+      "consumer_evidence": [],
+      "record_id": "testmod-ce3b3180c209",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/test_gateway.py`\n\n- **Role/recommendation**: `test-module` / `needs-Sage-contract` — function-level dispositions: {'aligned': 2, 'needs-Sage-contract': 1}.\n- `test_gateway_settings_page_can_test_and_save_configuration` (L17): **aligned / aligned**\n  - refs: v0.2-003-coverage NFR-0020 / AC-NFR0020-01\n  - production paths: none established\n  - target behavior: AC-FR0340-01 AC-FR0340-02: 网关页可连通性测试并持久化保存配置.; observes `assert page.status_code == 200; assert test_response.status_code == 200; assert '连通性测试通过' in test_response.text`\n  - evidence/work: assert page.status_code == 200; assert test_response.status_code == 200; assert '连通性测试通过' in test_response.text; none\n- `test_missing_gateway_disables_live_trade_but_keeps_gateway_page_available` (L55): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: AC-FR0180-01 AC-FR0180-03 AC-FR0340-03: A 类降级下实盘入口返回 503, 网关管理页仍可访问.; observes `assert live_page.status_code == 503; assert gateway_page.status_code == 200`\n  - evidence/work: assert live_page.status_code == 503; assert gateway_page.status_code == 200; Sage must assign a spec-qualified behavior AC before retention\n- `test_gateway_reject_response_does_not_create_local_trade_state` (L69): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0203 / AC-FR0203-03\n  - production paths: `quantide/core/enums.py`, `quantide/core/ports/__init__.py`, `quantide/core/runtime/gateway_broker.py`, `quantide/core/runtime/gateway_client.py`\n  - target behavior: GatewayBrokerAdapter, GatewayClient, OrderRequest, OrderSide: AC-FR0180-10 AC-FR0420-09: 网关拒单时不产生本地委托/成交残留.; observes `assert ack.order_id is None; assert ack.status == 'rejected'; assert 'price out of range' in ack.message`\n  - evidence/work: assert ack.order_id is None; assert ack.status == 'rejected'; assert 'price out of range' in ack.message; none\n"
+      }
+    },
+    {
+      "path": "tests/e2e/test_isolation_e2e.py",
+      "role": "test-module",
+      "test_function_count": 1,
+      "functions": [
+        {
+          "id": "tests/e2e/test_isolation_e2e.py::test_random_order_yields_identical_totals",
+          "name": "test_random_order_yields_identical_totals",
+          "qualname": "test_random_order_yields_identical_totals",
+          "line": 42,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "AC-FR0104-04 / AC-NFR0020-02: same tests, different order -> identical totals.; observes `assert total1 == total2, f'totals differ between two runs: {total1} vs {total2} (random={use_random})'; assert total1 > 0, 'no tests collected in target dir'`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert total1 == total2, f'totals differ between two runs: {total1} vs {total2} (random={use_random})'",
+              "assert total1 > 0, 'no tests collected in target dir'"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "needs-Sage-contract",
+      "reason": "function-level dispositions: {'needs-Sage-contract': 1}",
+      "consumer_evidence": [],
+      "record_id": "testmod-fe2ee2a381f9",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/test_isolation_e2e.py`\n\n- **Role/recommendation**: `test-module` / `needs-Sage-contract` — function-level dispositions: {'needs-Sage-contract': 1}.\n- `test_random_order_yields_identical_totals` (L42): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: AC-FR0104-04 / AC-NFR0020-02: same tests, different order -> identical totals.; observes `assert total1 == total2, f'totals differ between two runs: {total1} vs {total2} (random={use_random})'; assert total1 > 0, 'no tests collected in target dir'`\n  - evidence/work: assert total1 == total2, f'totals differ between two runs: {total1} vs {total2} (random={use_random})'; assert total1 > 0, 'no tests collected in target dir'; Sage must assign a spec-qualified behavior AC before retention\n"
+      }
+    },
+    {
+      "path": "tests/e2e/test_live_smoke.py",
+      "role": "test-module",
+      "test_function_count": 1,
+      "functions": [
+        {
+          "id": "tests/e2e/test_live_smoke.py::test_live_smoke_contract_for_real_broker_path",
+          "name": "test_live_smoke_contract_for_real_broker_path",
+          "qualname": "test_live_smoke_contract_for_real_broker_path",
+          "line": 16,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "AC-FR0460-04 AC-FR0340-06 AC-FR0420-01: 真机环境需具备 wizard→gateway→投策略→仿真→实盘 的最小运行前提.; observes `assert os.name == 'nt'; assert os.getenv('SHIELD_QMT_GATEWAY_HOST'); assert os.getenv('SHIELD_QMT_GATEWAY_PORT')`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert os.name == 'nt'",
+              "assert os.getenv('SHIELD_QMT_GATEWAY_HOST')",
+              "assert os.getenv('SHIELD_QMT_GATEWAY_PORT')"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "needs-Sage-contract",
+      "reason": "function-level dispositions: {'needs-Sage-contract': 1}",
+      "consumer_evidence": [],
+      "record_id": "testmod-7af10b84d636",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/test_live_smoke.py`\n\n- **Role/recommendation**: `test-module` / `needs-Sage-contract` — function-level dispositions: {'needs-Sage-contract': 1}.\n- `test_live_smoke_contract_for_real_broker_path` (L16): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: AC-FR0460-04 AC-FR0340-06 AC-FR0420-01: 真机环境需具备 wizard→gateway→投策略→仿真→实盘 的最小运行前提.; observes `assert os.name == 'nt'; assert os.getenv('SHIELD_QMT_GATEWAY_HOST'); assert os.getenv('SHIELD_QMT_GATEWAY_PORT')`\n  - evidence/work: assert os.name == 'nt'; assert os.getenv('SHIELD_QMT_GATEWAY_HOST'); assert os.getenv('SHIELD_QMT_GATEWAY_PORT'); Sage must assign a spec-qualified behavior AC before retention\n"
+      }
+    },
+    {
+      "path": "tests/e2e/test_paper.py",
+      "role": "test-module",
+      "test_function_count": 2,
+      "functions": [
+        {
+          "id": "tests/e2e/test_paper.py::test_paper_journey_covers_accounts_trade_history_and_data_pages",
+          "name": "test_paper_journey_covers_accounts_trade_history_and_data_pages",
+          "qualname": "test_paper_journey_covers_accounts_trade_history_and_data_pages",
+          "line": 13,
+          "target_refs": [
+            "v0.2-003-coverage FR-0402 / AC-FR0402-02"
+          ],
+          "production_targets": [
+            "quantide/service/sim_broker.py"
+          ],
+          "target_behavior": "AC-FR0390-01 AC-FR0400-01 AC-FR0310-01 AC-FR0320-01 AC-FR0330-01: paper 主路径可打开账户、委托成交与系统数据页.; observes `assert trade_page.status_code == 200; assert accounts_page.status_code == 200; assert order_history_page.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert trade_page.status_code == 200",
+              "assert accounts_page.status_code == 200",
+              "assert order_history_page.status_code == 200"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_paper.py::test_paper_journey_promotes_backtest_into_paper_and_live_modes",
+          "name": "test_paper_journey_promotes_backtest_into_paper_and_live_modes",
+          "qualname": "test_paper_journey_promotes_backtest_into_paper_and_live_modes",
+          "line": 46,
+          "target_refs": [
+            "v0.2-003-coverage FR-0401 / AC-FR0401-05"
+          ],
+          "production_targets": [
+            "quantide/service/strategy_runtime.py"
+          ],
+          "target_behavior": "strategy_runtime_manager: AC-FR0040-01 AC-FR0420-01 AC-FR0430-01: 回测报告可转入仿真和实盘, 入口页保持可访问.; observes `assert paper_modal.status_code == 200; assert '确认转入仿真' in paper_modal.text; assert paper_response.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert paper_modal.status_code == 200",
+              "assert '确认转入仿真' in paper_modal.text",
+              "assert paper_response.status_code == 200"
+            ],
+            "production_symbols_used": [
+              "strategy_runtime_manager"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "keep",
+      "reason": "function-level dispositions: {'aligned': 2}",
+      "consumer_evidence": [],
+      "record_id": "testmod-1c4d2660cd0e",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/test_paper.py`\n\n- **Role/recommendation**: `test-module` / `keep` — function-level dispositions: {'aligned': 2}.\n- `test_paper_journey_covers_accounts_trade_history_and_data_pages` (L13): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0402 / AC-FR0402-02\n  - production paths: `quantide/service/sim_broker.py`\n  - target behavior: AC-FR0390-01 AC-FR0400-01 AC-FR0310-01 AC-FR0320-01 AC-FR0330-01: paper 主路径可打开账户、委托成交与系统数据页.; observes `assert trade_page.status_code == 200; assert accounts_page.status_code == 200; assert order_history_page.status_code == 200`\n  - evidence/work: assert trade_page.status_code == 200; assert accounts_page.status_code == 200; assert order_history_page.status_code == 200; none\n- `test_paper_journey_promotes_backtest_into_paper_and_live_modes` (L46): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0401 / AC-FR0401-05\n  - production paths: `quantide/service/strategy_runtime.py`\n  - target behavior: strategy_runtime_manager: AC-FR0040-01 AC-FR0420-01 AC-FR0430-01: 回测报告可转入仿真和实盘, 入口页保持可访问.; observes `assert paper_modal.status_code == 200; assert '确认转入仿真' in paper_modal.text; assert paper_response.status_code == 200`\n  - evidence/work: assert paper_modal.status_code == 200; assert '确认转入仿真' in paper_modal.text; assert paper_response.status_code == 200; none\n"
+      }
+    },
+    {
+      "path": "tests/e2e/test_smoke.py",
+      "role": "test-module",
+      "test_function_count": 2,
+      "functions": [
+        {
+          "id": "tests/e2e/test_smoke.py::test_login_redirects_into_strategy_workspace",
+          "name": "test_login_redirects_into_strategy_workspace",
+          "qualname": "test_login_redirects_into_strategy_workspace",
+          "line": 13,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "AC-FR0110-01 AC-FR0120-01: 已初始化未登录访问根路由会跳登录, 登录后进入主工作区.; observes `assert response.status_code == 303; assert response.headers['location'] == '/strategy/'; assert login.status_code == 303`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 303",
+              "assert response.headers['location'] == '/strategy/'",
+              "assert login.status_code == 303"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/test_smoke.py::test_strategy_workspace_can_open_backtest_report_tabs",
+          "name": "test_strategy_workspace_can_open_backtest_report_tabs",
+          "qualname": "test_strategy_workspace_can_open_backtest_report_tabs",
+          "line": 36,
+          "target_refs": [
+            "v0.2-003-coverage FR-0401 / AC-FR0401-02"
+          ],
+          "production_targets": [
+            "quantide/service/strategy_runtime.py"
+          ],
+          "target_behavior": "strategy_runtime_manager: AC-FR0080-01 AC-FR0091-01 AC-FR0091-02: 策略页可进入回测报告, 报告页保留核心页签.; observes `assert report_page.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert report_page.status_code == 200"
+            ],
+            "production_symbols_used": [
+              "strategy_runtime_manager"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "needs-Sage-contract",
+      "reason": "function-level dispositions: {'needs-Sage-contract': 1, 'aligned': 1}",
+      "consumer_evidence": [],
+      "record_id": "testmod-7fd9f3f7e57a",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/test_smoke.py`\n\n- **Role/recommendation**: `test-module` / `needs-Sage-contract` — function-level dispositions: {'needs-Sage-contract': 1, 'aligned': 1}.\n- `test_login_redirects_into_strategy_workspace` (L13): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: AC-FR0110-01 AC-FR0120-01: 已初始化未登录访问根路由会跳登录, 登录后进入主工作区.; observes `assert response.status_code == 303; assert response.headers['location'] == '/strategy/'; assert login.status_code == 303`\n  - evidence/work: assert response.status_code == 303; assert response.headers['location'] == '/strategy/'; assert login.status_code == 303; Sage must assign a spec-qualified behavior AC before retention\n- `test_strategy_workspace_can_open_backtest_report_tabs` (L36): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0401 / AC-FR0401-02\n  - production paths: `quantide/service/strategy_runtime.py`\n  - target behavior: strategy_runtime_manager: AC-FR0080-01 AC-FR0091-01 AC-FR0091-02: 策略页可进入回测报告, 报告页保留核心页签.; observes `assert report_page.status_code == 200`\n  - evidence/work: assert report_page.status_code == 200; none\n"
+      }
+    },
+    {
+      "path": "tests/e2e/three_mode/__init__.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: pytest/package discovery marker for `tests/e2e/three_mode`",
+      "consumer_evidence": [
+        "pytest/package discovery marker for `tests/e2e/three_mode`"
+      ],
+      "record_id": "testmod-a1fbfbf6e3d9",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/three_mode/__init__.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: pytest/package discovery marker for `tests/e2e/three_mode`.\n- **Consumer evidence**: pytest/package discovery marker for `tests/e2e/three_mode`.\n"
+      }
+    },
+    {
+      "path": "tests/e2e/three_mode/test_dual_ma_parity.py",
+      "role": "test-module",
+      "test_function_count": 1,
+      "functions": [
+        {
+          "id": "tests/e2e/three_mode/test_dual_ma_parity.py::test_dual_ma_parity_across_backtest_paper_and_live",
+          "name": "test_dual_ma_parity_across_backtest_paper_and_live",
+          "qualname": "test_dual_ma_parity_across_backtest_paper_and_live",
+          "line": 555,
+          "target_refs": [
+            "v0.2-003-coverage FR-0402 / AC-FR0402-06"
+          ],
+          "production_targets": [
+            "quantide/service/sim_broker.py",
+            "quantide/strategies/example/dual_ma.py"
+          ],
+          "target_behavior": "dual ma parity across backpaper and live; observes `assert backtest_result['trades'] == expected_trades; assert paper_result['trades'] == expected_trades; assert live_result['trades'] == expected_trades`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert backtest_result['trades'] == expected_trades",
+              "assert paper_result['trades'] == expected_trades",
+              "assert live_result['trades'] == expected_trades"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "keep",
+      "reason": "function-level dispositions: {'aligned': 1}",
+      "consumer_evidence": [],
+      "record_id": "testmod-be4e04466068",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/three_mode/test_dual_ma_parity.py`\n\n- **Role/recommendation**: `test-module` / `keep` — function-level dispositions: {'aligned': 1}.\n- `test_dual_ma_parity_across_backtest_paper_and_live` (L555): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0402 / AC-FR0402-06\n  - production paths: `quantide/service/sim_broker.py`, `quantide/strategies/example/dual_ma.py`\n  - target behavior: dual ma parity across backpaper and live; observes `assert backtest_result['trades'] == expected_trades; assert paper_result['trades'] == expected_trades; assert live_result['trades'] == expected_trades`\n  - evidence/work: assert backtest_result['trades'] == expected_trades; assert paper_result['trades'] == expected_trades; assert live_result['trades'] == expected_trades; none\n"
+      }
+    },
+    {
+      "path": "tests/e2e/web/__init__.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: pytest/package discovery marker for `tests/e2e/web`",
+      "consumer_evidence": [
+        "pytest/package discovery marker for `tests/e2e/web`"
+      ],
+      "record_id": "testmod-da44b0a9d1b8",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/web/__init__.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: pytest/package discovery marker for `tests/e2e/web`.\n- **Consumer evidence**: pytest/package discovery marker for `tests/e2e/web`.\n"
+      }
+    },
+    {
+      "path": "tests/e2e/web/test_dev_stub_mode.py",
+      "role": "test-module",
+      "test_function_count": 1,
+      "functions": [
+        {
+          "id": "tests/e2e/web/test_dev_stub_mode.py::test_dev_stub_switch_starts_gateway_and_tushare",
+          "name": "test_dev_stub_switch_starts_gateway_and_tushare",
+          "qualname": "test_dev_stub_switch_starts_gateway_and_tushare",
+          "line": 21,
+          "target_refs": [
+            "v0.2-003-coverage FR-0203 / AC-FR0203-02"
+          ],
+          "production_targets": [
+            "quantide/config/dev_stubs.py",
+            "quantide/core/runtime/gateway_broker.py",
+            "quantide/core/runtime/gateway_client.py",
+            "quantide/data/fetchers/registry.py",
+            "quantide/data/sqlite.py",
+            "quantide/service/strategy_runtime.py",
+            "quantide/web/middleware_feature.py"
+          ],
+          "target_behavior": "DEV_STUBS_ENV_VAR, GatewayBrokerAdapter, GatewayClient, db, ensure_dev_stubs_started, get_data_fetcher, get_feature_status, reset_dev_stub_runtime_for_tests, strategy_runtime_manager: dev stub switch starts gateway and tushare; observes `assert response.status_code == 303; assert response.headers['location'] == '/trade/live/'; assert response.status_code == 303`",
+          "quality": "self-fulfilling",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 303",
+              "assert response.headers['location'] == '/trade/live/'",
+              "assert response.status_code == 303"
+            ],
+            "production_symbols_used": [
+              "DEV_STUBS_ENV_VAR",
+              "GatewayBrokerAdapter",
+              "GatewayClient",
+              "db",
+              "ensure_dev_stubs_started",
+              "get_data_fetcher",
+              "get_feature_status",
+              "reset_dev_stub_runtime_for_tests",
+              "strategy_runtime_manager"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "update",
+          "work_required": "Devon: replace or strengthen self-fulfilling semantics against target_refs and target_behavior",
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "update",
+      "reason": "function-level dispositions: {'update': 1}",
+      "consumer_evidence": [],
+      "record_id": "testmod-570f37204379",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/web/test_dev_stub_mode.py`\n\n- **Role/recommendation**: `test-module` / `update` — function-level dispositions: {'update': 1}.\n- `test_dev_stub_switch_starts_gateway_and_tushare` (L21): **update / self-fulfilling**\n  - refs: v0.2-003-coverage FR-0203 / AC-FR0203-02\n  - production paths: `quantide/config/dev_stubs.py`, `quantide/core/runtime/gateway_broker.py`, `quantide/core/runtime/gateway_client.py`, `quantide/data/fetchers/registry.py`, `quantide/data/sqlite.py`, `quantide/service/strategy_runtime.py`, `quantide/web/middleware_feature.py`\n  - target behavior: DEV_STUBS_ENV_VAR, GatewayBrokerAdapter, GatewayClient, db, ensure_dev_stubs_started, get_data_fetcher, get_feature_status, reset_dev_stub_runtime_for_tests, strategy_runtime_manager: dev stub switch starts gateway and tushare; observes `assert response.status_code == 303; assert response.headers['location'] == '/trade/live/'; assert response.status_code == 303`\n  - evidence/work: assert response.status_code == 303; assert response.headers['location'] == '/trade/live/'; assert response.status_code == 303; Devon: replace or strengthen self-fulfilling semantics against target_refs and target_behavior\n"
+      }
+    },
+    {
+      "path": "tests/e2e/web/test_init_wizard_flow.py",
+      "role": "test-module",
+      "test_function_count": 4,
+      "functions": [
+        {
+          "id": "tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_happy_path_uses_gateway_ping",
+          "name": "test_init_wizard_happy_path_uses_gateway_ping",
+          "qualname": "test_init_wizard_happy_path_uses_gateway_ping",
+          "line": 67,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-01"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: init wizard happy path uses gateway ping; observes `assert response.status_code == 200; assert '连通性测试正确' in response.text; assert f'{gateway_stub.prefix}/ping' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert '连通性测试正确' in response.text",
+              "assert f'{gateway_stub.prefix}/ping' in response.text"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_download_validation_stays_on_data_setup",
+          "name": "test_init_wizard_download_validation_stays_on_data_setup",
+          "qualname": "test_init_wizard_download_validation_stays_on_data_setup",
+          "line": 138,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-04"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init wizard download validation stays on data setup; observes `assert response.status_code == 200; assert '当前数据源' in response.text; assert response.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert '当前数据源' in response.text",
+              "assert response.status_code == 200"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_dev_stub_step_five_imports_samples_without_download_dialog",
+          "name": "test_init_wizard_dev_stub_step_five_imports_samples_without_download_dialog",
+          "qualname": "test_init_wizard_dev_stub_step_five_imports_samples_without_download_dialog",
+          "line": 162,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-03"
+          ],
+          "production_targets": [
+            "quantide/config/dev_stubs.py",
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, init_wizard, reset_dev_stub_runtime_for_tests: init wizard dev stub step five imports samples without download dialog; observes `assert response.status_code == 200; assert '导入开发 Stub 内置样本数据。' in response.text; assert response.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert '导入开发 Stub 内置样本数据。' in response.text",
+              "assert response.status_code == 200"
+            ],
+            "production_symbols_used": [
+              "DEV_STUBS_ENV_VAR",
+              "DEV_STUB_TUSHARE_TOKEN",
+              "init_wizard",
+              "reset_dev_stub_runtime_for_tests"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_init_wizard_flow.py::test_init_wizard_download_success_reports_completed_progress",
+          "name": "test_init_wizard_download_success_reports_completed_progress",
+          "qualname": "test_init_wizard_download_success_reports_completed_progress",
+          "line": 234,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-01"
+          ],
+          "production_targets": [
+            "quantide/data/__init__.py",
+            "quantide/service/init_wizard.py",
+            "quantide/web/pages/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: init wizard download success reports completed progress; observes `assert response.status_code == 200; assert '当前数据源' in response.text; assert response.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert '当前数据源' in response.text",
+              "assert response.status_code == 200"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "keep",
+      "reason": "function-level dispositions: {'aligned': 4}",
+      "consumer_evidence": [],
+      "record_id": "testmod-22baa7e31fff",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/web/test_init_wizard_flow.py`\n\n- **Role/recommendation**: `test-module` / `keep` — function-level dispositions: {'aligned': 4}.\n- `test_init_wizard_happy_path_uses_gateway_ping` (L67): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-01\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: init wizard happy path uses gateway ping; observes `assert response.status_code == 200; assert '连通性测试正确' in response.text; assert f'{gateway_stub.prefix}/ping' in response.text`\n  - evidence/work: assert response.status_code == 200; assert '连通性测试正确' in response.text; assert f'{gateway_stub.prefix}/ping' in response.text; none\n- `test_init_wizard_download_validation_stays_on_data_setup` (L138): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-04\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init wizard download validation stays on data setup; observes `assert response.status_code == 200; assert '当前数据源' in response.text; assert response.status_code == 200`\n  - evidence/work: assert response.status_code == 200; assert '当前数据源' in response.text; assert response.status_code == 200; none\n- `test_init_wizard_dev_stub_step_five_imports_samples_without_download_dialog` (L162): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-03\n  - production paths: `quantide/config/dev_stubs.py`, `quantide/service/init_wizard.py`\n  - target behavior: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, init_wizard, reset_dev_stub_runtime_for_tests: init wizard dev stub step five imports samples without download dialog; observes `assert response.status_code == 200; assert '导入开发 Stub 内置样本数据。' in response.text; assert response.status_code == 200`\n  - evidence/work: assert response.status_code == 200; assert '导入开发 Stub 内置样本数据。' in response.text; assert response.status_code == 200; none\n- `test_init_wizard_download_success_reports_completed_progress` (L234): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-01\n  - production paths: `quantide/data/__init__.py`, `quantide/service/init_wizard.py`, `quantide/web/pages/init_wizard.py`\n  - target behavior: init_wizard: init wizard download success reports completed progress; observes `assert response.status_code == 200; assert '当前数据源' in response.text; assert response.status_code == 200`\n  - evidence/work: assert response.status_code == 200; assert '当前数据源' in response.text; assert response.status_code == 200; none\n"
+      }
+    },
+    {
+      "path": "tests/e2e/web/test_init_wizard_tushare.py",
+      "role": "test-module",
+      "test_function_count": 1,
+      "functions": [
+        {
+          "id": "tests/e2e/web/test_init_wizard_tushare.py::test_init_wizard_download_uses_fixture_backed_tushare_data",
+          "name": "test_init_wizard_download_uses_fixture_backed_tushare_data",
+          "qualname": "test_init_wizard_download_uses_fixture_backed_tushare_data",
+          "line": 78,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-01"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: init wizard download uses fixture backed tushare data; observes `assert response.status_code == 200; assert 'sync-progress-bar' in response.text; assert payload['completed'] is True`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert 'sync-progress-bar' in response.text",
+              "assert payload['completed'] is True"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "keep",
+      "reason": "function-level dispositions: {'aligned': 1}",
+      "consumer_evidence": [],
+      "record_id": "testmod-d93181b27345",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/web/test_init_wizard_tushare.py`\n\n- **Role/recommendation**: `test-module` / `keep` — function-level dispositions: {'aligned': 1}.\n- `test_init_wizard_download_uses_fixture_backed_tushare_data` (L78): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-01\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: init wizard download uses fixture backed tushare data; observes `assert response.status_code == 200; assert 'sync-progress-bar' in response.text; assert payload['completed'] is True`\n  - evidence/work: assert response.status_code == 200; assert 'sync-progress-bar' in response.text; assert payload['completed'] is True; none\n"
+      }
+    },
+    {
+      "path": "tests/e2e/web/test_system_settings_flow.py",
+      "role": "test-module",
+      "test_function_count": 12,
+      "functions": [
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_gateway_settings_can_test_and_persist_configuration",
+          "name": "test_gateway_settings_can_test_and_persist_configuration",
+          "qualname": "test_gateway_settings_can_test_and_persist_configuration",
+          "line": 21,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-03"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: gateway settings can and persist configuration; observes `assert page.status_code == 200; assert '保存配置' in page.text; assert test_response.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert page.status_code == 200",
+              "assert '保存配置' in page.text",
+              "assert test_response.status_code == 200"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_datasource_settings_can_persist_token_and_epoch",
+          "name": "test_datasource_settings_can_persist_token_and_epoch",
+          "qualname": "test_datasource_settings_can_persist_token_and_epoch",
+          "line": 71,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-06"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: datasource settings can persist token and epoch; observes `assert page.status_code == 200; assert '保存配置' in page.text; assert response.status_code == 200`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert page.status_code == 200",
+              "assert '保存配置' in page.text",
+              "assert response.status_code == 200"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_jobs_toggle_persists_after_reopening_app",
+          "name": "test_jobs_toggle_persists_after_reopening_app",
+          "qualname": "test_jobs_toggle_persists_after_reopening_app",
+          "line": 101,
+          "target_refs": [
+            "v0.2-003-coverage FR-0503 / AC-FR0503-05"
+          ],
+          "production_targets": [
+            "quantide/web/pages/system/jobs.py"
+          ],
+          "target_behavior": "jobs: jobs toggle persists after reopening app; observes `assert page.status_code == 200; assert '运行中' in page.text; assert toggle_response.status_code == 303`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert page.status_code == 200",
+              "assert '运行中' in page.text",
+              "assert toggle_response.status_code == 303"
+            ],
+            "production_symbols_used": [
+              "jobs"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub",
+          "name": "test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub",
+          "qualname": "test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub",
+          "line": 126,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-04"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: trade main hides fake placeholder metrics with gateway stub; observes `assert response.status_code == 200; assert '昨收' in response.text; assert '现价' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert '昨收' in response.text",
+              "assert '现价' in response.text"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_trade_main_keeps_side_controls_mutually_exclusive_with_gateway_stub",
+          "name": "test_trade_main_keeps_side_controls_mutually_exclusive_with_gateway_stub",
+          "qualname": "test_trade_main_keeps_side_controls_mutually_exclusive_with_gateway_stub",
+          "line": 162,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-06"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: trade main keeps side controls mutually exclusive with gateway stub; observes `assert response.status_code == 200; assert 'id=\"buy-star\"' in response.text; assert 'id=\"sell-star\"' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert 'id=\"buy-star\"' in response.text",
+              "assert 'id=\"sell-star\"' in response.text"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_trade_main_shows_limit_placeholder_and_price_hint_markup_with_gateway_stub",
+          "name": "test_trade_main_shows_limit_placeholder_and_price_hint_markup_with_gateway_stub",
+          "qualname": "test_trade_main_shows_limit_placeholder_and_price_hint_markup_with_gateway_stub",
+          "line": 193,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-03"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: trade main shows limit placeholder and price hint markup with gateway stub; observes `assert response.status_code == 200; assert 'id=\"price-input\"' in response.text; assert 'id=\"price-change-hint\"' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert 'id=\"price-input\"' in response.text",
+              "assert 'id=\"price-change-hint\"' in response.text"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_trade_main_polls_live_quote_and_gates_speed_dial_with_gateway_stub",
+          "name": "test_trade_main_polls_live_quote_and_gates_speed_dial_with_gateway_stub",
+          "qualname": "test_trade_main_polls_live_quote_and_gates_speed_dial_with_gateway_stub",
+          "line": 223,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-04"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: trade main polls live quote and gates speed dial with gateway stub; observes `assert response.status_code == 200; assert '/trade/live-quote?asset=' in response.text; assert 'reference-price-btn' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert '/trade/live-quote?asset=' in response.text",
+              "assert 'reference-price-btn' in response.text"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_trade_main_uses_top_toast_placeholder_with_gateway_stub",
+          "name": "test_trade_main_uses_top_toast_placeholder_with_gateway_stub",
+          "qualname": "test_trade_main_uses_top_toast_placeholder_with_gateway_stub",
+          "line": 258,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-03"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: trade main uses top toast placeholder with gateway stub; observes `assert response.status_code == 200; assert 'id=\"trade-toast-slot\"' in response.text; assert 'hx-target=\"#trade-toast-slot\"' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert 'id=\"trade-toast-slot\"' in response.text",
+              "assert 'hx-target=\"#trade-toast-slot\"' in response.text"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_trade_main_renders_lightning_controls_with_gateway_stub",
+          "name": "test_trade_main_renders_lightning_controls_with_gateway_stub",
+          "qualname": "test_trade_main_renders_lightning_controls_with_gateway_stub",
+          "line": 287,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-05"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: trade main renders lightning controls with gateway stub; observes `assert response.status_code == 200; assert 'id=\"trade-lightning-panel\"' in response.text; assert 'id=\"trade-lightning-modal-container\"' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert 'id=\"trade-lightning-panel\"' in response.text",
+              "assert 'id=\"trade-lightning-modal-container\"' in response.text"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_trade_lightning_create_modal_matches_buy_order_markup_with_gateway_stub",
+          "name": "test_trade_lightning_create_modal_matches_buy_order_markup_with_gateway_stub",
+          "qualname": "test_trade_lightning_create_modal_matches_buy_order_markup_with_gateway_stub",
+          "line": 320,
+          "target_refs": [
+            "v0.2-003-coverage FR-0404 / AC-FR0404-02"
+          ],
+          "production_targets": [
+            "quantide/service/init_wizard.py"
+          ],
+          "target_behavior": "init_wizard: trade lightning create modal matches buy order markup with gateway stub; observes `assert response.status_code == 200; assert '创建闪电买入单' in response.text; assert 'name=\"asset_query\"' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert '创建闪电买入单' in response.text",
+              "assert 'name=\"asset_query\"' in response.text"
+            ],
+            "production_symbols_used": [
+              "init_wizard"
+            ],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_trade_search_supports_name_and_pinyin_in_stub_mode",
+          "name": "test_trade_search_supports_name_and_pinyin_in_stub_mode",
+          "qualname": "test_trade_search_supports_name_and_pinyin_in_stub_mode",
+          "line": 356,
+          "target_refs": [
+            "v0.2-003-coverage FR-0505 / AC-FR0505-04"
+          ],
+          "production_targets": [],
+          "target_behavior": "trade search supports name and pinyin in stub mode; observes `assert pinyin_response.status_code == 200; assert '平安银行' in pinyin_response.text; assert 'data-display=\"平安银行（000001.SZ）\"' in pinyin_response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert pinyin_response.status_code == 200",
+              "assert '平安银行' in pinyin_response.text",
+              "assert 'data-display=\"平安银行（000001.SZ）\"' in pinyin_response.text"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/e2e/web/test_system_settings_flow.py::test_system_stock_list_uses_real_name_and_pinyin_in_stub_mode",
+          "name": "test_system_stock_list_uses_real_name_and_pinyin_in_stub_mode",
+          "qualname": "test_system_stock_list_uses_real_name_and_pinyin_in_stub_mode",
+          "line": 373,
+          "target_refs": [
+            "v0.2-003-coverage FR-0505 / AC-FR0505-04"
+          ],
+          "production_targets": [],
+          "target_behavior": "system stock list uses real name and pinyin in stub mode; observes `assert response.status_code == 200; assert '平安银行' in response.text; assert 'PAYH' in response.text`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert response.status_code == 200",
+              "assert '平安银行' in response.text",
+              "assert 'PAYH' in response.text"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "aligned",
+          "work_required": null,
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "keep",
+      "reason": "function-level dispositions: {'aligned': 12}",
+      "consumer_evidence": [],
+      "record_id": "testmod-dcf2d3fc4d37",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/e2e/web/test_system_settings_flow.py`\n\n- **Role/recommendation**: `test-module` / `keep` — function-level dispositions: {'aligned': 12}.\n- `test_gateway_settings_can_test_and_persist_configuration` (L21): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-03\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: gateway settings can and persist configuration; observes `assert page.status_code == 200; assert '保存配置' in page.text; assert test_response.status_code == 200`\n  - evidence/work: assert page.status_code == 200; assert '保存配置' in page.text; assert test_response.status_code == 200; none\n- `test_datasource_settings_can_persist_token_and_epoch` (L71): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-06\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: datasource settings can persist token and epoch; observes `assert page.status_code == 200; assert '保存配置' in page.text; assert response.status_code == 200`\n  - evidence/work: assert page.status_code == 200; assert '保存配置' in page.text; assert response.status_code == 200; none\n- `test_jobs_toggle_persists_after_reopening_app` (L101): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0503 / AC-FR0503-05\n  - production paths: `quantide/web/pages/system/jobs.py`\n  - target behavior: jobs: jobs toggle persists after reopening app; observes `assert page.status_code == 200; assert '运行中' in page.text; assert toggle_response.status_code == 303`\n  - evidence/work: assert page.status_code == 200; assert '运行中' in page.text; assert toggle_response.status_code == 303; none\n- `test_trade_main_hides_fake_placeholder_metrics_with_gateway_stub` (L126): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-04\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: trade main hides fake placeholder metrics with gateway stub; observes `assert response.status_code == 200; assert '昨收' in response.text; assert '现价' in response.text`\n  - evidence/work: assert response.status_code == 200; assert '昨收' in response.text; assert '现价' in response.text; none\n- `test_trade_main_keeps_side_controls_mutually_exclusive_with_gateway_stub` (L162): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-06\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: trade main keeps side controls mutually exclusive with gateway stub; observes `assert response.status_code == 200; assert 'id=\"buy-star\"' in response.text; assert 'id=\"sell-star\"' in response.text`\n  - evidence/work: assert response.status_code == 200; assert 'id=\"buy-star\"' in response.text; assert 'id=\"sell-star\"' in response.text; none\n- `test_trade_main_shows_limit_placeholder_and_price_hint_markup_with_gateway_stub` (L193): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-03\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: trade main shows limit placeholder and price hint markup with gateway stub; observes `assert response.status_code == 200; assert 'id=\"price-input\"' in response.text; assert 'id=\"price-change-hint\"' in response.text`\n  - evidence/work: assert response.status_code == 200; assert 'id=\"price-input\"' in response.text; assert 'id=\"price-change-hint\"' in response.text; none\n- `test_trade_main_polls_live_quote_and_gates_speed_dial_with_gateway_stub` (L223): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-04\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: trade main polls live quote and gates speed dial with gateway stub; observes `assert response.status_code == 200; assert '/trade/live-quote?asset=' in response.text; assert 'reference-price-btn' in response.text`\n  - evidence/work: assert response.status_code == 200; assert '/trade/live-quote?asset=' in response.text; assert 'reference-price-btn' in response.text; none\n- `test_trade_main_uses_top_toast_placeholder_with_gateway_stub` (L258): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-03\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: trade main uses top toast placeholder with gateway stub; observes `assert response.status_code == 200; assert 'id=\"trade-toast-slot\"' in response.text; assert 'hx-target=\"#trade-toast-slot\"' in response.text`\n  - evidence/work: assert response.status_code == 200; assert 'id=\"trade-toast-slot\"' in response.text; assert 'hx-target=\"#trade-toast-slot\"' in response.text; none\n- `test_trade_main_renders_lightning_controls_with_gateway_stub` (L287): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-05\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: trade main renders lightning controls with gateway stub; observes `assert response.status_code == 200; assert 'id=\"trade-lightning-panel\"' in response.text; assert 'id=\"trade-lightning-modal-container\"' in response.text`\n  - evidence/work: assert response.status_code == 200; assert 'id=\"trade-lightning-panel\"' in response.text; assert 'id=\"trade-lightning-modal-container\"' in response.text; none\n- `test_trade_lightning_create_modal_matches_buy_order_markup_with_gateway_stub` (L320): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0404 / AC-FR0404-02\n  - production paths: `quantide/service/init_wizard.py`\n  - target behavior: init_wizard: trade lightning create modal matches buy order markup with gateway stub; observes `assert response.status_code == 200; assert '创建闪电买入单' in response.text; assert 'name=\"asset_query\"' in response.text`\n  - evidence/work: assert response.status_code == 200; assert '创建闪电买入单' in response.text; assert 'name=\"asset_query\"' in response.text; none\n- `test_trade_search_supports_name_and_pinyin_in_stub_mode` (L356): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0505 / AC-FR0505-04\n  - production paths: none established\n  - target behavior: trade search supports name and pinyin in stub mode; observes `assert pinyin_response.status_code == 200; assert '平安银行' in pinyin_response.text; assert 'data-display=\"平安银行（000001.SZ）\"' in pinyin_response.text`\n  - evidence/work: assert pinyin_response.status_code == 200; assert '平安银行' in pinyin_response.text; assert 'data-display=\"平安银行（000001.SZ）\"' in pinyin_response.text; none\n- `test_system_stock_list_uses_real_name_and_pinyin_in_stub_mode` (L373): **aligned / aligned**\n  - refs: v0.2-003-coverage FR-0505 / AC-FR0505-04\n  - production paths: none established\n  - target behavior: system stock list uses real name and pinyin in stub mode; observes `assert response.status_code == 200; assert '平安银行' in response.text; assert 'PAYH' in response.text`\n  - evidence/work: assert response.status_code == 200; assert '平安银行' in response.text; assert 'PAYH' in response.text; none\n"
+      }
+    }
+  ]
+}

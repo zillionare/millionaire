@@ -1,0 +1,127 @@
+{
+  "spec_id": "v0.2-004-coverage-recovery",
+  "schema": "test-trace-shard/v1",
+  "family": "tests-ground_truth",
+  "part": 1,
+  "module_count": 5,
+  "function_count": 2,
+  "records_sha256": "3cc8e43abaabb8bfb956821253d94c6e2aa1a9913653e30ff9238b4ec5cf8da6",
+  "modules": [
+    {
+      "path": "tests/ground_truth/__init__.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: pytest/package discovery marker for `tests/ground_truth`",
+      "consumer_evidence": [
+        "pytest/package discovery marker for `tests/ground_truth`"
+      ],
+      "record_id": "testmod-3e8f166cb017",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/ground_truth/__init__.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: pytest/package discovery marker for `tests/ground_truth`.\n- **Consumer evidence**: pytest/package discovery marker for `tests/ground_truth`.\n"
+      }
+    },
+    {
+      "path": "tests/ground_truth/calendar.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: tests/unit/conftest.py",
+      "consumer_evidence": [
+        "tests/unit/conftest.py"
+      ],
+      "record_id": "testmod-fa0ed23423ff",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/ground_truth/calendar.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: tests/unit/conftest.py.\n- **Consumer evidence**: tests/unit/conftest.py.\n"
+      }
+    },
+    {
+      "path": "tests/ground_truth/discovery.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: support asset retained for explicit test-tree inventory; no test function is declared",
+      "consumer_evidence": [
+        "support asset retained for explicit test-tree inventory; no test function is declared"
+      ],
+      "record_id": "testmod-ecb4bc1cf2ee",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/ground_truth/discovery.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: support asset retained for explicit test-tree inventory; no test function is declared.\n- **Consumer evidence**: support asset retained for explicit test-tree inventory; no test function is declared.\n"
+      }
+    },
+    {
+      "path": "tests/ground_truth/stocks.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: tests/unit/conftest.py",
+      "consumer_evidence": [
+        "tests/unit/conftest.py"
+      ],
+      "record_id": "testmod-4736fd2b9c80",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/ground_truth/stocks.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: tests/unit/conftest.py.\n- **Consumer evidence**: tests/unit/conftest.py.\n"
+      }
+    },
+    {
+      "path": "tests/ground_truth/test_purity.py",
+      "role": "test-module",
+      "test_function_count": 2,
+      "functions": [
+        {
+          "id": "tests/ground_truth/test_purity.py::test_ground_truth_does_not_import_quantide",
+          "name": "test_ground_truth_does_not_import_quantide",
+          "qualname": "test_ground_truth_does_not_import_quantide",
+          "line": 30,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "No file in tests/ground_truth/ may import quantide.*; observes `assert py_files, 'no ground_truth implementation files found'; assert not violations, 'ground_truth purity violations:\\n  ' + '\\n  '.join(violations)`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert py_files, 'no ground_truth implementation files found'",
+              "assert not violations, 'ground_truth purity violations:\\n  ' + '\\n  '.join(violations)"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        },
+        {
+          "id": "tests/ground_truth/test_purity.py::test_ground_truth_files_exist",
+          "name": "test_ground_truth_files_exist",
+          "qualname": "test_ground_truth_files_exist",
+          "line": 53,
+          "target_refs": [],
+          "production_targets": [],
+          "target_behavior": "The 3 core ground_truth modules per task list (calendar, stocks, discovery).; observes `assert path.exists(), f'missing ground_truth module: {name}'; assert path.stat().st_size > 100, f'ground_truth module too small: {name}'`",
+          "quality": "aligned",
+          "quality_evidence": {
+            "assertions": [
+              "assert path.exists(), f'missing ground_truth module: {name}'",
+              "assert path.stat().st_size > 100, f'ground_truth module too small: {name}'"
+            ],
+            "production_symbols_used": [],
+            "semantic_basis": "AST body/docstring/import-target review; no runtime suite was executed"
+          },
+          "disposition": "needs-Sage-contract",
+          "work_required": "Sage must assign a spec-qualified behavior AC before retention",
+          "deletion_evidence": null
+        }
+      ],
+      "recommendation": "needs-Sage-contract",
+      "reason": "function-level dispositions: {'needs-Sage-contract': 2}",
+      "consumer_evidence": [],
+      "record_id": "testmod-58d32b901ffe",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/ground_truth/test_purity.py`\n\n- **Role/recommendation**: `test-module` / `needs-Sage-contract` — function-level dispositions: {'needs-Sage-contract': 2}.\n- `test_ground_truth_does_not_import_quantide` (L30): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: No file in tests/ground_truth/ may import quantide.*; observes `assert py_files, 'no ground_truth implementation files found'; assert not violations, 'ground_truth purity violations:\\n  ' + '\\n  '.join(violations)`\n  - evidence/work: assert py_files, 'no ground_truth implementation files found'; assert not violations, 'ground_truth purity violations:\\n  ' + '\\n  '.join(violations); Sage must assign a spec-qualified behavior AC before retention\n- `test_ground_truth_files_exist` (L53): **needs-Sage-contract / aligned**\n  - refs: none — Sage contract required\n  - production paths: none established\n  - target behavior: The 3 core ground_truth modules per task list (calendar, stocks, discovery).; observes `assert path.exists(), f'missing ground_truth module: {name}'; assert path.stat().st_size > 100, f'ground_truth module too small: {name}'`\n  - evidence/work: assert path.exists(), f'missing ground_truth module: {name}'; assert path.stat().st_size > 100, f'ground_truth module too small: {name}'; Sage must assign a spec-qualified behavior AC before retention\n"
+      }
+    }
+  ]
+}

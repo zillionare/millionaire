@@ -1,0 +1,85 @@
+{
+  "spec_id": "v0.2-004-coverage-recovery",
+  "schema": "test-trace-shard/v1",
+  "family": "tests-root",
+  "part": 1,
+  "module_count": 3,
+  "function_count": 0,
+  "records_sha256": "8568c58ad83d3975244831b530f14eaf881c8c606b1891d949441f47282ab8d8",
+  "modules": [
+    {
+      "path": "tests/__init__.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: pytest/package discovery marker for `tests`",
+      "consumer_evidence": [
+        "pytest/package discovery marker for `tests`"
+      ],
+      "record_id": "testmod-001e61d97d9d",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/__init__.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: pytest/package discovery marker for `tests`.\n- **Consumer evidence**: pytest/package discovery marker for `tests`.\n"
+      }
+    },
+    {
+      "path": "tests/conftest.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: tests/e2e/backtest/test_dual_ma_accuracy.py, tests/e2e/backtest/test_fr_011_day_strategy.py, tests/e2e/calendar/test_fr_014_calendar.py, tests/e2e/calendar_v2/test_fr_014_calendar_v2.py, tests/e2e/http_integration/test_http_broker_api.py",
+      "consumer_evidence": [
+        "tests/e2e/backtest/test_dual_ma_accuracy.py",
+        "tests/e2e/backtest/test_fr_011_day_strategy.py",
+        "tests/e2e/calendar/test_fr_014_calendar.py",
+        "tests/e2e/calendar_v2/test_fr_014_calendar_v2.py",
+        "tests/e2e/http_integration/test_http_broker_api.py",
+        "tests/e2e/live/test_gateway_accuracy.py",
+        "tests/e2e/paper/test_dual_ma_accuracy.py",
+        "tests/e2e/paper/test_fr_115_185_360_e2e.py",
+        "tests/e2e/paper/test_fr_140_190_trading_rules_e2e.py",
+        "tests/e2e/paper/test_fr_440_450_200_360_e2e.py",
+        "tests/e2e/paper/test_l1_paper_smoke.py",
+        "tests/e2e/risk_strategy/test_fr_013_risk_strategy.py",
+        "tests/e2e/risk_strategy/test_fr_013_risk_structure.py",
+        "tests/e2e/securities/test_fr_015_securities.py",
+        "tests/e2e/securities_v2/test_fr_015_securities_v2.py",
+        "tests/e2e/strategy_discovery/test_fr_010_base_strategy.py",
+        "tests/e2e/strategy_discovery/test_fr_020_discovery.py",
+        "tests/e2e/strategy_discovery_v2/test_fr_020_discovery_v2.py",
+        "tests/e2e/strategy_example/test_dual_ma.py",
+        "tests/e2e/strategy_v2/test_fr_010_strategy_root.py",
+        "tests/e2e/support/test_gateway_stub.py",
+        "tests/e2e/support/test_tushare_stub.py",
+        "tests/e2e/test_app_factory_e2e.py",
+        "tests/e2e/test_boot_smoke.py",
+        "tests/e2e/test_ci_workflow_e2e.py",
+        "tests/e2e/test_coverage_checker_e2e.py",
+        "tests/e2e/test_gateway.py",
+        "tests/e2e/test_isolation_e2e.py",
+        "tests/e2e/test_live_smoke.py",
+        "tests/e2e/test_paper.py"
+      ],
+      "record_id": "testmod-e52e4ddd58b7",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/conftest.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: tests/e2e/backtest/test_dual_ma_accuracy.py, tests/e2e/backtest/test_fr_011_day_strategy.py, tests/e2e/calendar/test_fr_014_calendar.py, tests/e2e/calendar_v2/test_fr_014_calendar_v2.py, tests/e2e/http_integration/test_http_broker_api.py.\n- **Consumer evidence**: tests/e2e/backtest/test_dual_ma_accuracy.py; tests/e2e/backtest/test_fr_011_day_strategy.py; tests/e2e/calendar/test_fr_014_calendar.py; tests/e2e/calendar_v2/test_fr_014_calendar_v2.py; tests/e2e/http_integration/test_http_broker_api.py; tests/e2e/live/test_gateway_accuracy.py; tests/e2e/paper/test_dual_ma_accuracy.py; tests/e2e/paper/test_fr_115_185_360_e2e.py; tests/e2e/paper/test_fr_140_190_trading_rules_e2e.py; tests/e2e/paper/test_fr_440_450_200_360_e2e.py; tests/e2e/paper/test_l1_paper_smoke.py; tests/e2e/risk_strategy/test_fr_013_risk_strategy.py; tests/e2e/risk_strategy/test_fr_013_risk_structure.py; tests/e2e/securities/test_fr_015_securities.py; tests/e2e/securities_v2/test_fr_015_securities_v2.py; tests/e2e/strategy_discovery/test_fr_010_base_strategy.py; tests/e2e/strategy_discovery/test_fr_020_discovery.py; tests/e2e/strategy_discovery_v2/test_fr_020_discovery_v2.py; tests/e2e/strategy_example/test_dual_ma.py; tests/e2e/strategy_v2/test_fr_010_strategy_root.py; tests/e2e/support/test_gateway_stub.py; tests/e2e/support/test_tushare_stub.py; tests/e2e/test_app_factory_e2e.py; tests/e2e/test_boot_smoke.py; tests/e2e/test_ci_workflow_e2e.py; tests/e2e/test_coverage_checker_e2e.py; tests/e2e/test_gateway.py; tests/e2e/test_isolation_e2e.py; tests/e2e/test_live_smoke.py; tests/e2e/test_paper.py.\n"
+      }
+    },
+    {
+      "path": "tests/grid_search_support.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: tests/unit/quantide/service/test_grid_search.py",
+      "consumer_evidence": [
+        "tests/unit/quantide/service/test_grid_search.py"
+      ],
+      "record_id": "testmod-9417d8e78efb",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/grid_search_support.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: tests/unit/quantide/service/test_grid_search.py.\n- **Consumer evidence**: tests/unit/quantide/service/test_grid_search.py.\n"
+      }
+    }
+  ]
+}

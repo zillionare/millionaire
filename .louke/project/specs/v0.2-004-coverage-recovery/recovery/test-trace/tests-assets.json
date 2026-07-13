@@ -1,0 +1,41 @@
+{
+  "spec_id": "v0.2-004-coverage-recovery",
+  "schema": "test-trace-shard/v1",
+  "family": "tests-assets",
+  "part": 1,
+  "module_count": 2,
+  "function_count": 0,
+  "records_sha256": "ed43a0f8871edb7c832e37ee602e65ff6da0567860b42943cfdb1cee225fae83",
+  "modules": [
+    {
+      "path": "tests/assets/unit/scripts/build_env.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: support asset retained for explicit test-tree inventory; no test function is declared",
+      "consumer_evidence": [
+        "support asset retained for explicit test-tree inventory; no test function is declared"
+      ],
+      "record_id": "testmod-1f7c12045801",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/assets/unit/scripts/build_env.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: support asset retained for explicit test-tree inventory; no test function is declared.\n- **Consumer evidence**: support asset retained for explicit test-tree inventory; no test function is declared.\n"
+      }
+    },
+    {
+      "path": "tests/assets/unit/scripts/validate_env.py",
+      "role": "helper/fixture",
+      "test_function_count": 0,
+      "functions": [],
+      "recommendation": "keep-helper",
+      "reason": "non-test helper; consumers: support asset retained for explicit test-tree inventory; no test function is declared",
+      "consumer_evidence": [
+        "support asset retained for explicit test-tree inventory; no test function is declared"
+      ],
+      "record_id": "testmod-e84096a57f9e",
+      "source_markdown": {
+        "test_trace_audit": "## `tests/assets/unit/scripts/validate_env.py`\n\n- **Role/recommendation**: `helper/fixture` / `keep-helper` — non-test helper; consumers: support asset retained for explicit test-tree inventory; no test function is declared.\n- **Consumer evidence**: support asset retained for explicit test-tree inventory; no test function is declared.\n"
+      }
+    }
+  ]
+}

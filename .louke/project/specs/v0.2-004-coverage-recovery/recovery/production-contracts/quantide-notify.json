@@ -1,0 +1,420 @@
+{
+  "spec_id": "v0.2-004-coverage-recovery",
+  "schema": "production-contract-shard/v1",
+  "family": "quantide-notify",
+  "part": 1,
+  "record_count": 3,
+  "records_sha256": "8167e5b8f873bab3877353e68b3fb4e12a77e3bad18e77f21a9844e2b65c8558",
+  "records": [
+    {
+      "path": "quantide/notify/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "c2691dd",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 0,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 55,
+      "covered_lines": 39,
+      "missing_lines": 16,
+      "percent_covered": 64.0,
+      "num_branches": 20,
+      "covered_branches": 9,
+      "missing_branches": 11,
+      "production_consumer_count": 0,
+      "production_consumers": [],
+      "test_file_count": 0,
+      "test_files_importing": [],
+      "material_v0_2_commits": [],
+      "consumers_importers_routes_registries": [],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0701",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "none",
+      "mapped_test_modules": [],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "incomplete",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/notify/__init__.py` 的 function `get_stock_type, get_stock_id_hson_helpers, get_stock_id_xt, get_stock_id_hson, get_stock_id_jq` 接受/边界：get_stock_typestock_code；get_stock_type: boundary `stock_code.startswith(('sh', 'sz', 'bj'))`；get_stock_type: boundary `stock_code.startswith(('50', '51', '60', '73', '90', '110', '113', '132', '204', '78'))`；get_stock_type: boundary `stock_code.startswith(('00', '12', '13', '18', '15', '16', '18', '20', '30', '39', '115', '1318'))`；可观察输出：get_stock_type.get_stock_typestock_code -> 'SZ', stock_code[:2].upper(), 'SH', 'BJ'；get_stock_id_hson_helpers.get_stock_id_hson_helpersstock_code: str -> code；get_stock_id_xt.get_stock_id_xtstock_code: str -> code；get_stock_id_hson.get_stock_id_hsonstock_code: str -> code；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`。",
+        "`quantide/notify/__init__.py` 的 function `get_high_low_limit, open_time_delta` 接受/边界：get_high_low_limitsymbol_code: str, preclose_px: float；get_high_low_limit: boundary `symbol_code.startswith('300') or symbol_code.startswith('688')`；open_time_deltadt: datetime.datetime；可观察输出：get_high_low_limit.get_high_low_limitsymbol_code: str, preclose_px: float -> (round(preclose_px * 1.1, 2), round(preclose_px * 0.9, 2)), (round(preclose_px * 1.2, 2), round(preclose_px * 0.8, 2))；open_time_delta.open_time_deltadt: datetime.datetime -> {9: minute - 30, 10: 30 + minute, 11: 90 + minute, 13: 120 + minute, 14: 180 + minute, 15: 240}.get(hour, 0)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 5,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "get_stock_type",
+          "get_stock_id_hson_helpers",
+          "get_stock_id_xt",
+          "get_stock_id_hson",
+          "get_stock_id_jq",
+          "get_high_low_limit",
+          "open_time_delta"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "get_stock_typestock_code",
+          "get_stock_type: boundary `stock_code.startswith(('sh', 'sz', 'bj'))`",
+          "get_stock_type: boundary `stock_code.startswith(('50', '51', '60', '73', '90', '110', '113', '132', '204', '78'))`",
+          "get_stock_type: boundary `stock_code.startswith(('00', '12', '13', '18', '15', '16', '18', '20', '30', '39', '115', '1318'))`",
+          "get_stock_type: boundary `stock_code.startswith(('5', '6'))`",
+          "get_stock_type: boundary `stock_code.startswith(('8', '4', '9'))`",
+          "get_stock_id_hson_helpersstock_code: str",
+          "get_stock_id_xtstock_code: str",
+          "get_stock_id_hsonstock_code: str",
+          "get_stock_id_jqstock_code",
+          "get_high_low_limitsymbol_code: str, preclose_px: float",
+          "get_high_low_limit: boundary `symbol_code.startswith('300') or symbol_code.startswith('688')`",
+          "open_time_deltadt: datetime.datetime"
+        ],
+        "observable_outputs": [
+          "get_stock_type.get_stock_typestock_code -> 'SZ', stock_code[:2].upper(), 'SH', 'BJ'",
+          "get_stock_id_hson_helpers.get_stock_id_hson_helpersstock_code: str -> code",
+          "get_stock_id_xt.get_stock_id_xtstock_code: str -> code",
+          "get_stock_id_hson.get_stock_id_hsonstock_code: str -> code",
+          "get_stock_id_jq.get_stock_id_jqstock_code -> code",
+          "get_high_low_limit.get_high_low_limitsymbol_code: str, preclose_px: float -> (round(preclose_px * 1.1, 2), round(preclose_px * 0.9, 2)), (round(preclose_px * 1.2, 2), round(preclose_px * 0.8, 2))",
+          "open_time_delta.open_time_deltadt: datetime.datetime -> {9: minute - 30, 10: 30 + minute, 11: 90 + minute, 13: 120 + minute, 14: 180 + minute, 15: 240}.get(hour, 0)"
+        ],
+        "failure_error_fallback": [
+          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`"
+        ],
+        "state_mutations_and_cleanup": [
+          "no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0701",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "tests/unit/quantide/notify/test_fr_0701_notify_channels.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-87C03501-01",
+            "surface": "function: get_stock_type, get_stock_id_hson_helpers, get_stock_id_xt, get_stock_id_hson, get_stock_id_jq",
+            "statement": "`quantide/notify/__init__.py` 的 function `get_stock_type, get_stock_id_hson_helpers, get_stock_id_xt, get_stock_id_hson, get_stock_id_jq` 接受/边界：get_stock_typestock_code；get_stock_type: boundary `stock_code.startswith(('sh', 'sz', 'bj'))`；get_stock_type: boundary `stock_code.startswith(('50', '51', '60', '73', '90', '110', '113', '132', '204', '78'))`；get_stock_type: boundary `stock_code.startswith(('00', '12', '13', '18', '15', '16', '18', '20', '30', '39', '115', '1318'))`；可观察输出：get_stock_type.get_stock_typestock_code -> 'SZ', stock_code[:2].upper(), 'SH', 'BJ'；get_stock_id_hson_helpers.get_stock_id_hson_helpersstock_code: str -> code；get_stock_id_xt.get_stock_id_xtstock_code: str -> code；get_stock_id_hson.get_stock_id_hsonstock_code: str -> code；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`。"
+          },
+          {
+            "id": "AC-PROP-87C03501-02",
+            "surface": "function: get_high_low_limit, open_time_delta",
+            "statement": "`quantide/notify/__init__.py` 的 function `get_high_low_limit, open_time_delta` 接受/边界：get_high_low_limitsymbol_code: str, preclose_px: float；get_high_low_limit: boundary `symbol_code.startswith('300') or symbol_code.startswith('688')`；open_time_deltadt: datetime.datetime；可观察输出：get_high_low_limit.get_high_low_limitsymbol_code: str, preclose_px: float -> (round(preclose_px * 1.1, 2), round(preclose_px * 0.9, 2)), (round(preclose_px * 1.2, 2), round(preclose_px * 0.8, 2))；open_time_delta.open_time_deltadt: datetime.datetime -> {9: minute - 30, 10: 30 + minute, 11: 90 + minute, 13: 120 + minute, 14: 180 + minute, 15: 240}.get(hour, 0)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-87C03501-01",
+          "surface": "function: get_stock_type, get_stock_id_hson_helpers, get_stock_id_xt, get_stock_id_hson, get_stock_id_jq",
+          "statement": "`quantide/notify/__init__.py` 的 function `get_stock_type, get_stock_id_hson_helpers, get_stock_id_xt, get_stock_id_hson, get_stock_id_jq` 接受/边界：get_stock_typestock_code；get_stock_type: boundary `stock_code.startswith(('sh', 'sz', 'bj'))`；get_stock_type: boundary `stock_code.startswith(('50', '51', '60', '73', '90', '110', '113', '132', '204', '78'))`；get_stock_type: boundary `stock_code.startswith(('00', '12', '13', '18', '15', '16', '18', '20', '30', '39', '115', '1318'))`；可观察输出：get_stock_type.get_stock_typestock_code -> 'SZ', stock_code[:2].upper(), 'SH', 'BJ'；get_stock_id_hson_helpers.get_stock_id_hson_helpersstock_code: str -> code；get_stock_id_xt.get_stock_id_xtstock_code: str -> code；get_stock_id_hson.get_stock_id_hsonstock_code: str -> code；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`。"
+        },
+        {
+          "id": "AC-PROP-87C03501-02",
+          "surface": "function: get_high_low_limit, open_time_delta",
+          "statement": "`quantide/notify/__init__.py` 的 function `get_high_low_limit, open_time_delta` 接受/边界：get_high_low_limitsymbol_code: str, preclose_px: float；get_high_low_limit: boundary `symbol_code.startswith('300') or symbol_code.startswith('688')`；open_time_deltadt: datetime.datetime；可观察输出：get_high_low_limit.get_high_low_limitsymbol_code: str, preclose_px: float -> (round(preclose_px * 1.1, 2), round(preclose_px * 0.9, 2)), (round(preclose_px * 1.2, 2), round(preclose_px * 0.8, 2))；open_time_delta.open_time_deltadt: datetime.datetime -> {9: minute - 30, 10: 30 + minute, 11: 90 + minute, 13: 120 + minute, 14: 180 + minute, 15: 240}.get(hour, 0)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`。"
+        }
+      ],
+      "record_id": "prod-87c0350102d0",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/notify/__init__.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `get_stock_type`, `get_stock_id_hson_helpers`, `get_stock_id_xt`, `get_stock_id_hson`, `get_stock_id_jq`, `get_high_low_limit`, `open_time_delta`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: get_stock_typestock_code; get_stock_type: boundary `stock_code.startswith(('sh', 'sz', 'bj'))`; get_stock_type: boundary `stock_code.startswith(('50', '51', '60', '73', '90', '110', '113', '132', '204', '78'))`; get_stock_type: boundary `stock_code.startswith(('00', '12', '13', '18', '15', '16', '18', '20', '30', '39', '115', '1318'))`; get_stock_type: boundary `stock_code.startswith(('5', '6'))`; get_stock_type: boundary `stock_code.startswith(('8', '4', '9'))`; get_stock_id_hson_helpersstock_code: str; get_stock_id_xtstock_code: str; get_stock_id_hsonstock_code: str; get_stock_id_jqstock_code; get_high_low_limitsymbol_code: str, preclose_px: float; get_high_low_limit: boundary `symbol_code.startswith('300') or symbol_code.startswith('688')`; open_time_deltadt: datetime.datetime.\n- **Observable outputs/DTO/HTML/persistence/events**: get_stock_type.get_stock_typestock_code -> 'SZ', stock_code[:2].upper(), 'SH', 'BJ'; get_stock_id_hson_helpers.get_stock_id_hson_helpersstock_code: str -> code; get_stock_id_xt.get_stock_id_xtstock_code: str -> code; get_stock_id_hson.get_stock_id_hsonstock_code: str -> code; get_stock_id_jq.get_stock_id_jqstock_code -> code; get_high_low_limit.get_high_low_limitsymbol_code: str, preclose_px: float -> (round(preclose_px * 1.1, 2), round(preclose_px * 0.9, 2)), (round(preclose_px * 1.2, 2), round(preclose_px * 0.8, 2)); open_time_delta.open_time_deltadt: datetime.datetime -> {9: minute - 30, 10: 30 + minute, 11: 90 + minute, 13: 120 + minute, 14: 180 + minute, 15: 240}.get(hour, 0).\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`.\n- **Upstream source**: v0.2-003 FR-0701; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: tests/unit/quantide/notify/test_fr_0701_notify_channels.py.\n- **Proposed ACs**: AC-PROP-87C03501-01; AC-PROP-87C03501-02.\n",
+        "proposed_requirements": "## `quantide/notify/__init__.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-87C03501-01** (function: get_stock_type, get_stock_id_hson_helpers, get_stock_id_xt, get_stock_id_hson, get_stock_id_jq): `quantide/notify/__init__.py` 的 function `get_stock_type, get_stock_id_hson_helpers, get_stock_id_xt, get_stock_id_hson, get_stock_id_jq` 接受/边界：get_stock_typestock_code；get_stock_type: boundary `stock_code.startswith(('sh', 'sz', 'bj'))`；get_stock_type: boundary `stock_code.startswith(('50', '51', '60', '73', '90', '110', '113', '132', '204', '78'))`；get_stock_type: boundary `stock_code.startswith(('00', '12', '13', '18', '15', '16', '18', '20', '30', '39', '115', '1318'))`；可观察输出：get_stock_type.get_stock_typestock_code -> 'SZ', stock_code[:2].upper(), 'SH', 'BJ'；get_stock_id_hson_helpers.get_stock_id_hson_helpersstock_code: str -> code；get_stock_id_xt.get_stock_id_xtstock_code: str -> code；get_stock_id_hson.get_stock_id_hsonstock_code: str -> code；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`。\n- **AC-PROP-87C03501-02** (function: get_high_low_limit, open_time_delta): `quantide/notify/__init__.py` 的 function `get_high_low_limit, open_time_delta` 接受/边界：get_high_low_limitsymbol_code: str, preclose_px: float；get_high_low_limit: boundary `symbol_code.startswith('300') or symbol_code.startswith('688')`；open_time_deltadt: datetime.datetime；可观察输出：get_high_low_limit.get_high_low_limitsymbol_code: str, preclose_px: float -> (round(preclose_px * 1.1, 2), round(preclose_px * 0.9, 2)), (round(preclose_px * 1.2, 2), round(preclose_px * 0.8, 2))；open_time_delta.open_time_deltadt: datetime.datetime -> {9: minute - 30, 10: 30 + minute, 11: 90 + minute, 13: 120 + minute, 14: 180 + minute, 15: 240}.get(hour, 0)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/__init__.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0701; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; tests/unit/quantide/notify/test_fr_0701_notify_channels.py.\n- **Coverage target**: 80%.\n"
+      }
+    },
+    {
+      "path": "quantide/notify/dingtalk.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "c2691dd",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 1,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [
+        "77e5c35 feat: green – #219 – feat(test): spec-driven pytest for FR-0701 — see AC-FR-0701-*"
+      ],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 78,
+      "covered_lines": 43,
+      "missing_lines": 35,
+      "percent_covered": 51.0417,
+      "num_branches": 18,
+      "covered_branches": 6,
+      "missing_branches": 12,
+      "production_consumer_count": 0,
+      "production_consumers": [],
+      "test_file_count": 2,
+      "test_files_importing": [
+        "tests/unit/quantide/notify/test_fr_0701_notify_channels.py",
+        "tests/unit/quantide/notify/test_fr_481_notification.py"
+      ],
+      "material_v0_2_commits": [
+        "77e5c35 feat: green – #219 – feat(test): spec-driven pytest for FR-0701 — see AC-FR-0701-*"
+      ],
+      "consumers_importers_routes_registries": [],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0701",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "partial",
+      "mapped_test_modules": [
+        "tests/unit/quantide/notify/test_fr_0701_notify_channels.py",
+        "tests/unit/quantide/notify/test_fr_481_notification.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/notify/dingtalk.py` 的 function `ding` 接受/边界：dingmsg: str | dict, sync: bool=False, at_all: bool=False；ding: boundary `sync`；module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；可观察输出：ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)；attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。",
+        "`quantide/notify/dingtalk.py` 的 class `DingTalkMessage` 接受/边界：dingmsg: str | dict, sync: bool=False, at_all: bool=False；ding: boundary `sync`；可观察输出：ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。",
+        "`quantide/notify/dingtalk.py` 的 schema/re-export `Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret, logger` 接受/边界：module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；module import exposes constants/schema hooks: logger；可观察输出：attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；read-only public values are available: logger；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 20,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "DingTalkMessage",
+          "ding",
+          "Awaitable",
+          "logger",
+          "get_dingtalk_access_token",
+          "get_dingtalk_secret",
+          "logger"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "dingmsg: str | dict, sync: bool=False, at_all: bool=False",
+          "ding: boundary `sync`",
+          "module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret",
+          "module import exposes constants/schema hooks: logger"
+        ],
+        "observable_outputs": [
+          "ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)",
+          "attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret",
+          "read-only public values are available: logger"
+        ],
+        "failure_error_fallback": [
+          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`"
+        ],
+        "state_mutations_and_cleanup": [
+          "no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0701",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "tests/unit/quantide/notify/test_fr_0701_notify_channels.py",
+          "tests/unit/quantide/notify/test_fr_481_notification.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-89E180C2-01",
+            "surface": "function: ding",
+            "statement": "`quantide/notify/dingtalk.py` 的 function `ding` 接受/边界：dingmsg: str | dict, sync: bool=False, at_all: bool=False；ding: boundary `sync`；module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；可观察输出：ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)；attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。"
+          },
+          {
+            "id": "AC-PROP-89E180C2-02",
+            "surface": "class: DingTalkMessage",
+            "statement": "`quantide/notify/dingtalk.py` 的 class `DingTalkMessage` 接受/边界：dingmsg: str | dict, sync: bool=False, at_all: bool=False；ding: boundary `sync`；可观察输出：ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。"
+          },
+          {
+            "id": "AC-PROP-89E180C2-03",
+            "surface": "schema/re-export: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret, logger",
+            "statement": "`quantide/notify/dingtalk.py` 的 schema/re-export `Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret, logger` 接受/边界：module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；module import exposes constants/schema hooks: logger；可观察输出：attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；read-only public values are available: logger；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-89E180C2-01",
+          "surface": "function: ding",
+          "statement": "`quantide/notify/dingtalk.py` 的 function `ding` 接受/边界：dingmsg: str | dict, sync: bool=False, at_all: bool=False；ding: boundary `sync`；module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；可观察输出：ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)；attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。"
+        },
+        {
+          "id": "AC-PROP-89E180C2-02",
+          "surface": "class: DingTalkMessage",
+          "statement": "`quantide/notify/dingtalk.py` 的 class `DingTalkMessage` 接受/边界：dingmsg: str | dict, sync: bool=False, at_all: bool=False；ding: boundary `sync`；可观察输出：ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。"
+        },
+        {
+          "id": "AC-PROP-89E180C2-03",
+          "surface": "schema/re-export: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret, logger",
+          "statement": "`quantide/notify/dingtalk.py` 的 schema/re-export `Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret, logger` 接受/边界：module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；module import exposes constants/schema hooks: logger；可观察输出：attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；read-only public values are available: logger；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。"
+        }
+      ],
+      "record_id": "prod-89e180c24abe",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/notify/dingtalk.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `DingTalkMessage`, `ding`, `Awaitable`, `logger`, `get_dingtalk_access_token`, `get_dingtalk_secret`, `logger`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: dingmsg: str | dict, sync: bool=False, at_all: bool=False; ding: boundary `sync`; module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret; module import exposes constants/schema hooks: logger.\n- **Observable outputs/DTO/HTML/persistence/events**: ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_); attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret; read-only public values are available: logger.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`.\n- **Upstream source**: v0.2-003 FR-0701; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: tests/unit/quantide/notify/test_fr_0701_notify_channels.py; tests/unit/quantide/notify/test_fr_481_notification.py.\n- **Proposed ACs**: AC-PROP-89E180C2-01; AC-PROP-89E180C2-02; AC-PROP-89E180C2-03.\n",
+        "proposed_requirements": "## `quantide/notify/dingtalk.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-89E180C2-01** (function: ding): `quantide/notify/dingtalk.py` 的 function `ding` 接受/边界：dingmsg: str | dict, sync: bool=False, at_all: bool=False；ding: boundary `sync`；module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；可观察输出：ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)；attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。\n- **AC-PROP-89E180C2-02** (class: DingTalkMessage): `quantide/notify/dingtalk.py` 的 class `DingTalkMessage` 接受/边界：dingmsg: str | dict, sync: bool=False, at_all: bool=False；ding: boundary `sync`；可观察输出：ding.dingmsg: str | dict, sync: bool=False, at_all: bool=False -> task, DingTalkMessage._send(msg_)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。\n- **AC-PROP-89E180C2-03** (schema/re-export: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret, logger): `quantide/notify/dingtalk.py` 的 schema/re-export `Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret, logger` 接受/边界：module import exposes re-exports: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；module import exposes constants/schema hooks: logger；可观察输出：attribute lookup yields re-exported symbols: Awaitable, logger, get_dingtalk_access_token, get_dingtalk_secret；read-only public values are available: logger；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/notify/dingtalk.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/notify/dingtalk.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0701; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; tests/unit/quantide/notify/test_fr_0701_notify_channels.py; tests/unit/quantide/notify/test_fr_481_notification.py.\n- **Coverage target**: 80%.\n"
+      }
+    },
+    {
+      "path": "quantide/notify/mail.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "c2691dd",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 0,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 66,
+      "covered_lines": 59,
+      "missing_lines": 7,
+      "percent_covered": 81.0,
+      "num_branches": 34,
+      "covered_branches": 22,
+      "missing_branches": 12,
+      "production_consumer_count": 1,
+      "production_consumers": [
+        "quantide/config/settings.py"
+      ],
+      "test_file_count": 3,
+      "test_files_importing": [
+        "tests/unit/quantide/notify/test_fr_0701_notify_channels.py",
+        "tests/unit/quantide/notify/test_fr_481_notification.py",
+        "tests/unit/quantide/notify/test_mail.py"
+      ],
+      "material_v0_2_commits": [],
+      "consumers_importers_routes_registries": [
+        "quantide/config/settings.py"
+      ],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0701",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "full",
+      "mapped_test_modules": [
+        "tests/unit/quantide/notify/test_fr_0701_notify_channels.py",
+        "tests/unit/quantide/notify/test_fr_481_notification.py",
+        "tests/unit/quantide/notify/test_mail.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/notify/mail.py` 的 function `mail_notify, send_mail, compose` 接受/边界：mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None；mail_notify: boundary `all([msg is not None, subject or body])`；mail_notify: boundary `all([msg is None, subject is None, body is None])`；mail_notify: assert body is not None；可观察输出：mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())；send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task；compose.composesubject: str, plain_txt: str | None=None, html: str | None=None, attachment: str | None=None -> msg；失败/回退：mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')；mail_notify: raises TypeError('必须提供msg参数或者subjecdt/body参数')；send_mail: raises TypeError('msg参数与subject/body只能提供其中之一')；状态/清理：send_mail: msg['From']。",
+        "`quantide/notify/mail.py` 的 schema/re-export `Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server` 接受/边界：mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None；send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non…；module import exposes re-exports: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server；可观察输出：mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())；send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task；attribute lookup yields re-exported symbols: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server；失败/回退：mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')；状态/清理：send_mail: msg['From']。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 0,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "mail_notify",
+          "send_mail",
+          "compose",
+          "Awaitable",
+          "EmailMessage",
+          "retry",
+          "retry_if_exception_type",
+          "stop_after_attempt",
+          "wait_exponential",
+          "get_branding",
+          "get_mail_receivers",
+          "get_mail_sender",
+          "get_mail_server"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None",
+          "mail_notify: boundary `all([msg is not None, subject or body])`",
+          "mail_notify: boundary `all([msg is None, subject is None, body is None])`",
+          "mail_notify: assert body is not None",
+          "send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non…",
+          "send_mail: boundary `all([msg is not None, subject is not None or body is not None])`",
+          "send_mail: boundary `all([msg is None, subject is None, body is None])`",
+          "composesubject: str, plain_txt: str | None=None, html: str | None=None, attachment: str | None=None",
+          "compose: assert plain_txt",
+          "module import exposes re-exports: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server"
+        ],
+        "observable_outputs": [
+          "mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())",
+          "send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task",
+          "compose.composesubject: str, plain_txt: str | None=None, html: str | None=None, attachment: str | None=None -> msg",
+          "attribute lookup yields re-exported symbols: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server"
+        ],
+        "failure_error_fallback": [
+          "mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')",
+          "mail_notify: raises TypeError('必须提供msg参数或者subjecdt/body参数')",
+          "send_mail: raises TypeError('msg参数与subject/body只能提供其中之一')",
+          "send_mail: raises TypeError('必须提供msg参数或者subjecdt/body参数')"
+        ],
+        "state_mutations_and_cleanup": [
+          "send_mail: msg['From']",
+          "send_mail: msg['To']",
+          "send_mail: msg['subject']",
+          "send_mail: msg['Cc']",
+          "send_mail: msg['Bcc']",
+          "compose: msg['Subject']"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0701",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "quantide/config/settings.py",
+          "tests/unit/quantide/notify/test_fr_0701_notify_channels.py",
+          "tests/unit/quantide/notify/test_fr_481_notification.py",
+          "tests/unit/quantide/notify/test_mail.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-BACFFEB4-01",
+            "surface": "function: mail_notify, send_mail, compose",
+            "statement": "`quantide/notify/mail.py` 的 function `mail_notify, send_mail, compose` 接受/边界：mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None；mail_notify: boundary `all([msg is not None, subject or body])`；mail_notify: boundary `all([msg is None, subject is None, body is None])`；mail_notify: assert body is not None；可观察输出：mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())；send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task；compose.composesubject: str, plain_txt: str | None=None, html: str | None=None, attachment: str | None=None -> msg；失败/回退：mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')；mail_notify: raises TypeError('必须提供msg参数或者subjecdt/body参数')；send_mail: raises TypeError('msg参数与subject/body只能提供其中之一')；状态/清理：send_mail: msg['From']。"
+          },
+          {
+            "id": "AC-PROP-BACFFEB4-02",
+            "surface": "schema/re-export: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server",
+            "statement": "`quantide/notify/mail.py` 的 schema/re-export `Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server` 接受/边界：mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None；send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non…；module import exposes re-exports: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server；可观察输出：mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())；send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task；attribute lookup yields re-exported symbols: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server；失败/回退：mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')；状态/清理：send_mail: msg['From']。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-BACFFEB4-01",
+          "surface": "function: mail_notify, send_mail, compose",
+          "statement": "`quantide/notify/mail.py` 的 function `mail_notify, send_mail, compose` 接受/边界：mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None；mail_notify: boundary `all([msg is not None, subject or body])`；mail_notify: boundary `all([msg is None, subject is None, body is None])`；mail_notify: assert body is not None；可观察输出：mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())；send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task；compose.composesubject: str, plain_txt: str | None=None, html: str | None=None, attachment: str | None=None -> msg；失败/回退：mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')；mail_notify: raises TypeError('必须提供msg参数或者subjecdt/body参数')；send_mail: raises TypeError('msg参数与subject/body只能提供其中之一')；状态/清理：send_mail: msg['From']。"
+        },
+        {
+          "id": "AC-PROP-BACFFEB4-02",
+          "surface": "schema/re-export: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server",
+          "statement": "`quantide/notify/mail.py` 的 schema/re-export `Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server` 接受/边界：mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None；send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non…；module import exposes re-exports: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server；可观察输出：mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())；send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task；attribute lookup yields re-exported symbols: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server；失败/回退：mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')；状态/清理：send_mail: msg['From']。"
+        }
+      ],
+      "record_id": "prod-bacffeb485fe",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/notify/mail.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `mail_notify`, `send_mail`, `compose`, `Awaitable`, `EmailMessage`, `retry`, `retry_if_exception_type`, `stop_after_attempt`, `wait_exponential`, `get_branding`, `get_mail_receivers`, `get_mail_sender`, `get_mail_server`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None; mail_notify: boundary `all([msg is not None, subject or body])`; mail_notify: boundary `all([msg is None, subject is None, body is None])`; mail_notify: assert body is not None; send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non…; send_mail: boundary `all([msg is not None, subject is not None or body is not None])`; send_mail: boundary `all([msg is None, subject is None, body is None])`; composesubject: str, plain_txt: str | None=None, html: str | None=None, attachment: str | None=None; compose: assert plain_txt; module import exposes re-exports: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server.\n- **Observable outputs/DTO/HTML/persistence/events**: mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server()); send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task; compose.composesubject: str, plain_txt: str | None=None, html: str | None=None, attachment: str | None=None -> msg; attribute lookup yields re-exported symbols: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server.\n- **Failure/error/fallback**: mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一'); mail_notify: raises TypeError('必须提供msg参数或者subjecdt/body参数'); send_mail: raises TypeError('msg参数与subject/body只能提供其中之一'); send_mail: raises TypeError('必须提供msg参数或者subjecdt/body参数').\n- **State mutation/cleanup**: send_mail: msg['From']; send_mail: msg['To']; send_mail: msg['subject']; send_mail: msg['Cc']; send_mail: msg['Bcc']; compose: msg['Subject'].\n- **Upstream source**: v0.2-003 FR-0701; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/config/settings.py; tests/unit/quantide/notify/test_fr_0701_notify_channels.py; tests/unit/quantide/notify/test_fr_481_notification.py; tests/unit/quantide/notify/test_mail.py.\n- **Proposed ACs**: AC-PROP-BACFFEB4-01; AC-PROP-BACFFEB4-02.\n",
+        "proposed_requirements": "## `quantide/notify/mail.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-BACFFEB4-01** (function: mail_notify, send_mail, compose): `quantide/notify/mail.py` 的 function `mail_notify, send_mail, compose` 接受/边界：mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None；mail_notify: boundary `all([msg is not None, subject or body])`；mail_notify: boundary `all([msg is None, subject is None, body is None])`；mail_notify: assert body is not None；可观察输出：mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())；send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task；compose.composesubject: str, plain_txt: str | None=None, html: str | None=None, attachment: str | None=None -> msg；失败/回退：mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')；mail_notify: raises TypeError('必须提供msg参数或者subjecdt/body参数')；send_mail: raises TypeError('msg参数与subject/body只能提供其中之一')；状态/清理：send_mail: msg['From']。\n- **AC-PROP-BACFFEB4-02** (schema/re-export: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server): `quantide/notify/mail.py` 的 schema/re-export `Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server` 接受/边界：mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None；send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non…；module import exposes re-exports: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server；可观察输出：mail_notify.mail_notifysubject: str | None=None, body: str | None=None, msg: EmailMessage | None=None, html: bool=False, receivers: list[str] | None=None -> send_mail(get_mail_sender(), receivers, password, msg, host=get_mail_server())；send_mail.send_mailsender: str, receivers: list[str], password: str, msg: EmailMessage | None=None, host: str | None=None, port: int=25, cc: list[str] | None=None, bcc: list[str] | None=None, subject: str | None=None, body: str | None=Non… -> task；attribute lookup yields re-exported symbols: Awaitable, EmailMessage, retry, retry_if_exception_type, stop_after_attempt, wait_exponential, get_branding, get_mail_receivers, get_mail_sender, get_mail_server；失败/回退：mail_notify: raises TypeError('msg参数与subject/body只能提供其中之一')；状态/清理：send_mail: msg['From']。\n- **Contract source/consumer evidence**: v0.2-003 FR-0701; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/config/settings.py; tests/unit/quantide/notify/test_fr_0701_notify_channels.py; tests/unit/quantide/notify/test_fr_481_notification.py; tests/unit/quantide/notify/test_mail.py.\n- **Coverage target**: 80%.\n"
+      }
+    }
+  ]
+}

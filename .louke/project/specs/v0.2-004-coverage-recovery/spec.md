@@ -90,6 +90,9 @@
 
 固定 inventory 每行的 `governing_upstream_references` 是该路径到 v0.2-003 FR 域的机器可读绑定；该 FR 域对应的 v0.2-003 acceptance 全部为行为 AC 出口。`existing_003_spec_ac_coverage=full|partial` 时仍须逐文件验证其公开符号、输入、输出和失败/边界是否被这些 AC 实际覆盖，不能只写“preserve behavior”。
 
+> **Lex**: BLOCKER (Aaron requirement 3 / 169-path outlet): The claimed per-row behavior outlet is not sufficient for 160 paths. `recovery/proposed-requirements.md` gives those paths the generic template “preserves public behavior governed by FR-…; assert a normal and failure/boundary path”, while inventory rows only bind broad FR domains. That neither names each file’s public behavior nor specifies its input, output, and failure/edge result; it is explicitly disallowed as a generic preservation outlet. Add a normative, path-keyed contract record for every retained/v0.2-added path (or precise upstream AC references that demonstrably cover that path), with observable input/output/failure semantics and precedence source. Keep the 9 existing file-specific entries, but close the remaining rows without inventing semantics.
+
+
 对固定清单中 `existing_003_spec_ac_coverage=none` 且不等待 Aaron 处置的 9 个 retained 路径，补充以下文件特定兼容合同：
 
 - `quantide/notify/__init__.py`：代码输入转换为 SH/SZ/BJ 与 hson/xt/jq 格式；300/688 使用 ±20% 涨跌停，其余 ±10%；`open_time_delta` 按公开时段映射分钟数，未知时段返回 0。
@@ -173,6 +176,9 @@
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
 | ✅ | ✅ | ✅ |
+
+> **Lex**: BLOCKER (Aaron requirement 4 / complete test-tree trace): `recovery/test-trace-data.json` has 1,651 functions, but 1,291 have `refs=[]` and zero function refs contain a required spec-id; 700 such functions are nevertheless in modules recommended `keep`. Module-level recommendations and bare/ambiguous FR tokens are not a valid AC mapping, and the generic `update` recommendation is not per-function Devon work/evidence. Produce a function-keyed table for all 1,651 functions with one or more valid `v0.2-XXX AC-…` targets, or a keep/update/delete classification with specific semantic evidence; for every missing/conflicting/incomplete/self-fulfilling/import-only/order-dependent/failing case, link an open Devon work item. A delete recommendation must retain the five FR-1601 evidence fields and no destructive action may precede Aaron when applicable.
+
 
 - 扫描完整 `tests/**/*.py`，而非只扫描 `tests/unit`；每个 test function/method 必须映射至少一个带 spec-id 的有效 AC。fixture/helper 必须映射到消费它的测试或标记为非测试 helper。
 - 双向闭合：每个 in-scope AC 至少被一个实质测试覆盖；每个测试至少映射一个有效 AC。重复测试可共享 AC，但不得仅靠文件名推断映射。

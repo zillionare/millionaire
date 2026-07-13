@@ -1,181 +1,179 @@
 # Proposed Requirements for Sage
 
-Precedence: locked spec/acceptance → interfaces → story → public implementation/consumers. Proposals only.
+Precedence: locked spec/acceptance → interfaces → story → current public implementation and real consumers. These are path-keyed proposals, not accepted requirements.
 
-| File | Origin | Contract | Proposed outlet / decision | Target |
-|---|---|---|---|---|
-| `quantide/__init__.py` | pre-v0.2-existing | FR-0001/NFR-0030 | AC-PROP-28061F6C: `quantide/__init__.py` preserves public behavior governed by FR-0001/NFR-0030; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/app.py` | pre-v0.2-existing | FR-0703 | AC-PROP-1688B207: `quantide/app.py` preserves public behavior governed by FR-0703; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/app_factory.py` | pre-v0.2-existing | FR-0703 | AC-PROP-E8A5F4A6: `quantide/app_factory.py` preserves public behavior governed by FR-0703; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/config/__init__.py` | pre-v0.2-existing | FR-0703 | AC-PROP-F234E93C: `quantide/config/__init__.py` preserves public behavior governed by FR-0703; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/config/branding.py` | pre-v0.2-existing | FR-0703 | AC-PROP-20E4AE24: `quantide/config/branding.py` preserves public behavior governed by FR-0703; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/config/dev_stubs.py` | pre-v0.2-existing | FR-0703 | AC-PROP-DB286918: `quantide/config/dev_stubs.py` preserves public behavior governed by FR-0703; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/config/paths.py` | pre-v0.2-existing | FR-0703 | AC-PROP-F505045B: `quantide/config/paths.py` preserves public behavior governed by FR-0703; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/config/settings.py` | pre-v0.2-existing | FR-0703 | AC-PROP-8653BA00: `quantide/config/settings.py` preserves public behavior governed by FR-0703; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/domain/__init__.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-B3019D55: `quantide/core/domain/__init__.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/domain/events.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-322CFD0D: `quantide/core/domain/events.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/enums.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-670F7819: `quantide/core/enums.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/errors.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-D2BF42E6: `quantide/core/errors.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/init_wizard_steps.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-93A21DCC: `quantide/core/init_wizard_steps.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/message.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-39B25D27: `quantide/core/message.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/notifications.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-319085EF: `quantide/core/notifications.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/order_execution.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-B6634320: `quantide/core/order_execution.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/ports/__init__.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-1060E19A: `quantide/core/ports/__init__.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/ports/broker.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-83B1BB85: `quantide/core/ports/broker.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/ports/clock.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-8A1EB5BF: `quantide/core/ports/clock.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/ports/data_fetcher.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-9F679864: `quantide/core/ports/data_fetcher.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/ports/market_data.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-19A4391C: `quantide/core/ports/market_data.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/risk_events.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-88DBD15A: `quantide/core/risk_events.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/runtime/__init__.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-E3049D00: `quantide/core/runtime/__init__.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/runtime/adapter_registry.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-706D0798: `quantide/core/runtime/adapter_registry.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/runtime/clock_bridge.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-94108DE4: `quantide/core/runtime/clock_bridge.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/runtime/gateway_broker.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-86359DAB: `quantide/core/runtime/gateway_broker.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/runtime/gateway_client.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-B82C14A2: `quantide/core/runtime/gateway_client.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/runtime/modes.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-820BA132: `quantide/core/runtime/modes.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/runtime/port_broker.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-3AB3EA09: `quantide/core/runtime/port_broker.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/runtime/registration.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-82E53924: `quantide/core/runtime/registration.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/scheduler.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-8A1D34E9: `quantide/core/scheduler.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/sdk_metadata.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-033A0932: `quantide/core/sdk_metadata.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/singleton.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-B57B80AF: `quantide/core/singleton.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/strategy.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-949507DE: `quantide/core/strategy.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/strategy_discovery.py` | pre-v0.2-existing | FR-0201~0207 | AC-PROP-CC91CE34: `quantide/core/strategy_discovery.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/core/utils.py` | pre-v0.2-existing | FR-0201~0207 | AD-05 | 80% |
-| `quantide/core/wizard_steps_v2.py` | v0.2-added | FR-0201~0207 | AC-PROP-38420B73: `quantide/core/wizard_steps_v2.py` preserves public behavior governed by FR-0201~0207; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/data/__init__.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-58EEB820: `quantide/data/__init__.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/fetchers/__init__.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-C26878DC: `quantide/data/fetchers/__init__.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/fetchers/registry.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-4D876451: `quantide/data/fetchers/registry.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/fetchers/tushare.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-3F42999A: `quantide/data/fetchers/tushare.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/helper.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-8CF99FA3: `quantide/data/helper.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/models/__init__.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-AC1D81B2: `quantide/data/models/__init__.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/models/app_state.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-D26D0883: `quantide/data/models/app_state.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/models/base.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-5E7BD32D: `quantide/data/models/base.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/models/calendar.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-151439EF: `quantide/data/models/calendar.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/models/daily_bars.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-7A10D4D3: `quantide/data/models/daily_bars.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/models/entities.py` | v0.2-added | FR-0301~0304 | AC-PROP-0C502218: `quantide/data/models/entities.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/data/models/index_bars.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-9365C23C: `quantide/data/models/index_bars.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/models/stocks.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-0A44A21A: `quantide/data/models/stocks.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/models/strategy_config.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-44B8506C: `quantide/data/models/strategy_config.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/services/__init__.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-032798DF: `quantide/data/services/__init__.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/sqlite.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-25CD0A1E: `quantide/data/sqlite.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/stores/base.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-A1FB8388: `quantide/data/stores/base.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/stores/index_bars.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-C3A4302E: `quantide/data/stores/index_bars.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/utils/__init__.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-5F4A06A2: `quantide/data/utils/__init__.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/data/utils/resampler.py` | pre-v0.2-existing | FR-0301~0304 | AC-PROP-E5B4D264: `quantide/data/utils/resampler.py` preserves public behavior governed by FR-0301~0304; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/notify/__init__.py` | pre-v0.2-existing | FR-0701 | AC-PROP-5CB607A1: `quantide/notify/__init__.py` preserves public behavior governed by FR-0701; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/notify/dingtalk.py` | pre-v0.2-existing | FR-0701 | AC-PROP-59DFB3C8: `quantide/notify/dingtalk.py` preserves public behavior governed by FR-0701; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/notify/mail.py` | pre-v0.2-existing | FR-0701 | AC-PROP-0FE3BA34: `quantide/notify/mail.py` preserves public behavior governed by FR-0701; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/abstract_broker.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-3C5B9AD8: `quantide/service/abstract_broker.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/backtest_broker.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-1FF35985: `quantide/service/backtest_broker.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/backtest_logs.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-360068B3: `quantide/service/backtest_logs.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/datafeed.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-36BA8608: `quantide/service/datafeed.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/discovery.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-6CFFFBFC: `quantide/service/discovery.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/grid_search.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-0EF5AFD0: `quantide/service/grid_search.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/init_wizard.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-84C9E505: `quantide/service/init_wizard.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/livequote.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-7445267A: `quantide/service/livequote.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/metrics.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-259EB238: `quantide/service/metrics.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/registry.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-A581697D: `quantide/service/registry.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/runner.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-DBFF4E47: `quantide/service/runner.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/sim_broker.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-3748C7E0: `quantide/service/sim_broker.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/strategy_runtime.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-DDFEB43C: `quantide/service/strategy_runtime.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/trade_lightning.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-1F302FE7: `quantide/service/trade_lightning.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/service/triple_barrier.py` | pre-v0.2-existing | FR-0401~0404 | AC-PROP-027CC9BC: `quantide/service/triple_barrier.py` preserves public behavior governed by FR-0401~0404; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/strategies/cost_stop_loss.py` | pre-v0.2-existing | FR-0702 | AC-PROP-8096CEB8: `quantide/strategies/cost_stop_loss.py` preserves public behavior governed by FR-0702; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/strategies/example/dual_ma.py` | pre-v0.2-existing | FR-0702 | AC-PROP-F8778C73: `quantide/strategies/example/dual_ma.py` preserves public behavior governed by FR-0702; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/strategies/pullback_sell.py` | pre-v0.2-existing | FR-0702 | AC-PROP-87FDF157: `quantide/strategies/pullback_sell.py` preserves public behavior governed by FR-0702; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-68D19AE4: `quantide/web/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/apis/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-71364550: `quantide/web/apis/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/apis/analysis/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-45C976A4: `quantide/web/apis/analysis/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/apis/analysis/kline.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-6D90FF24: `quantide/web/apis/analysis/kline.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/apis/analysis/search.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-A503DB34: `quantide/web/apis/analysis/search.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/apis/broker.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-8D2D366A: `quantide/web/apis/broker.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/auth/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-8E164889: `quantide/web/auth/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/auth/admin_routes.py` | pre-v0.2-existing | FR-0501~0505 | AD-01 | 80% |
-| `quantide/web/auth/database.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-2D75BBCA: `quantide/web/auth/database.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/auth/forms.py` | pre-v0.2-existing | FR-0501~0505 | AD-02 | 80% |
-| `quantide/web/auth/init.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-19DE68DF: `quantide/web/auth/init.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/auth/manager.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-46786716: `quantide/web/auth/manager.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/auth/middleware.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-AD20EB34: `quantide/web/auth/middleware.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/auth/models.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-94F35512: `quantide/web/auth/models.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/auth/repository.py` | pre-v0.2-existing | FR-0501~0505 | AD-03 | 80% |
-| `quantide/web/auth/routes.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-85D30A84: `quantide/web/auth/routes.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/auth/utils.py` | pre-v0.2-existing | FR-0501~0505 | AD-04 | 80% |
-| `quantide/web/components/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-4C97D709: `quantide/web/components/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/components/analysis/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-EBB5B65E: `quantide/web/components/analysis/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/components/analysis/backtest_charts.py` | v0.2-added | FR-0501~0505 | AC-PROP-058306C4: `quantide/web/components/analysis/backtest_charts.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/components/analysis/kline_chart.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-5D0B507A: `quantide/web/components/analysis/kline_chart.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/components/analysis/stock_list.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-EB2F72D9: `quantide/web/components/analysis/stock_list.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/components/asset_label.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-677CCA08: `quantide/web/components/asset_label.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/components/header.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-6DD50980: `quantide/web/components/header.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/components/runtime_params.py` | v0.2-added | FR-0501~0505 | AC-PROP-D907D7AD: `quantide/web/components/runtime_params.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/components/sidebar.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-679FB866: `quantide/web/components/sidebar.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/components/toast.py` | v0.2-added | FR-0501~0505 | AC-PROP-3F52FA20: `quantide/web/components/toast.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/degradation.py` | v0.2-added | FR-0501~0505 | AC-PROP-153C6EFD: `quantide/web/degradation.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/errors.py` | v0.2-added | FR-0501~0505 | AC-PROP-0232EA41: `quantide/web/errors.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/events.py` | v0.2-added | FR-0501~0505 | AC-PROP-67242410: `quantide/web/events.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/layouts/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-3F24D942: `quantide/web/layouts/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/layouts/base.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-6E23F321: `quantide/web/layouts/base.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/layouts/main.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-559F29F8: `quantide/web/layouts/main.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/local_storage.py` | v0.2-added | FR-0501~0505 | AC-PROP-AE767F5F: `quantide/web/local_storage.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/middleware.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-3B8F1E24: `quantide/web/middleware.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/middleware_feature.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-ECC3C366: `quantide/web/middleware_feature.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/middleware_init.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-5C205114: `quantide/web/middleware_init.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/nfr_accessibility.py` | v0.2-added | FR-0501~0505 | AC-PROP-32EB42B8: `quantide/web/nfr_accessibility.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/nfr_error_degradation.py` | v0.2-added | FR-0501~0505 | AC-PROP-8260B6DB: `quantide/web/nfr_error_degradation.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/nfr_long_task.py` | v0.2-added | FR-0501~0505 | AC-PROP-E2A58896: `quantide/web/nfr_long_task.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/nfr_partial_refresh.py` | v0.2-added | FR-0501~0505 | AC-PROP-BD5B10F5: `quantide/web/nfr_partial_refresh.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/nfr_responsive.py` | v0.2-added | FR-0501~0505 | AC-PROP-7A22FF60: `quantide/web/nfr_responsive.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/nfr_visual.py` | v0.2-added | FR-0501~0505 | AC-PROP-C90F1DE2: `quantide/web/nfr_visual.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/pages/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-32E70607: `quantide/web/pages/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/accounts.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-B59B6667: `quantide/web/pages/accounts.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/analysis.py` | pre-v0.2-existing | FR-0501~0505 | AD-06 | 80% |
-| `quantide/web/pages/data_calendar.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-D03B0855: `quantide/web/pages/data_calendar.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/data_db.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-1EFB3035: `quantide/web/pages/data_db.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/data_market.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-BA51D4B0: `quantide/web/pages/data_market.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/data_stocks.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-C013BCBE: `quantide/web/pages/data_stocks.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/history_orders.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-4DF9E1EE: `quantide/web/pages/history_orders.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/history_positions.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-E6E79660: `quantide/web/pages/history_positions.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/history_trades.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-83216BCF: `quantide/web/pages/history_trades.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/home.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-FB6F6BEF: `quantide/web/pages/home.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/init_wizard.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-A9B12DE8: `quantide/web/pages/init_wizard.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/live.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-40F767CC: `quantide/web/pages/live.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/paper.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-BEACF8EF: `quantide/web/pages/paper.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/strategy.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-D34F0AE3: `quantide/web/pages/strategy.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/__init__.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-8C007628: `quantide/web/pages/system/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/calendar.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-C2D7F5D1: `quantide/web/pages/system/calendar.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/datasource.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-65AF825D: `quantide/web/pages/system/datasource.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/gateway.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-93C17425: `quantide/web/pages/system/gateway.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/jobs.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-931A0B7C: `quantide/web/pages/system/jobs.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/market.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-1F5896A7: `quantide/web/pages/system/market.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/risk_events.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-226FBD2A: `quantide/web/pages/system/risk_events.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/runtime_monitor.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-CEF1D455: `quantide/web/pages/system/runtime_monitor.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/runtime_support.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-4F301B07: `quantide/web/pages/system/runtime_support.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/system/stocks.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-C99E356F: `quantide/web/pages/system/stocks.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/trade_lightning.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-CB7F6E4D: `quantide/web/pages/trade_lightning.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/pages/trade_main.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-16514F22: `quantide/web/pages/trade_main.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
-| `quantide/web/services/__init__.py` | v0.2-added | FR-0501~0505 | AC-PROP-9056CEC0: `quantide/web/services/__init__.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/account_overview.py` | v0.2-added | FR-0501~0505 | AC-PROP-004F1DB0: `quantide/web/services/account_overview.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/accounts.py` | v0.2-added | FR-0501~0505 | AC-PROP-8349366B: `quantide/web/services/accounts.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/auth_session.py` | v0.2-added | FR-0501~0505 | AC-PROP-8D97B3BB: `quantide/web/services/auth_session.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/backtest_progress.py` | v0.2-added | FR-0501~0505 | AC-PROP-FBDAEE9A: `quantide/web/services/backtest_progress.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/backtest_reports.py` | v0.2-added | FR-0501~0505 | AC-PROP-CE72C63B: `quantide/web/services/backtest_reports.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/dashboard.py` | v0.2-added | FR-0501~0505 | AC-PROP-F057D2D3: `quantide/web/services/dashboard.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/gateway.py` | v0.2-added | FR-0501~0505 | AC-PROP-4038705A: `quantide/web/services/gateway.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/integrity.py` | v0.2-added | FR-0501~0505 | AC-PROP-91924CDD: `quantide/web/services/integrity.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/layout.py` | v0.2-added | FR-0501~0505 | AC-PROP-CE923A68: `quantide/web/services/layout.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/notifications.py` | v0.2-added | FR-0501~0505 | AC-PROP-BA24BBED: `quantide/web/services/notifications.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/risk_events.py` | v0.2-added | FR-0501~0505 | AC-PROP-1B20D507: `quantide/web/services/risk_events.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/routing.py` | v0.2-added | FR-0501~0505 | AC-PROP-E26ABAE9: `quantide/web/services/routing.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/runtime_control.py` | v0.2-added | FR-0501~0505 | AC-PROP-DE48A05B: `quantide/web/services/runtime_control.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/scheduling.py` | v0.2-added | FR-0501~0505 | AC-PROP-F9DA864A: `quantide/web/services/scheduling.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/stock_query.py` | v0.2-added | FR-0501~0505 | AC-PROP-3415F641: `quantide/web/services/stock_query.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/strategy_management.py` | v0.2-added | FR-0501~0505 | AC-PROP-DA48E538: `quantide/web/services/strategy_management.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/tasks.py` | v0.2-added | FR-0501~0505 | AC-PROP-62FD5D3F: `quantide/web/services/tasks.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/trade.py` | v0.2-added | FR-0501~0505 | AC-PROP-FC433E3A: `quantide/web/services/trade.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/services/trade_history.py` | v0.2-added | FR-0501~0505 | AC-PROP-0B8EB187: `quantide/web/services/trade_history.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 95% |
-| `quantide/web/theme.py` | pre-v0.2-existing | FR-0501~0505 | AC-PROP-3AFE0A8E: `quantide/web/theme.py` preserves public behavior governed by FR-0501~0505; assert a normal and failure/boundary path through a public consumer, route, registry, or schema outlet. | 80% |
+## Normative shard index
 
-## DoD closure
-- Same green unit invocation: overall statement/line >95%.
-- v0.2-added executable files >=95%; retained pre-v0.2 >=80% absent a legitimate specific waiver.
-- Normal plus failure/boundary semantics; no import-only/self-fulfilling tests, mocked subject, broad exclusions, threshold reduction, or generic waivers.
-- CI trace closure uses `lk agent archer ci-scan ...`.
+All proposed AC text, concrete input/output/failure/state contracts, source evidence, and the original per-path proposal prose are normative in the listed JSON shard records (`contract_ac_proposals`, `normative_contract`, `proposed_requirement_ac_text`, and `source_markdown.proposed_requirements`).
+
+| Path | Proposed ACs | Target | Normative record |
+|---|---:|---:|---|
+| `quantide/__init__.py` | 1 | 80% | [`prod-9624a803d482`](production-contracts/quantide-root.json) |
+| `quantide/app.py` | 2 | 80% | [`prod-f655da5fbd1b`](production-contracts/quantide-root.json) |
+| `quantide/app_factory.py` | 2 | 80% | [`prod-377ad2d09023`](production-contracts/quantide-root.json) |
+| `quantide/config/__init__.py` | 1 | 80% | [`prod-ce3191290a08`](production-contracts/quantide-config.json) |
+| `quantide/config/branding.py` | 3 | 80% | [`prod-128378ed034c`](production-contracts/quantide-config.json) |
+| `quantide/config/dev_stubs.py` | 3 | 80% | [`prod-96cda3935ab3`](production-contracts/quantide-config.json) |
+| `quantide/config/paths.py` | 3 | 80% | [`prod-065b84a77706`](production-contracts/quantide-config.json) |
+| `quantide/config/settings.py` | 5 | 80% | [`prod-2bd66780053c`](production-contracts/quantide-config.json) |
+| `quantide/core/domain/__init__.py` | 1 | 80% | [`prod-4a694199e478`](production-contracts/quantide-core-01.json) |
+| `quantide/core/domain/events.py` | 2 | 80% | [`prod-32e1fa7a2c26`](production-contracts/quantide-core-01.json) |
+| `quantide/core/enums.py` | 3 | 80% | [`prod-dc8137442cbc`](production-contracts/quantide-core-01.json) |
+| `quantide/core/errors.py` | 6 | 80% | [`prod-558232cedbff`](production-contracts/quantide-core-01.json) |
+| `quantide/core/init_wizard_steps.py` | 2 | 80% | [`prod-15036e03e523`](production-contracts/quantide-core-01.json) |
+| `quantide/core/message.py` | 2 | 80% | [`prod-bb22aceb2f03`](production-contracts/quantide-core-01.json) |
+| `quantide/core/notifications.py` | 2 | 80% | [`prod-66867768efdb`](production-contracts/quantide-core-01.json) |
+| `quantide/core/order_execution.py` | 2 | 80% | [`prod-08ea62951bde`](production-contracts/quantide-core-01.json) |
+| `quantide/core/ports/__init__.py` | 1 | 80% | [`prod-b87ac722d23e`](production-contracts/quantide-core-01.json) |
+| `quantide/core/ports/broker.py` | 3 | 80% | [`prod-65e41f4ef82f`](production-contracts/quantide-core-01.json) |
+| `quantide/core/ports/clock.py` | 2 | 80% | [`prod-38350911ea09`](production-contracts/quantide-core-01.json) |
+| `quantide/core/ports/data_fetcher.py` | 2 | 80% | [`prod-86e3837564af`](production-contracts/quantide-core-01.json) |
+| `quantide/core/ports/market_data.py` | 2 | 80% | [`prod-c66cb863d568`](production-contracts/quantide-core-01.json) |
+| `quantide/core/risk_events.py` | 3 | 80% | [`prod-9a12e545db77`](production-contracts/quantide-core-01.json) |
+| `quantide/core/runtime/__init__.py` | 1 | 80% | [`prod-a04d03dcb17b`](production-contracts/quantide-core-01.json) |
+| `quantide/core/runtime/adapter_registry.py` | 2 | 80% | [`prod-805b51e4a9c4`](production-contracts/quantide-core-01.json) |
+| `quantide/core/runtime/clock_bridge.py` | 2 | 80% | [`prod-e0ccbdde0d14`](production-contracts/quantide-core-01.json) |
+| `quantide/core/runtime/gateway_broker.py` | 2 | 80% | [`prod-01435f6276f5`](production-contracts/quantide-core-01.json) |
+| `quantide/core/runtime/gateway_client.py` | 2 | 80% | [`prod-5dc2bd26b148`](production-contracts/quantide-core-01.json) |
+| `quantide/core/runtime/modes.py` | 2 | 80% | [`prod-c703f7185c9e`](production-contracts/quantide-core-01.json) |
+| `quantide/core/runtime/port_broker.py` | 2 | 80% | [`prod-992d9937e984`](production-contracts/quantide-core-01.json) |
+| `quantide/core/runtime/registration.py` | 2 | 80% | [`prod-f8ebc480201e`](production-contracts/quantide-core-01.json) |
+| `quantide/core/scheduler.py` | 2 | 80% | [`prod-4c31d5d2b354`](production-contracts/quantide-core-01.json) |
+| `quantide/core/sdk_metadata.py` | 2 | 80% | [`prod-77eca4ea871e`](production-contracts/quantide-core-01.json) |
+| `quantide/core/singleton.py` | 2 | 80% | [`prod-6c9021b8ad08`](production-contracts/quantide-core-02.json) |
+| `quantide/core/strategy.py` | 2 | 80% | [`prod-00e974f20012`](production-contracts/quantide-core-02.json) |
+| `quantide/core/strategy_discovery.py` | 2 | 80% | [`prod-17f7e2c7bfe5`](production-contracts/quantide-core-02.json) |
+| `quantide/core/utils.py` | 2 | 80% | [`prod-5c4b6a15a6b7`](production-contracts/quantide-core-02.json) |
+| `quantide/core/wizard_steps_v2.py` | 3 | 95% | [`prod-c8aa5dd0cd66`](production-contracts/quantide-core-02.json) |
+| `quantide/data/__init__.py` | 2 | 80% | [`prod-6fc36368fb6a`](production-contracts/quantide-data.json) |
+| `quantide/data/fetchers/__init__.py` | 1 | 80% | [`prod-027974b1ccde`](production-contracts/quantide-data.json) |
+| `quantide/data/fetchers/registry.py` | 3 | 80% | [`prod-4f2a71392ccf`](production-contracts/quantide-data.json) |
+| `quantide/data/fetchers/tushare.py` | 5 | 80% | [`prod-c13c7b725446`](production-contracts/quantide-data.json) |
+| `quantide/data/helper.py` | 2 | 80% | [`prod-5c11d22c8570`](production-contracts/quantide-data.json) |
+| `quantide/data/models/__init__.py` | 1 | 80% | [`prod-ea45465c6ed8`](production-contracts/quantide-data.json) |
+| `quantide/data/models/app_state.py` | 2 | 80% | [`prod-df43aae62cfa`](production-contracts/quantide-data.json) |
+| `quantide/data/models/base.py` | 3 | 80% | [`prod-e0bd115dae98`](production-contracts/quantide-data.json) |
+| `quantide/data/models/calendar.py` | 2 | 80% | [`prod-42040349fce3`](production-contracts/quantide-data.json) |
+| `quantide/data/models/daily_bars.py` | 2 | 80% | [`prod-c6d18ce601e4`](production-contracts/quantide-data.json) |
+| `quantide/data/models/entities.py` | 3 | 95% | [`prod-de584a82e35b`](production-contracts/quantide-data.json) |
+| `quantide/data/models/index_bars.py` | 1 | 80% | [`prod-50a729affc07`](production-contracts/quantide-data.json) |
+| `quantide/data/models/stocks.py` | 2 | 80% | [`prod-81a41ee158b6`](production-contracts/quantide-data.json) |
+| `quantide/data/models/strategy_config.py` | 3 | 80% | [`prod-f65a97a2a7f8`](production-contracts/quantide-data.json) |
+| `quantide/data/services/__init__.py` | 1 | 80% | [`prod-90d083d20f2f`](production-contracts/quantide-data.json) |
+| `quantide/data/sqlite.py` | 2 | 80% | [`prod-066bfafce37e`](production-contracts/quantide-data.json) |
+| `quantide/data/stores/base.py` | 2 | 80% | [`prod-db60f1672a2c`](production-contracts/quantide-data.json) |
+| `quantide/data/stores/index_bars.py` | 2 | 80% | [`prod-a3f67dcc335c`](production-contracts/quantide-data.json) |
+| `quantide/data/utils/__init__.py` | 1 | 80% | [`prod-03e51e49c5a6`](production-contracts/quantide-data.json) |
+| `quantide/data/utils/resampler.py` | 1 | 80% | [`prod-9efea16a00b3`](production-contracts/quantide-data.json) |
+| `quantide/notify/__init__.py` | 2 | 80% | [`prod-87c0350102d0`](production-contracts/quantide-notify.json) |
+| `quantide/notify/dingtalk.py` | 3 | 80% | [`prod-89e180c24abe`](production-contracts/quantide-notify.json) |
+| `quantide/notify/mail.py` | 2 | 80% | [`prod-bacffeb485fe`](production-contracts/quantide-notify.json) |
+| `quantide/service/abstract_broker.py` | 2 | 80% | [`prod-f8fd407ad2c6`](production-contracts/quantide-service.json) |
+| `quantide/service/backtest_broker.py` | 2 | 80% | [`prod-50c5109c993c`](production-contracts/quantide-service.json) |
+| `quantide/service/backtest_logs.py` | 3 | 80% | [`prod-13f274007643`](production-contracts/quantide-service.json) |
+| `quantide/service/datafeed.py` | 2 | 80% | [`prod-cf608c440483`](production-contracts/quantide-service.json) |
+| `quantide/service/discovery.py` | 3 | 80% | [`prod-a436a1459981`](production-contracts/quantide-service.json) |
+| `quantide/service/grid_search.py` | 2 | 80% | [`prod-5b3a3d325d59`](production-contracts/quantide-service.json) |
+| `quantide/service/init_wizard.py` | 2 | 80% | [`prod-d53dc7efe628`](production-contracts/quantide-service.json) |
+| `quantide/service/livequote.py` | 2 | 80% | [`prod-2272e540793c`](production-contracts/quantide-service.json) |
+| `quantide/service/metrics.py` | 2 | 80% | [`prod-17252c8ba6c1`](production-contracts/quantide-service.json) |
+| `quantide/service/registry.py` | 2 | 80% | [`prod-28d4861467f3`](production-contracts/quantide-service.json) |
+| `quantide/service/runner.py` | 2 | 80% | [`prod-f85c02b60215`](production-contracts/quantide-service.json) |
+| `quantide/service/sim_broker.py` | 2 | 80% | [`prod-e6909e7d5207`](production-contracts/quantide-service.json) |
+| `quantide/service/strategy_runtime.py` | 2 | 80% | [`prod-4ebc3e5e77a8`](production-contracts/quantide-service.json) |
+| `quantide/service/trade_lightning.py` | 4 | 80% | [`prod-d341ca7496ae`](production-contracts/quantide-service.json) |
+| `quantide/service/triple_barrier.py` | 4 | 80% | [`prod-dd9da7fdd598`](production-contracts/quantide-service.json) |
+| `quantide/strategies/cost_stop_loss.py` | 2 | 80% | [`prod-ea30f732e427`](production-contracts/quantide-strategies.json) |
+| `quantide/strategies/example/dual_ma.py` | 2 | 80% | [`prod-f5da00897ae7`](production-contracts/quantide-strategies.json) |
+| `quantide/strategies/pullback_sell.py` | 2 | 80% | [`prod-25e6f8396f3a`](production-contracts/quantide-strategies.json) |
+| `quantide/web/__init__.py` | 1 | 80% | [`prod-5a32c1455748`](production-contracts/quantide-web-01.json) |
+| `quantide/web/apis/__init__.py` | 1 | 80% | [`prod-cbdffd8cd37a`](production-contracts/quantide-web-01.json) |
+| `quantide/web/apis/analysis/__init__.py` | 1 | 80% | [`prod-84b169d1f261`](production-contracts/quantide-web-01.json) |
+| `quantide/web/apis/analysis/kline.py` | 3 | 80% | [`prod-2547002d3646`](production-contracts/quantide-web-01.json) |
+| `quantide/web/apis/analysis/search.py` | 2 | 80% | [`prod-e75b049d283b`](production-contracts/quantide-web-01.json) |
+| `quantide/web/apis/broker.py` | 6 | 80% | [`prod-6887921cc187`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/__init__.py` | 1 | 80% | [`prod-8785e3f66dfc`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/admin_routes.py` | 3 | 80% | [`prod-f4c5b6766c15`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/database.py` | 2 | 80% | [`prod-c4ce6171faa5`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/forms.py` | 3 | 80% | [`prod-2222692b50e2`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/init.py` | 1 | 80% | [`prod-94724c14aab0`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/manager.py` | 2 | 80% | [`prod-48d8acd54572`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/middleware.py` | 2 | 80% | [`prod-ee298a544213`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/models.py` | 2 | 80% | [`prod-d721b9b644ae`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/repository.py` | 2 | 80% | [`prod-5793dc5849e8`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/routes.py` | 2 | 80% | [`prod-9f9d0f1081ed`](production-contracts/quantide-web-01.json) |
+| `quantide/web/auth/utils.py` | 1 | 80% | [`prod-478f19f91ad5`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/__init__.py` | 1 | 80% | [`prod-ecb0f9e8971a`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/analysis/__init__.py` | 1 | 80% | [`prod-026eb4d4eb37`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/analysis/backtest_charts.py` | 3 | 95% | [`prod-e1c0f793d75c`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/analysis/kline_chart.py` | 2 | 80% | [`prod-82c6d31d5d38`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/analysis/stock_list.py` | 2 | 80% | [`prod-ed6183152fee`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/asset_label.py` | 2 | 80% | [`prod-c67d1859d12b`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/header.py` | 2 | 80% | [`prod-6a2614789ca6`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/runtime_params.py` | 3 | 95% | [`prod-8d1a9acce098`](production-contracts/quantide-web-01.json) |
+| `quantide/web/components/sidebar.py` | 2 | 80% | [`prod-53e2ea7ade80`](production-contracts/quantide-web-02.json) |
+| `quantide/web/components/toast.py` | 3 | 95% | [`prod-dc02837d70ad`](production-contracts/quantide-web-02.json) |
+| `quantide/web/degradation.py` | 4 | 95% | [`prod-eaf1ff3190c1`](production-contracts/quantide-web-02.json) |
+| `quantide/web/errors.py` | 3 | 95% | [`prod-23cf847fe475`](production-contracts/quantide-web-02.json) |
+| `quantide/web/events.py` | 3 | 95% | [`prod-c864fff98fda`](production-contracts/quantide-web-02.json) |
+| `quantide/web/layouts/__init__.py` | 1 | 80% | [`prod-afa061d0074a`](production-contracts/quantide-web-02.json) |
+| `quantide/web/layouts/base.py` | 2 | 80% | [`prod-a346e92935b1`](production-contracts/quantide-web-02.json) |
+| `quantide/web/layouts/main.py` | 3 | 80% | [`prod-fb7276011f4a`](production-contracts/quantide-web-02.json) |
+| `quantide/web/local_storage.py` | 2 | 95% | [`prod-047c7d15b47d`](production-contracts/quantide-web-02.json) |
+| `quantide/web/middleware.py` | 3 | 80% | [`prod-7ad9a9e9b8db`](production-contracts/quantide-web-02.json) |
+| `quantide/web/middleware_feature.py` | 3 | 80% | [`prod-75e42fe985b3`](production-contracts/quantide-web-02.json) |
+| `quantide/web/middleware_init.py` | 3 | 80% | [`prod-9821dd3fc75b`](production-contracts/quantide-web-02.json) |
+| `quantide/web/nfr_accessibility.py` | 2 | 95% | [`prod-56d47c5c1f5c`](production-contracts/quantide-web-02.json) |
+| `quantide/web/nfr_error_degradation.py` | 2 | 95% | [`prod-d3c62a2cc4bb`](production-contracts/quantide-web-02.json) |
+| `quantide/web/nfr_long_task.py` | 2 | 95% | [`prod-39400d555797`](production-contracts/quantide-web-02.json) |
+| `quantide/web/nfr_partial_refresh.py` | 2 | 95% | [`prod-c9ccf5700e06`](production-contracts/quantide-web-02.json) |
+| `quantide/web/nfr_responsive.py` | 2 | 95% | [`prod-6917be37eebc`](production-contracts/quantide-web-02.json) |
+| `quantide/web/nfr_visual.py` | 2 | 95% | [`prod-628c0fbdea77`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/__init__.py` | 1 | 80% | [`prod-9a76eec48067`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/accounts.py` | 4 | 80% | [`prod-8f002113f409`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/analysis.py` | 2 | 80% | [`prod-da64e6c5652e`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/data_calendar.py` | 2 | 80% | [`prod-d785376fdc60`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/data_db.py` | 2 | 80% | [`prod-8ca46f756bde`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/data_market.py` | 2 | 80% | [`prod-c75acf006267`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/data_stocks.py` | 2 | 80% | [`prod-f5bb2b6a48d5`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/history_orders.py` | 2 | 80% | [`prod-6fa561a7efbd`](production-contracts/quantide-web-02.json) |
+| `quantide/web/pages/history_positions.py` | 2 | 80% | [`prod-3e9f447b7adb`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/history_trades.py` | 2 | 80% | [`prod-302fab608470`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/home.py` | 4 | 80% | [`prod-6b1db3155a4c`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/init_wizard.py` | 6 | 80% | [`prod-967460246b4c`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/live.py` | 4 | 80% | [`prod-0748d3304030`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/paper.py` | 2 | 80% | [`prod-ab0406173054`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/strategy.py` | 5 | 80% | [`prod-2d3b6262fdaa`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/system/__init__.py` | 1 | 80% | [`prod-a08a54b3d3f8`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/system/calendar.py` | 2 | 80% | [`prod-6682be36428b`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/system/datasource.py` | 2 | 80% | [`prod-1390e20aad1d`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/system/gateway.py` | 2 | 80% | [`prod-23700ed1eb6d`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/system/jobs.py` | 3 | 80% | [`prod-518824298f03`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/system/market.py` | 2 | 80% | [`prod-7ec4fabfb357`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/system/risk_events.py` | 2 | 80% | [`prod-c49b5fb9ea36`](production-contracts/quantide-web-03.json) |
+| `quantide/web/pages/system/runtime_monitor.py` | 3 | 80% | [`prod-29c34a02177c`](production-contracts/quantide-web-04.json) |
+| `quantide/web/pages/system/runtime_support.py` | 2 | 80% | [`prod-fae60c853798`](production-contracts/quantide-web-04.json) |
+| `quantide/web/pages/system/stocks.py` | 2 | 80% | [`prod-88344e7940c3`](production-contracts/quantide-web-04.json) |
+| `quantide/web/pages/trade_lightning.py` | 4 | 80% | [`prod-eb2d0e6e0d18`](production-contracts/quantide-web-04.json) |
+| `quantide/web/pages/trade_main.py` | 4 | 80% | [`prod-2fa210e1dbf4`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/__init__.py` | 1 | 95% | [`prod-8e5c06f548a7`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/account_overview.py` | 3 | 95% | [`prod-aefe0ef82edc`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/accounts.py` | 3 | 95% | [`prod-b54910b60313`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/auth_session.py` | 3 | 95% | [`prod-95733ca1182e`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/backtest_progress.py` | 4 | 95% | [`prod-988b50e845f3`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/backtest_reports.py` | 3 | 95% | [`prod-76e0f28664f6`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/dashboard.py` | 4 | 95% | [`prod-b04f16f9fe6b`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/gateway.py` | 3 | 95% | [`prod-798ca7e2a24e`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/integrity.py` | 3 | 95% | [`prod-d848f8e3739f`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/layout.py` | 3 | 95% | [`prod-a1b065322010`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/notifications.py` | 3 | 95% | [`prod-29d92499d4a1`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/risk_events.py` | 3 | 95% | [`prod-856151242b3e`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/routing.py` | 2 | 95% | [`prod-5a3ea0494adf`](production-contracts/quantide-web-04.json) |
+| `quantide/web/services/runtime_control.py` | 5 | 95% | [`prod-2d8079c7b50c`](production-contracts/quantide-web-05.json) |
+| `quantide/web/services/scheduling.py` | 3 | 95% | [`prod-8a5063510667`](production-contracts/quantide-web-05.json) |
+| `quantide/web/services/stock_query.py` | 3 | 95% | [`prod-0bcc092fc87f`](production-contracts/quantide-web-05.json) |
+| `quantide/web/services/strategy_management.py` | 4 | 95% | [`prod-d105bd52bcfb`](production-contracts/quantide-web-05.json) |
+| `quantide/web/services/tasks.py` | 4 | 95% | [`prod-ff6ea2d19774`](production-contracts/quantide-web-05.json) |
+| `quantide/web/services/trade.py` | 3 | 95% | [`prod-dde49eed52e7`](production-contracts/quantide-web-05.json) |
+| `quantide/web/services/trade_history.py` | 3 | 95% | [`prod-60a64d86fc7a`](production-contracts/quantide-web-05.json) |
+| `quantide/web/theme.py` | 2 | 80% | [`prod-e674896a1781`](production-contracts/quantide-web-05.json) |

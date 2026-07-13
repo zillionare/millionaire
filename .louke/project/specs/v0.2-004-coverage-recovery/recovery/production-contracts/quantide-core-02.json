@@ -1,0 +1,850 @@
+{
+  "spec_id": "v0.2-004-coverage-recovery",
+  "schema": "production-contract-shard/v1",
+  "family": "quantide-core",
+  "part": 2,
+  "record_count": 5,
+  "records_sha256": "81f3f14ee5d99acbd5a1b775bfa98cb0978f3de5aa4059f45a5ae0da747b0bcc",
+  "records": [
+    {
+      "path": "quantide/core/singleton.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "594cf78",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 0,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 16,
+      "covered_lines": 16,
+      "missing_lines": 0,
+      "percent_covered": 100.0,
+      "num_branches": 2,
+      "covered_branches": 2,
+      "missing_branches": 0,
+      "production_consumer_count": 9,
+      "production_consumers": [
+        "quantide/app.py",
+        "quantide/core/message.py",
+        "quantide/core/scheduler.py",
+        "quantide/data/models/calendar.py",
+        "quantide/data/models/daily_bars.py",
+        "quantide/data/models/stocks.py",
+        "quantide/data/sqlite.py",
+        "quantide/service/registry.py",
+        "quantide/web/auth/manager.py"
+      ],
+      "test_file_count": 3,
+      "test_files_importing": [
+        "tests/unit/quantide/service/test_fr0403_coverage.py",
+        "tests/unit/quantide/service/test_grid_search.py",
+        "tests/unit/quantide/service/test_stream_stop.py"
+      ],
+      "material_v0_2_commits": [],
+      "consumers_importers_routes_registries": [
+        "quantide/app.py",
+        "quantide/core/message.py",
+        "quantide/core/scheduler.py",
+        "quantide/data/models/calendar.py",
+        "quantide/data/models/daily_bars.py",
+        "quantide/data/models/stocks.py",
+        "quantide/data/sqlite.py",
+        "quantide/service/registry.py",
+        "quantide/web/auth/manager.py"
+      ],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0201~0207",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "full",
+      "mapped_test_modules": [
+        "tests/unit/quantide/service/test_fr0403_coverage.py",
+        "tests/unit/quantide/service/test_grid_search.py",
+        "tests/unit/quantide/service/test_stream_stop.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/core/singleton.py` 的 function `singleton` 接受/边界：singletoncls: type[T]；可观察输出：singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`；状态/清理：singleton: _instances[cls]。",
+        "`quantide/core/singleton.py` 的 schema/re-export `wraps, Any, TypeVar, cast, T` 接受/边界：singletoncls: type[T]；module import exposes re-exports: wraps, Any, TypeVar, cast；module import exposes constants/schema hooks: T；可观察输出：singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]；attribute lookup yields re-exported symbols: wraps, Any, TypeVar, cast；read-only public values are available: T；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`；状态/清理：singleton: _instances[cls]。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 0,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "singleton",
+          "wraps",
+          "Any",
+          "TypeVar",
+          "cast",
+          "T"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "singletoncls: type[T]",
+          "module import exposes re-exports: wraps, Any, TypeVar, cast",
+          "module import exposes constants/schema hooks: T"
+        ],
+        "observable_outputs": [
+          "singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]",
+          "attribute lookup yields re-exported symbols: wraps, Any, TypeVar, cast",
+          "read-only public values are available: T"
+        ],
+        "failure_error_fallback": [
+          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`"
+        ],
+        "state_mutations_and_cleanup": [
+          "singleton: _instances[cls]"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0201~0207",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "quantide/core/message.py",
+          "quantide/core/scheduler.py",
+          "quantide/data/models/calendar.py",
+          "quantide/data/models/daily_bars.py",
+          "quantide/data/models/stocks.py",
+          "quantide/data/sqlite.py",
+          "quantide/service/registry.py",
+          "quantide/app.py",
+          "quantide/web/auth/manager.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-6C9021B8-01",
+            "surface": "function: singleton",
+            "statement": "`quantide/core/singleton.py` 的 function `singleton` 接受/边界：singletoncls: type[T]；可观察输出：singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`；状态/清理：singleton: _instances[cls]。"
+          },
+          {
+            "id": "AC-PROP-6C9021B8-02",
+            "surface": "schema/re-export: wraps, Any, TypeVar, cast, T",
+            "statement": "`quantide/core/singleton.py` 的 schema/re-export `wraps, Any, TypeVar, cast, T` 接受/边界：singletoncls: type[T]；module import exposes re-exports: wraps, Any, TypeVar, cast；module import exposes constants/schema hooks: T；可观察输出：singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]；attribute lookup yields re-exported symbols: wraps, Any, TypeVar, cast；read-only public values are available: T；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`；状态/清理：singleton: _instances[cls]。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-6C9021B8-01",
+          "surface": "function: singleton",
+          "statement": "`quantide/core/singleton.py` 的 function `singleton` 接受/边界：singletoncls: type[T]；可观察输出：singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`；状态/清理：singleton: _instances[cls]。"
+        },
+        {
+          "id": "AC-PROP-6C9021B8-02",
+          "surface": "schema/re-export: wraps, Any, TypeVar, cast, T",
+          "statement": "`quantide/core/singleton.py` 的 schema/re-export `wraps, Any, TypeVar, cast, T` 接受/边界：singletoncls: type[T]；module import exposes re-exports: wraps, Any, TypeVar, cast；module import exposes constants/schema hooks: T；可观察输出：singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]；attribute lookup yields re-exported symbols: wraps, Any, TypeVar, cast；read-only public values are available: T；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`；状态/清理：singleton: _instances[cls]。"
+        }
+      ],
+      "record_id": "prod-6c9021b8ad08",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/core/singleton.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `singleton`, `wraps`, `Any`, `TypeVar`, `cast`, `T`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: singletoncls: type[T]; module import exposes re-exports: wraps, Any, TypeVar, cast; module import exposes constants/schema hooks: T.\n- **Observable outputs/DTO/HTML/persistence/events**: singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]; attribute lookup yields re-exported symbols: wraps, Any, TypeVar, cast; read-only public values are available: T.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`.\n- **State mutation/cleanup**: singleton: _instances[cls].\n- **Upstream source**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/core/message.py; quantide/core/scheduler.py; quantide/data/models/calendar.py; quantide/data/models/daily_bars.py; quantide/data/models/stocks.py; quantide/data/sqlite.py; quantide/service/registry.py; quantide/app.py; quantide/web/auth/manager.py.\n- **Proposed ACs**: AC-PROP-6C9021B8-01; AC-PROP-6C9021B8-02.\n",
+        "proposed_requirements": "## `quantide/core/singleton.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-6C9021B8-01** (function: singleton): `quantide/core/singleton.py` 的 function `singleton` 接受/边界：singletoncls: type[T]；可观察输出：singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`；状态/清理：singleton: _instances[cls]。\n- **AC-PROP-6C9021B8-02** (schema/re-export: wraps, Any, TypeVar, cast, T): `quantide/core/singleton.py` 的 schema/re-export `wraps, Any, TypeVar, cast, T` 接受/边界：singletoncls: type[T]；module import exposes re-exports: wraps, Any, TypeVar, cast；module import exposes constants/schema hooks: T；可观察输出：singleton.singletoncls: type[T] -> cast(type[T], get_instance), _instances[cls]；attribute lookup yields re-exported symbols: wraps, Any, TypeVar, cast；read-only public values are available: T；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/singleton.py`；状态/清理：singleton: _instances[cls]。\n- **Contract source/consumer evidence**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/core/message.py; quantide/core/scheduler.py; quantide/data/models/calendar.py; quantide/data/models/daily_bars.py; quantide/data/models/stocks.py.\n- **Coverage target**: 80%.\n"
+      }
+    },
+    {
+      "path": "quantide/core/strategy.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "3027dcc",
+      "modifying_commits_001_to_002_count": 2,
+      "modifying_commits_002_to_003_count": 0,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [
+        "08bb098 Refs #111, closes #125",
+        "c58a27d refactor(broker): unify TradeResult into ExecutionResult, delete TradeView"
+      ],
+      "modifying_commits_002_to_003": [],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 123,
+      "covered_lines": 97,
+      "missing_lines": 26,
+      "percent_covered": 77.6224,
+      "num_branches": 20,
+      "covered_branches": 14,
+      "missing_branches": 6,
+      "production_consumer_count": 21,
+      "production_consumers": [
+        "quantide/app_factory.py",
+        "quantide/config/paths.py",
+        "quantide/core/sdk_metadata.py",
+        "quantide/core/strategy_discovery.py",
+        "quantide/service/backtest_broker.py",
+        "quantide/service/discovery.py",
+        "quantide/service/grid_search.py",
+        "quantide/service/runner.py",
+        "quantide/service/strategy_runtime.py",
+        "quantide/strategies/cost_stop_loss.py",
+        "quantide/strategies/example/dual_ma.py",
+        "quantide/strategies/pullback_sell.py",
+        "quantide/web/layouts/main.py",
+        "quantide/web/local_storage.py",
+        "quantide/web/pages/analysis.py"
+      ],
+      "test_file_count": 35,
+      "test_files_importing": [
+        "tests/unit/_infra/test_unit_coverage_workflow.py",
+        "tests/unit/quantide/core/runtime/test_port_broker.py",
+        "tests/unit/quantide/core/strategy/test_strategy_discovery.py",
+        "tests/unit/quantide/core/test_fr_010_base_strategy_unit.py",
+        "tests/unit/quantide/core/test_fr_012_live_strategy.py",
+        "tests/unit/quantide/core/test_strategy_runner.py",
+        "tests/unit/quantide/core/test_strategy_runtime_manager.py",
+        "tests/unit/quantide/data/models/test_coverage_models.py",
+        "tests/unit/quantide/service/test_discovery.py",
+        "tests/unit/quantide/service/test_forming_daily_bars.py",
+        "tests/unit/quantide/service/test_fr0401_coverage.py",
+        "tests/unit/quantide/service/test_fr_015_020_complete.py",
+        "tests/unit/quantide/service/test_fr_020_discovery_unit.py",
+        "tests/unit/quantide/service/test_fr_050_060_070_080_order_modes.py",
+        "tests/unit/quantide/service/test_fr_115_125_driver_contract.py",
+        "tests/unit/quantide/service/test_fr_130_risk_strategy.py",
+        "tests/unit/quantide/service/test_fr_185_cost_basis.py",
+        "tests/unit/quantide/service/test_fr_210_220_virtual_account.py",
+        "tests/unit/quantide/service/test_fr_230_240_250_lifecycle.py",
+        "tests/unit/quantide/service/test_fr_360_risk_events.py"
+      ],
+      "material_v0_2_commits": [
+        "08bb098 Refs #111, closes #125",
+        "c58a27d refactor(broker): unify TradeResult into ExecutionResult, delete TradeView"
+      ],
+      "consumers_importers_routes_registries": [
+        "quantide/app_factory.py",
+        "quantide/config/paths.py",
+        "quantide/core/sdk_metadata.py",
+        "quantide/core/strategy_discovery.py",
+        "quantide/service/backtest_broker.py",
+        "quantide/service/discovery.py",
+        "quantide/service/grid_search.py",
+        "quantide/service/runner.py",
+        "quantide/service/strategy_runtime.py",
+        "quantide/strategies/cost_stop_loss.py",
+        "quantide/strategies/example/dual_ma.py",
+        "quantide/strategies/pullback_sell.py",
+        "quantide/web/layouts/main.py",
+        "quantide/web/local_storage.py",
+        "quantide/web/pages/analysis.py"
+      ],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0201~0207",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "partial",
+      "mapped_test_modules": [
+        "tests/unit/_infra/test_unit_coverage_workflow.py",
+        "tests/unit/quantide/core/runtime/test_port_broker.py",
+        "tests/unit/quantide/core/strategy/test_strategy_discovery.py",
+        "tests/unit/quantide/core/test_fr_010_base_strategy_unit.py",
+        "tests/unit/quantide/core/test_fr_012_live_strategy.py",
+        "tests/unit/quantide/core/test_strategy_runner.py",
+        "tests/unit/quantide/core/test_strategy_runtime_manager.py",
+        "tests/unit/quantide/data/models/test_coverage_models.py",
+        "tests/unit/quantide/service/test_discovery.py",
+        "tests/unit/quantide/service/test_forming_daily_bars.py",
+        "tests/unit/quantide/service/test_fr0401_coverage.py",
+        "tests/unit/quantide/service/test_fr_015_020_complete.py",
+        "tests/unit/quantide/service/test_fr_020_discovery_unit.py",
+        "tests/unit/quantide/service/test_fr_050_060_070_080_order_modes.py",
+        "tests/unit/quantide/service/test_fr_115_125_driver_contract.py",
+        "tests/unit/quantide/service/test_fr_130_risk_strategy.py",
+        "tests/unit/quantide/service/test_fr_185_cost_basis.py",
+        "tests/unit/quantide/service/test_fr_210_220_virtual_account.py",
+        "tests/unit/quantide/service/test_fr_230_240_250_lifecycle.py",
+        "tests/unit/quantide/service/test_fr_360_risk_events.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/core/strategy.py` 的 class `Strategy, BaseStrategy, RiskStrategy` 接受/边界：Strategy.default_config；Strategy.async initself；Strategy.async on_startself；Strategy.async on_stopself；可观察输出：Strategy.default_config -> {}；Strategy.async initself -> implicit None；Strategy.async on_startself -> implicit None；Strategy.async on_stopself -> implicit None；失败/回退：RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')；RiskStrategy: raises NotImplementedError('get_ticks is only available in paper/live mode')；RiskStrategy: on Exception: price = 0.0；状态/清理：Strategy: record['time']。",
+        "`quantide/core/strategy.py` 的 schema/re-export `ABC, Any, logger, BrokerPort, ExecutionResult` 接受/边界：RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime；module import exposes re-exports: ABC, Any, logger, BrokerPort, ExecutionResult；可观察输出：RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime -> implicit None；attribute lookup yields re-exported symbols: ABC, Any, logger, BrokerPort, ExecutionResult；失败/回退：RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')；状态/清理：Strategy: record['time']。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 2,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "Strategy",
+          "BaseStrategy",
+          "RiskStrategy",
+          "ABC",
+          "Any",
+          "logger",
+          "BrokerPort",
+          "ExecutionResult"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "Strategy.default_config",
+          "Strategy.async initself",
+          "Strategy.async on_startself",
+          "Strategy.async on_stopself",
+          "Strategy.async on_day_openself, tm: datetime.datetime",
+          "Strategy.async on_day_closeself, tm: datetime.datetime",
+          "Strategy.get_barsself, asset: str, count: int, end_dt: datetime.datetime | None=None, frame_type: str='1d', include_forming_bar: bool=True",
+          "Strategy.logself, msg: str, *args, tm: datetime.datetime | datetime.date | None=None, level: str='INFO', **kwargs",
+          "Strategy.recordself, key: str, value: float, dt: datetime.datetime | None=None, extra: dict | None=None",
+          "BaseStrategy.default_config",
+          "BaseStrategy.async on_barself, tm: datetime.datetime",
+          "BaseStrategy.positionsself",
+          "BaseStrategy.cashself",
+          "BaseStrategy.async buyself, asset: str, shares: int, price: float=0, order_time: datetime.datetime | None=None",
+          "BaseStrategy.async buy_percentself, asset: str, percent: float, price: float=0, order_time: datetime.datetime | None=None",
+          "BaseStrategy.async buy_amountself, asset: str, amount: int | float, price: float=0, order_time: datetime.datetime | None=None",
+          "BaseStrategy.async sellself, asset: str, shares: int, price: float=0, order_time: datetime.datetime | None=None",
+          "BaseStrategy.async sell_percentself, asset: str, percent: float, price: float=0, order_time: datetime.datetime | None=None",
+          "BaseStrategy.async sell_amountself, asset: str, amount: int | float, price: float=0, order_time: datetime.datetime | None=None",
+          "BaseStrategy.async cancel_orderself, qt_oid: str",
+          "BaseStrategy.async cancel_all_ordersself, side: str | None=None",
+          "BaseStrategy.async trade_target_pctself, asset: str, target_pct: float, price: float=0, order_time: datetime.datetime | None=None",
+          "RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime",
+          "RiskStrategy.get_pricesself, assets: list[str]",
+          "RiskStrategy: boundary `hasattr(self.broker, 'get_prices')`",
+          "RiskStrategy.get_ticksself, asset: str, count: int",
+          "RiskStrategy: boundary `hasattr(self.broker, 'get_ticks')`",
+          "RiskStrategy.async sell_host_positionself, asset: str, shares: int, reason: str=''",
+          "module import exposes re-exports: ABC, Any, logger, BrokerPort, ExecutionResult"
+        ],
+        "observable_outputs": [
+          "Strategy.default_config -> {}",
+          "Strategy.async initself -> implicit None",
+          "Strategy.async on_startself -> implicit None",
+          "Strategy.async on_stopself -> implicit None",
+          "Strategy.async on_day_openself, tm: datetime.datetime -> implicit None",
+          "Strategy.async on_day_closeself, tm: datetime.datetime -> implicit None",
+          "Strategy.get_barsself, asset: str, count: int, end_dt: datetime.datetime | None=None, frame_type: str='1d', include_forming_bar: bool=True -> self.broker.get_history(asset, count, end_dt, frame_type, include_forming_bar=include_forming_bar)",
+          "Strategy.logself, msg: str, *args, tm: datetime.datetime | datetime.date | None=None, level: str='INFO', **kwargs -> implicit None",
+          "Strategy.recordself, key: str, value: float, dt: datetime.datetime | None=None, extra: dict | None=None -> implicit None",
+          "BaseStrategy.default_config -> {}",
+          "BaseStrategy.async on_barself, tm: datetime.datetime -> implicit None",
+          "BaseStrategy.positionsself -> self.broker.positions",
+          "BaseStrategy.cashself -> self.broker.cash",
+          "BaseStrategy.async buyself, asset: str, shares: int, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.buy(asset, shares, price, order_time)",
+          "BaseStrategy.async buy_percentself, asset: str, percent: float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.buy_percent(asset, percent, price, order_time)",
+          "BaseStrategy.async buy_amountself, asset: str, amount: int | float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.buy_amount(asset, amount, price, order_time)",
+          "BaseStrategy.async sellself, asset: str, shares: int, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.sell(asset, shares, price, order_time)",
+          "BaseStrategy.async sell_percentself, asset: str, percent: float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.sell_percent(asset, percent, price, order_time)",
+          "BaseStrategy.async sell_amountself, asset: str, amount: int | float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.sell_amount(asset, amount, price, order_time)",
+          "BaseStrategy.async cancel_orderself, qt_oid: str -> await self.broker.cancel_order(qt_oid)",
+          "BaseStrategy.async cancel_all_ordersself, side: str | None=None -> await self.broker.cancel_all_orders(side)",
+          "BaseStrategy.async trade_target_pctself, asset: str, target_pct: float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.trade_target_pct(asset, target_pct, price, order_time)",
+          "RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime -> implicit None",
+          "RiskStrategy.get_pricesself, assets: list[str] -> self.broker.get_prices(assets)",
+          "RiskStrategy.get_ticksself, asset: str, count: int -> self.broker.get_ticks(asset, count)",
+          "RiskStrategy.async sell_host_positionself, asset: str, shares: int, reason: str='' -> await self.broker.sell(asset, shares, price=0)",
+          "attribute lookup yields re-exported symbols: ABC, Any, logger, BrokerPort, ExecutionResult"
+        ],
+        "failure_error_fallback": [
+          "RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')",
+          "RiskStrategy: raises NotImplementedError('get_ticks is only available in paper/live mode')",
+          "RiskStrategy: on Exception: price = 0.0"
+        ],
+        "state_mutations_and_cleanup": [
+          "Strategy: record['time']"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0201~0207",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "quantide/core/strategy_discovery.py",
+          "quantide/service/discovery.py",
+          "quantide/service/grid_search.py",
+          "quantide/service/runner.py",
+          "quantide/strategies/cost_stop_loss.py",
+          "quantide/strategies/example/dual_ma.py",
+          "quantide/strategies/pullback_sell.py",
+          "quantide/app_factory.py",
+          "quantide/config/paths.py",
+          "quantide/core/sdk_metadata.py",
+          "quantide/service/backtest_broker.py",
+          "quantide/service/strategy_runtime.py",
+          "quantide/web/layouts/main.py",
+          "quantide/web/local_storage.py",
+          "quantide/web/pages/analysis.py",
+          "tests/e2e/backtest/test_fr_011_day_strategy.py",
+          "tests/e2e/paper/test_fr_440_450_200_360_e2e.py",
+          "tests/e2e/risk_strategy/test_fr_013_risk_strategy.py",
+          "tests/e2e/risk_strategy/test_fr_013_risk_structure.py",
+          "tests/e2e/strategy_discovery/test_fr_010_base_strategy.py",
+          "tests/e2e/strategy_discovery/test_fr_020_discovery.py",
+          "tests/e2e/strategy_discovery_v2/test_fr_020_discovery_v2.py",
+          "tests/e2e/strategy_example/test_dual_ma.py",
+          "tests/e2e/strategy_v2/test_fr_010_strategy_root.py",
+          "tests/grid_search_support.py",
+          "tests/unit/quantide/core/strategy/test_strategy_discovery.py",
+          "tests/unit/quantide/core/test_fr_010_base_strategy_unit.py",
+          "tests/unit/quantide/core/test_fr_012_live_strategy.py",
+          "tests/unit/quantide/core/test_strategy_runner.py",
+          "tests/unit/quantide/service/test_forming_daily_bars.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-00E974F2-01",
+            "surface": "class: Strategy, BaseStrategy, RiskStrategy",
+            "statement": "`quantide/core/strategy.py` 的 class `Strategy, BaseStrategy, RiskStrategy` 接受/边界：Strategy.default_config；Strategy.async initself；Strategy.async on_startself；Strategy.async on_stopself；可观察输出：Strategy.default_config -> {}；Strategy.async initself -> implicit None；Strategy.async on_startself -> implicit None；Strategy.async on_stopself -> implicit None；失败/回退：RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')；RiskStrategy: raises NotImplementedError('get_ticks is only available in paper/live mode')；RiskStrategy: on Exception: price = 0.0；状态/清理：Strategy: record['time']。"
+          },
+          {
+            "id": "AC-PROP-00E974F2-02",
+            "surface": "schema/re-export: ABC, Any, logger, BrokerPort, ExecutionResult",
+            "statement": "`quantide/core/strategy.py` 的 schema/re-export `ABC, Any, logger, BrokerPort, ExecutionResult` 接受/边界：RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime；module import exposes re-exports: ABC, Any, logger, BrokerPort, ExecutionResult；可观察输出：RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime -> implicit None；attribute lookup yields re-exported symbols: ABC, Any, logger, BrokerPort, ExecutionResult；失败/回退：RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')；状态/清理：Strategy: record['time']。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-00E974F2-01",
+          "surface": "class: Strategy, BaseStrategy, RiskStrategy",
+          "statement": "`quantide/core/strategy.py` 的 class `Strategy, BaseStrategy, RiskStrategy` 接受/边界：Strategy.default_config；Strategy.async initself；Strategy.async on_startself；Strategy.async on_stopself；可观察输出：Strategy.default_config -> {}；Strategy.async initself -> implicit None；Strategy.async on_startself -> implicit None；Strategy.async on_stopself -> implicit None；失败/回退：RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')；RiskStrategy: raises NotImplementedError('get_ticks is only available in paper/live mode')；RiskStrategy: on Exception: price = 0.0；状态/清理：Strategy: record['time']。"
+        },
+        {
+          "id": "AC-PROP-00E974F2-02",
+          "surface": "schema/re-export: ABC, Any, logger, BrokerPort, ExecutionResult",
+          "statement": "`quantide/core/strategy.py` 的 schema/re-export `ABC, Any, logger, BrokerPort, ExecutionResult` 接受/边界：RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime；module import exposes re-exports: ABC, Any, logger, BrokerPort, ExecutionResult；可观察输出：RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime -> implicit None；attribute lookup yields re-exported symbols: ABC, Any, logger, BrokerPort, ExecutionResult；失败/回退：RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')；状态/清理：Strategy: record['time']。"
+        }
+      ],
+      "record_id": "prod-00e974f20012",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/core/strategy.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `Strategy`, `BaseStrategy`, `RiskStrategy`, `ABC`, `Any`, `logger`, `BrokerPort`, `ExecutionResult`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: Strategy.default_config; Strategy.async initself; Strategy.async on_startself; Strategy.async on_stopself; Strategy.async on_day_openself, tm: datetime.datetime; Strategy.async on_day_closeself, tm: datetime.datetime; Strategy.get_barsself, asset: str, count: int, end_dt: datetime.datetime | None=None, frame_type: str='1d', include_forming_bar: bool=True; Strategy.logself, msg: str, *args, tm: datetime.datetime | datetime.date | None=None, level: str='INFO', **kwargs; Strategy.recordself, key: str, value: float, dt: datetime.datetime | None=None, extra: dict | None=None; BaseStrategy.default_config; BaseStrategy.async on_barself, tm: datetime.datetime; BaseStrategy.positionsself; BaseStrategy.cashself; BaseStrategy.async buyself, asset: str, shares: int, price: float=0, order_time: datetime.datetime | None=None; BaseStrategy.async buy_percentself, asset: str, percent: float, price: float=0, order_time: datetime.datetime | None=None; BaseStrategy.async buy_amountself, asset: str, amount: int | float, price: float=0, order_time: datetime.datetime | None=None; BaseStrategy.async sellself, asset: str, shares: int, price: float=0, order_time: datetime.datetime | None=None; BaseStrategy.async sell_percentself, asset: str, percent: float, price: float=0, order_time: datetime.datetime | None=None; BaseStrategy.async sell_amountself, asset: str, amount: int | float, price: float=0, order_time: datetime.datetime | None=None; BaseStrategy.async cancel_orderself, qt_oid: str; BaseStrategy.async cancel_all_ordersself, side: str | None=None; BaseStrategy.async trade_target_pctself, asset: str, target_pct: float, price: float=0, order_time: datetime.datetime | None=None; RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime; RiskStrategy.get_pricesself, assets: list[str]; RiskStrategy: boundary `hasattr(self.broker, 'get_prices')`; RiskStrategy.get_ticksself, asset: str, count: int; RiskStrategy: boundary `hasattr(self.broker, 'get_ticks')`; RiskStrategy.async sell_host_positionself, asset: str, shares: int, reason: str=''; module import exposes re-exports: ABC, Any, logger, BrokerPort, ExecutionResult.\n- **Observable outputs/DTO/HTML/persistence/events**: Strategy.default_config -> {}; Strategy.async initself -> implicit None; Strategy.async on_startself -> implicit None; Strategy.async on_stopself -> implicit None; Strategy.async on_day_openself, tm: datetime.datetime -> implicit None; Strategy.async on_day_closeself, tm: datetime.datetime -> implicit None; Strategy.get_barsself, asset: str, count: int, end_dt: datetime.datetime | None=None, frame_type: str='1d', include_forming_bar: bool=True -> self.broker.get_history(asset, count, end_dt, frame_type, include_forming_bar=include_forming_bar); Strategy.logself, msg: str, *args, tm: datetime.datetime | datetime.date | None=None, level: str='INFO', **kwargs -> implicit None; Strategy.recordself, key: str, value: float, dt: datetime.datetime | None=None, extra: dict | None=None -> implicit None; BaseStrategy.default_config -> {}; BaseStrategy.async on_barself, tm: datetime.datetime -> implicit None; BaseStrategy.positionsself -> self.broker.positions; BaseStrategy.cashself -> self.broker.cash; BaseStrategy.async buyself, asset: str, shares: int, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.buy(asset, shares, price, order_time); BaseStrategy.async buy_percentself, asset: str, percent: float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.buy_percent(asset, percent, price, order_time); BaseStrategy.async buy_amountself, asset: str, amount: int | float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.buy_amount(asset, amount, price, order_time); BaseStrategy.async sellself, asset: str, shares: int, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.sell(asset, shares, price, order_time); BaseStrategy.async sell_percentself, asset: str, percent: float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.sell_percent(asset, percent, price, order_time); BaseStrategy.async sell_amountself, asset: str, amount: int | float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.sell_amount(asset, amount, price, order_time); BaseStrategy.async cancel_orderself, qt_oid: str -> await self.broker.cancel_order(qt_oid); BaseStrategy.async cancel_all_ordersself, side: str | None=None -> await self.broker.cancel_all_orders(side); BaseStrategy.async trade_target_pctself, asset: str, target_pct: float, price: float=0, order_time: datetime.datetime | None=None -> await self.broker.trade_target_pct(asset, target_pct, price, order_time); RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime -> implicit None; RiskStrategy.get_pricesself, assets: list[str] -> self.broker.get_prices(assets); RiskStrategy.get_ticksself, asset: str, count: int -> self.broker.get_ticks(asset, count); RiskStrategy.async sell_host_positionself, asset: str, shares: int, reason: str='' -> await self.broker.sell(asset, shares, price=0); attribute lookup yields re-exported symbols: ABC, Any, logger, BrokerPort, ExecutionResult.\n- **Failure/error/fallback**: RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode'); RiskStrategy: raises NotImplementedError('get_ticks is only available in paper/live mode'); RiskStrategy: on Exception: price = 0.0.\n- **State mutation/cleanup**: Strategy: record['time'].\n- **Upstream source**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/core/strategy_discovery.py; quantide/service/discovery.py; quantide/service/grid_search.py; quantide/service/runner.py; quantide/strategies/cost_stop_loss.py; quantide/strategies/example/dual_ma.py; quantide/strategies/pullback_sell.py; quantide/app_factory.py; quantide/config/paths.py; quantide/core/sdk_metadata.py; quantide/service/backtest_broker.py; quantide/service/strategy_runtime.py; quantide/web/layouts/main.py; quantide/web/local_storage.py; quantide/web/pages/analysis.py; tests/e2e/backtest/test_fr_011_day_strategy.py; tests/e2e/paper/test_fr_440_450_200_360_e2e.py; tests/e2e/risk_strategy/test_fr_013_risk_strategy.py; tests/e2e/risk_strategy/test_fr_013_risk_structure.py; tests/e2e/strategy_discovery/test_fr_010_base_strategy.py; tests/e2e/strategy_discovery/test_fr_020_discovery.py; tests/e2e/strategy_discovery_v2/test_fr_020_discovery_v2.py; tests/e2e/strategy_example/test_dual_ma.py; tests/e2e/strategy_v2/test_fr_010_strategy_root.py; tests/grid_search_support.py; tests/unit/quantide/core/strategy/test_strategy_discovery.py; tests/unit/quantide/core/test_fr_010_base_strategy_unit.py; tests/unit/quantide/core/test_fr_012_live_strategy.py; tests/unit/quantide/core/test_strategy_runner.py; tests/unit/quantide/service/test_forming_daily_bars.py.\n- **Proposed ACs**: AC-PROP-00E974F2-01; AC-PROP-00E974F2-02.\n",
+        "proposed_requirements": "## `quantide/core/strategy.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-00E974F2-01** (class: Strategy, BaseStrategy, RiskStrategy): `quantide/core/strategy.py` 的 class `Strategy, BaseStrategy, RiskStrategy` 接受/边界：Strategy.default_config；Strategy.async initself；Strategy.async on_startself；Strategy.async on_stopself；可观察输出：Strategy.default_config -> {}；Strategy.async initself -> implicit None；Strategy.async on_startself -> implicit None；Strategy.async on_stopself -> implicit None；失败/回退：RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')；RiskStrategy: raises NotImplementedError('get_ticks is only available in paper/live mode')；RiskStrategy: on Exception: price = 0.0；状态/清理：Strategy: record['time']。\n- **AC-PROP-00E974F2-02** (schema/re-export: ABC, Any, logger, BrokerPort, ExecutionResult): `quantide/core/strategy.py` 的 schema/re-export `ABC, Any, logger, BrokerPort, ExecutionResult` 接受/边界：RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime；module import exposes re-exports: ABC, Any, logger, BrokerPort, ExecutionResult；可观察输出：RiskStrategy.async on_checkself, positions: dict[str, Any], tm: datetime.datetime -> implicit None；attribute lookup yields re-exported symbols: ABC, Any, logger, BrokerPort, ExecutionResult；失败/回退：RiskStrategy: raises NotImplementedError('get_prices is only available in paper/live mode')；状态/清理：Strategy: record['time']。\n- **Contract source/consumer evidence**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/core/strategy_discovery.py; quantide/service/discovery.py; quantide/service/grid_search.py; quantide/service/runner.py; quantide/strategies/cost_stop_loss.py.\n- **Coverage target**: 80%.\n"
+      }
+    },
+    {
+      "path": "quantide/core/strategy_discovery.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "ddfd8dd",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 0,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 114,
+      "covered_lines": 93,
+      "missing_lines": 21,
+      "percent_covered": 80.8824,
+      "num_branches": 22,
+      "covered_branches": 17,
+      "missing_branches": 5,
+      "production_consumer_count": 0,
+      "production_consumers": [],
+      "test_file_count": 5,
+      "test_files_importing": [
+        "tests/unit/quantide/core/strategy/test_strategy_discovery.py",
+        "tests/unit/quantide/core/test_fr_010_base_strategy_unit.py",
+        "tests/unit/quantide/service/test_fr_015_020_complete.py",
+        "tests/unit/quantide/service/test_fr_020_discovery_unit.py",
+        "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py"
+      ],
+      "material_v0_2_commits": [],
+      "consumers_importers_routes_registries": [],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0201~0207",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "full",
+      "mapped_test_modules": [
+        "tests/unit/quantide/core/strategy/test_strategy_discovery.py",
+        "tests/unit/quantide/core/test_fr_010_base_strategy_unit.py",
+        "tests/unit/quantide/service/test_fr_015_020_complete.py",
+        "tests/unit/quantide/service/test_fr_020_discovery_unit.py",
+        "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/core/strategy_discovery.py` 的 class `SkippedReason, SkippedEntry, StrategyMetadata, EnumerationResult, StrategyDiscovery` 接受/边界：StrategyDiscovery.discoverroot_path: str | Path；StrategyDiscovery: boundary `not root.exists()`；StrategyDiscovery.discover_builtin；可观察输出：StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])；StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)；失败/回退：StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…；StrategyDiscovery: on ImportError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.ImportErro…；状态/清理：StrategyDiscovery: strategies.extend(file_strategies)。",
+        "`quantide/core/strategy_discovery.py` 的 schema/re-export `annotations, dataclass, field, Enum, Path, Any, Literal` 接受/边界：StrategyDiscovery.discoverroot_path: str | Path；module import exposes re-exports: annotations, dataclass, field, Enum, Path, Any, Literal；可观察输出：StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])；StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)；attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum, Path, Any, Literal；失败/回退：StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…；状态/清理：StrategyDiscovery: strategies.extend(file_strategies)。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 0,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "SkippedReason",
+          "SkippedEntry",
+          "StrategyMetadata",
+          "EnumerationResult",
+          "StrategyDiscovery",
+          "annotations",
+          "dataclass",
+          "field",
+          "Enum",
+          "Path",
+          "Any",
+          "Literal"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "StrategyDiscovery.discoverroot_path: str | Path",
+          "StrategyDiscovery: boundary `not root.exists()`",
+          "StrategyDiscovery.discover_builtin",
+          "module import exposes re-exports: annotations, dataclass, field, Enum, Path, Any, Literal"
+        ],
+        "observable_outputs": [
+          "StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])",
+          "StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)",
+          "attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum, Path, Any, Literal"
+        ],
+        "failure_error_fallback": [
+          "StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…",
+          "StrategyDiscovery: on ImportError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.ImportErro…"
+        ],
+        "state_mutations_and_cleanup": [
+          "StrategyDiscovery: strategies.extend(file_strategies)",
+          "StrategyDiscovery: diagnostics.extend(file_diags)",
+          "StrategyDiscovery: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxError, detail=str(e)))",
+          "StrategyDiscovery: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.ImportError, detail=str(e)))",
+          "StrategyDiscovery: all_strategies.extend(res.strategies)",
+          "StrategyDiscovery: all_diags.extend(res.diagnostics)"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0201~0207",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "tests/unit/quantide/core/strategy/test_strategy_discovery.py",
+          "tests/unit/quantide/service/test_fr_015_020_complete.py",
+          "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-17F7E2C7-01",
+            "surface": "class: SkippedReason, SkippedEntry, StrategyMetadata, EnumerationResult, StrategyDiscovery",
+            "statement": "`quantide/core/strategy_discovery.py` 的 class `SkippedReason, SkippedEntry, StrategyMetadata, EnumerationResult, StrategyDiscovery` 接受/边界：StrategyDiscovery.discoverroot_path: str | Path；StrategyDiscovery: boundary `not root.exists()`；StrategyDiscovery.discover_builtin；可观察输出：StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])；StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)；失败/回退：StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…；StrategyDiscovery: on ImportError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.ImportErro…；状态/清理：StrategyDiscovery: strategies.extend(file_strategies)。"
+          },
+          {
+            "id": "AC-PROP-17F7E2C7-02",
+            "surface": "schema/re-export: annotations, dataclass, field, Enum, Path, Any, Literal",
+            "statement": "`quantide/core/strategy_discovery.py` 的 schema/re-export `annotations, dataclass, field, Enum, Path, Any, Literal` 接受/边界：StrategyDiscovery.discoverroot_path: str | Path；module import exposes re-exports: annotations, dataclass, field, Enum, Path, Any, Literal；可观察输出：StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])；StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)；attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum, Path, Any, Literal；失败/回退：StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…；状态/清理：StrategyDiscovery: strategies.extend(file_strategies)。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-17F7E2C7-01",
+          "surface": "class: SkippedReason, SkippedEntry, StrategyMetadata, EnumerationResult, StrategyDiscovery",
+          "statement": "`quantide/core/strategy_discovery.py` 的 class `SkippedReason, SkippedEntry, StrategyMetadata, EnumerationResult, StrategyDiscovery` 接受/边界：StrategyDiscovery.discoverroot_path: str | Path；StrategyDiscovery: boundary `not root.exists()`；StrategyDiscovery.discover_builtin；可观察输出：StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])；StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)；失败/回退：StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…；StrategyDiscovery: on ImportError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.ImportErro…；状态/清理：StrategyDiscovery: strategies.extend(file_strategies)。"
+        },
+        {
+          "id": "AC-PROP-17F7E2C7-02",
+          "surface": "schema/re-export: annotations, dataclass, field, Enum, Path, Any, Literal",
+          "statement": "`quantide/core/strategy_discovery.py` 的 schema/re-export `annotations, dataclass, field, Enum, Path, Any, Literal` 接受/边界：StrategyDiscovery.discoverroot_path: str | Path；module import exposes re-exports: annotations, dataclass, field, Enum, Path, Any, Literal；可观察输出：StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])；StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)；attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum, Path, Any, Literal；失败/回退：StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…；状态/清理：StrategyDiscovery: strategies.extend(file_strategies)。"
+        }
+      ],
+      "record_id": "prod-17f7e2c7bfe5",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/core/strategy_discovery.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `SkippedReason`, `SkippedEntry`, `StrategyMetadata`, `EnumerationResult`, `StrategyDiscovery`, `annotations`, `dataclass`, `field`, `Enum`, `Path`, `Any`, `Literal`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: StrategyDiscovery.discoverroot_path: str | Path; StrategyDiscovery: boundary `not root.exists()`; StrategyDiscovery.discover_builtin; module import exposes re-exports: annotations, dataclass, field, Enum, Path, Any, Literal.\n- **Observable outputs/DTO/HTML/persistence/events**: StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')]); StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags); attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum, Path, Any, Literal.\n- **Failure/error/fallback**: StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…; StrategyDiscovery: on ImportError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.ImportErro….\n- **State mutation/cleanup**: StrategyDiscovery: strategies.extend(file_strategies); StrategyDiscovery: diagnostics.extend(file_diags); StrategyDiscovery: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxError, detail=str(e))); StrategyDiscovery: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.ImportError, detail=str(e))); StrategyDiscovery: all_strategies.extend(res.strategies); StrategyDiscovery: all_diags.extend(res.diagnostics).\n- **Upstream source**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: tests/unit/quantide/core/strategy/test_strategy_discovery.py; tests/unit/quantide/service/test_fr_015_020_complete.py; tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py.\n- **Proposed ACs**: AC-PROP-17F7E2C7-01; AC-PROP-17F7E2C7-02.\n",
+        "proposed_requirements": "## `quantide/core/strategy_discovery.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-17F7E2C7-01** (class: SkippedReason, SkippedEntry, StrategyMetadata, EnumerationResult, StrategyDiscovery): `quantide/core/strategy_discovery.py` 的 class `SkippedReason, SkippedEntry, StrategyMetadata, EnumerationResult, StrategyDiscovery` 接受/边界：StrategyDiscovery.discoverroot_path: str | Path；StrategyDiscovery: boundary `not root.exists()`；StrategyDiscovery.discover_builtin；可观察输出：StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])；StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)；失败/回退：StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…；StrategyDiscovery: on ImportError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.ImportErro…；状态/清理：StrategyDiscovery: strategies.extend(file_strategies)。\n- **AC-PROP-17F7E2C7-02** (schema/re-export: annotations, dataclass, field, Enum, Path, Any, Literal): `quantide/core/strategy_discovery.py` 的 schema/re-export `annotations, dataclass, field, Enum, Path, Any, Literal` 接受/边界：StrategyDiscovery.discoverroot_path: str | Path；module import exposes re-exports: annotations, dataclass, field, Enum, Path, Any, Literal；可观察输出：StrategyDiscovery.discoverroot_path: str | Path -> EnumerationResult(strategies=strategies, diagnostics=diagnostics), EnumerationResult(strategies=[], diagnostics=[SkippedEntry(path=str(root), class_name=None, reason=SkippedReason.PermissionDenied, detail=f'directory does not exist: {root}')])；StrategyDiscovery.discover_builtin -> EnumerationResult(strategies=all_strategies, diagnostics=all_diags)；attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum, Path, Any, Literal；失败/回退：StrategyDiscovery: on SyntaxError: diagnostics.append(SkippedEntry(path=str(py_file), class_name=None, reason=SkippedReason.SyntaxErro…；状态/清理：StrategyDiscovery: strategies.extend(file_strategies)。\n- **Contract source/consumer evidence**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; tests/unit/quantide/core/strategy/test_strategy_discovery.py; tests/unit/quantide/service/test_fr_015_020_complete.py; tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py.\n- **Coverage target**: 80%.\n"
+      }
+    },
+    {
+      "path": "quantide/core/utils.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "5da7ac8",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 0,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "missing-from-coverage",
+      "num_statements": 0,
+      "covered_lines": null,
+      "missing_lines": null,
+      "percent_covered": null,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "missing_branches": 0,
+      "production_consumer_count": 2,
+      "production_consumers": [
+        "quantide/data/sqlite.py",
+        "quantide/web/apis/analysis/kline.py"
+      ],
+      "test_file_count": 3,
+      "test_files_importing": [
+        "tests/unit/quantide/data/test_sqlite.py",
+        "tests/unit/quantide/data/utils/test_coverage_resampler.py",
+        "tests/unit/quantide/data/utils/test_fr_480_resampler.py"
+      ],
+      "material_v0_2_commits": [],
+      "consumers_importers_routes_registries": [
+        "quantide/data/sqlite.py",
+        "quantide/web/apis/analysis/kline.py"
+      ],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0201~0207",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "partial",
+      "mapped_test_modules": [
+        "tests/unit/quantide/data/test_sqlite.py",
+        "tests/unit/quantide/data/utils/test_coverage_resampler.py",
+        "tests/unit/quantide/data/utils/test_fr_480_resampler.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "dead candidate",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "Aaron decides delete, retain+tests, or eligible specific waiver",
+      "proposed_requirement_ac_text": [
+        "`quantide/core/utils.py` 的 function `str2date, date2str, str2time, time2str, time2minute` 接受/边界：str2datedt: str；str2date: boundary `len(dt) != 8`；date2strdt: datetime.date；str2timedt: str；可观察输出：str2date.str2datedt: str -> datetime.date(year, month, day)；date2str.date2strdt: datetime.date -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}'；str2time.str2timedt: str -> datetime.datetime(year, month, day, hour, minute, second)；time2str.time2strdt: datetime.datetime -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}{dt.hour:0>2}{dt.minute:0>2}{dt.second:0>2}'；失败/回退：str2date: raises ValueError(f'input date should be at 8 length, got {dt}')；str2time: raises ValueError(f'input date should be at 14 length, got {dt}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`。",
+        "`quantide/core/utils.py` 的 schema/re-export `logger` 接受/边界：module import exposes constants/schema hooks: logger；可观察输出：read-only public values are available: logger；失败/回退：str2date: raises ValueError(f'input date should be at 8 length, got {dt}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`。"
+      ],
+      "aaron_decision_candidate": "AD-05",
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": null,
+      "waiver_or_deletion_blockers": "Aaron plus independent review",
+      "normative_contract": {
+        "status": "decision-candidate AD-05; remains gated pending Aaron",
+        "public_symbols": [
+          "str2date",
+          "date2str",
+          "str2time",
+          "time2str",
+          "time2minute",
+          "logger"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "str2datedt: str",
+          "str2date: boundary `len(dt) != 8`",
+          "date2strdt: datetime.date",
+          "str2timedt: str",
+          "str2time: boundary `len(dt) != 14`",
+          "time2strdt: datetime.datetime",
+          "time2minutedt: datetime.datetime",
+          "module import exposes constants/schema hooks: logger"
+        ],
+        "observable_outputs": [
+          "str2date.str2datedt: str -> datetime.date(year, month, day)",
+          "date2str.date2strdt: datetime.date -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}'",
+          "str2time.str2timedt: str -> datetime.datetime(year, month, day, hour, minute, second)",
+          "time2str.time2strdt: datetime.datetime -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}{dt.hour:0>2}{dt.minute:0>2}{dt.second:0>2}'",
+          "time2minute.time2minutedt: datetime.datetime -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}{dt.hour:0>2}{dt.minute:0>2}00'",
+          "read-only public values are available: logger"
+        ],
+        "failure_error_fallback": [
+          "str2date: raises ValueError(f'input date should be at 8 length, got {dt}')",
+          "str2time: raises ValueError(f'input date should be at 14 length, got {dt}')"
+        ],
+        "state_mutations_and_cleanup": [
+          "no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0201~0207",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "quantide/data/sqlite.py",
+          "quantide/web/apis/analysis/kline.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-5C4B6A15-01",
+            "surface": "function: str2date, date2str, str2time, time2str, time2minute",
+            "statement": "`quantide/core/utils.py` 的 function `str2date, date2str, str2time, time2str, time2minute` 接受/边界：str2datedt: str；str2date: boundary `len(dt) != 8`；date2strdt: datetime.date；str2timedt: str；可观察输出：str2date.str2datedt: str -> datetime.date(year, month, day)；date2str.date2strdt: datetime.date -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}'；str2time.str2timedt: str -> datetime.datetime(year, month, day, hour, minute, second)；time2str.time2strdt: datetime.datetime -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}{dt.hour:0>2}{dt.minute:0>2}{dt.second:0>2}'；失败/回退：str2date: raises ValueError(f'input date should be at 8 length, got {dt}')；str2time: raises ValueError(f'input date should be at 14 length, got {dt}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`。"
+          },
+          {
+            "id": "AC-PROP-5C4B6A15-02",
+            "surface": "schema/re-export: logger",
+            "statement": "`quantide/core/utils.py` 的 schema/re-export `logger` 接受/边界：module import exposes constants/schema hooks: logger；可观察输出：read-only public values are available: logger；失败/回退：str2date: raises ValueError(f'input date should be at 8 length, got {dt}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-5C4B6A15-01",
+          "surface": "function: str2date, date2str, str2time, time2str, time2minute",
+          "statement": "`quantide/core/utils.py` 的 function `str2date, date2str, str2time, time2str, time2minute` 接受/边界：str2datedt: str；str2date: boundary `len(dt) != 8`；date2strdt: datetime.date；str2timedt: str；可观察输出：str2date.str2datedt: str -> datetime.date(year, month, day)；date2str.date2strdt: datetime.date -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}'；str2time.str2timedt: str -> datetime.datetime(year, month, day, hour, minute, second)；time2str.time2strdt: datetime.datetime -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}{dt.hour:0>2}{dt.minute:0>2}{dt.second:0>2}'；失败/回退：str2date: raises ValueError(f'input date should be at 8 length, got {dt}')；str2time: raises ValueError(f'input date should be at 14 length, got {dt}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`。"
+        },
+        {
+          "id": "AC-PROP-5C4B6A15-02",
+          "surface": "schema/re-export: logger",
+          "statement": "`quantide/core/utils.py` 的 schema/re-export `logger` 接受/边界：module import exposes constants/schema hooks: logger；可观察输出：read-only public values are available: logger；失败/回退：str2date: raises ValueError(f'input date should be at 8 length, got {dt}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`。"
+        }
+      ],
+      "record_id": "prod-5c4b6a15a6b7",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/core/utils.py`\n\n- **Status/classification**: decision-candidate AD-05; remains gated pending Aaron / `dead candidate` (inference).\n- **Public symbols**: `str2date`, `date2str`, `str2time`, `time2str`, `time2minute`, `logger`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: str2datedt: str; str2date: boundary `len(dt) != 8`; date2strdt: datetime.date; str2timedt: str; str2time: boundary `len(dt) != 14`; time2strdt: datetime.datetime; time2minutedt: datetime.datetime; module import exposes constants/schema hooks: logger.\n- **Observable outputs/DTO/HTML/persistence/events**: str2date.str2datedt: str -> datetime.date(year, month, day); date2str.date2strdt: datetime.date -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}'; str2time.str2timedt: str -> datetime.datetime(year, month, day, hour, minute, second); time2str.time2strdt: datetime.datetime -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}{dt.hour:0>2}{dt.minute:0>2}{dt.second:0>2}'; time2minute.time2minutedt: datetime.datetime -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}{dt.hour:0>2}{dt.minute:0>2}00'; read-only public values are available: logger.\n- **Failure/error/fallback**: str2date: raises ValueError(f'input date should be at 8 length, got {dt}'); str2time: raises ValueError(f'input date should be at 14 length, got {dt}').\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`.\n- **Upstream source**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/data/sqlite.py; quantide/web/apis/analysis/kline.py.\n- **Proposed ACs**: AC-PROP-5C4B6A15-01; AC-PROP-5C4B6A15-02.\n",
+        "proposed_requirements": "## `quantide/core/utils.py`\n\n- **Status**: decision-candidate AD-05; remains gated pending Aaron.\n- **AC-PROP-5C4B6A15-01** (function: str2date, date2str, str2time, time2str, time2minute): `quantide/core/utils.py` 的 function `str2date, date2str, str2time, time2str, time2minute` 接受/边界：str2datedt: str；str2date: boundary `len(dt) != 8`；date2strdt: datetime.date；str2timedt: str；可观察输出：str2date.str2datedt: str -> datetime.date(year, month, day)；date2str.date2strdt: datetime.date -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}'；str2time.str2timedt: str -> datetime.datetime(year, month, day, hour, minute, second)；time2str.time2strdt: datetime.datetime -> f'{dt.year:0>4}{dt.month:0>2}{dt.day:0>2}{dt.hour:0>2}{dt.minute:0>2}{dt.second:0>2}'；失败/回退：str2date: raises ValueError(f'input date should be at 8 length, got {dt}')；str2time: raises ValueError(f'input date should be at 14 length, got {dt}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`。\n- **AC-PROP-5C4B6A15-02** (schema/re-export: logger): `quantide/core/utils.py` 的 schema/re-export `logger` 接受/边界：module import exposes constants/schema hooks: logger；可观察输出：read-only public values are available: logger；失败/回退：str2date: raises ValueError(f'input date should be at 8 length, got {dt}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/utils.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/data/sqlite.py; quantide/web/apis/analysis/kline.py.\n- **Coverage target**: 80%.\n"
+      }
+    },
+    {
+      "path": "quantide/core/wizard_steps_v2.py",
+      "origin": "v0.2-added",
+      "first_commit": "d056619",
+      "modifying_commits_001_to_002_count": 1,
+      "modifying_commits_002_to_003_count": 0,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [
+        "d056619 feat: green – #159 – FR-0460 wizard 10 步定义: 必选/可选/父步骤 + 重新配置字段白名单"
+      ],
+      "modifying_commits_002_to_003": [],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 37,
+      "covered_lines": 35,
+      "missing_lines": 2,
+      "percent_covered": 91.1111,
+      "num_branches": 8,
+      "covered_branches": 6,
+      "missing_branches": 2,
+      "production_consumer_count": 0,
+      "production_consumers": [],
+      "test_file_count": 1,
+      "test_files_importing": [
+        "tests/unit/quantide/core/test_wizard_steps_v2.py"
+      ],
+      "material_v0_2_commits": [
+        "d056619 feat: green – #159 – FR-0460 wizard 10 步定义: 必选/可选/父步骤 + 重新配置字段白名单"
+      ],
+      "consumers_importers_routes_registries": [],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0201~0207",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "partial",
+      "mapped_test_modules": [
+        "tests/unit/quantide/core/test_wizard_steps_v2.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active v0.2 product",
+      "classification_basis": "evidence",
+      "classification_evidence": "explicit source/locked contract",
+      "proposed_disposition": "retain and behavior-test to >= 95%",
+      "proposed_requirement_ac_text": [
+        "`quantide/core/wizard_steps_v2.py` 的 function `get_step_by_id, is_required_step, is_step_skippable, get_download_progress_step, get_reconfigurable_fields` 接受/边界：get_step_by_idstep_id: int；get_step_by_id: boundary `step.step_id == step_id`；is_required_stepstep_id: int；is_required_step: boundary `step is None`；可观察输出：get_step_by_id.get_step_by_idstep_id: int -> None, step；is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False；is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False；get_download_progress_step.get_download_progress_step -> get_step_by_id(8)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。",
+        "`quantide/core/wizard_steps_v2.py` 的 class `WizardStepKind, WizardStep` 接受/边界：get_step_by_idstep_id: int；get_step_by_id: boundary `step.step_id == step_id`；可观察输出：is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False；is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。",
+        "`quantide/core/wizard_steps_v2.py` 的 schema/re-export `annotations, dataclass, Enum, WIZARD_STEPS_V2` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；module import exposes constants/schema hooks: WIZARD_STEPS_V2；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；read-only public values are available: WIZARD_STEPS_V2；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 95,
+      "coverage_gap_statements_estimate": 1,
+      "waiver_or_deletion_blockers": "no waiver permitted",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "WizardStepKind",
+          "WizardStep",
+          "get_step_by_id",
+          "is_required_step",
+          "is_step_skippable",
+          "get_download_progress_step",
+          "get_reconfigurable_fields",
+          "annotations",
+          "dataclass",
+          "Enum",
+          "WIZARD_STEPS_V2"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "get_step_by_idstep_id: int",
+          "get_step_by_id: boundary `step.step_id == step_id`",
+          "is_required_stepstep_id: int",
+          "is_required_step: boundary `step is None`",
+          "is_step_skippablestep_id: int",
+          "is_step_skippable: boundary `step is None`",
+          "get_download_progress_step",
+          "get_reconfigurable_fields",
+          "module import exposes re-exports: annotations, dataclass, Enum",
+          "module import exposes constants/schema hooks: WIZARD_STEPS_V2"
+        ],
+        "observable_outputs": [
+          "get_step_by_id.get_step_by_idstep_id: int -> None, step",
+          "is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False",
+          "is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False",
+          "get_download_progress_step.get_download_progress_step -> get_step_by_id(8)",
+          "get_reconfigurable_fields.get_reconfigurable_fields -> _RECONFIGURABLE_FIELDS",
+          "attribute lookup yields re-exported symbols: annotations, dataclass, Enum",
+          "read-only public values are available: WIZARD_STEPS_V2"
+        ],
+        "failure_error_fallback": [
+          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`"
+        ],
+        "state_mutations_and_cleanup": [
+          "no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0201~0207",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "tests/unit/quantide/core/test_wizard_steps_v2.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-C8AA5DD0-01",
+            "surface": "function: get_step_by_id, is_required_step, is_step_skippable, get_download_progress_step, get_reconfigurable_fields",
+            "statement": "`quantide/core/wizard_steps_v2.py` 的 function `get_step_by_id, is_required_step, is_step_skippable, get_download_progress_step, get_reconfigurable_fields` 接受/边界：get_step_by_idstep_id: int；get_step_by_id: boundary `step.step_id == step_id`；is_required_stepstep_id: int；is_required_step: boundary `step is None`；可观察输出：get_step_by_id.get_step_by_idstep_id: int -> None, step；is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False；is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False；get_download_progress_step.get_download_progress_step -> get_step_by_id(8)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。"
+          },
+          {
+            "id": "AC-PROP-C8AA5DD0-02",
+            "surface": "class: WizardStepKind, WizardStep",
+            "statement": "`quantide/core/wizard_steps_v2.py` 的 class `WizardStepKind, WizardStep` 接受/边界：get_step_by_idstep_id: int；get_step_by_id: boundary `step.step_id == step_id`；可观察输出：is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False；is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。"
+          },
+          {
+            "id": "AC-PROP-C8AA5DD0-03",
+            "surface": "schema/re-export: annotations, dataclass, Enum, WIZARD_STEPS_V2",
+            "statement": "`quantide/core/wizard_steps_v2.py` 的 schema/re-export `annotations, dataclass, Enum, WIZARD_STEPS_V2` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；module import exposes constants/schema hooks: WIZARD_STEPS_V2；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；read-only public values are available: WIZARD_STEPS_V2；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-C8AA5DD0-01",
+          "surface": "function: get_step_by_id, is_required_step, is_step_skippable, get_download_progress_step, get_reconfigurable_fields",
+          "statement": "`quantide/core/wizard_steps_v2.py` 的 function `get_step_by_id, is_required_step, is_step_skippable, get_download_progress_step, get_reconfigurable_fields` 接受/边界：get_step_by_idstep_id: int；get_step_by_id: boundary `step.step_id == step_id`；is_required_stepstep_id: int；is_required_step: boundary `step is None`；可观察输出：get_step_by_id.get_step_by_idstep_id: int -> None, step；is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False；is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False；get_download_progress_step.get_download_progress_step -> get_step_by_id(8)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。"
+        },
+        {
+          "id": "AC-PROP-C8AA5DD0-02",
+          "surface": "class: WizardStepKind, WizardStep",
+          "statement": "`quantide/core/wizard_steps_v2.py` 的 class `WizardStepKind, WizardStep` 接受/边界：get_step_by_idstep_id: int；get_step_by_id: boundary `step.step_id == step_id`；可观察输出：is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False；is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。"
+        },
+        {
+          "id": "AC-PROP-C8AA5DD0-03",
+          "surface": "schema/re-export: annotations, dataclass, Enum, WIZARD_STEPS_V2",
+          "statement": "`quantide/core/wizard_steps_v2.py` 的 schema/re-export `annotations, dataclass, Enum, WIZARD_STEPS_V2` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；module import exposes constants/schema hooks: WIZARD_STEPS_V2；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；read-only public values are available: WIZARD_STEPS_V2；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。"
+        }
+      ],
+      "record_id": "prod-c8aa5dd0cd66",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/core/wizard_steps_v2.py`\n\n- **Status/classification**: retained executable public surface / `active v0.2 product` (evidence).\n- **Public symbols**: `WizardStepKind`, `WizardStep`, `get_step_by_id`, `is_required_step`, `is_step_skippable`, `get_download_progress_step`, `get_reconfigurable_fields`, `annotations`, `dataclass`, `Enum`, `WIZARD_STEPS_V2`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: get_step_by_idstep_id: int; get_step_by_id: boundary `step.step_id == step_id`; is_required_stepstep_id: int; is_required_step: boundary `step is None`; is_step_skippablestep_id: int; is_step_skippable: boundary `step is None`; get_download_progress_step; get_reconfigurable_fields; module import exposes re-exports: annotations, dataclass, Enum; module import exposes constants/schema hooks: WIZARD_STEPS_V2.\n- **Observable outputs/DTO/HTML/persistence/events**: get_step_by_id.get_step_by_idstep_id: int -> None, step; is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False; is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False; get_download_progress_step.get_download_progress_step -> get_step_by_id(8); get_reconfigurable_fields.get_reconfigurable_fields -> _RECONFIGURABLE_FIELDS; attribute lookup yields re-exported symbols: annotations, dataclass, Enum; read-only public values are available: WIZARD_STEPS_V2.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`.\n- **Upstream source**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: tests/unit/quantide/core/test_wizard_steps_v2.py.\n- **Proposed ACs**: AC-PROP-C8AA5DD0-01; AC-PROP-C8AA5DD0-02; AC-PROP-C8AA5DD0-03.\n",
+        "proposed_requirements": "## `quantide/core/wizard_steps_v2.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-C8AA5DD0-01** (function: get_step_by_id, is_required_step, is_step_skippable, get_download_progress_step, get_reconfigurable_fields): `quantide/core/wizard_steps_v2.py` 的 function `get_step_by_id, is_required_step, is_step_skippable, get_download_progress_step, get_reconfigurable_fields` 接受/边界：get_step_by_idstep_id: int；get_step_by_id: boundary `step.step_id == step_id`；is_required_stepstep_id: int；is_required_step: boundary `step is None`；可观察输出：get_step_by_id.get_step_by_idstep_id: int -> None, step；is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False；is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False；get_download_progress_step.get_download_progress_step -> get_step_by_id(8)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。\n- **AC-PROP-C8AA5DD0-02** (class: WizardStepKind, WizardStep): `quantide/core/wizard_steps_v2.py` 的 class `WizardStepKind, WizardStep` 接受/边界：get_step_by_idstep_id: int；get_step_by_id: boundary `step.step_id == step_id`；可观察输出：is_required_step.is_required_stepstep_id: int -> step.kind in (WizardStepKind.REQUIRED, WizardStepKind.REQUIRED_PARENT), False；is_step_skippable.is_step_skippablestep_id: int -> step.kind == WizardStepKind.OPTIONAL, False；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。\n- **AC-PROP-C8AA5DD0-03** (schema/re-export: annotations, dataclass, Enum, WIZARD_STEPS_V2): `quantide/core/wizard_steps_v2.py` 的 schema/re-export `annotations, dataclass, Enum, WIZARD_STEPS_V2` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；module import exposes constants/schema hooks: WIZARD_STEPS_V2；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；read-only public values are available: WIZARD_STEPS_V2；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/core/wizard_steps_v2.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/core/wizard_steps_v2.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0201~0207; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; tests/unit/quantide/core/test_wizard_steps_v2.py.\n- **Coverage target**: 95%.\n"
+      }
+    }
+  ]
+}

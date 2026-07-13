@@ -1,0 +1,429 @@
+{
+  "spec_id": "v0.2-004-coverage-recovery",
+  "schema": "production-contract-shard/v1",
+  "family": "quantide-strategies",
+  "part": 1,
+  "record_count": 3,
+  "records_sha256": "f77d83ebad69843a623a519763ece64a7f9343094d2c2d1a7eefc56154f151d8",
+  "records": [
+    {
+      "path": "quantide/strategies/cost_stop_loss.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "6a8df54",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 0,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 35,
+      "covered_lines": 31,
+      "missing_lines": 4,
+      "percent_covered": 82.3529,
+      "num_branches": 16,
+      "covered_branches": 11,
+      "missing_branches": 5,
+      "production_consumer_count": 1,
+      "production_consumers": [
+        "quantide/core/strategy_discovery.py"
+      ],
+      "test_file_count": 4,
+      "test_files_importing": [
+        "tests/unit/quantide/service/test_fr_360_risk_events.py",
+        "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+        "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+        "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+      ],
+      "material_v0_2_commits": [],
+      "consumers_importers_routes_registries": [
+        "quantide/core/strategy_discovery.py"
+      ],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0702",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "full",
+      "mapped_test_modules": [
+        "tests/unit/quantide/service/test_fr_360_risk_events.py",
+        "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+        "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+        "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/strategies/cost_stop_loss.py` 的 class `CostStopLossStrategy` 接受/边界：CostStopLossStrategy.default_config；CostStopLossStrategy.async on_day_openself, tm: datetime.datetime；CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime；可观察输出：CostStopLossStrategy.default_config -> {'k': -5.0}；CostStopLossStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`；状态/清理：CostStopLossStrategy: self._triggered.clear()。",
+        "`quantide/strategies/cost_stop_loss.py` 的 schema/re-export `annotations, RiskStrategy` 接受/边界：module import exposes re-exports: annotations, RiskStrategy；可观察输出：attribute lookup yields re-exported symbols: annotations, RiskStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`；状态/清理：CostStopLossStrategy: self._triggered.clear()。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 0,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "CostStopLossStrategy",
+          "annotations",
+          "RiskStrategy"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "CostStopLossStrategy.default_config",
+          "CostStopLossStrategy.async on_day_openself, tm: datetime.datetime",
+          "CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime",
+          "module import exposes re-exports: annotations, RiskStrategy"
+        ],
+        "observable_outputs": [
+          "CostStopLossStrategy.default_config -> {'k': -5.0}",
+          "CostStopLossStrategy.async on_day_openself, tm: datetime.datetime -> implicit None",
+          "CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None",
+          "attribute lookup yields re-exported symbols: annotations, RiskStrategy"
+        ],
+        "failure_error_fallback": [
+          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`"
+        ],
+        "state_mutations_and_cleanup": [
+          "CostStopLossStrategy: self._triggered.clear()",
+          "CostStopLossStrategy: self._triggered.add(asset)"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0702",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "quantide/core/strategy_discovery.py",
+          "tests/e2e/paper/test_fr_115_185_360_e2e.py",
+          "tests/e2e/paper/test_fr_440_450_200_360_e2e.py",
+          "tests/unit/quantide/service/test_fr_360_risk_events.py",
+          "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+          "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+          "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-EA30F732-01",
+            "surface": "class: CostStopLossStrategy",
+            "statement": "`quantide/strategies/cost_stop_loss.py` 的 class `CostStopLossStrategy` 接受/边界：CostStopLossStrategy.default_config；CostStopLossStrategy.async on_day_openself, tm: datetime.datetime；CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime；可观察输出：CostStopLossStrategy.default_config -> {'k': -5.0}；CostStopLossStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`；状态/清理：CostStopLossStrategy: self._triggered.clear()。"
+          },
+          {
+            "id": "AC-PROP-EA30F732-02",
+            "surface": "schema/re-export: annotations, RiskStrategy",
+            "statement": "`quantide/strategies/cost_stop_loss.py` 的 schema/re-export `annotations, RiskStrategy` 接受/边界：module import exposes re-exports: annotations, RiskStrategy；可观察输出：attribute lookup yields re-exported symbols: annotations, RiskStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`；状态/清理：CostStopLossStrategy: self._triggered.clear()。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-EA30F732-01",
+          "surface": "class: CostStopLossStrategy",
+          "statement": "`quantide/strategies/cost_stop_loss.py` 的 class `CostStopLossStrategy` 接受/边界：CostStopLossStrategy.default_config；CostStopLossStrategy.async on_day_openself, tm: datetime.datetime；CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime；可观察输出：CostStopLossStrategy.default_config -> {'k': -5.0}；CostStopLossStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`；状态/清理：CostStopLossStrategy: self._triggered.clear()。"
+        },
+        {
+          "id": "AC-PROP-EA30F732-02",
+          "surface": "schema/re-export: annotations, RiskStrategy",
+          "statement": "`quantide/strategies/cost_stop_loss.py` 的 schema/re-export `annotations, RiskStrategy` 接受/边界：module import exposes re-exports: annotations, RiskStrategy；可观察输出：attribute lookup yields re-exported symbols: annotations, RiskStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`；状态/清理：CostStopLossStrategy: self._triggered.clear()。"
+        }
+      ],
+      "record_id": "prod-ea30f732e427",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/strategies/cost_stop_loss.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `CostStopLossStrategy`, `annotations`, `RiskStrategy`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: CostStopLossStrategy.default_config; CostStopLossStrategy.async on_day_openself, tm: datetime.datetime; CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime; module import exposes re-exports: annotations, RiskStrategy.\n- **Observable outputs/DTO/HTML/persistence/events**: CostStopLossStrategy.default_config -> {'k': -5.0}; CostStopLossStrategy.async on_day_openself, tm: datetime.datetime -> implicit None; CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None; attribute lookup yields re-exported symbols: annotations, RiskStrategy.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`.\n- **State mutation/cleanup**: CostStopLossStrategy: self._triggered.clear(); CostStopLossStrategy: self._triggered.add(asset).\n- **Upstream source**: v0.2-003 FR-0702; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/core/strategy_discovery.py; tests/e2e/paper/test_fr_115_185_360_e2e.py; tests/e2e/paper/test_fr_440_450_200_360_e2e.py; tests/unit/quantide/service/test_fr_360_risk_events.py; tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py; tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py; tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py.\n- **Proposed ACs**: AC-PROP-EA30F732-01; AC-PROP-EA30F732-02.\n",
+        "proposed_requirements": "## `quantide/strategies/cost_stop_loss.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-EA30F732-01** (class: CostStopLossStrategy): `quantide/strategies/cost_stop_loss.py` 的 class `CostStopLossStrategy` 接受/边界：CostStopLossStrategy.default_config；CostStopLossStrategy.async on_day_openself, tm: datetime.datetime；CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime；可观察输出：CostStopLossStrategy.default_config -> {'k': -5.0}；CostStopLossStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；CostStopLossStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`；状态/清理：CostStopLossStrategy: self._triggered.clear()。\n- **AC-PROP-EA30F732-02** (schema/re-export: annotations, RiskStrategy): `quantide/strategies/cost_stop_loss.py` 的 schema/re-export `annotations, RiskStrategy` 接受/边界：module import exposes re-exports: annotations, RiskStrategy；可观察输出：attribute lookup yields re-exported symbols: annotations, RiskStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/cost_stop_loss.py`；状态/清理：CostStopLossStrategy: self._triggered.clear()。\n- **Contract source/consumer evidence**: v0.2-003 FR-0702; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/core/strategy_discovery.py; tests/e2e/paper/test_fr_115_185_360_e2e.py; tests/e2e/paper/test_fr_440_450_200_360_e2e.py; tests/unit/quantide/service/test_fr_360_risk_events.py; tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py.\n- **Coverage target**: 80%.\n"
+      }
+    },
+    {
+      "path": "quantide/strategies/example/dual_ma.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "3027dcc",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 1,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [
+        "490a60b feat: green – #220 – feat(test): spec-driven pytest for FR-0702 — see AC-FR-0702-*"
+      ],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 35,
+      "covered_lines": 28,
+      "missing_lines": 7,
+      "percent_covered": 68.8889,
+      "num_branches": 10,
+      "covered_branches": 3,
+      "missing_branches": 7,
+      "production_consumer_count": 1,
+      "production_consumers": [
+        "quantide/core/strategy_discovery.py"
+      ],
+      "test_file_count": 6,
+      "test_files_importing": [
+        "tests/unit/quantide/core/test_fr_012_live_strategy.py",
+        "tests/unit/quantide/service/test_discovery.py",
+        "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+        "tests/unit/quantide/strategies/example/test_fr_090_dual_ma.py",
+        "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+        "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+      ],
+      "material_v0_2_commits": [
+        "490a60b feat: green – #220 – feat(test): spec-driven pytest for FR-0702 — see AC-FR-0702-*"
+      ],
+      "consumers_importers_routes_registries": [
+        "quantide/core/strategy_discovery.py"
+      ],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0702",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "partial",
+      "mapped_test_modules": [
+        "tests/unit/quantide/core/test_fr_012_live_strategy.py",
+        "tests/unit/quantide/service/test_discovery.py",
+        "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+        "tests/unit/quantide/strategies/example/test_fr_090_dual_ma.py",
+        "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+        "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/strategies/example/dual_ma.py` 的 class `DualMAStrategy` 接受/边界：DualMAStrategy.default_config；DualMAStrategy.async initself；DualMAStrategy.async on_day_openself, tm: datetime.datetime；DualMAStrategy.async on_barself, tm: datetime.datetime；可观察输出：DualMAStrategy.default_config -> {'fast': 5, 'slow': 20}；DualMAStrategy.async initself -> implicit None；DualMAStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；DualMAStrategy.async on_barself, tm: datetime.datetime -> None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`。",
+        "`quantide/strategies/example/dual_ma.py` 的 schema/re-export `BaseStrategy` 接受/边界：module import exposes re-exports: BaseStrategy；可观察输出：attribute lookup yields re-exported symbols: BaseStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 0,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "DualMAStrategy",
+          "BaseStrategy"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "DualMAStrategy.default_config",
+          "DualMAStrategy.async initself",
+          "DualMAStrategy.async on_day_openself, tm: datetime.datetime",
+          "DualMAStrategy.async on_barself, tm: datetime.datetime",
+          "DualMAStrategy: boundary `len(hist) < self.slow_window + 2`",
+          "module import exposes re-exports: BaseStrategy"
+        ],
+        "observable_outputs": [
+          "DualMAStrategy.default_config -> {'fast': 5, 'slow': 20}",
+          "DualMAStrategy.async initself -> implicit None",
+          "DualMAStrategy.async on_day_openself, tm: datetime.datetime -> implicit None",
+          "DualMAStrategy.async on_barself, tm: datetime.datetime -> None",
+          "attribute lookup yields re-exported symbols: BaseStrategy"
+        ],
+        "failure_error_fallback": [
+          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`"
+        ],
+        "state_mutations_and_cleanup": [
+          "no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0702",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "quantide/core/strategy_discovery.py",
+          "tests/e2e/backtest/test_dual_ma_accuracy.py",
+          "tests/e2e/backtest/test_fr_011_day_strategy.py",
+          "tests/e2e/live/test_gateway_accuracy.py",
+          "tests/e2e/paper/test_dual_ma_accuracy.py",
+          "tests/e2e/paper/test_fr_115_185_360_e2e.py",
+          "tests/e2e/strategy_example/test_dual_ma.py",
+          "tests/e2e/three_mode/test_dual_ma_parity.py",
+          "tests/unit/quantide/core/test_fr_012_live_strategy.py",
+          "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+          "tests/unit/quantide/strategies/example/test_fr_090_dual_ma.py",
+          "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+          "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-F5DA0089-01",
+            "surface": "class: DualMAStrategy",
+            "statement": "`quantide/strategies/example/dual_ma.py` 的 class `DualMAStrategy` 接受/边界：DualMAStrategy.default_config；DualMAStrategy.async initself；DualMAStrategy.async on_day_openself, tm: datetime.datetime；DualMAStrategy.async on_barself, tm: datetime.datetime；可观察输出：DualMAStrategy.default_config -> {'fast': 5, 'slow': 20}；DualMAStrategy.async initself -> implicit None；DualMAStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；DualMAStrategy.async on_barself, tm: datetime.datetime -> None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`。"
+          },
+          {
+            "id": "AC-PROP-F5DA0089-02",
+            "surface": "schema/re-export: BaseStrategy",
+            "statement": "`quantide/strategies/example/dual_ma.py` 的 schema/re-export `BaseStrategy` 接受/边界：module import exposes re-exports: BaseStrategy；可观察输出：attribute lookup yields re-exported symbols: BaseStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-F5DA0089-01",
+          "surface": "class: DualMAStrategy",
+          "statement": "`quantide/strategies/example/dual_ma.py` 的 class `DualMAStrategy` 接受/边界：DualMAStrategy.default_config；DualMAStrategy.async initself；DualMAStrategy.async on_day_openself, tm: datetime.datetime；DualMAStrategy.async on_barself, tm: datetime.datetime；可观察输出：DualMAStrategy.default_config -> {'fast': 5, 'slow': 20}；DualMAStrategy.async initself -> implicit None；DualMAStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；DualMAStrategy.async on_barself, tm: datetime.datetime -> None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`。"
+        },
+        {
+          "id": "AC-PROP-F5DA0089-02",
+          "surface": "schema/re-export: BaseStrategy",
+          "statement": "`quantide/strategies/example/dual_ma.py` 的 schema/re-export `BaseStrategy` 接受/边界：module import exposes re-exports: BaseStrategy；可观察输出：attribute lookup yields re-exported symbols: BaseStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`。"
+        }
+      ],
+      "record_id": "prod-f5da00897ae7",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/strategies/example/dual_ma.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `DualMAStrategy`, `BaseStrategy`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: DualMAStrategy.default_config; DualMAStrategy.async initself; DualMAStrategy.async on_day_openself, tm: datetime.datetime; DualMAStrategy.async on_barself, tm: datetime.datetime; DualMAStrategy: boundary `len(hist) < self.slow_window + 2`; module import exposes re-exports: BaseStrategy.\n- **Observable outputs/DTO/HTML/persistence/events**: DualMAStrategy.default_config -> {'fast': 5, 'slow': 20}; DualMAStrategy.async initself -> implicit None; DualMAStrategy.async on_day_openself, tm: datetime.datetime -> implicit None; DualMAStrategy.async on_barself, tm: datetime.datetime -> None; attribute lookup yields re-exported symbols: BaseStrategy.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`.\n- **Upstream source**: v0.2-003 FR-0702; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/core/strategy_discovery.py; tests/e2e/backtest/test_dual_ma_accuracy.py; tests/e2e/backtest/test_fr_011_day_strategy.py; tests/e2e/live/test_gateway_accuracy.py; tests/e2e/paper/test_dual_ma_accuracy.py; tests/e2e/paper/test_fr_115_185_360_e2e.py; tests/e2e/strategy_example/test_dual_ma.py; tests/e2e/three_mode/test_dual_ma_parity.py; tests/unit/quantide/core/test_fr_012_live_strategy.py; tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py; tests/unit/quantide/strategies/example/test_fr_090_dual_ma.py; tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py; tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py.\n- **Proposed ACs**: AC-PROP-F5DA0089-01; AC-PROP-F5DA0089-02.\n",
+        "proposed_requirements": "## `quantide/strategies/example/dual_ma.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-F5DA0089-01** (class: DualMAStrategy): `quantide/strategies/example/dual_ma.py` 的 class `DualMAStrategy` 接受/边界：DualMAStrategy.default_config；DualMAStrategy.async initself；DualMAStrategy.async on_day_openself, tm: datetime.datetime；DualMAStrategy.async on_barself, tm: datetime.datetime；可观察输出：DualMAStrategy.default_config -> {'fast': 5, 'slow': 20}；DualMAStrategy.async initself -> implicit None；DualMAStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；DualMAStrategy.async on_barself, tm: datetime.datetime -> None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`。\n- **AC-PROP-F5DA0089-02** (schema/re-export: BaseStrategy): `quantide/strategies/example/dual_ma.py` 的 schema/re-export `BaseStrategy` 接受/边界：module import exposes re-exports: BaseStrategy；可观察输出：attribute lookup yields re-exported symbols: BaseStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/example/dual_ma.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/strategies/example/dual_ma.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0702; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/core/strategy_discovery.py; tests/e2e/backtest/test_dual_ma_accuracy.py; tests/e2e/backtest/test_fr_011_day_strategy.py; tests/e2e/live/test_gateway_accuracy.py; tests/e2e/paper/test_dual_ma_accuracy.py.\n- **Coverage target**: 80%.\n"
+      }
+    },
+    {
+      "path": "quantide/strategies/pullback_sell.py",
+      "origin": "pre-v0.2-existing",
+      "first_commit": "6a8df54",
+      "modifying_commits_001_to_002_count": 0,
+      "modifying_commits_002_to_003_count": 1,
+      "modifying_commits_003_to_head_count": 0,
+      "modifying_commits_001_to_002": [],
+      "modifying_commits_002_to_003": [
+        "490a60b feat: green – #220 – feat(test): spec-driven pytest for FR-0702 — see AC-FR-0702-*"
+      ],
+      "modifying_commits_003_to_head": [],
+      "coverage_status": "measured",
+      "num_statements": 58,
+      "covered_lines": 54,
+      "missing_lines": 4,
+      "percent_covered": 87.8049,
+      "num_branches": 24,
+      "covered_branches": 18,
+      "missing_branches": 6,
+      "production_consumer_count": 1,
+      "production_consumers": [
+        "quantide/core/strategy_discovery.py"
+      ],
+      "test_file_count": 4,
+      "test_files_importing": [
+        "tests/unit/quantide/service/test_fr_360_risk_events.py",
+        "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+        "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+        "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+      ],
+      "material_v0_2_commits": [
+        "490a60b feat: green – #220 – feat(test): spec-driven pytest for FR-0702 — see AC-FR-0702-*"
+      ],
+      "consumers_importers_routes_registries": [
+        "quantide/core/strategy_discovery.py"
+      ],
+      "governing_upstream_references": [
+        "v0.2-003 FR-0702",
+        "corresponding v0.2-003 AC",
+        "v0.2-003 interfaces then v0.2-001/002 by precedence"
+      ],
+      "existing_003_spec_ac_coverage": "full",
+      "mapped_test_modules": [
+        "tests/unit/quantide/service/test_fr_360_risk_events.py",
+        "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+        "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+        "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+      ],
+      "mapped_test_functions": "function records in test-trace-data.json",
+      "test_quality": "aligned",
+      "classification": "active retained legacy",
+      "classification_basis": "inference",
+      "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
+      "proposed_disposition": "retain and behavior-test to >= 80%",
+      "proposed_requirement_ac_text": [
+        "`quantide/strategies/pullback_sell.py` 的 class `PullbackSellStrategy` 接受/边界：PullbackSellStrategy.default_config；PullbackSellStrategy.async on_day_openself, tm: datetime.datetime；PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime；可观察输出：PullbackSellStrategy.default_config -> {'m': 7.0, 'k': 0.5, 'n': 1}；PullbackSellStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`；状态/清理：PullbackSellStrategy: self._open_prices.clear()。",
+        "`quantide/strategies/pullback_sell.py` 的 schema/re-export `annotations, RiskStrategy` 接受/边界：module import exposes re-exports: annotations, RiskStrategy；可观察输出：attribute lookup yields re-exported symbols: annotations, RiskStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`；状态/清理：PullbackSellStrategy: self._open_prices.clear()。"
+      ],
+      "aaron_decision_candidate": null,
+      "coverage_target_percent": 80,
+      "coverage_gap_statements_estimate": 0,
+      "waiver_or_deletion_blockers": "specific expiring waiver only",
+      "normative_contract": {
+        "status": "retained executable public surface",
+        "public_symbols": [
+          "PullbackSellStrategy",
+          "annotations",
+          "RiskStrategy"
+        ],
+        "routes_or_registry_hooks": [],
+        "accepted_inputs_and_boundaries": [
+          "PullbackSellStrategy.default_config",
+          "PullbackSellStrategy.async on_day_openself, tm: datetime.datetime",
+          "PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime",
+          "module import exposes re-exports: annotations, RiskStrategy"
+        ],
+        "observable_outputs": [
+          "PullbackSellStrategy.default_config -> {'m': 7.0, 'k': 0.5, 'n': 1}",
+          "PullbackSellStrategy.async on_day_openself, tm: datetime.datetime -> implicit None",
+          "PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None",
+          "attribute lookup yields re-exported symbols: annotations, RiskStrategy"
+        ],
+        "failure_error_fallback": [
+          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`"
+        ],
+        "state_mutations_and_cleanup": [
+          "PullbackSellStrategy: self._open_prices.clear()",
+          "PullbackSellStrategy: self._peak_prices.clear()",
+          "PullbackSellStrategy: self._monitoring_started_at.clear()",
+          "PullbackSellStrategy: self._monitoring.clear()",
+          "PullbackSellStrategy: self._triggered.clear()",
+          "PullbackSellStrategy: self._open_prices[asset]",
+          "PullbackSellStrategy: self._peak_prices[asset]",
+          "PullbackSellStrategy: self._monitoring.add(asset)",
+          "PullbackSellStrategy: self._monitoring.discard(asset)",
+          "PullbackSellStrategy: self._triggered.add(asset)"
+        ],
+        "upstream_contract_sources": [
+          "v0.2-003 FR-0702",
+          "corresponding v0.2-003 AC",
+          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+        ],
+        "consumer_evidence": [
+          "quantide/core/strategy_discovery.py",
+          "tests/e2e/paper/test_fr_440_450_200_360_e2e.py",
+          "tests/unit/quantide/service/test_fr_360_risk_events.py",
+          "tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py",
+          "tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py",
+          "tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py"
+        ],
+        "proposed_acs": [
+          {
+            "id": "AC-PROP-25E6F839-01",
+            "surface": "class: PullbackSellStrategy",
+            "statement": "`quantide/strategies/pullback_sell.py` 的 class `PullbackSellStrategy` 接受/边界：PullbackSellStrategy.default_config；PullbackSellStrategy.async on_day_openself, tm: datetime.datetime；PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime；可观察输出：PullbackSellStrategy.default_config -> {'m': 7.0, 'k': 0.5, 'n': 1}；PullbackSellStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`；状态/清理：PullbackSellStrategy: self._open_prices.clear()。"
+          },
+          {
+            "id": "AC-PROP-25E6F839-02",
+            "surface": "schema/re-export: annotations, RiskStrategy",
+            "statement": "`quantide/strategies/pullback_sell.py` 的 schema/re-export `annotations, RiskStrategy` 接受/边界：module import exposes re-exports: annotations, RiskStrategy；可观察输出：attribute lookup yields re-exported symbols: annotations, RiskStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`；状态/清理：PullbackSellStrategy: self._open_prices.clear()。"
+          }
+        ]
+      },
+      "contract_ac_proposals": [
+        {
+          "id": "AC-PROP-25E6F839-01",
+          "surface": "class: PullbackSellStrategy",
+          "statement": "`quantide/strategies/pullback_sell.py` 的 class `PullbackSellStrategy` 接受/边界：PullbackSellStrategy.default_config；PullbackSellStrategy.async on_day_openself, tm: datetime.datetime；PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime；可观察输出：PullbackSellStrategy.default_config -> {'m': 7.0, 'k': 0.5, 'n': 1}；PullbackSellStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`；状态/清理：PullbackSellStrategy: self._open_prices.clear()。"
+        },
+        {
+          "id": "AC-PROP-25E6F839-02",
+          "surface": "schema/re-export: annotations, RiskStrategy",
+          "statement": "`quantide/strategies/pullback_sell.py` 的 schema/re-export `annotations, RiskStrategy` 接受/边界：module import exposes re-exports: annotations, RiskStrategy；可观察输出：attribute lookup yields re-exported symbols: annotations, RiskStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`；状态/清理：PullbackSellStrategy: self._open_prices.clear()。"
+        }
+      ],
+      "record_id": "prod-25e6f8396f3a",
+      "source_markdown": {
+        "production_file_audit": "## `quantide/strategies/pullback_sell.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `PullbackSellStrategy`, `annotations`, `RiskStrategy`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: PullbackSellStrategy.default_config; PullbackSellStrategy.async on_day_openself, tm: datetime.datetime; PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime; module import exposes re-exports: annotations, RiskStrategy.\n- **Observable outputs/DTO/HTML/persistence/events**: PullbackSellStrategy.default_config -> {'m': 7.0, 'k': 0.5, 'n': 1}; PullbackSellStrategy.async on_day_openself, tm: datetime.datetime -> implicit None; PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None; attribute lookup yields re-exported symbols: annotations, RiskStrategy.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`.\n- **State mutation/cleanup**: PullbackSellStrategy: self._open_prices.clear(); PullbackSellStrategy: self._peak_prices.clear(); PullbackSellStrategy: self._monitoring_started_at.clear(); PullbackSellStrategy: self._monitoring.clear(); PullbackSellStrategy: self._triggered.clear(); PullbackSellStrategy: self._open_prices[asset]; PullbackSellStrategy: self._peak_prices[asset]; PullbackSellStrategy: self._monitoring.add(asset); PullbackSellStrategy: self._monitoring.discard(asset); PullbackSellStrategy: self._triggered.add(asset).\n- **Upstream source**: v0.2-003 FR-0702; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/core/strategy_discovery.py; tests/e2e/paper/test_fr_440_450_200_360_e2e.py; tests/unit/quantide/service/test_fr_360_risk_events.py; tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py; tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py; tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py.\n- **Proposed ACs**: AC-PROP-25E6F839-01; AC-PROP-25E6F839-02.\n",
+        "proposed_requirements": "## `quantide/strategies/pullback_sell.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-25E6F839-01** (class: PullbackSellStrategy): `quantide/strategies/pullback_sell.py` 的 class `PullbackSellStrategy` 接受/边界：PullbackSellStrategy.default_config；PullbackSellStrategy.async on_day_openself, tm: datetime.datetime；PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime；可观察输出：PullbackSellStrategy.default_config -> {'m': 7.0, 'k': 0.5, 'n': 1}；PullbackSellStrategy.async on_day_openself, tm: datetime.datetime -> implicit None；PullbackSellStrategy.async on_checkself, positions: dict, tm: datetime.datetime -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`；状态/清理：PullbackSellStrategy: self._open_prices.clear()。\n- **AC-PROP-25E6F839-02** (schema/re-export: annotations, RiskStrategy): `quantide/strategies/pullback_sell.py` 的 schema/re-export `annotations, RiskStrategy` 接受/边界：module import exposes re-exports: annotations, RiskStrategy；可观察输出：attribute lookup yields re-exported symbols: annotations, RiskStrategy；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/strategies/pullback_sell.py`；状态/清理：PullbackSellStrategy: self._open_prices.clear()。\n- **Contract source/consumer evidence**: v0.2-003 FR-0702; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/core/strategy_discovery.py; tests/e2e/paper/test_fr_440_450_200_360_e2e.py; tests/unit/quantide/service/test_fr_360_risk_events.py; tests/unit/quantide/strategies/example/test_fr_0702_builtin_strategies.py; tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py.\n- **Coverage target**: 80%.\n"
+      }
+    }
+  ]
+}

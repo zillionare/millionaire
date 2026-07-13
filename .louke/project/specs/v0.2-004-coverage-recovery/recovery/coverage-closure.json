@@ -105,5 +105,62 @@
     "import_only_tests": false,
     "generic_waivers": false
   },
-  "release_exit": "Devon and Shield can start independently; release blocked on green evidence and Aaron decisions."
+  "release_exit": "Lex blockers addressed in recovery evidence; release remains blocked on green runtime evidence and Aaron's unchanged six decisions.",
+  "path_specific_contract_count": 169,
+  "files_requiring_multiple_acs": 146,
+  "function_trace_complete_count": 1651,
+  "spec_qualified_function_ref_count": 1594,
+  "test_quality_counts": {
+    "aligned": 1458,
+    "fake": 2,
+    "import-only": 48,
+    "incomplete": 91,
+    "self-fulfilling": 52
+  },
+  "test_disposition_counts": {
+    "aligned": 1415,
+    "needs-Sage-contract": 57,
+    "update": 179
+  },
+  "empty_refs_with_keep_count": 0,
+  "production_inventory_sha256": "e4cbae9fa4a0311820efeaf2f5f3f831c3e99e51f47b1273c5c966c2d814cf66",
+  "test_trace_sha256": "d42865a7c0f4edd5edadf9ba3a580a62c26f1b9686d25846b989cf47cbaa8e31",
+  "normalized_recovery_evidence": {
+    "production_index": {
+      "path": "production-file-inventory.json",
+      "sha256": "dea992b446a352d7f48253af03cc6f472d632a661c9d68bfd771cf729a079dd4",
+      "record_count": 169
+    },
+    "production_shard_manifest": {
+      "sha256": "56ee03f245e931478fc2d6ca5f1e8e6cacdb79813a7d70ae466a01961d710616",
+      "shard_count": 13,
+      "record_count": 169
+    },
+    "test_trace_index": {
+      "path": "test-trace-data.json",
+      "sha256": "02d1ff2e51d4ca7d824e04f06cfa17b33c7b7737554e5e4841667e644c4e002a",
+      "module_count": 240,
+      "function_count": 1651
+    },
+    "test_trace_shard_manifest": {
+      "sha256": "f8305dfdc251d1d15fb934fd981966ed336419af7ac9fb56e0d4ab2eab9fa07f",
+      "shard_count": 11,
+      "module_count": 240,
+      "function_count": 1651
+    },
+    "test_quality_counts": {
+      "aligned": 1458,
+      "fake": 2,
+      "import-only": 48,
+      "incomplete": 91,
+      "self-fulfilling": 52
+    },
+    "test_disposition_counts": {
+      "aligned": 1415,
+      "needs-Sage-contract": 57,
+      "update": 179
+    },
+    "spec_qualified_function_ref_count": 1594,
+    "needs_sage_contract_count": 57
+  }
 }
