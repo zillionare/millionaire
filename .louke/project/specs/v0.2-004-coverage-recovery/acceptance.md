@@ -8,10 +8,10 @@
 
 ## 169 文件规范映射
 
-规范路径集合 `P` 是 SHA-256 `eeeb716d8c2dd880642f198dc4cc3fc9b34e78c902c6f2ad6f6dd193d065ff59` 的 `recovery/production-file-inventory.json` 中 169 个 `inventory[*].path`。对每个 `p ∈ P`，机器可验证的 outlet 为：
+规范路径集合 `P` 由 SHA-256 `dea992b446a352d7f48253af03cc6f472d632a661c9d68bfd771cf729a079dd4` 的 `recovery/production-file-inventory.json` 按 shard manifest SHA-256 `56ee03f245e931478fc2d6ca5f1e8e6cacdb79813a7d70ae466a01961d710616` 加载并校验全部 13 个 production-contract shards 后重建，得到 169 个唯一 path；index 单独不是合同。每条行为合同再应用 `recovery/sage-semantic-review.md` 的 160 条记录修正规则及上游优先级。对每个 `p ∈ P`，机器可验证的 outlet 为：
 
 - manifest/classification：FR-1001 AC-1~3、FR-1101 AC-1~3；
-- behavior：FR-1201 AC-1~4，加上该行 `governing_upstream_references` 指向的 v0.2-003 FR 的全部 AC；`existing_003_spec_ac_coverage=none` 的 retained 路径还必须命中 spec.md FR-1201 的同路径文件特定条目；
+- behavior：FR-1201 AC-1~7，加上该行 `governing_upstream_references` 指向的最高优先级上游 AC；`existing_003_spec_ac_coverage=none` 的 retained 路径还必须命中 spec.md FR-1201 的同路径文件特定条目；
 - tests/remediation/closure：FR-1301 AC-1~4、FR-1401 AC-1~3、FR-1601 AC-1~4、FR-1701 AC-1~3；
 - coverage/evidence：FR-1901 AC-1~3、NFR-1001 AC-1~4、NFR-1101 AC-1~3、NFR-1201 AC-1~3、NFR-1301 AC-1~2；
 - `aaron_decision_candidate != null`：还必须命中 FR-1501 AC-1~3；合法 waiver（如最终存在）还必须命中 FR-1801 AC-1~4。
@@ -28,7 +28,7 @@ AC-FR1001-01
 ### AC-2
 AC-FR1001-02
 
-- 当前固定 inventory hash 精确为 `eeeb716d8c2dd880642f198dc4cc3fc9b34e78c902c6f2ad6f6dd193d065ff59`，含 169 个唯一 path；内容或计数变化时验收失败并要求 review 新版本。
+- 当前 production index hash 精确为 `dea992b446a352d7f48253af03cc6f472d632a661c9d68bfd771cf729a079dd4`，shard manifest hash 精确为 `56ee03f245e931478fc2d6ca5f1e8e6cacdb79813a7d70ae466a01961d710616`；13 shards 重建 169 个唯一 path。任一 hash、shard 内容或计数变化时验收失败并要求 review 新版本。
 
 ### AC-3
 AC-FR1001-03
@@ -89,6 +89,16 @@ AC-FR1201-05
 
 - 对 partial 路径逐一比较公开表面与上游 AC；每个未覆盖行为产生 `spec-gap` 或明确补充合同，不得以达到 coverage 百分比代替语义闭合。
 
+### AC-6
+AC-FR1201-06
+
+- 重建器必须读取 index 声明的全部 13 shards，逐个验证 shard hash/record count/record id/path 唯一性和 manifest hash，得到恰好 169 条；只读取 index、缺任一 shard 或产生重复/缺失 path 均失败。
+
+### AC-7
+AC-FR1201-07
+
+- 对 169 条逐行应用 Sage 语义复核：恰好 160 条剔除非显式 re-export 的 imported dependency surface、恢复源码签名并禁止 AST 表达式发明行为，9 条无需修正；每条修正后仍含 path-specific input/boundary、observable output、failure/fallback、state/cleanup 和 precedence source。抽出任一 imported dependency 当公共 API 或任一 mangled signature 时验收失败。
+
 ## FR-1301 现有测试逐项复核与缺陷归因
 
 ### AC-1
@@ -110,6 +120,11 @@ AC-FR1301-03
 AC-FR1301-04
 
 - 每条 mismatch 精确归入 `test-defect|implementation-defect|spec-gap|dead-or-marker` 并引用优先级证据；空归因或多重无结论归因阻断。
+
+### AC-5
+AC-FR1301-05
+
+- trace 中原 179 个 `update` 函数逐条产生 open M-DEV work：85 incomplete、52 self-fulfilling、41 import-only、1 fake；work item 含 function id、质量证据、目标 AC、修复或五证据删除候选出口。任一 generic “update later” 或缺 work item 均阻断。
 
 ## FR-1401 生产修复、测试修复与重复测量
 
@@ -150,7 +165,7 @@ AC-FR1501-03
 ### AC-1
 AC-FR1601-01
 
-- 扫描完整 `tests/**/*.py` 得到与复核 revision 一致的模块/函数清单；当前审计基线为 240 模块、1651 test functions，任何变化必须在新 trace artifact 中解释。
+- 扫描完整 `tests/**/*.py` 得到与复核 revision 一致的模块/函数清单；当前 test index SHA-256 为 `02d1ff2e51d4ca7d824e04f06cfa17b33c7b7737554e5e4841667e644c4e002a`、11-shard manifest SHA-256 为 `f8305dfdc251d1d15fb934fd981966ed336419af7ac9fb56e0d4ab2eab9fa07f`，重建 240 模块、1651 test functions；只读 index、缺 shard 或任何未解释变化均失败。
 
 ### AC-2
 AC-FR1601-02
@@ -166,6 +181,21 @@ AC-FR1601-03
 AC-FR1601-04
 
 - 每个 delete 建议同时具备无有效 AC、无独立回归价值、无消费者、必要的 Aaron 生产处置和独立 review 五项证据；任一缺失则只能 keep/update。
+
+### AC-5
+AC-FR1601-05
+
+- 对原 57 个 `needs-Sage-contract` function id 应用 Sage 覆盖层后，结果精确为 40 `aligned`（每条至少一个 spec-qualified ref）和 17 `update`（每条有具体 mismatch、目标 AC 或 spec-gap、未来 Devon 工作）；剩余 `needs-Sage-contract=0`，不得以模块级或 generic mapping 替代。
+
+### AC-6
+AC-FR1601-06
+
+- 合并 Sage disposition 后，trace 为 1455 aligned、196 update、0 needs-Sage-contract；196 update 全部绑定 open M-DEV work，且零 empty-ref function 被计为 aligned/keep。17 个新增 update 与原 179 个 update 都不授权删除。
+
+### AC-7
+AC-FR1601-07
+
+- 六项 Aaron decision 仍为 pending；任何 trace overlay、update/delete candidate 或生产合同语义复核均不得把 AD-01~AD-06 解释为 delete/retain/waiver 决定。
 
 ## FR-1701 剩余矩阵驱动的迭代闭合
 
