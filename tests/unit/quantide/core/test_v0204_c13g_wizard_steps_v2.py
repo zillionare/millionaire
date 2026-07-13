@@ -11,6 +11,8 @@ previously uncovered.
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from quantide.core.wizard_steps_v2 import (
@@ -89,9 +91,8 @@ def test_wizard_steps_v2_default_subtasks_deferrable_is_false() -> None:
 
 def test_wizard_step_is_frozen_dataclass() -> None:
     """AC-FR0700-42: WizardStep is frozen, so step instances are immutable."""
-    step = get_step_by_id(1)
-    assert step is not None
-    with pytest.raises(Exception):
+    step = WizardStep(step_id=1, name="x", kind=WizardStepKind.REQUIRED)
+    with pytest.raises(dataclasses.FrozenInstanceError):
         step.step_id = 999  # type: ignore[misc]
 
 
@@ -160,8 +161,7 @@ def test_is_step_skippable_false_for_unknown_id() -> None:
 def test_get_download_progress_step_returns_id_eight_deferrable() -> None:
     """AC-FR0700-53: get_download_progress_step returns step 8, REQUIRED_PARENT, deferrable."""
     step = get_download_progress_step()
-    assert step is not None
-    assert step.step_id == 8
+    assert step is not None and step.step_id == 8
     assert step.kind == WizardStepKind.REQUIRED_PARENT
     assert step.subtasks_deferrable is True
 
