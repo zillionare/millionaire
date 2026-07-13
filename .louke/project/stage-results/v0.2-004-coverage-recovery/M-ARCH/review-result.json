@@ -20,8 +20,8 @@
     "spec.md FR-0001 contract-source priority (v0.2-001/002 -> interfaces -> story -> current public consumers) is propagated through architecture.md, interfaces.md, and test-plan.md.",
     "Recovery artifacts are hash-pinned: production index 8410d32fb4b64c0d38ef21f947c45be7164185dcaa09f36a7061bc99b9c8bfbe; production shard manifest 4ec8dbdbf8eaabfe1d8a355df778ae438e03b6dc3b18b0038955ba91472cac39; test index 3d7ebc07cc8d014aab8981c025a142f1112c7d7cfb05390254de02c19da38fd0; test shard manifest f48b15e808737352ad6a5c4d8da2b2a5f9b97fa3fb56a4ca2881463ec2380352; Devon registry bac42a69bcd6359afe16fbcdc8ae710314ad00ced431dff9c1625186cb2bd088."
   ],
-  "created_at": "2026-07-13T08:35:10Z",
-  "contract_bundle_hash": "1c0be0c71aa681b484e1f0aa2dd5993d1c38b06c3cb0e097121a14834775c3fb",
+  "created_at": "2026-07-13T08:54:50Z",
+  "contract_bundle_hash": "6faa88e40d01a2e24245b12415eff94cec72c8f981feae72e135a134dd0e6c8e",
   "metadata": {
     "source_command": "review",
     "checks": {
@@ -33,5 +33,5 @@
       "e2e_placeholder": "pass"
     }
   },
-  "output_hash": "e9b7f50303459740c671287cbd794c6667b327103c511d868cdb2599c40fd2b7"
+  "output_hash": "d5af75659b7f34697ccdcd7f0a6e5dd41d490f29b69f0e5cbdb1dc8fb465f47e"
 }
