@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-LOCK",
+  "kind": "waiver",
+  "role": "human",
+  "verdict": "waived",
+  "reviewed_targets": [],
+  "blocking_findings": [
+    "v0.2-003-coverage M-LOCK record_lock skipped per Aaron A confirmation: 113 pre-2026-07-01 v0.2-001-era issues use .specforge/project/ path, incompatible with 0.8 lk verify-issue (expects .louke/project/specs/.../spec.md). 25 v0.2-003-coverage issues (#193-#217) all PASS. Sage signal + Lex verify-acceptance 5/5 PASS. User signal: Aaron explicitly chose option A (advance to M-DEV) at M-LOCK gate."
+  ],
+  "accepted_risks": [
+    "spec.md locked:true frontmatter not written (record_lock 跳过). v0.2-001-era issues remain open but untracked; they do not block v0.2-003-coverage FR/NFR coverage."
+  ],
+  "created_at": "2026-07-11T08:26:46Z",
+  "contract_bundle_hash": "7bbd1e2117710f42c174624a5f7fed825f5381fc2790c9bfc503ab18419fd699",
+  "metadata": {
+    "approved_by": "Aaron"
+  },
+  "output_hash": "6bc867a3f07954c478e08c423568e7d3696d2db54db7d17714f5f5e1761c0013"
+}

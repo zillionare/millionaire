@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-TESTPLAN",
+  "kind": "review-result",
+  "role": "Sage",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-003-coverage/spec.md",
+    ".louke/project/specs/v0.2-003-coverage/acceptance.md",
+    ".louke/project/specs/v0.2-003-coverage/test-plan.md"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [],
+  "created_at": "2026-07-11T07:05:11Z",
+  "contract_bundle_hash": "effaea6349421aaf14a0fa6fa7475125912500a504282cb185c00e728b0e31f9",
+  "metadata": {
+    "source_command": "review"
+  },
+  "output_hash": "382af4e25d92bf6eda19236bc9df8d4e54d95b94f3711b6d7fe7aad6ada7e020"
+}

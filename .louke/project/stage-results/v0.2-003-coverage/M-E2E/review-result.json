@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-E2E",
+  "kind": "review-result",
+  "role": "Prism",
+  "verdict": "pass",
+  "reviewed_targets": [
+    "tests/e2e/test_ci_workflow_e2e.py",
+    "tests/e2e/test_coverage_checker_e2e.py",
+    "tests/e2e/test_isolation_e2e.py"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [],
+  "created_at": "2026-07-11T09:32:57Z",
+  "contract_bundle_hash": "7bbd1e2117710f42c174624a5f7fed825f5381fc2790c9bfc503ab18419fd699",
+  "metadata": {
+    "commit_range": "ec0a2be..HEAD",
+    "source_command": "review",
+    "diff": "HEAD"
+  },
+  "output_hash": "61b3a0430b99a567c159cd88434603df55f8fa3c443e0354ba283f410386258a"
+}

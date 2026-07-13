@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-ARCH",
+  "kind": "author-result",
+  "role": "Archer",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-003-coverage/test-plan.md",
+    ".louke/project/specs/v0.2-003-coverage/architecture.md",
+    ".louke/project/specs/v0.2-003-coverage/interfaces.md",
+    ".louke/project/project.toml"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [],
+  "created_at": "2026-07-11T07:14:54Z",
+  "contract_bundle_hash": "7bbd1e2117710f42c174624a5f7fed825f5381fc2790c9bfc503ab18419fd699",
+  "metadata": {},
+  "output_hash": "657c26347ddf3ee0f32d3423f5bf426b9f9ec2bbe2b365afe05d78b6fe905127"
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "stage": "M-TESTPLAN",
+  "kind": "review-result",
+  "role": "Sage",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-004-coverage-recovery/test-plan.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/spec.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/acceptance.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/story.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/recovery/production-file-inventory.json",
+    ".louke/project/specs/v0.2-004-coverage-recovery/recovery/test-trace-data.json",
+    ".louke/project/specs/v0.2-004-coverage-recovery/recovery/devon-work-items.json",
+    ".louke/project/specs/v0.2-004-coverage-recovery/recovery/aaron-decisions.md"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [],
+  "created_at": "2026-07-13T08:18:55Z",
+  "contract_bundle_hash": "37f02b530064492ec793d7ed3f26a78bfa66a3438e9a9a91ce070aa52ad6a3b4",
+  "metadata": {
+    "source_command": "review"
+  },
+  "output_hash": "4be9c67bd2ed94447fc63574e831ca9613d3c950108712fe11fb5986703bce25"
+}

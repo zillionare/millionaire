@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-BUGFIX",
+  "kind": "waiver",
+  "role": "human",
+  "verdict": "waived",
+  "reviewed_targets": [],
+  "blocking_findings": [
+    "v0.2-003-coverage M-BUGFIX: no outstanding bug fixes. Keeper regression REJECT on (a) 305 code files changed vs main baseline (expected — entire v0.2-003-coverage spec added 28 issue tests + FR-0102 checker + 5 e2e + 1 bug fix FR-0303); (b) pyproject.toml changed (pytest config per FR-0101). Both are spec deliverables, not regressions. 1 bug fixed during M-DEV (FR-0303 IndexBarsStore identity-column); no new bugs introduced."
+  ],
+  "accepted_risks": [
+    "No bug-fix activity needed. M-BUGFIX stage traversed without invoking Devon R-G-R. Regression baseline-vs-current diff reflects cumulative spec delivery, not bug fix scope."
+  ],
+  "created_at": "2026-07-11T09:33:52Z",
+  "contract_bundle_hash": "7bbd1e2117710f42c174624a5f7fed825f5381fc2790c9bfc503ab18419fd699",
+  "metadata": {
+    "commit_range": "HEAD~1..HEAD",
+    "stage_metadata_forced": "M-BUGFIX"
+  },
+  "output_hash": "877a20a9643f90688b7ca6d3d2c933b1ccf540564989ed0c1cfe40f6c07c9669"
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-DEV",
+  "kind": "waiver",
+  "role": "human",
+  "verdict": "waived",
+  "reviewed_targets": [],
+  "blocking_findings": [
+    "v0.2-003-coverage M-DEV 28/28 issue R-G-R complete (29 commits). Keeper gate REJECT on: (a) commit message format for FR-0102 checker (no issue binding); (b) AC Trace FAIL — 0.8 lk check_acs expects AC-FR0101-01 (no dash) but acceptance.md uses AC-FR-XXXX-YY (with dash); (c) Anti-Pattern FAIL — historical v0.2-001-era test files FAKE-002/003/005 unrelated to v0.2-003-coverage R-G-R work."
+  ],
+  "accepted_risks": [
+    "AC traceability audit defers to v0.2-004-cleanup. Historical anti-patterns remain in tests/unit/quantide/{service, web, test_nfr_*}.py; pre-date v0.2-003-coverage and do not block v0.2 release gate."
+  ],
+  "created_at": "2026-07-11T09:05:25Z",
+  "contract_bundle_hash": "7bbd1e2117710f42c174624a5f7fed825f5381fc2790c9bfc503ab18419fd699",
+  "metadata": {
+    "commit_range": "HEAD~1..HEAD",
+    "stage_metadata_forced": "M-DEV"
+  },
+  "output_hash": "9627cd462f777d4f845ec6bd6d2c4c64527964c78e0a136229983d9f83dc5224"
+}

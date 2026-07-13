@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-E2E",
+  "kind": "gate-result",
+  "role": "Keeper",
+  "verdict": "fail",
+  "reviewed_targets": [
+    "tests/"
+  ],
+  "blocking_findings": [
+    "archer ci-scan failed (spec=v0.2-003-coverage, tests=['tests/'])",
+    "anti-pattern scan failed"
+  ],
+  "accepted_risks": [],
+  "created_at": "2026-07-11T09:33:09Z",
+  "contract_bundle_hash": "7bbd1e2117710f42c174624a5f7fed825f5381fc2790c9bfc503ab18419fd699",
+  "metadata": {
+    "commit_range": "ec0a2be..HEAD",
+    "tests_roots": [
+      "tests/"
+    ]
+  },
+  "output_hash": "db4c0a7c10ec3068c760476bb1edcc7435165befab928b899fa4e770cb2d26cf"
+}

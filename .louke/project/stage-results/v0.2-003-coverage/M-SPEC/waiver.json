@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-SPEC",
+  "kind": "waiver",
+  "role": "human",
+  "verdict": "waived",
+  "reviewed_targets": [],
+  "blocking_findings": [
+    "v0.2-003-coverage record_lock skipped per v0.2-002-ui precedent: 113 pre-2026-07-01 v0.2-001-era issues use .specforge/project/ path, incompatible with 0.8 lk verify-issue (expects .louke/project/specs/.../spec.md). 25 v0.2-003-coverage issues (#193-#217) all PASS. Sage signal + Lex verify-acceptance 5/5 PASS."
+  ],
+  "accepted_risks": [
+    "Old v0.2-001-era issues remain open but untracked; they do not block v0.2-003-coverage FR/NFR coverage. Future cleanup may close or migrate them."
+  ],
+  "created_at": "2026-07-11T04:42:13Z",
+  "contract_bundle_hash": "652c7cf0c923271a531b0036bc21bb2cd573cb6636d600e3e5d4d93d2ae68e0f",
+  "metadata": {
+    "approved_by": "Aaron"
+  },
+  "output_hash": "d5aa4dcb9587011c93563059e419d7c5142886c45ff2dcf90601df43285c3025"
+}

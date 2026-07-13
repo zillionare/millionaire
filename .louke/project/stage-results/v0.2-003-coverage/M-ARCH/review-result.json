@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-ARCH",
+  "kind": "review-result",
+  "role": "Prism",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-003-coverage/spec.md",
+    ".louke/project/specs/v0.2-003-coverage/acceptance.md",
+    ".louke/project/specs/v0.2-003-coverage/test-plan.md",
+    ".louke/project/specs/v0.2-003-coverage/architecture.md",
+    ".louke/project/specs/v0.2-003-coverage/interfaces.md",
+    ".louke/project/project.toml"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [
+    "e2e placeholder is intentional — project.toml [e2e] section is minimal (run/cwd/paths only, no start/ready/teardown), test-plan.md §6 explicitly defers to Shield M-E2E, interfaces.md does not define detailed e2e contracts. This is correct for v0.2-003-coverage scope (unit tests + coverage gate).",
+    "test-plan.md §8 lists known gaps (port protocol checks, tmp_path discipline, mutation testing deferred) — these are risk registrations, not defects. Architecture and test-plan are aligned on these risks.",
+    "spec.md FR-0001 contract-source priority (001/002 → interfaces → story → current public behavior) is correctly propagated through architecture.md §1, interfaces.md §1, and test-plan.md §1. No circular or self-referential contract derivation."
+  ],
+  "created_at": "2026-07-11T07:14:51Z",
+  "contract_bundle_hash": "7bbd1e2117710f42c174624a5f7fed825f5381fc2790c9bfc503ab18419fd699",
+  "metadata": {
+    "source_command": "review",
+    "checks": {
+      "AC_to_arch_closure": "pass",
+      "interfaces_xref": "pass",
+      "coverage_target": "pass",
+      "ci_contract": "pass",
+      "contract_source": "pass",
+      "e2e_placeholder": "pass"
+    }
+  },
+  "output_hash": "2a73ca594945cc229ca2eba4af7ae4019c2eee6e1280de8f9b195e9f57b3d9fe"
+}

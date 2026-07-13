@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-003-coverage",
+  "stage": "M-TESTPLAN",
+  "kind": "author-result",
+  "role": "Archer",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-003-coverage/test-plan.md"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [],
+  "created_at": "2026-07-11T07:05:14Z",
+  "contract_bundle_hash": "effaea6349421aaf14a0fa6fa7475125912500a504282cb185c00e728b0e31f9",
+  "metadata": {},
+  "output_hash": "bf741065981a9eef839de1add08dcdd6cecdd54dbbdf6d195212b711b3bb2347"
+}
