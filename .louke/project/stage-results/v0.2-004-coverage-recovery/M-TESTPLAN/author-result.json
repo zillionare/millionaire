@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "stage": "M-TESTPLAN",
+  "kind": "author-result",
+  "role": "Archer",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-004-coverage-recovery/test-plan.md"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [],
+  "created_at": "2026-07-13T08:20:02Z",
+  "contract_bundle_hash": "37f02b530064492ec793d7ed3f26a78bfa66a3438e9a9a91ce070aa52ad6a3b4",
+  "metadata": {},
+  "output_hash": "2b57d63ca41738bc413ec2214f3e6386c13cda791853cc7c390e7a069a6658a0"
+}

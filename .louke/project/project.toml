@@ -9,7 +9,7 @@ release_branch = "releases/v0.2-004-coverage-recovery"
 [meta]
 pre_commit = "installed (python + base)"
 created = "2026-07-12T15:23:54"
-current_stage = "M-SPEC"
+current_stage = "M-LOCK"
 security_audit = "disabled"
 smoke_test_issue = "#224 (closed)"
 smoke_test_pr = "#225 (closed)"
@@ -17,3 +17,8 @@ dod = "full unit suite green; overall coverage >95%; every executable production
 test_framework = "pytest"
 backlog_project = "https://github.com/users/zillionare/projects/7"
 acknowledged_orphan_releases = ["releases/v0.2"]
+
+[e2e]
+run = "tests/e2e"
+cwd = "."
+paths = ["tests/e2e"]

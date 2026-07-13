@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "stage": "M-ARCH",
+  "kind": "review-result",
+  "role": "Prism",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-004-coverage-recovery/spec.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/acceptance.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/test-plan.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/architecture.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/interfaces.md",
+    ".louke/project/project.toml"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [
+    "e2e placeholder is intentional; project.toml [e2e] section is run/cwd/paths only; detailed start/ready/teardown contracts are out of v0.2-004 scope (unit tests + coverage gate); Shield M-E2E remains the responsible stage.",
+    "test-plan.md known gaps (mutation testing, deeper race investigation) are registered risks, not defects.",
+    "spec.md FR-0001 contract-source priority (v0.2-001/002 -> interfaces -> story -> current public consumers) is propagated through architecture.md, interfaces.md, and test-plan.md.",
+    "Recovery artifacts are hash-pinned: production index 8410d32fb4b64c0d38ef21f947c45be7164185dcaa09f36a7061bc99b9c8bfbe; production shard manifest 4ec8dbdbf8eaabfe1d8a355df778ae438e03b6dc3b18b0038955ba91472cac39; test index 3d7ebc07cc8d014aab8981c025a142f1112c7d7cfb05390254de02c19da38fd0; test shard manifest f48b15e808737352ad6a5c4d8da2b2a5f9b97fa3fb56a4ca2881463ec2380352; Devon registry bac42a69bcd6359afe16fbcdc8ae710314ad00ced431dff9c1625186cb2bd088."
+  ],
+  "created_at": "2026-07-13T08:35:10Z",
+  "contract_bundle_hash": "1c0be0c71aa681b484e1f0aa2dd5993d1c38b06c3cb0e097121a14834775c3fb",
+  "metadata": {
+    "source_command": "review",
+    "checks": {
+      "AC_to_arch_closure": "pass",
+      "interfaces_xref": "pass",
+      "coverage_target": "pass",
+      "ci_contract": "pass",
+      "contract_source": "pass",
+      "e2e_placeholder": "pass"
+    }
+  },
+  "output_hash": "e9b7f50303459740c671287cbd794c6667b327103c511d868cdb2599c40fd2b7"
+}

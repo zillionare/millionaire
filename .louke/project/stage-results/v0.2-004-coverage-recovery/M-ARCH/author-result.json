@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "stage": "M-ARCH",
+  "kind": "author-result",
+  "role": "Archer",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-004-coverage-recovery/test-plan.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/architecture.md",
+    ".louke/project/specs/v0.2-004-coverage-recovery/interfaces.md",
+    ".louke/project/project.toml"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [],
+  "created_at": "2026-07-13T08:35:11Z",
+  "contract_bundle_hash": "1c0be0c71aa681b484e1f0aa2dd5993d1c38b06c3cb0e097121a14834775c3fb",
+  "metadata": {},
+  "output_hash": "b6b411acc1270c2d20a7f3a1ec94544cd1459dc4b1b2da471af74214511b9ecb"
+}
