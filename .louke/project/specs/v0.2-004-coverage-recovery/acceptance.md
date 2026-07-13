@@ -14,7 +14,7 @@
 - behavior：FR-1201 AC-1~7，加上该行 `governing_upstream_references` 指向的最高优先级上游 AC；`existing_003_spec_ac_coverage=none` 的 retained 路径还必须命中 spec.md FR-1201 的同路径文件特定条目；
 - tests/remediation/closure：FR-1301 AC-1~4、FR-1401 AC-1~3、FR-1601 AC-1~4、FR-1701 AC-1~3；
 - coverage/evidence：FR-1901 AC-1~3、NFR-1001 AC-1~4、NFR-1101 AC-1~3、NFR-1201 AC-1~3、NFR-1301 AC-1~2；
-- `aaron_decision_candidate != null`：还必须命中 FR-1501 AC-1~3；合法 waiver（如最终存在）还必须命中 FR-1801 AC-1~4。
+- `aaron_decision_candidate != null`：还必须命中 FR-1501 AC-1~9；合法 waiver（如最终存在）还必须命中 FR-1801 AC-1~4。当前 AD-01~AD-06 均为 Aaron 于 2026-07-13 批准的 RETAIN，waiver registry 为空。
 
 因此映射不是抽样：每个 inventory row 都通过 path 主键映射到本 spec 的 FR/NFR 与 AC outlet。任何路径未命中上述规则均使 FR-1001 AC-3 失败。
 
@@ -55,7 +55,7 @@ AC-FR1101-02
 ### AC-3
 AC-FR1101-03
 
-- 所有 inference-based deprecated/dead/duplicate 候选在 Aaron 决定前仍出现在 manifest 和 blocker matrix；没有被自动删除、跳过或自动 waiver。
+- 所有 inference-based deprecated/dead/duplicate 候选在 Aaron 决定前均保留于 manifest 和 blocker matrix；AD-01~AD-06 现已显式决定 RETAIN，六个路径继续留在 manifest/合同/门禁内，且没有被删除、跳过或自动 waiver。
 
 ### AC-4
 AC-FR1101-04
@@ -82,7 +82,7 @@ AC-FR1201-03
 ### AC-4
 AC-FR1201-04
 
-- AD-01/AD-02 的遗留注册/reset 功能在 Aaron 决定前不被测试提升为 v0.2 产品成功路径；若保留，只能按批准后的 characterization/产品决定验收。
+- AD-01/AD-02 已决定 RETAIN；测试只刻画 corrected shard 中记录的当前可执行行为，不把遗留注册/reset 功能提升为新的 v0.2 产品成功路径。
 
 ### AC-5
 AC-FR1201-05
@@ -153,22 +153,52 @@ AC-FR1401-04
 
 - 每个 `RW-*` 只有在同一 traceable revision 记录 AC-derived Red failure、修复后的 Green exit 0/独立断言、完整隔离 suite 与逐文件 gate 证据后才算 closed；或由保留原 function id、AC refs 和全部 evidence obligations 的 replacement work item 双向链接并标记 superseded。GitHub issue/list completion、单独 Green 或缺 full-suite evidence 均不满足 DoD。
 
-## FR-1501 Aaron 六项待决处置
+## FR-1501 Aaron 六项 RETAIN 处置
 
 ### AC-1
 AC-FR1501-01
 
-- AD-01~AD-06 每项均有 Aaron 的显式 disposition、日期、证据和适用合同/后续 issue；缺一项即 closure blocker 非零。
+- AD-01~AD-06 每项均为 `RESOLVED RETAIN`，`approved_by=Aaron`、`approved_at=2026-07-13`，并绑定 corrected shard record、源码 anchor、当前实现合同和测试证据义务；缺一项即 closure blocker 非零。
 
 ### AC-2
 AC-FR1501-02
 
-- 选择 delete 时附消费者/路由复核与独立删除 review；选择 retain 时有文件特定合同并达到 80%；选择 waiver 时通过 FR-1801 全部校验。
+- 六个 RETAIN 路径都必须在同一接受的全绿 run 中达到 `percent_covered >=80.0`；不得以删除、waiver、coverage trick、扩大 omit/exclude、批量 `pragma: no cover` 或降低阈值替代。
 
 ### AC-3
 AC-FR1501-03
 
-- 在 Aaron 显式决定前，六项均保持 pending，未被 acceptance、inventory 或 waiver 文件解释成已接受 disposition。
+- 决定证据仅授权保留并测试当前实现：`coverage-waivers.json` 仍为 `waivers=[]`，没有删除或 waiver 获批；测试必须为当前实现合同新增，不得发明行为。
+
+### AC-4
+AC-FR1501-04
+
+- AD-01 `quantide/web/auth/admin_routes.py` 保留 corrected shard `prod-f4c5b6766c15` 的当前合同：默认 `include_admin=False` 时无 admin route，显式启用时注册源码中的 GET/POST 用户管理 handlers，并保持当前 decorator/303 fallback 结果。Red 必须因该当前结果未被满足而失败；Green 在隔离 auth/repository 状态下断言同一结果；同 revision 完整 suite 使用 `--timeout` 全绿且本文件 `>=80.0%`。
+
+### AC-5
+AC-FR1501-05
+
+- AD-02 `quantide/web/auth/forms.py` 保留 corrected shard `prod-2222692b50e2` 的当前合同：login/profile 及 gated legacy renderers 输出源码定义的 FastHTML fields/actions/errors，模块不注册 route 或持久化。Red/Green 必须断言同一当前渲染行为并在隔离确定性环境复现；同 revision 完整 suite 使用 `--timeout` 全绿且本文件 `>=80.0%`。
+
+### AC-6
+AC-FR1501-06
+
+- AD-03 `quantide/web/auth/repository.py` 保留 corrected shard `prod-5793dc5849e8` 的当前 lookup/hash/authentication/CRUD/search/list/count、last-admin refusal 和源码 fallback 合同。Red/Green 必须对同一当前结果使用隔离确定性 storage；同 revision 完整 suite 使用 `--timeout` 全绿且本文件 `>=80.0%`。
+
+### AC-7
+AC-FR1501-07
+
+- AD-04 `quantide/web/auth/utils.py` 保留 corrected shard `prod-478f19f91ad5` 的当前 token、email/password validation、username sanitization 和源码错误传播合同。Red/Green 必须断言同一当前结果并控制随机性；同 revision 完整 suite 使用 `--timeout` 全绿且本文件 `>=80.0%`。
+
+### AC-8
+AC-FR1501-08
+
+- AD-05 `quantide/core/utils.py` 保留 corrected shard `prod-5c4b6a15a6b7` 的五个纯转换 helper：严格 8/14 字符解析、零填充、分钟秒数 `00`、当前 `ValueError`/`AttributeError` 边界。Red/Green 必须断言同一当前行为；同 revision 完整 suite 使用 `--timeout` 全绿，coverage manifest 含该文件且本文件 `>=80.0%`。
+
+### AC-9
+AC-FR1501-09
+
+- AD-06 `quantide/web/pages/analysis.py` 保留 corrected shard `prod-da64e6c5652e` 的 authenticated `GET /analysis` 当前行为：HTTP 200 HTML retirement notice、可选 session header、无 analysis data I/O。Red/Green 必须在隔离确定性 branding/session 下断言同一当前响应；同 revision 完整 suite 使用 `--timeout` 全绿且本文件 `>=80.0%`。
 
 ## FR-1601 完整测试树反向追踪与删除标准
 
@@ -205,7 +235,7 @@ AC-FR1601-06
 ### AC-7
 AC-FR1601-07
 
-- 六项 Aaron decision 仍为 pending；任何 trace overlay、update/delete candidate 或生产合同语义复核均不得把 AD-01~AD-06 解释为 delete/retain/waiver 决定。
+- 六项 Aaron decision 均为 `RESOLVED RETAIN`；trace overlay、update/delete candidate 或生产合同语义复核不得将其改释为 delete/waiver，也不得发明 corrected shard 之外的行为。
 
 ### AC-8
 AC-FR1601-08
@@ -222,7 +252,7 @@ AC-FR1701-01
 ### AC-2
 AC-FR1701-02
 
-- 每轮将 below-target、failed/error、manifest mismatch、双向 orphan、未决 Aaron、无效 waiver 的并集生成下一轮任务，且每个 blocker 至少映射一项任务。
+- 每轮将 below-target、failed/error、manifest mismatch、双向 orphan、未满足的 Aaron RETAIN 证据义务、无效 waiver 的并集生成下一轮任务，且每个 blocker 至少映射一项任务。
 
 ### AC-3
 AC-FR1701-03

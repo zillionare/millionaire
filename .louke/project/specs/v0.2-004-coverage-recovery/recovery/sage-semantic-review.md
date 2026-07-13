@@ -84,10 +84,25 @@ Each candidate was reviewed under the locked order: v0.2-001/002/003 spec+accept
 
 ## Final Aaron-decision set
 
-No additional candidate requires a user-observable product choice after precedence review. The final Aaron set remains exactly **6 unresolved decisions**: `AD-01`, `AD-02`, `AD-03`, `AD-04`, `AD-05`, `AD-06`. This review does not choose delete, retain, waiver, quarantine, or retirement behavior for those six.
+No additional candidate requires a user-observable product choice after precedence review. Aaron resolved the exact final set—`AD-01` through `AD-06`—as **RETAIN** on 2026-07-13. The resolution does not approve deletion, waiver, quarantine, redirect, or invented replacement behavior.
 
 ## Normative test trace and M-DEV binding
 
 The corrected test index/shards already materialize all function dispositions; no external generic overlay is required. Every one of 1651 functions has at least one spec-qualified AC reference. The final distribution is 1455 aligned and 196 update, with quality findings 87 incomplete, 61 self-fulfilling, 41 import-only, 3 fake, 2 conflicting and 2 spec-gap.
 
 `recovery/devon-work-items.json` is normative M-DEV input. Its 196 unique open `RW-*` records bind the 196 update function IDs exactly once each. A work item is complete only with AC-derived Red, Green, and full isolated suite/per-file gate evidence for the same traceable revision, or when superseded by a bidirectionally linked replacement that carries the same function ID, AC refs and evidence obligations. GitHub issue/list completion alone is not DoD, and no update binding authorizes deletion.
+
+## Aaron RETAIN resolution — 2026-07-13
+
+Aaron resolved the final six decision candidates as **RETAIN**. The corrected shard row remains the governing current-implementation contract. Tests must be added for the current implementation contract, not invented behavior. Every row requires: a failing Red test referencing that current behavior; Green asserting the same behavior under isolation/determinism; a green same-revision full-suite run with `--timeout`; `percent_covered >=80.0`; no coverage tricks or broad exclusions. No waiver is approved.
+
+| ID | Status | decision | approved_by | approved_at | Corrected-shard evidence | Current-implementation contract implication | Required evidence |
+|---|---|---|---|---|---|---|---|
+| AD-01 | RESOLVED | RETAIN | Aaron | 2026-07-13 | `prod-f4c5b6766c15`; `admin_routes.py:14-294,779-783` | Default app keeps admin routes unregistered; explicit `include_admin=True` keeps the coded GET/POST registrar, current role-guard asymmetry, HTML/303 fallbacks, and no transaction cleanup. | Red against that enable/disable behavior; isolated deterministic Green for the same behavior; green full suite with `--timeout`; file `>=80.0%`. |
+| AD-02 | RESOLVED | RETAIN | Aaron | 2026-07-13 | `prod-2222692b50e2`; `forms.py:51-727` | Login/profile and gated legacy renderers keep their coded FastHTML fields/actions/errors; the module registers no route and performs no auth decision/persistence. | Red against current rendered output; isolated deterministic Green for the same output; green full suite with `--timeout`; file `>=80.0%`. |
+| AD-03 | RESOLVED | RETAIN | Aaron | 2026-07-13 | `prod-5793dc5849e8`; `repository.py:5-209` | Current lookup/hash/authentication/CRUD/search/list/count, `last_login` update, last-admin refusal, and coded exception fallbacks remain. | Red against a current repository outcome; isolated deterministic-storage Green for the same outcome; green full suite with `--timeout`; file `>=80.0%`. |
+| AD-04 | RESOLVED | RETAIN | Aaron | 2026-07-13 | `prod-478f19f91ad5`; `auth/utils.py:8-48` | Current token length/random alphabet, source email regex, password result/messages, username sanitization, negative-length empty token, and propagating type/regex errors remain. | Red against those current values/errors; deterministic-randomness Green for the same behavior; green full suite with `--timeout`; file `>=80.0%`. |
+| AD-05 | RESOLVED | RETAIN | Aaron | 2026-07-13 | `prod-5c4b6a15a6b7`; `core/utils.py:7-40` | Five pure helpers keep strict 8/14-character parsing, zero-padded formatting, minute seconds `00`, and current `ValueError`/`AttributeError` boundaries. | Red against those conversions/errors; isolated deterministic Green for the same behavior; green full suite with `--timeout`; file present in manifest and `>=80.0%`. |
+| AD-06 | RESOLVED | RETAIN | Aaron | 2026-07-13 | `prod-da64e6c5652e`; `analysis.py:15-74`; `app_factory.py:409` | Authenticated `GET /analysis` remains the current HTTP 200 HTML retirement notice, with optional session header state and no analysis data I/O. | Red against that current response; isolated deterministic branding/session Green for the same response; green full suite with `--timeout`; file `>=80.0%`. |
+
+The final Aaron-decision set is now six resolved RETAIN decisions and zero unresolved decisions. `coverage-waivers.json` remains an empty registry.

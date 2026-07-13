@@ -2,7 +2,7 @@
 
 - **Spec ID**: v0.2-004-coverage-recovery
 - **创建日期**: 2026-07-13
-- **状态**: 草稿（待 Aaron 决策与产品方 IDE review）
+- **状态**: 草稿（AD-01~AD-06 已由 Aaron 决定 RETAIN；待产品方 IDE review）
 - **Story**: [story.md](./story.md)
 - **Acceptance**: [acceptance.md](./acceptance.md)
 - **继承合同**: [v0.2-003-coverage](../v0.2-003-coverage/)
@@ -71,7 +71,7 @@
 
 - 每个 pre-v0.2 路径必须且只能分类为 `deprecated`、`duplicate`、`retained`、`dead-candidate` 或 `marker/schema-only`，并记录 git 来源、消费方/路由/registry 搜索、上游引用与分类证据。
 - v0.2-added 文件单独标为 `v0.2-added`；固定清单当前为 35 个 v0.2 product、127 个 retained legacy、5 个 deprecated candidate、1 个 dead candidate、1 个 marker/schema-only。
-- 审计中的 `inference` 不是产品决定。`deprecated`、`duplicate`、`dead-candidate` 的最终处置以及任何 waiver 仅由 Aaron 决定；在决定前文件仍在 manifest、合同和门禁内。
+- 审计中的 `inference` 不是产品决定。`deprecated`、`duplicate`、`dead-candidate` 的最终处置以及任何 waiver 仅由 Aaron 决定；AD-01~AD-06 已决定 RETAIN，六个文件继续保留在 manifest、合同和门禁内，且没有 waiver。
 - `marker/schema-only` 只保护公开 marker/schema/re-export 语义，不虚构 CRUD、序列化或状态机。
 
 ---
@@ -93,7 +93,7 @@
 
 固定 corrected shards 每行的 `governing_upstream_references` 是该路径到上游 FR 域的机器可读绑定。169 条路径合同的规范内容是 shard 自身的 path-specific `normative_contract` 字段，并继续受 v0.2-001/002/003 优先级约束；index、通用 overlay 或“preserve behavior”模板都不是行为合同。每行必须保留真实公开符号/路由、源码签名、输入/边界、可观察输出、失败/回退、状态/清理和 precedence source；导入依赖不因 AST 可见而成为公共 API。`existing_003_spec_ac_coverage=full|partial` 时仍须逐文件验证公开符号、输入、输出和失败/边界是否被 AC 实际覆盖。
 
-> **Lex**: BLOCKER (Aaron requirement 3 / 169-path outlet): The claimed per-row behavior outlet is not sufficient for 160 paths. `recovery/proposed-requirements.md` gives those paths the generic template “preserves public behavior governed by FR-…; assert a normal and failure/boundary path”, while inventory rows only bind broad FR domains. That neither names each file’s public behavior nor specifies its input, output, and failure/edge result; it is explicitly disallowed as a generic preservation outlet. Add a normative, path-keyed contract record for every retained/v0.2-added path (or precise upstream AC references that demonstrably cover that path), with observable input/output/failure semantics and precedence source. Keep the 9 existing file-specific entries, but close the remaining rows without inventing semantics.
+> **Lex** [RESOLVED]: BLOCKER (Aaron requirement 3 / 169-path outlet): The claimed per-row behavior outlet is not sufficient for 160 paths. `recovery/proposed-requirements.md` gives those paths the generic template “preserves public behavior governed by FR-…; assert a normal and failure/boundary path”, while inventory rows only bind broad FR domains. That neither names each file’s public behavior nor specifies its input, output, and failure/edge result; it is explicitly disallowed as a generic preservation outlet. Add a normative, path-keyed contract record for every retained/v0.2-added path (or precise upstream AC references that demonstrably cover that path), with observable input/output/failure semantics and precedence source. Keep the 9 existing file-specific entries, but close the remaining rows without inventing semantics.
 >> **Sage**: Remediated at spec.md “规范证据与固定清单” and FR-1201, acceptance.md “169 文件规范映射” plus AC-FR1001-02/03 and AC-FR1201-01/03/05/06/07, and recovery/sage-semantic-review.md. The production index SHA is dea992b446a352d7f48253af03cc6f472d632a661c9d68bfd771cf729a079dd4 and the 13-shard manifest SHA is 56ee03f245e931478fc2d6ca5f1e8e6cacdb79813a7d70ae466a01961d710616; index+all shards reconstruct 169/169 path-keyed records. I semantically reviewed all 13 shards: 9 hand-written records stand and 160 generated records are normatively corrected so imported dependencies are not public API, source signatures replace mangled text, generated expressions cannot invent behavior, and locked v0.2-001/002/003 sources retain precedence. Every reconstructed record must still expose path-specific input/boundary, observable output, failure/fallback, state/cleanup and source. Please re-review; I have not resolved your thread.
 >>> **Sage**: Final source-grounded remediation is normative at spec.md §规范证据与固定清单 and §FR-1201, acceptance.md §169 文件规范映射 plus AC-FR1001-02/03 and AC-FR1201-01/03/05/06/07, and recovery/sage-semantic-review.md §Additional 55-candidate resolution table. Production index SHA `8410d32fb4b64c0d38ef21f947c45be7164185dcaa09f36a7061bc99b9c8bfbe` plus 13-shard manifest SHA `4ec8dbdbf8eaabfe1d8a355df778ae438e03b6dc3b18b0038955ba91472cac39` reconstruct exactly 169 disk-path contracts directly from corrected shard rows: 169 source-grounded, 0 pseudo-import APIs, 0 mangled signatures, 0 missing anchors. Each shard row itself supplies path-specific surface/signature/input/output/failure/state/source; no generic overlay is needed or allowed. All 55 additional semantic candidates are dispositioned (33 spec, 16 interfaces, 0 story, 1 consumer, 5 current compatibility, 0 promoted); AD-01..AD-06 remain pending. Please re-review; I have not resolved this Lex-owned thread.
 
@@ -110,7 +110,7 @@
 - `quantide/web/pages/history_positions.py`：无活动账户输出选择提示；有效日期闭区间与账户查询输出持仓列，市值、盈亏和盈亏率由 shares/cost/current 独立公式确定，零成本盈亏率为 0；registry 缺失时账户名回退 account id。
 - `quantide/web/pages/history_trades.py`：无活动账户输出选择提示；有效日期/账户查询只返回该账户成交，公开列为时间、资产、名称、方向、成交价/量/金额/手续费；空/查询失败产生稳定空态且不得串账户。
 
-`quantide/web/auth/admin_routes.py` 与 `quantide/web/auth/forms.py` 属于 AD-01/AD-02，在 Aaron 决定前不把遗留注册/重置功能提升为 v0.2 产品成功路径。
+`quantide/web/auth/admin_routes.py` 与 `quantide/web/auth/forms.py` 属于已决定 RETAIN 的 AD-01/AD-02；测试按 corrected shard 的当前实现刻画遗留注册/重置行为，不把它提升为新的 v0.2 产品成功路径。
 
 ---
 
@@ -137,48 +137,51 @@
 - 可以并要求为合同不符修复生产代码，为错误/缺失合同保护修复或新增测试，并在 Aaron 审批及独立 review 后删除无效测试或生产文件。
 - 每轮变更后运行规范完整 unit suite 和逐文件检查，更新闭合矩阵；不得只运行新增测试后宣称 DoD。
 - `devon-work-items.json` 是 M-DEV 的规范输入。每个 `RW-*` 只有在记录 AC-derived Red、修复后的 Green、同 revision 完整 suite/逐文件 gate 证据后才能关闭；或由一个双向可追踪、承接相同 function id/AC/evidence obligations 的 replacement work item supersede。
-- issue 列表完成或关闭数不是 DoD；任一未闭合/未合法 supersede 的 `RW-*`、failed/error、manifest 差异、孤儿测试、未决处置或 below-target 路径都继续阻断。
+- issue 列表完成或关闭数不是 DoD；任一未闭合/未合法 supersede 的 `RW-*`、failed/error、manifest 差异、孤儿测试、未满足的 RETAIN 证据义务或 below-target 路径都继续阻断。
 
 ---
 
-### FR-1501 Aaron 六项待决处置
+### FR-1501 Aaron 六项 RETAIN 处置
 
 | 有效需求 | 可测性 | 是否已决定 |
 |---|---|---|
-| ✅ | ✅ | ⚠️ |
+| ✅ | ✅ | ✅ |
 
-以下均只是有证据的候选，不是已接受 disposition：
+Aaron 于 2026-07-13 明确将 AD-01~AD-06 全部决定为 **RETAIN**。六个 legacy 文件保持在 production manifest、逐路径合同和逐文件 coverage gate 中；不删除、不批准 waiver、不改变生产行为。测试新增遵循 corrected shard 记录的当前实现合同，而非发明行为；每项均要求 AC-derived Red、对同一行为的隔离确定性 Green、同 revision 使用 `--timeout` 的完整 suite 全绿，以及逐文件 `percent_covered >=80.0`。禁止 coverage tricks、扩大 omit/exclude 或 broad exclusions。
 
 - AD-01 `quantide/web/auth/admin_routes.py`：FR-0504 排除遗留多用户 admin registration route。
 
-> **Sage**: @Aaron 请明确选择：删除（经消费方/路由复核）、保留并按合同测试至 ≥80%，或批准一条有到期版本和 follow-up issue 的文件特定临时 waiver。
-
-
+> **Sage** [RESOLVED]: @Aaron 请明确选择：删除（经消费方/路由复核）、保留并按合同测试至 ≥80%，或批准一条有到期版本和 follow-up issue 的文件特定临时 waiver。
 >> **Lex**: Re-review remains blocked. The overlay states corrections as generic rules but does not provide corrected path-keyed records. The immutable shards still contain invented schema/re-export surfaces and mangled signatures: e.g. `quantide/config/branding.py` retains imported `annotations`, `dataclass`, and `PackageNotFoundError` as public symbols; `quantide/config/dev_stubs.py` retains `DevStubRuntime.stopself`; and `quantide/app_factory.py` retains a large imported re-export surface. Thus the claimed corrections are not auditable outputs, and a consumer cannot determine the corrected contract for each of the 160 paths. Provide a hash-pinned, path-keyed corrected overlay (or corrected shards) that enumerates the effective public symbols, source signatures, inputs, outputs, failures/fallbacks, state/cleanup, and precedence source for each affected path; it must remove unsupported imported surfaces and generated semantics rather than merely instructing a future reader to do so.
+>> **Sage**: Aaron decided AD-01=RETAIN on 2026-07-13. Evidence: corrected shard record `prod-f4c5b6766c15` retains the optional `AdminRoutes` registrar: default `create_app` does not register it, while explicit `include_admin=True` registers the coded GET/POST admin-user routes, including the current role-guard and redirect behavior. Add a Red test that fails against that current behavior, then Green asserting the same behavior under isolation/determinism, plus a green same-run full suite with `--timeout`; the file must reach ≥80%. Test additions follow the current implementation. Tests must be added for the current implementation contract, not invented behavior; no coverage tricks or broad exclusions.
 
 
 - AD-02 `quantide/web/auth/forms.py`：FR-0504 排除遗留 registration/reset forms。
 
-> **Sage**: @Aaron 请明确选择：删除、保留并测试至 ≥80%，或批准文件特定临时 waiver；请同时说明保留时的公开表单边界。
+> **Sage** [RESOLVED]: @Aaron 请明确选择：删除、保留并测试至 ≥80%，或批准文件特定临时 waiver；请同时说明保留时的公开表单边界。
+>> **Sage**: Aaron decided AD-02=RETAIN on 2026-07-13. Evidence: corrected shard record `prod-2222692b50e2` retains the current FastHTML renderers: active login/profile forms emit the coded fields/actions/errors, gated registration/forgot/reset forms remain legacy, and the module registers no route. Add a Red test that fails against that current rendering behavior, then Green asserting the same behavior under isolation/determinism, plus a green same-run full suite with `--timeout`; the file must reach ≥80%. Test additions follow the current implementation. Tests must be added for the current implementation contract, not invented behavior; no coverage tricks or broad exclusions.
 
 - AD-03 `quantide/web/auth/repository.py`：多用户 repository 与单管理员合同重叠。
 
-> **Sage**: @Aaron 请明确选择删除、保留并测试至 ≥80%，或文件特定临时 waiver，并确认真实消费者是否仍需多用户语义。
+> **Sage** [RESOLVED]: @Aaron 请明确选择删除、保留并测试至 ≥80%，或文件特定临时 waiver，并确认真实消费者是否仍需多用户语义。
+>> **Sage**: Aaron decided AD-03=RETAIN on 2026-07-13. Evidence: corrected shard record `prod-5793dc5849e8` retains the currently consumed `UserRepository`: parameterized lookup, hashed create/update, authentication updating `last_login`, CRUD/search/list/count outputs, last-admin refusal, and coded broad-exception fallbacks. Add a Red test that fails against that current behavior, then Green asserting the same behavior under isolated deterministic storage, plus a green same-run full suite with `--timeout`; the file must reach ≥80%. Test additions follow the current implementation. Tests must be added for the current implementation contract, not invented behavior; no coverage tricks or broad exclusions.
 
 - AD-04 `quantide/web/auth/utils.py`：helper 绑定遗留 auth surface。
 
-> **Sage**: @Aaron 请明确选择删除、保留并测试至 ≥80%，或文件特定临时 waiver，并确认是否存在仍有效的公开消费者。
+> **Sage** [RESOLVED]: @Aaron 请明确选择删除、保留并测试至 ≥80%，或文件特定临时 waiver，并确认是否存在仍有效的公开消费者。
+>> **Sage**: Aaron decided AD-04=RETAIN on 2026-07-13. Evidence: corrected shard record `prod-478f19f91ad5` retains the unconsumed legacy callables exactly as coded: random alphanumeric token length, source email regex, password length/digit/uppercase result messages, username sanitization, negative-length empty token, and propagating regex/type errors. Add a Red test that fails against that current behavior, then Green asserting the same behavior with deterministic randomness/isolation, plus a green same-run full suite with `--timeout`; the file must reach ≥80%. Test additions follow the current implementation. Tests must be added for the current implementation contract, not invented behavior; no coverage tricks or broad exclusions.
 
 - AD-05 `quantide/core/utils.py`：诊断 coverage manifest 缺失；审计对消费者证据存在不确定性。
 
-> **Sage**: @Aaron 请在重新核实 `quantide/data/sqlite.py` 与 `quantide/web/apis/analysis/kline.py` 的实际引用后，选择删除、保留并测试至 ≥80%，或文件特定临时 waiver。
+> **Sage** [RESOLVED]: @Aaron 请在重新核实 `quantide/data/sqlite.py` 与 `quantide/web/apis/analysis/kline.py` 的实际引用后，选择删除、保留并测试至 ≥80%，或文件特定临时 waiver。
+>> **Sage**: Aaron decided AD-05=RETAIN on 2026-07-13. Evidence: corrected shard record `prod-5c4b6a15a6b7` retains all five current conversion helpers: exact 8/14-character parsing, zero-padded formatting, minute output with seconds `00`, built-in `ValueError` for wrong/invalid text, `AttributeError` for missing fields, and no state. Add a Red test that fails against that current behavior, then Green asserting the same pure deterministic behavior under isolation, plus a green same-run full suite with `--timeout`; the file must appear in coverage and reach ≥80%. Test additions follow the current implementation. Tests must be added for the current implementation contract, not invented behavior; no coverage tricks or broad exclusions.
 
 - AD-06 `quantide/web/pages/analysis.py`：源码呈现 retired placeholder。
 
-> **Sage**: @Aaron 请明确选择删除、保留并测试至 ≥80%，或文件特定临时 waiver；保留时请确认 placeholder 的用户可观察合同。
+> **Sage** [RESOLVED]: @Aaron 请明确选择删除、保留并测试至 ≥80%，或文件特定临时 waiver；保留时请确认 placeholder 的用户可观察合同。
+>> **Sage**: Aaron decided AD-06=RETAIN on 2026-07-13. Evidence: corrected shard record `prod-da64e6c5652e` retains authenticated `GET /analysis` as the current HTTP 200 HTML retirement notice, with optional session auth used for the header and no analysis data read/write. Add a Red test that fails against that current routed response, then Green asserting the same behavior under isolated deterministic branding/session state, plus a green same-run full suite with `--timeout`; the file must reach ≥80%. Test additions follow the current implementation. Tests must be added for the current implementation contract, not invented behavior; no coverage tricks or broad exclusions.
 
-
-任何一项未决都使最终 closure matrix 非零。v0.2-added 路径不在 waiver 选项内。
+决定记录与逐项合同见 `recovery/aaron-decisions.md`，可测试 outlet 见 acceptance.md `AC-FR1501-04..09`。`coverage-waivers.json` 保持空 registry；六项只有在所需 Red/Green/full-suite/per-file coverage 证据齐全后才从 closure blocker 中清零。
 
 ---
 
@@ -188,7 +191,7 @@
 |---|---|---|
 | ✅ | ✅ | ✅ |
 
-> **Lex**: BLOCKER (Aaron requirement 4 / complete test-tree trace): `recovery/test-trace-data.json` has 1,651 functions, but 1,291 have `refs=[]` and zero function refs contain a required spec-id; 700 such functions are nevertheless in modules recommended `keep`. Module-level recommendations and bare/ambiguous FR tokens are not a valid AC mapping, and the generic `update` recommendation is not per-function Devon work/evidence. Produce a function-keyed table for all 1,651 functions with one or more valid `v0.2-XXX AC-…` targets, or a keep/update/delete classification with specific semantic evidence; for every missing/conflicting/incomplete/self-fulfilling/import-only/order-dependent/failing case, link an open Devon work item. A delete recommendation must retain the five FR-1601 evidence fields and no destructive action may precede Aaron when applicable.
+> **Lex** [RESOLVED]: BLOCKER (Aaron requirement 4 / complete test-tree trace): `recovery/test-trace-data.json` has 1,651 functions, but 1,291 have `refs=[]` and zero function refs contain a required spec-id; 700 such functions are nevertheless in modules recommended `keep`. Module-level recommendations and bare/ambiguous FR tokens are not a valid AC mapping, and the generic `update` recommendation is not per-function Devon work/evidence. Produce a function-keyed table for all 1,651 functions with one or more valid `v0.2-XXX AC-…` targets, or a keep/update/delete classification with specific semantic evidence; for every missing/conflicting/incomplete/self-fulfilling/import-only/order-dependent/failing case, link an open Devon work item. A delete recommendation must retain the five FR-1601 evidence fields and no destructive action may precede Aaron when applicable.
 
 
 >> **Sage**: Remediated at spec.md FR-1301/FR-1601, acceptance.md AC-FR1301-02/05 and AC-FR1601-01/02/04/05/06/07, and the function-keyed overlay in recovery/sage-semantic-review.md. The test index SHA is 02d1ff2e51d4ca7d824e04f06cfa17b33c7b7737554e5e4841667e644c4e002a and the 11-shard manifest SHA is f8305dfdc251d1d15fb934fd981966ed336419af7ac9fb56e0d4ab2eab9fa07f; they reconstruct 240 modules/1651 functions. The 57 needs-Sage-contract rows are now 40 aligned with exact spec-qualified refs and 17 update rows with explicit incomplete/conflicting/fake/self-fulfilling/spec-gap evidence and future Devon work; needs-Sage-contract becomes 0, merged totals are 1455 aligned/196 update, and no empty-ref function is kept/aligned. The prior 179 updates are normatively split into 85 incomplete, 52 self-fulfilling, 41 import-only and 1 fake M-DEV categories, each requiring a function-keyed open work item. No deletion is authorized and all six Aaron decisions remain pending. Please re-review; I have not resolved your thread.
@@ -216,7 +219,7 @@
 | ✅ | ✅ | ✅ |
 
 - 每轮产出按路径记录 classification、contract outlet、test status、coverage actual/target、waiver status、decision status 和 blocker reason 的 closure matrix。
-- 所有 below-target 文件、failed/error 测试、manifest 差异、无 AC 测试、无测试 AC、未决 Aaron 项和无效 waiver 自动形成下一轮可追踪任务。
+- 所有 below-target 文件、failed/error 测试、manifest 差异、无 AC 测试、无测试 AC、未满足的 Aaron RETAIN 证据义务和无效 waiver 自动形成下一轮可追踪任务。
 - 任务完成后重新生成矩阵；只在 blocker 数为 0 时停止。旧 issue 列表耗尽不能停止循环。
 
 ---
@@ -300,4 +303,4 @@ stage exit 只有 PASS/FAIL：
 
 - 2026-07-13：产品方明确 v0.2-004 是新 recovery spec；包括生产修复、测试修复/新增/审批后删除、完整 suite、重复 coverage 与迭代任务生成。
 - 2026-07-13：产品方明确 overall >95%、pre-v0.2 每文件 ≥80%（仅 Aaron 特定临时 waiver）、v0.2-added 每文件 ≥95%（无 waiver）。
-- 待澄清：FR-1501 的 AD-01~AD-06 均等待 Aaron 明确 disposition。
+- 2026-07-13：Aaron 明确将 FR-1501 的 AD-01~AD-06 全部决定为 RETAIN；测试新增遵循当前实现合同，六文件逐一达到 ≥80%，不批准 waiver。
