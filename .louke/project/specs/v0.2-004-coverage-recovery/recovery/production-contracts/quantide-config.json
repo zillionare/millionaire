@@ -4,7 +4,7 @@
   "family": "quantide-config",
   "part": 1,
   "record_count": 5,
-  "records_sha256": "bda864000fc4e8ff10e62d881ece665ab39f5d43b35debafecf226347c73cb2c",
+  "records_sha256": "a89f3b0b2de0779db68473e5f409d0ce9759a510b197ae49706bc992aaef0060",
   "records": [
     {
       "path": "quantide/config/__init__.py",
@@ -44,55 +44,64 @@
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
       "proposed_disposition": "retain and behavior-test to >= 80%",
       "proposed_requirement_ac_text": [
-        "`quantide/config/__init__.py` 的 marker `__init__` 接受/边界：import `quantide/config/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)；可观察输出：observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/__init__.py`。"
+        "`quantide.config` is an importable package marker with `__all__ = []`; it intentionally exposes no callable or re-export and directs consumers to the concrete settings and paths modules."
       ],
       "aaron_decision_candidate": null,
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 0,
       "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "package marker/re-export surface; no independent callable behavior",
+        "status": "package marker with an explicitly empty facade",
         "public_symbols": [],
         "routes_or_registry_hooks": [],
+        "signatures": [],
         "accepted_inputs_and_boundaries": [
-          "import `quantide/config/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)"
+          "Import only; concrete helpers must be imported from `quantide.config.settings` or `quantide.config.paths`."
         ],
         "observable_outputs": [
-          "observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)"
+          "`__all__` is empty, so the package declares no facade symbols."
         ],
         "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/__init__.py`"
+          "No path-local fallback or explicit exception."
         ],
         "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/config/__init__.py`"
+          "No mutation or cleanup."
+        ],
+        "source_anchors": [
+          {
+            "symbol": "empty package facade",
+            "lines": "quantide/config/__init__.py:1-7"
+          }
         ],
         "upstream_contract_sources": [
-          "v0.2-003 FR-0703",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+          ".louke/project/specs/v0.2-003-coverage/spec.md:594-609 (FR-0703)",
+          ".louke/project/specs/v0.2-003-coverage/spec.md:646-648 (marker evidence rule)"
         ],
         "consumer_evidence": [
-          "no static importer/route consumer found; classification evidence: consumer/import and precedence analysis; destructive action requires Aaron"
+          "quantide/config/__init__.py:1-7",
+          "quantide/config/paths.py:94-106",
+          "quantide/config/settings.py:364-379"
         ],
+        "evidence_note": "No imported dependency is promoted into the facade.",
         "proposed_acs": [
           {
             "id": "AC-PROP-CE319129-01",
-            "surface": "marker: __init__",
-            "statement": "`quantide/config/__init__.py` 的 marker `__init__` 接受/边界：import `quantide/config/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)；可观察输出：observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/__init__.py`。"
+            "surface": "source-grounded public surface",
+            "statement": "`quantide.config` is an importable package marker with `__all__ = []`; it intentionally exposes no callable or re-export and directs consumers to the concrete settings and paths modules."
           }
         ]
       },
       "contract_ac_proposals": [
         {
           "id": "AC-PROP-CE319129-01",
-          "surface": "marker: __init__",
-          "statement": "`quantide/config/__init__.py` 的 marker `__init__` 接受/边界：import `quantide/config/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)；可观察输出：observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/__init__.py`。"
+          "surface": "source-grounded public surface",
+          "statement": "`quantide.config` is an importable package marker with `__all__ = []`; it intentionally exposes no callable or re-export and directs consumers to the concrete settings and paths modules."
         }
       ],
       "record_id": "prod-ce3191290a08",
       "source_markdown": {
-        "production_file_audit": "## `quantide/config/__init__.py`\n\n- **Status/classification**: package marker/re-export surface; no independent callable behavior / `active retained legacy` (inference).\n- **Public symbols**: none.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: import `quantide/config/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior).\n- **Observable outputs/DTO/HTML/persistence/events**: observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior).\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/__init__.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/config/__init__.py`.\n- **Upstream source**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: no static importer/route consumer found; classification evidence: consumer/import and precedence analysis; destructive action requires Aaron.\n- **Proposed ACs**: AC-PROP-CE319129-01.\n",
-        "proposed_requirements": "## `quantide/config/__init__.py`\n\n- **Status**: package marker/re-export surface; no independent callable behavior.\n- **AC-PROP-CE319129-01** (marker: __init__): `quantide/config/__init__.py` 的 marker `__init__` 接受/边界：import `quantide/config/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)；可观察输出：observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/__init__.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; no static importer/route consumer found; classification evidence: consumer/import and precedence analysis; destructive action requires Aaron.\n- **Coverage target**: 80%.\n"
+        "production_file_audit": "## `quantide/config/__init__.py`\n\n- **Source-grounded contract**: `quantide.config` is an importable package marker with `__all__ = []`; it intentionally exposes no callable or re-export and directs consumers to the concrete settings and paths modules.\n- **Source anchors**: empty package facade at quantide/config/__init__.py:1-7.\n- **Evidence**: .louke/project/specs/v0.2-003-coverage/spec.md:594-609 (FR-0703); .louke/project/specs/v0.2-003-coverage/spec.md:646-648 (marker evidence rule); quantide/config/__init__.py:1-7; quantide/config/paths.py:94-106; quantide/config/settings.py:364-379.\n",
+        "proposed_requirements": "## `quantide/config/__init__.py`\n\n- **AC-PROP-CE319129-01**: `quantide.config` is an importable package marker with `__all__ = []`; it intentionally exposes no callable or re-export and directs consumers to the concrete settings and paths modules.\n"
       }
     },
     {
@@ -173,120 +182,102 @@
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
       "proposed_disposition": "retain and behavior-test to >= 80%",
       "proposed_requirement_ac_text": [
-        "`quantide/config/branding.py` 的 function `get_runtime_edition, get_branding, get_runtime_version` 接受/边界：get_runtime_edition；get_runtime_edition: boundary `override_edition is not None`；get_branding；get_runtime_version；可观察输出：get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition；get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。",
-        "`quantide/config/branding.py` 的 class `Branding` 接受/边界：get_runtime_edition；get_runtime_edition: boundary `override_edition is not None`；可观察输出：get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。",
-        "`quantide/config/branding.py` 的 schema/re-export `annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path, RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS` 接受/边界：get_runtime_version；module import exposes re-exports: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path；module import exposes constants/schema hooks: RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS；可观察输出：get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition；get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)；attribute lookup yields re-exported symbols: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。"
+        "The branding API exposes the immutable `Branding` schema, edition constants, and three zero-argument lookups; opt-in valid environment override wins, packaged metadata otherwise wins, unsupported/missing metadata falls back to millionaire, and version lookup falls back to `0.0.0`."
       ],
       "aaron_decision_candidate": null,
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 0,
       "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "retained executable public surface",
+        "status": "edition branding schema and lookup API",
         "public_symbols": [
           "Branding",
-          "get_runtime_edition",
-          "get_branding",
-          "get_runtime_version",
-          "annotations",
-          "dataclass",
-          "lru_cache",
-          "PackageNotFoundError",
-          "packages_distributions",
-          "version",
-          "Path",
-          "RUNTIME_NAME",
           "DEFAULT_EDITION",
           "EDITION_ENV_VAR",
           "EDITION_OVERRIDE_ENV_VAR",
-          "SUPPORTED_EDITIONS"
+          "RUNTIME_NAME",
+          "SUPPORTED_EDITIONS",
+          "get_branding",
+          "get_runtime_edition",
+          "get_runtime_version"
         ],
         "routes_or_registry_hooks": [],
+        "signatures": [
+          "Branding(edition: str, runtime_name: str, product_name: str, release_package: str, company_name: str, support_email: str)",
+          "get_runtime_edition() -> str",
+          "get_branding() -> Branding",
+          "get_runtime_version() -> str"
+        ],
         "accepted_inputs_and_boundaries": [
-          "get_runtime_edition",
-          "get_runtime_edition: boundary `override_edition is not None`",
-          "get_branding",
-          "get_runtime_version",
-          "module import exposes re-exports: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path",
-          "module import exposes constants/schema hooks: RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS"
+          "Edition override is accepted only when `QUANTIDE_ENABLE_EDITION_OVERRIDE` is truthy and `QUANTIDE_EDITION` is one of the supported editions.",
+          "Packaged edition is resolved from installed distribution ownership, then source-tree `pyproject.toml`, then the millionaire default."
         ],
         "observable_outputs": [
-          "get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition",
-          "get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')",
-          "get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path",
-          "read-only public values are available: RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS"
+          "Returns immutable `Branding` metadata for millionaire or zillionaire while keeping runtime name `quantide`.",
+          "Version lookup tries the active release package then `quantide`, returning `0.0.0` if neither distribution exists."
         ],
         "failure_error_fallback": [
-          "get_runtime_version: on PackageNotFoundError: continue"
+          "Missing/unreadable/invalid source TOML and unsupported package names fall back rather than raise.",
+          "`PackageNotFoundError` is swallowed per candidate package; other metadata errors propagate."
         ],
         "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`"
+          "Installed/source package lookups are process-cached with `lru_cache`; public calls do not persist data."
+        ],
+        "source_anchors": [
+          {
+            "symbol": "branding constants",
+            "lines": "quantide/config/branding.py:17-21"
+          },
+          {
+            "symbol": "Branding",
+            "lines": "quantide/config/branding.py:24-42"
+          },
+          {
+            "symbol": "get_runtime_edition",
+            "lines": "quantide/config/branding.py:111-118"
+          },
+          {
+            "symbol": "get_branding",
+            "lines": "quantide/config/branding.py:121-138"
+          },
+          {
+            "symbol": "get_runtime_version",
+            "lines": "quantide/config/branding.py:141-149"
+          },
+          {
+            "symbol": "explicit export list",
+            "lines": "quantide/config/branding.py:152-162"
+          }
         ],
         "upstream_contract_sources": [
-          "v0.2-003 FR-0703",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+          ".louke/project/specs/v0.2-003-coverage/spec.md:594-602 (FR-0703)",
+          ".louke/project/specs/v0.2-003-coverage/acceptance.md:689-695 (FR-0703 AC-1..2)"
         ],
         "consumer_evidence": [
-          "quantide/app_factory.py",
-          "quantide/config/settings.py",
-          "quantide/notify/mail.py",
-          "quantide/web/apis/broker.py",
-          "quantide/web/auth/forms.py",
-          "quantide/web/auth/routes.py",
-          "quantide/web/layouts/base.py",
-          "quantide/web/layouts/main.py",
-          "quantide/web/middleware_feature.py",
-          "quantide/web/pages/analysis.py",
-          "quantide/web/pages/home.py",
-          "quantide/web/pages/init_wizard.py",
-          "quantide/web/pages/trade_lightning.py",
-          "tests/unit/quantide/config/test_branding.py",
-          "tests/unit/quantide/config/test_fr_0703_config_contracts.py",
-          "tests/unit/quantide/config/test_fr_470_install.py",
-          "tests/unit/quantide/config/test_settings.py",
-          "tests/unit/quantide/notify/test_mail.py"
+          "tests/unit/quantide/config/test_branding.py:6-69",
+          "tests/unit/quantide/config/test_fr_0703_config_contracts.py:9-20",
+          "quantide/config/settings.py:210-226"
         ],
+        "evidence_note": "Only names in the explicit export list are public; metadata-library imports are not API.",
         "proposed_acs": [
           {
             "id": "AC-PROP-128378ED-01",
-            "surface": "function: get_runtime_edition, get_branding, get_runtime_version",
-            "statement": "`quantide/config/branding.py` 的 function `get_runtime_edition, get_branding, get_runtime_version` 接受/边界：get_runtime_edition；get_runtime_edition: boundary `override_edition is not None`；get_branding；get_runtime_version；可观察输出：get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition；get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。"
-          },
-          {
-            "id": "AC-PROP-128378ED-02",
-            "surface": "class: Branding",
-            "statement": "`quantide/config/branding.py` 的 class `Branding` 接受/边界：get_runtime_edition；get_runtime_edition: boundary `override_edition is not None`；可观察输出：get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。"
-          },
-          {
-            "id": "AC-PROP-128378ED-03",
-            "surface": "schema/re-export: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path, RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS",
-            "statement": "`quantide/config/branding.py` 的 schema/re-export `annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path, RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS` 接受/边界：get_runtime_version；module import exposes re-exports: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path；module import exposes constants/schema hooks: RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS；可观察输出：get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition；get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)；attribute lookup yields re-exported symbols: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。"
+            "surface": "source-grounded public surface",
+            "statement": "The branding API exposes the immutable `Branding` schema, edition constants, and three zero-argument lookups; opt-in valid environment override wins, packaged metadata otherwise wins, unsupported/missing metadata falls back to millionaire, and version lookup falls back to `0.0.0`."
           }
         ]
       },
       "contract_ac_proposals": [
         {
           "id": "AC-PROP-128378ED-01",
-          "surface": "function: get_runtime_edition, get_branding, get_runtime_version",
-          "statement": "`quantide/config/branding.py` 的 function `get_runtime_edition, get_branding, get_runtime_version` 接受/边界：get_runtime_edition；get_runtime_edition: boundary `override_edition is not None`；get_branding；get_runtime_version；可观察输出：get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition；get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。"
-        },
-        {
-          "id": "AC-PROP-128378ED-02",
-          "surface": "class: Branding",
-          "statement": "`quantide/config/branding.py` 的 class `Branding` 接受/边界：get_runtime_edition；get_runtime_edition: boundary `override_edition is not None`；可观察输出：get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。"
-        },
-        {
-          "id": "AC-PROP-128378ED-03",
-          "surface": "schema/re-export: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path, RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS",
-          "statement": "`quantide/config/branding.py` 的 schema/re-export `annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path, RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS` 接受/边界：get_runtime_version；module import exposes re-exports: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path；module import exposes constants/schema hooks: RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS；可观察输出：get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition；get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)；attribute lookup yields re-exported symbols: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。"
+          "surface": "source-grounded public surface",
+          "statement": "The branding API exposes the immutable `Branding` schema, edition constants, and three zero-argument lookups; opt-in valid environment override wins, packaged metadata otherwise wins, unsupported/missing metadata falls back to millionaire, and version lookup falls back to `0.0.0`."
         }
       ],
       "record_id": "prod-128378ed034c",
       "source_markdown": {
-        "production_file_audit": "## `quantide/config/branding.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `Branding`, `get_runtime_edition`, `get_branding`, `get_runtime_version`, `annotations`, `dataclass`, `lru_cache`, `PackageNotFoundError`, `packages_distributions`, `version`, `Path`, `RUNTIME_NAME`, `DEFAULT_EDITION`, `EDITION_ENV_VAR`, `EDITION_OVERRIDE_ENV_VAR`, `SUPPORTED_EDITIONS`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: get_runtime_edition; get_runtime_edition: boundary `override_edition is not None`; get_branding; get_runtime_version; module import exposes re-exports: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path; module import exposes constants/schema hooks: RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS.\n- **Observable outputs/DTO/HTML/persistence/events**: get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition; get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn'); get_runtime_version.get_runtime_version -> '0.0.0', version(package_name); attribute lookup yields re-exported symbols: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path; read-only public values are available: RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS.\n- **Failure/error/fallback**: get_runtime_version: on PackageNotFoundError: continue.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`.\n- **Upstream source**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/app_factory.py; quantide/config/settings.py; quantide/notify/mail.py; quantide/web/apis/broker.py; quantide/web/auth/forms.py; quantide/web/auth/routes.py; quantide/web/layouts/base.py; quantide/web/layouts/main.py; quantide/web/middleware_feature.py; quantide/web/pages/analysis.py; quantide/web/pages/home.py; quantide/web/pages/init_wizard.py; quantide/web/pages/trade_lightning.py; tests/unit/quantide/config/test_branding.py; tests/unit/quantide/config/test_fr_0703_config_contracts.py; tests/unit/quantide/config/test_fr_470_install.py; tests/unit/quantide/config/test_settings.py; tests/unit/quantide/notify/test_mail.py.\n- **Proposed ACs**: AC-PROP-128378ED-01; AC-PROP-128378ED-02; AC-PROP-128378ED-03.\n",
-        "proposed_requirements": "## `quantide/config/branding.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-128378ED-01** (function: get_runtime_edition, get_branding, get_runtime_version): `quantide/config/branding.py` 的 function `get_runtime_edition, get_branding, get_runtime_version` 接受/边界：get_runtime_edition；get_runtime_edition: boundary `override_edition is not None`；get_branding；get_runtime_version；可观察输出：get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition；get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。\n- **AC-PROP-128378ED-02** (class: Branding): `quantide/config/branding.py` 的 class `Branding` 接受/边界：get_runtime_edition；get_runtime_edition: boundary `override_edition is not None`；可观察输出：get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。\n- **AC-PROP-128378ED-03** (schema/re-export: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path, RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS): `quantide/config/branding.py` 的 schema/re-export `annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path, RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS` 接受/边界：get_runtime_version；module import exposes re-exports: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path；module import exposes constants/schema hooks: RUNTIME_NAME, DEFAULT_EDITION, EDITION_ENV_VAR, EDITION_OVERRIDE_ENV_VAR, SUPPORTED_EDITIONS；可观察输出：get_runtime_edition.get_runtime_edition -> packaged_edition or DEFAULT_EDITION, override_edition；get_branding.get_branding -> Branding(edition=edition, runtime_name=RUNTIME_NAME, product_name=product_name, release_package=release_package, company_name='Zillionare', support_email='business@quantide.cn')；get_runtime_version.get_runtime_version -> '0.0.0', version(package_name)；attribute lookup yields re-exported symbols: annotations, dataclass, lru_cache, PackageNotFoundError, packages_distributions, version, Path；失败/回退：get_runtime_version: on PackageNotFoundError: continue；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/branding.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/app_factory.py; quantide/config/settings.py; quantide/notify/mail.py; quantide/web/apis/broker.py; quantide/web/auth/forms.py.\n- **Coverage target**: 80%.\n"
+        "production_file_audit": "## `quantide/config/branding.py`\n\n- **Source-grounded contract**: The branding API exposes the immutable `Branding` schema, edition constants, and three zero-argument lookups; opt-in valid environment override wins, packaged metadata otherwise wins, unsupported/missing metadata falls back to millionaire, and version lookup falls back to `0.0.0`.\n- **Source anchors**: branding constants at quantide/config/branding.py:17-21; Branding at quantide/config/branding.py:24-42; get_runtime_edition at quantide/config/branding.py:111-118; get_branding at quantide/config/branding.py:121-138; get_runtime_version at quantide/config/branding.py:141-149; explicit export list at quantide/config/branding.py:152-162.\n- **Evidence**: .louke/project/specs/v0.2-003-coverage/spec.md:594-602 (FR-0703); .louke/project/specs/v0.2-003-coverage/acceptance.md:689-695 (FR-0703 AC-1..2); tests/unit/quantide/config/test_branding.py:6-69; tests/unit/quantide/config/test_fr_0703_config_contracts.py:9-20; quantide/config/settings.py:210-226.\n",
+        "proposed_requirements": "## `quantide/config/branding.py`\n\n- **AC-PROP-128378ED-01**: The branding API exposes the immutable `Branding` schema, edition constants, and three zero-argument lookups; opt-in valid environment override wins, packaged metadata otherwise wins, unsupported/missing metadata falls back to millionaire, and version lookup falls back to `0.0.0`.\n"
       }
     },
     {
@@ -345,115 +336,106 @@
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
       "proposed_disposition": "retain and behavior-test to >= 80%",
       "proposed_requirement_ac_text": [
-        "`quantide/config/dev_stubs.py` 的 function `dev_stubs_enabled, ensure_dev_stubs_started, reset_dev_stub_runtime_for_tests` 接受/边界：dev_stubs_enabled；ensure_dev_stubs_started；ensure_dev_stubs_started: boundary `not dev_stubs_enabled()`；ensure_dev_stubs_started: boundary `_DEV_STUB_RUNTIME is not None`；可观察输出：dev_stubs_enabled.dev_stubs_enabled -> value in _ENABLED_VALUES；ensure_dev_stubs_started.ensure_dev_stubs_started -> _DEV_STUB_RUNTIME, None；reset_dev_stub_runtime_for_tests.reset_dev_stub_runtime_for_tests -> implicit None；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；ensure_dev_stubs_started: on ImportError: raise RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。') from exc；状态/清理：DevStubRuntime: self._gateway_stub.stop()。",
-        "`quantide/config/dev_stubs.py` 的 class `DevStubRuntime` 接受/边界：DevStubRuntime.stopself；可观察输出：DevStubRuntime.stopself -> implicit None；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；状态/清理：DevStubRuntime: self._gateway_stub.stop()。",
-        "`quantide/config/dev_stubs.py` 的 schema/re-export `annotations, dataclass, Any, urlparse, logger, DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD` 接受/边界：module import exposes re-exports: annotations, dataclass, Any, urlparse, logger；module import exposes constants/schema hooks: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Any, urlparse, logger；read-only public values are available: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；状态/清理：DevStubRuntime: self._gateway_stub.stop()。"
+        "The dev-stub API is opt-in and process-idempotent: disabled startup returns `None`, enabled startup enters the fixture patch and starts one gateway runtime, missing support modules raise `RuntimeError`, and `stop`/reset/atexit stop the gateway and restore the patch."
       ],
       "aaron_decision_candidate": null,
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 12,
       "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "retained executable public surface",
+        "status": "opt-in development-stub lifecycle API",
         "public_symbols": [
+          "DEV_STUBS_ENV_VAR",
+          "DEV_STUB_GATEWAY_API_KEY",
+          "DEV_STUB_GATEWAY_PASSWORD",
+          "DEV_STUB_GATEWAY_USERNAME",
+          "DEV_STUB_TUSHARE_TOKEN",
           "DevStubRuntime",
           "dev_stubs_enabled",
           "ensure_dev_stubs_started",
-          "reset_dev_stub_runtime_for_tests",
-          "annotations",
-          "dataclass",
-          "Any",
-          "urlparse",
-          "logger",
-          "DEV_STUBS_ENV_VAR",
-          "DEV_STUB_TUSHARE_TOKEN",
-          "DEV_STUB_GATEWAY_API_KEY",
-          "DEV_STUB_GATEWAY_USERNAME",
-          "DEV_STUB_GATEWAY_PASSWORD"
+          "reset_dev_stub_runtime_for_tests"
         ],
-        "routes_or_registry_hooks": [],
+        "routes_or_registry_hooks": [
+          "Registers process cleanup with `atexit` after successful startup"
+        ],
+        "signatures": [
+          "DevStubRuntime.stop(self) -> None",
+          "dev_stubs_enabled() -> bool",
+          "ensure_dev_stubs_started() -> DevStubRuntime | None",
+          "reset_dev_stub_runtime_for_tests() -> None"
+        ],
         "accepted_inputs_and_boundaries": [
-          "DevStubRuntime.stopself",
-          "dev_stubs_enabled",
-          "ensure_dev_stubs_started",
-          "ensure_dev_stubs_started: boundary `not dev_stubs_enabled()`",
-          "ensure_dev_stubs_started: boundary `_DEV_STUB_RUNTIME is not None`",
-          "reset_dev_stub_runtime_for_tests",
-          "module import exposes re-exports: annotations, dataclass, Any, urlparse, logger",
-          "module import exposes constants/schema hooks: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD"
+          "Enablement reads `QUANTIDE_ENABLE_DEV_STUBS`, accepting case-insensitive `1|true|yes|on`.",
+          "Startup takes no arguments and is idempotent per process."
         ],
         "observable_outputs": [
-          "DevStubRuntime.stopself -> implicit None",
-          "dev_stubs_enabled.dev_stubs_enabled -> value in _ENABLED_VALUES",
-          "ensure_dev_stubs_started.ensure_dev_stubs_started -> _DEV_STUB_RUNTIME, None",
-          "reset_dev_stub_runtime_for_tests.reset_dev_stub_runtime_for_tests -> implicit None",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, Any, urlparse, logger",
-          "read-only public values are available: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD"
+          "Disabled startup returns `None`; repeated enabled startup returns the same runtime.",
+          "Successful startup returns endpoint/credential metadata for the local gateway and fixture-backed Tushare patch."
         ],
         "failure_error_fallback": [
-          "ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')",
-          "ensure_dev_stubs_started: on ImportError: raise RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。') from exc"
+          "Missing repository test-support modules raise a chained `RuntimeError` with the source-repository requirement.",
+          "If gateway startup fails after entering the Tushare patch, that exception propagates; the source has no compensating rollback for this partial-start boundary."
         ],
         "state_mutations_and_cleanup": [
-          "DevStubRuntime: self._gateway_stub.stop()"
+          "Startup enters the Tushare patch, starts a gateway stub, stores `_DEV_STUB_RUNTIME`, logs, and registers cleanup.",
+          "`stop` always exits the Tushare patch after attempting gateway stop; reset/atexit stop and clear the global runtime."
+        ],
+        "source_anchors": [
+          {
+            "symbol": "public dev-stub constants",
+            "lines": "quantide/config/dev_stubs.py:23-27"
+          },
+          {
+            "symbol": "DevStubRuntime",
+            "lines": "quantide/config/dev_stubs.py:32-52"
+          },
+          {
+            "symbol": "dev_stubs_enabled",
+            "lines": "quantide/config/dev_stubs.py:58-61"
+          },
+          {
+            "symbol": "ensure_dev_stubs_started",
+            "lines": "quantide/config/dev_stubs.py:64-102"
+          },
+          {
+            "symbol": "reset_dev_stub_runtime_for_tests",
+            "lines": "quantide/config/dev_stubs.py:115-117"
+          },
+          {
+            "symbol": "explicit export list",
+            "lines": "quantide/config/dev_stubs.py:120-130"
+          }
         ],
         "upstream_contract_sources": [
-          "v0.2-003 FR-0703",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+          ".louke/project/specs/v0.2-003-coverage/spec.md:601-609 (FR-0703)",
+          ".louke/project/specs/v0.2-003-coverage/acceptance.md:693-695 (FR-0703 AC-2)",
+          ".louke/project/specs/v0.2-003-coverage/spec.md:628-635 (NFR-0020 cleanup)"
         ],
         "consumer_evidence": [
-          "quantide/app_factory.py",
-          "quantide/config/settings.py",
-          "quantide/data/models/stocks.py",
-          "quantide/service/init_wizard.py",
-          "quantide/web/pages/init_wizard.py",
-          "quantide/web/pages/system/gateway.py",
-          "tests/e2e/conftest.py",
-          "tests/e2e/http_integration/test_http_broker_api.py",
-          "tests/e2e/web/test_dev_stub_mode.py",
-          "tests/e2e/web/test_init_wizard_flow.py",
-          "tests/unit/quantide/config/test_settings.py"
+          "quantide/app_factory.py:222-227",
+          "quantide/config/settings.py:150-170",
+          "tests/e2e/conftest.py:13-16"
         ],
+        "evidence_note": "Dataclass/type/logger/urlparse imports remain private dependencies.",
         "proposed_acs": [
           {
             "id": "AC-PROP-96CDA393-01",
-            "surface": "function: dev_stubs_enabled, ensure_dev_stubs_started, reset_dev_stub_runtime_for_tests",
-            "statement": "`quantide/config/dev_stubs.py` 的 function `dev_stubs_enabled, ensure_dev_stubs_started, reset_dev_stub_runtime_for_tests` 接受/边界：dev_stubs_enabled；ensure_dev_stubs_started；ensure_dev_stubs_started: boundary `not dev_stubs_enabled()`；ensure_dev_stubs_started: boundary `_DEV_STUB_RUNTIME is not None`；可观察输出：dev_stubs_enabled.dev_stubs_enabled -> value in _ENABLED_VALUES；ensure_dev_stubs_started.ensure_dev_stubs_started -> _DEV_STUB_RUNTIME, None；reset_dev_stub_runtime_for_tests.reset_dev_stub_runtime_for_tests -> implicit None；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；ensure_dev_stubs_started: on ImportError: raise RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。') from exc；状态/清理：DevStubRuntime: self._gateway_stub.stop()。"
-          },
-          {
-            "id": "AC-PROP-96CDA393-02",
-            "surface": "class: DevStubRuntime",
-            "statement": "`quantide/config/dev_stubs.py` 的 class `DevStubRuntime` 接受/边界：DevStubRuntime.stopself；可观察输出：DevStubRuntime.stopself -> implicit None；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；状态/清理：DevStubRuntime: self._gateway_stub.stop()。"
-          },
-          {
-            "id": "AC-PROP-96CDA393-03",
-            "surface": "schema/re-export: annotations, dataclass, Any, urlparse, logger, DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD",
-            "statement": "`quantide/config/dev_stubs.py` 的 schema/re-export `annotations, dataclass, Any, urlparse, logger, DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD` 接受/边界：module import exposes re-exports: annotations, dataclass, Any, urlparse, logger；module import exposes constants/schema hooks: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Any, urlparse, logger；read-only public values are available: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；状态/清理：DevStubRuntime: self._gateway_stub.stop()。"
+            "surface": "source-grounded public surface",
+            "statement": "The dev-stub API is opt-in and process-idempotent: disabled startup returns `None`, enabled startup enters the fixture patch and starts one gateway runtime, missing support modules raise `RuntimeError`, and `stop`/reset/atexit stop the gateway and restore the patch."
           }
         ]
       },
       "contract_ac_proposals": [
         {
           "id": "AC-PROP-96CDA393-01",
-          "surface": "function: dev_stubs_enabled, ensure_dev_stubs_started, reset_dev_stub_runtime_for_tests",
-          "statement": "`quantide/config/dev_stubs.py` 的 function `dev_stubs_enabled, ensure_dev_stubs_started, reset_dev_stub_runtime_for_tests` 接受/边界：dev_stubs_enabled；ensure_dev_stubs_started；ensure_dev_stubs_started: boundary `not dev_stubs_enabled()`；ensure_dev_stubs_started: boundary `_DEV_STUB_RUNTIME is not None`；可观察输出：dev_stubs_enabled.dev_stubs_enabled -> value in _ENABLED_VALUES；ensure_dev_stubs_started.ensure_dev_stubs_started -> _DEV_STUB_RUNTIME, None；reset_dev_stub_runtime_for_tests.reset_dev_stub_runtime_for_tests -> implicit None；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；ensure_dev_stubs_started: on ImportError: raise RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。') from exc；状态/清理：DevStubRuntime: self._gateway_stub.stop()。"
-        },
-        {
-          "id": "AC-PROP-96CDA393-02",
-          "surface": "class: DevStubRuntime",
-          "statement": "`quantide/config/dev_stubs.py` 的 class `DevStubRuntime` 接受/边界：DevStubRuntime.stopself；可观察输出：DevStubRuntime.stopself -> implicit None；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；状态/清理：DevStubRuntime: self._gateway_stub.stop()。"
-        },
-        {
-          "id": "AC-PROP-96CDA393-03",
-          "surface": "schema/re-export: annotations, dataclass, Any, urlparse, logger, DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD",
-          "statement": "`quantide/config/dev_stubs.py` 的 schema/re-export `annotations, dataclass, Any, urlparse, logger, DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD` 接受/边界：module import exposes re-exports: annotations, dataclass, Any, urlparse, logger；module import exposes constants/schema hooks: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Any, urlparse, logger；read-only public values are available: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；状态/清理：DevStubRuntime: self._gateway_stub.stop()。"
+          "surface": "source-grounded public surface",
+          "statement": "The dev-stub API is opt-in and process-idempotent: disabled startup returns `None`, enabled startup enters the fixture patch and starts one gateway runtime, missing support modules raise `RuntimeError`, and `stop`/reset/atexit stop the gateway and restore the patch."
         }
       ],
       "record_id": "prod-96cda3935ab3",
       "source_markdown": {
-        "production_file_audit": "## `quantide/config/dev_stubs.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `DevStubRuntime`, `dev_stubs_enabled`, `ensure_dev_stubs_started`, `reset_dev_stub_runtime_for_tests`, `annotations`, `dataclass`, `Any`, `urlparse`, `logger`, `DEV_STUBS_ENV_VAR`, `DEV_STUB_TUSHARE_TOKEN`, `DEV_STUB_GATEWAY_API_KEY`, `DEV_STUB_GATEWAY_USERNAME`, `DEV_STUB_GATEWAY_PASSWORD`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: DevStubRuntime.stopself; dev_stubs_enabled; ensure_dev_stubs_started; ensure_dev_stubs_started: boundary `not dev_stubs_enabled()`; ensure_dev_stubs_started: boundary `_DEV_STUB_RUNTIME is not None`; reset_dev_stub_runtime_for_tests; module import exposes re-exports: annotations, dataclass, Any, urlparse, logger; module import exposes constants/schema hooks: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD.\n- **Observable outputs/DTO/HTML/persistence/events**: DevStubRuntime.stopself -> implicit None; dev_stubs_enabled.dev_stubs_enabled -> value in _ENABLED_VALUES; ensure_dev_stubs_started.ensure_dev_stubs_started -> _DEV_STUB_RUNTIME, None; reset_dev_stub_runtime_for_tests.reset_dev_stub_runtime_for_tests -> implicit None; attribute lookup yields re-exported symbols: annotations, dataclass, Any, urlparse, logger; read-only public values are available: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD.\n- **Failure/error/fallback**: ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。'); ensure_dev_stubs_started: on ImportError: raise RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。') from exc.\n- **State mutation/cleanup**: DevStubRuntime: self._gateway_stub.stop().\n- **Upstream source**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/app_factory.py; quantide/config/settings.py; quantide/data/models/stocks.py; quantide/service/init_wizard.py; quantide/web/pages/init_wizard.py; quantide/web/pages/system/gateway.py; tests/e2e/conftest.py; tests/e2e/http_integration/test_http_broker_api.py; tests/e2e/web/test_dev_stub_mode.py; tests/e2e/web/test_init_wizard_flow.py; tests/unit/quantide/config/test_settings.py.\n- **Proposed ACs**: AC-PROP-96CDA393-01; AC-PROP-96CDA393-02; AC-PROP-96CDA393-03.\n",
-        "proposed_requirements": "## `quantide/config/dev_stubs.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-96CDA393-01** (function: dev_stubs_enabled, ensure_dev_stubs_started, reset_dev_stub_runtime_for_tests): `quantide/config/dev_stubs.py` 的 function `dev_stubs_enabled, ensure_dev_stubs_started, reset_dev_stub_runtime_for_tests` 接受/边界：dev_stubs_enabled；ensure_dev_stubs_started；ensure_dev_stubs_started: boundary `not dev_stubs_enabled()`；ensure_dev_stubs_started: boundary `_DEV_STUB_RUNTIME is not None`；可观察输出：dev_stubs_enabled.dev_stubs_enabled -> value in _ENABLED_VALUES；ensure_dev_stubs_started.ensure_dev_stubs_started -> _DEV_STUB_RUNTIME, None；reset_dev_stub_runtime_for_tests.reset_dev_stub_runtime_for_tests -> implicit None；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；ensure_dev_stubs_started: on ImportError: raise RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。') from exc；状态/清理：DevStubRuntime: self._gateway_stub.stop()。\n- **AC-PROP-96CDA393-02** (class: DevStubRuntime): `quantide/config/dev_stubs.py` 的 class `DevStubRuntime` 接受/边界：DevStubRuntime.stopself；可观察输出：DevStubRuntime.stopself -> implicit None；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；状态/清理：DevStubRuntime: self._gateway_stub.stop()。\n- **AC-PROP-96CDA393-03** (schema/re-export: annotations, dataclass, Any, urlparse, logger, DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD): `quantide/config/dev_stubs.py` 的 schema/re-export `annotations, dataclass, Any, urlparse, logger, DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD` 接受/边界：module import exposes re-exports: annotations, dataclass, Any, urlparse, logger；module import exposes constants/schema hooks: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Any, urlparse, logger；read-only public values are available: DEV_STUBS_ENV_VAR, DEV_STUB_TUSHARE_TOKEN, DEV_STUB_GATEWAY_API_KEY, DEV_STUB_GATEWAY_USERNAME, DEV_STUB_GATEWAY_PASSWORD；失败/回退：ensure_dev_stubs_started: raises RuntimeError('开发 stub 模式依赖仓库内的 tests/e2e/support 目录，请在源码仓库中运行。')；状态/清理：DevStubRuntime: self._gateway_stub.stop()。\n- **Contract source/consumer evidence**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/app_factory.py; quantide/config/settings.py; quantide/data/models/stocks.py; quantide/service/init_wizard.py; quantide/web/pages/init_wizard.py.\n- **Coverage target**: 80%.\n"
+        "production_file_audit": "## `quantide/config/dev_stubs.py`\n\n- **Source-grounded contract**: The dev-stub API is opt-in and process-idempotent: disabled startup returns `None`, enabled startup enters the fixture patch and starts one gateway runtime, missing support modules raise `RuntimeError`, and `stop`/reset/atexit stop the gateway and restore the patch.\n- **Source anchors**: public dev-stub constants at quantide/config/dev_stubs.py:23-27; DevStubRuntime at quantide/config/dev_stubs.py:32-52; dev_stubs_enabled at quantide/config/dev_stubs.py:58-61; ensure_dev_stubs_started at quantide/config/dev_stubs.py:64-102; reset_dev_stub_runtime_for_tests at quantide/config/dev_stubs.py:115-117; explicit export list at quantide/config/dev_stubs.py:120-130.\n- **Evidence**: .louke/project/specs/v0.2-003-coverage/spec.md:601-609 (FR-0703); .louke/project/specs/v0.2-003-coverage/acceptance.md:693-695 (FR-0703 AC-2); .louke/project/specs/v0.2-003-coverage/spec.md:628-635 (NFR-0020 cleanup); quantide/app_factory.py:222-227; quantide/config/settings.py:150-170; tests/e2e/conftest.py:13-16.\n",
+        "proposed_requirements": "## `quantide/config/dev_stubs.py`\n\n- **AC-PROP-96CDA393-01**: The dev-stub API is opt-in and process-idempotent: disabled startup returns `None`, enabled startup enters the fixture patch and starts one gateway runtime, missing support modules raise `RuntimeError`, and `stop`/reset/atexit stop the gateway and restore the patch.\n"
       }
     },
     {
@@ -538,138 +520,111 @@
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
       "proposed_disposition": "retain and behavior-test to >= 80%",
       "proposed_requirement_ac_text": [
-        "`quantide/config/paths.py` 的 function `normalize_data_home, set_app_config_dir_override, clear_app_config_dir_override, get_app_config_dir, ensure_app_config_dir` 接受/边界：normalize_data_homehome: str | Path | None=None；set_app_config_dir_overridepath: str | Path | None；clear_app_config_dir_override；get_app_config_dir；可观察输出：normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())；set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous；clear_app_config_dir_override.clear_app_config_dir_override -> implicit None；get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。",
-        "`quantide/config/paths.py` 的 function `get_app_db_path, get_pid_file_path, get_strategy_runtime_state_path, get_backtest_log_dir, get_backtest_log_path` 接受/边界：get_app_db_path；get_pid_file_path；get_strategy_runtime_state_path；get_backtest_log_dir；可观察输出：get_app_db_path.get_app_db_path -> ensure_app_config_dir() / 'quantide.db'；get_pid_file_path.get_pid_file_path -> ensure_app_config_dir() / '.quantide.pid'；get_strategy_runtime_state_path.get_strategy_runtime_state_path -> ensure_app_config_dir() / 'strategy_runtimes.json'；get_backtest_log_dir.get_backtest_log_dir -> path；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。",
-        "`quantide/config/paths.py` 的 schema/re-export `annotations, Path, DEFAULT_DATA_HOME` 接受/边界：normalize_data_homehome: str | Path | None=None；set_app_config_dir_overridepath: str | Path | None；module import exposes re-exports: annotations, Path；module import exposes constants/schema hooks: DEFAULT_DATA_HOME；可观察输出：normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())；set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous；get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'；attribute lookup yields re-exported symbols: annotations, Path；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。"
+        "Path helpers normalize blank data homes, maintain one reversible process config override, resolve platform-specific defaults, create only the requested config/backtest directories, and derive fixed DB/PID/runtime-state/JSONL paths while propagating filesystem failures."
       ],
       "aaron_decision_candidate": null,
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 0,
       "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "retained executable public surface",
+        "status": "runtime path resolution and process override API",
         "public_symbols": [
-          "normalize_data_home",
-          "set_app_config_dir_override",
+          "DEFAULT_DATA_HOME",
           "clear_app_config_dir_override",
-          "get_app_config_dir",
           "ensure_app_config_dir",
+          "get_app_config_dir",
           "get_app_db_path",
-          "get_pid_file_path",
-          "get_strategy_runtime_state_path",
           "get_backtest_log_dir",
           "get_backtest_log_path",
-          "annotations",
-          "Path",
-          "DEFAULT_DATA_HOME"
-        ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "normalize_data_homehome: str | Path | None=None",
-          "set_app_config_dir_overridepath: str | Path | None",
-          "clear_app_config_dir_override",
-          "get_app_config_dir",
-          "get_app_config_dir: boundary `_APP_CONFIG_DIR_OVERRIDE is not None`",
-          "get_app_config_dir: boundary `sys.platform.startswith('win')`",
-          "get_app_config_dir: boundary `base`",
-          "ensure_app_config_dir",
-          "get_app_db_path",
           "get_pid_file_path",
           "get_strategy_runtime_state_path",
-          "get_backtest_log_dir",
-          "get_backtest_log_pathportfolio_id: str",
-          "module import exposes re-exports: annotations, Path",
-          "module import exposes constants/schema hooks: DEFAULT_DATA_HOME"
+          "normalize_data_home",
+          "set_app_config_dir_override"
+        ],
+        "routes_or_registry_hooks": [],
+        "signatures": [
+          "normalize_data_home(home: str | Path | None = None) -> str",
+          "set_app_config_dir_override(path: str | Path | None) -> Path | None",
+          "clear_app_config_dir_override() -> None",
+          "get_app_config_dir() -> Path",
+          "ensure_app_config_dir() -> Path",
+          "get_app_db_path() -> Path",
+          "get_pid_file_path() -> Path",
+          "get_strategy_runtime_state_path() -> Path",
+          "get_backtest_log_dir() -> Path",
+          "get_backtest_log_path(portfolio_id: str) -> Path"
+        ],
+        "accepted_inputs_and_boundaries": [
+          "Blank data-home input uses `~/.quantide`; all user paths expand `~`.",
+          "Blank/`None` config override clears the override; otherwise it stores the expanded `Path`.",
+          "Platform and `APPDATA`/`XDG_CONFIG_HOME` select the default config root."
         ],
         "observable_outputs": [
-          "normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())",
-          "set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous",
-          "clear_app_config_dir_override.clear_app_config_dir_override -> implicit None",
-          "get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'",
-          "ensure_app_config_dir.ensure_app_config_dir -> path",
-          "get_app_db_path.get_app_db_path -> ensure_app_config_dir() / 'quantide.db'",
-          "get_pid_file_path.get_pid_file_path -> ensure_app_config_dir() / '.quantide.pid'",
-          "get_strategy_runtime_state_path.get_strategy_runtime_state_path -> ensure_app_config_dir() / 'strategy_runtimes.json'",
-          "get_backtest_log_dir.get_backtest_log_dir -> path",
-          "get_backtest_log_path.get_backtest_log_pathportfolio_id: str -> get_backtest_log_dir() / filename",
-          "attribute lookup yields re-exported symbols: annotations, Path",
-          "read-only public values are available: DEFAULT_DATA_HOME"
+          "Returns deterministic config, DB, PID, runtime-state, backtest directory, and `<portfolio_id>.jsonl` paths.",
+          "`set_app_config_dir_override` returns the previous override."
         ],
         "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`"
+          "Filesystem `mkdir` errors and invalid path operations propagate; no path-local fallback hides them."
         ],
         "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`"
+          "Override setters mutate one process-global path.",
+          "`ensure_app_config_dir` and backtest-log path resolution create directories recursively; clear resets the override."
+        ],
+        "source_anchors": [
+          {
+            "symbol": "DEFAULT_DATA_HOME",
+            "lines": "quantide/config/paths.py:7"
+          },
+          {
+            "symbol": "normalize_data_home",
+            "lines": "quantide/config/paths.py:11-18"
+          },
+          {
+            "symbol": "config override API",
+            "lines": "quantide/config/paths.py:21-39"
+          },
+          {
+            "symbol": "config/DB/PID/runtime path API",
+            "lines": "quantide/config/paths.py:42-78"
+          },
+          {
+            "symbol": "backtest-log path API",
+            "lines": "quantide/config/paths.py:81-91"
+          },
+          {
+            "symbol": "explicit export list",
+            "lines": "quantide/config/paths.py:94-106"
+          }
         ],
         "upstream_contract_sources": [
-          "v0.2-003 FR-0703",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+          ".louke/project/specs/v0.2-003-coverage/spec.md:601-609 (FR-0703)",
+          ".louke/project/specs/v0.2-003-coverage/acceptance.md:689-711 (FR-0703 AC-1,3,6)"
         ],
         "consumer_evidence": [
-          "quantide/app_factory.py",
-          "quantide/config/settings.py",
-          "quantide/data/__init__.py",
-          "quantide/service/backtest_logs.py",
-          "quantide/service/init_wizard.py",
-          "quantide/service/strategy_runtime.py",
-          "quantide/web/auth/database.py",
-          "quantide/web/auth/manager.py",
-          "quantide/web/pages/init_wizard.py",
-          "quantide/config/__init__.py",
-          "quantide/web/auth/middleware.py",
-          "tests/conftest.py",
-          "tests/e2e/conftest.py",
-          "tests/e2e/http_integration/test_http_broker_api.py",
-          "tests/e2e/support/init_wizard_session.py",
-          "tests/e2e/support/system_settings_session.py",
-          "tests/unit/_infra/test_isolation_and_determinism.py",
-          "tests/unit/quantide/config/test_fr_0703_config_contracts.py",
-          "tests/unit/quantide/config/test_fr_470_install.py",
-          "tests/unit/quantide/config/test_paths.py",
-          "tests/unit/quantide/core/test_strategy_runner.py",
-          "tests/unit/quantide/service/test_backtest_logs.py",
-          "tests/unit/quantide/service/test_init_wizard.py"
+          "tests/unit/quantide/config/test_paths.py:6-43",
+          "quantide/app_factory.py:29-35",
+          "quantide/service/backtest_logs.py"
         ],
+        "evidence_note": "Only the explicit export list is normative.",
         "proposed_acs": [
           {
             "id": "AC-PROP-065B84A7-01",
-            "surface": "function: normalize_data_home, set_app_config_dir_override, clear_app_config_dir_override, get_app_config_dir, ensure_app_config_dir",
-            "statement": "`quantide/config/paths.py` 的 function `normalize_data_home, set_app_config_dir_override, clear_app_config_dir_override, get_app_config_dir, ensure_app_config_dir` 接受/边界：normalize_data_homehome: str | Path | None=None；set_app_config_dir_overridepath: str | Path | None；clear_app_config_dir_override；get_app_config_dir；可观察输出：normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())；set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous；clear_app_config_dir_override.clear_app_config_dir_override -> implicit None；get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。"
-          },
-          {
-            "id": "AC-PROP-065B84A7-02",
-            "surface": "function: get_app_db_path, get_pid_file_path, get_strategy_runtime_state_path, get_backtest_log_dir, get_backtest_log_path",
-            "statement": "`quantide/config/paths.py` 的 function `get_app_db_path, get_pid_file_path, get_strategy_runtime_state_path, get_backtest_log_dir, get_backtest_log_path` 接受/边界：get_app_db_path；get_pid_file_path；get_strategy_runtime_state_path；get_backtest_log_dir；可观察输出：get_app_db_path.get_app_db_path -> ensure_app_config_dir() / 'quantide.db'；get_pid_file_path.get_pid_file_path -> ensure_app_config_dir() / '.quantide.pid'；get_strategy_runtime_state_path.get_strategy_runtime_state_path -> ensure_app_config_dir() / 'strategy_runtimes.json'；get_backtest_log_dir.get_backtest_log_dir -> path；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。"
-          },
-          {
-            "id": "AC-PROP-065B84A7-03",
-            "surface": "schema/re-export: annotations, Path, DEFAULT_DATA_HOME",
-            "statement": "`quantide/config/paths.py` 的 schema/re-export `annotations, Path, DEFAULT_DATA_HOME` 接受/边界：normalize_data_homehome: str | Path | None=None；set_app_config_dir_overridepath: str | Path | None；module import exposes re-exports: annotations, Path；module import exposes constants/schema hooks: DEFAULT_DATA_HOME；可观察输出：normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())；set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous；get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'；attribute lookup yields re-exported symbols: annotations, Path；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。"
+            "surface": "source-grounded public surface",
+            "statement": "Path helpers normalize blank data homes, maintain one reversible process config override, resolve platform-specific defaults, create only the requested config/backtest directories, and derive fixed DB/PID/runtime-state/JSONL paths while propagating filesystem failures."
           }
         ]
       },
       "contract_ac_proposals": [
         {
           "id": "AC-PROP-065B84A7-01",
-          "surface": "function: normalize_data_home, set_app_config_dir_override, clear_app_config_dir_override, get_app_config_dir, ensure_app_config_dir",
-          "statement": "`quantide/config/paths.py` 的 function `normalize_data_home, set_app_config_dir_override, clear_app_config_dir_override, get_app_config_dir, ensure_app_config_dir` 接受/边界：normalize_data_homehome: str | Path | None=None；set_app_config_dir_overridepath: str | Path | None；clear_app_config_dir_override；get_app_config_dir；可观察输出：normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())；set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous；clear_app_config_dir_override.clear_app_config_dir_override -> implicit None；get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。"
-        },
-        {
-          "id": "AC-PROP-065B84A7-02",
-          "surface": "function: get_app_db_path, get_pid_file_path, get_strategy_runtime_state_path, get_backtest_log_dir, get_backtest_log_path",
-          "statement": "`quantide/config/paths.py` 的 function `get_app_db_path, get_pid_file_path, get_strategy_runtime_state_path, get_backtest_log_dir, get_backtest_log_path` 接受/边界：get_app_db_path；get_pid_file_path；get_strategy_runtime_state_path；get_backtest_log_dir；可观察输出：get_app_db_path.get_app_db_path -> ensure_app_config_dir() / 'quantide.db'；get_pid_file_path.get_pid_file_path -> ensure_app_config_dir() / '.quantide.pid'；get_strategy_runtime_state_path.get_strategy_runtime_state_path -> ensure_app_config_dir() / 'strategy_runtimes.json'；get_backtest_log_dir.get_backtest_log_dir -> path；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。"
-        },
-        {
-          "id": "AC-PROP-065B84A7-03",
-          "surface": "schema/re-export: annotations, Path, DEFAULT_DATA_HOME",
-          "statement": "`quantide/config/paths.py` 的 schema/re-export `annotations, Path, DEFAULT_DATA_HOME` 接受/边界：normalize_data_homehome: str | Path | None=None；set_app_config_dir_overridepath: str | Path | None；module import exposes re-exports: annotations, Path；module import exposes constants/schema hooks: DEFAULT_DATA_HOME；可观察输出：normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())；set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous；get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'；attribute lookup yields re-exported symbols: annotations, Path；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。"
+          "surface": "source-grounded public surface",
+          "statement": "Path helpers normalize blank data homes, maintain one reversible process config override, resolve platform-specific defaults, create only the requested config/backtest directories, and derive fixed DB/PID/runtime-state/JSONL paths while propagating filesystem failures."
         }
       ],
       "record_id": "prod-065b84a77706",
       "source_markdown": {
-        "production_file_audit": "## `quantide/config/paths.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `normalize_data_home`, `set_app_config_dir_override`, `clear_app_config_dir_override`, `get_app_config_dir`, `ensure_app_config_dir`, `get_app_db_path`, `get_pid_file_path`, `get_strategy_runtime_state_path`, `get_backtest_log_dir`, `get_backtest_log_path`, `annotations`, `Path`, `DEFAULT_DATA_HOME`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: normalize_data_homehome: str | Path | None=None; set_app_config_dir_overridepath: str | Path | None; clear_app_config_dir_override; get_app_config_dir; get_app_config_dir: boundary `_APP_CONFIG_DIR_OVERRIDE is not None`; get_app_config_dir: boundary `sys.platform.startswith('win')`; get_app_config_dir: boundary `base`; ensure_app_config_dir; get_app_db_path; get_pid_file_path; get_strategy_runtime_state_path; get_backtest_log_dir; get_backtest_log_pathportfolio_id: str; module import exposes re-exports: annotations, Path; module import exposes constants/schema hooks: DEFAULT_DATA_HOME.\n- **Observable outputs/DTO/HTML/persistence/events**: normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser()); set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous; clear_app_config_dir_override.clear_app_config_dir_override -> implicit None; get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'; ensure_app_config_dir.ensure_app_config_dir -> path; get_app_db_path.get_app_db_path -> ensure_app_config_dir() / 'quantide.db'; get_pid_file_path.get_pid_file_path -> ensure_app_config_dir() / '.quantide.pid'; get_strategy_runtime_state_path.get_strategy_runtime_state_path -> ensure_app_config_dir() / 'strategy_runtimes.json'; get_backtest_log_dir.get_backtest_log_dir -> path; get_backtest_log_path.get_backtest_log_pathportfolio_id: str -> get_backtest_log_dir() / filename; attribute lookup yields re-exported symbols: annotations, Path; read-only public values are available: DEFAULT_DATA_HOME.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`.\n- **Upstream source**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/app_factory.py; quantide/config/settings.py; quantide/data/__init__.py; quantide/service/backtest_logs.py; quantide/service/init_wizard.py; quantide/service/strategy_runtime.py; quantide/web/auth/database.py; quantide/web/auth/manager.py; quantide/web/pages/init_wizard.py; quantide/config/__init__.py; quantide/web/auth/middleware.py; tests/conftest.py; tests/e2e/conftest.py; tests/e2e/http_integration/test_http_broker_api.py; tests/e2e/support/init_wizard_session.py; tests/e2e/support/system_settings_session.py; tests/unit/_infra/test_isolation_and_determinism.py; tests/unit/quantide/config/test_fr_0703_config_contracts.py; tests/unit/quantide/config/test_fr_470_install.py; tests/unit/quantide/config/test_paths.py; tests/unit/quantide/core/test_strategy_runner.py; tests/unit/quantide/service/test_backtest_logs.py; tests/unit/quantide/service/test_init_wizard.py.\n- **Proposed ACs**: AC-PROP-065B84A7-01; AC-PROP-065B84A7-02; AC-PROP-065B84A7-03.\n",
-        "proposed_requirements": "## `quantide/config/paths.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-065B84A7-01** (function: normalize_data_home, set_app_config_dir_override, clear_app_config_dir_override, get_app_config_dir, ensure_app_config_dir): `quantide/config/paths.py` 的 function `normalize_data_home, set_app_config_dir_override, clear_app_config_dir_override, get_app_config_dir, ensure_app_config_dir` 接受/边界：normalize_data_homehome: str | Path | None=None；set_app_config_dir_overridepath: str | Path | None；clear_app_config_dir_override；get_app_config_dir；可观察输出：normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())；set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous；clear_app_config_dir_override.clear_app_config_dir_override -> implicit None；get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。\n- **AC-PROP-065B84A7-02** (function: get_app_db_path, get_pid_file_path, get_strategy_runtime_state_path, get_backtest_log_dir, get_backtest_log_path): `quantide/config/paths.py` 的 function `get_app_db_path, get_pid_file_path, get_strategy_runtime_state_path, get_backtest_log_dir, get_backtest_log_path` 接受/边界：get_app_db_path；get_pid_file_path；get_strategy_runtime_state_path；get_backtest_log_dir；可观察输出：get_app_db_path.get_app_db_path -> ensure_app_config_dir() / 'quantide.db'；get_pid_file_path.get_pid_file_path -> ensure_app_config_dir() / '.quantide.pid'；get_strategy_runtime_state_path.get_strategy_runtime_state_path -> ensure_app_config_dir() / 'strategy_runtimes.json'；get_backtest_log_dir.get_backtest_log_dir -> path；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。\n- **AC-PROP-065B84A7-03** (schema/re-export: annotations, Path, DEFAULT_DATA_HOME): `quantide/config/paths.py` 的 schema/re-export `annotations, Path, DEFAULT_DATA_HOME` 接受/边界：normalize_data_homehome: str | Path | None=None；set_app_config_dir_overridepath: str | Path | None；module import exposes re-exports: annotations, Path；module import exposes constants/schema hooks: DEFAULT_DATA_HOME；可观察输出：normalize_data_home.normalize_data_homehome: str | Path | None=None -> str(Path(text).expanduser())；set_app_config_dir_override.set_app_config_dir_overridepath: str | Path | None -> previous；get_app_config_dir.get_app_config_dir -> Path.home() / '.config' / 'quantide', _APP_CONFIG_DIR_OVERRIDE, Path.home() / 'AppData' / 'Roaming' / 'quantide', Path(base).expanduser() / 'quantide'；attribute lookup yields re-exported symbols: annotations, Path；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/config/paths.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/paths.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/app_factory.py; quantide/config/settings.py; quantide/data/__init__.py; quantide/service/backtest_logs.py; quantide/service/init_wizard.py.\n- **Coverage target**: 80%.\n"
+        "production_file_audit": "## `quantide/config/paths.py`\n\n- **Source-grounded contract**: Path helpers normalize blank data homes, maintain one reversible process config override, resolve platform-specific defaults, create only the requested config/backtest directories, and derive fixed DB/PID/runtime-state/JSONL paths while propagating filesystem failures.\n- **Source anchors**: DEFAULT_DATA_HOME at quantide/config/paths.py:7; normalize_data_home at quantide/config/paths.py:11-18; config override API at quantide/config/paths.py:21-39; config/DB/PID/runtime path API at quantide/config/paths.py:42-78; backtest-log path API at quantide/config/paths.py:81-91; explicit export list at quantide/config/paths.py:94-106.\n- **Evidence**: .louke/project/specs/v0.2-003-coverage/spec.md:601-609 (FR-0703); .louke/project/specs/v0.2-003-coverage/acceptance.md:689-711 (FR-0703 AC-1,3,6); tests/unit/quantide/config/test_paths.py:6-43; quantide/app_factory.py:29-35; quantide/service/backtest_logs.py.\n",
+        "proposed_requirements": "## `quantide/config/paths.py`\n\n- **AC-PROP-065B84A7-01**: Path helpers normalize blank data homes, maintain one reversible process config override, resolve platform-specific defaults, create only the requested config/backtest directories, and derive fixed DB/PID/runtime-state/JSONL paths while propagating filesystem failures.\n"
       }
     },
     {
@@ -766,21 +721,18 @@
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
       "proposed_disposition": "retain and behavior-test to >= 80%",
       "proposed_requirement_ac_text": [
-        "`quantide/config/settings.py` 的 function `parse_cheat_on_close_time, get_settings, get_data_home, get_timezone, get_cheat_on_close_time` 接受/边界：parse_cheat_on_close_timevalue: Any；parse_cheat_on_close_time: boundary `not isinstance(value, str)`；parse_cheat_on_close_time: boundary `len(parts) != 2`；parse_cheat_on_close_time: boundary `not (0 <= h <= 23 and 0 <= m <= 59)`；可观察输出：parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)；get_settings.get_settings -> settings, _apply_dev_stub_overrides(settings)；get_data_home.get_data_home -> get_settings().app_home；get_timezone.get_timezone -> get_settings().timezone；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be HH:MM, got {value!r}')；parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time out of clock range: {value!r}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。",
-        "`quantide/config/settings.py` 的 function `get_epoch, get_data_source, get_tushare_token, get_dingtalk_access_token, get_dingtalk_secret` 接受/边界：get_epoch；get_data_source；get_tushare_token；get_tushare_token: boundary `dev_stubs_enabled()`；可观察输出：get_epoch.get_epoch -> get_settings().epoch；get_data_source.get_data_source -> get_settings().data_source；get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN；get_dingtalk_access_token.get_dingtalk_access_token -> str(getattr(state, 'notify_dingtalk_access_token', '') or '')；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。",
-        "`quantide/config/settings.py` 的 function `get_dingtalk_keyword, get_mail_receivers, get_mail_sender, get_mail_server` 接受/边界：get_dingtalk_keyword；get_mail_receivers；get_mail_sender；get_mail_server；可观察输出：get_dingtalk_keyword.get_dingtalk_keyword -> str(getattr(state, 'notify_dingtalk_keyword', '') or '')；get_mail_receivers.get_mail_receivers -> _normalize_receivers(getattr(state, 'notify_mail_to', ''))；get_mail_sender.get_mail_sender -> str(getattr(state, 'notify_mail_from', '') or '')；get_mail_server.get_mail_server -> str(getattr(state, 'notify_mail_server', '') or '')；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。",
-        "`quantide/config/settings.py` 的 class `Settings` 接受/边界：Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE；可观察输出：Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。",
-        "`quantide/config/settings.py` 的 schema/re-export `annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home, DEFAULT_TIMEZONE` 接受/边界：parse_cheat_on_close_timevalue: Any；Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE；get_settings: boundary `dev_stubs_enabled()`；get_tushare_token: boundary `dev_stubs_enabled()`；可观察输出：parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)；Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…；get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN；attribute lookup yields re-exported symbols: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
+        "Settings getters project initialized `AppState` or defaults into immutable normalized settings, overlay opt-in dev stubs without persistence, validate close time as 09:00-15:00 with persisted fallback `14:57`, normalize recipients, and degrade DB read failures to defaults with deduplicated diagnostics."
       ],
       "aaron_decision_candidate": null,
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 0,
       "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "retained executable public surface",
+        "status": "effective persisted-settings read API",
         "public_symbols": [
-          "parse_cheat_on_close_time",
+          "DEFAULT_TIMEZONE",
           "Settings",
+          "parse_cheat_on_close_time",
           "get_settings",
           "get_data_home",
           "get_timezone",
@@ -793,172 +745,102 @@
           "get_dingtalk_keyword",
           "get_mail_receivers",
           "get_mail_sender",
-          "get_mail_server",
-          "annotations",
-          "dataclass",
-          "replace",
-          "Any",
-          "logger",
-          "get_branding",
-          "DEV_STUB_TUSHARE_TOKEN",
-          "dev_stubs_enabled",
-          "ensure_dev_stubs_started",
-          "normalize_data_home",
-          "DEFAULT_TIMEZONE"
+          "get_mail_server"
         ],
         "routes_or_registry_hooks": [],
+        "signatures": [
+          "Settings.from_state(state: Any | None, *, timezone: datetime.tzinfo = DEFAULT_TIMEZONE) -> Settings",
+          "parse_cheat_on_close_time(value: Any) -> datetime.time",
+          "get_settings() -> Settings",
+          "get_data_home() -> str",
+          "get_timezone() -> datetime.tzinfo",
+          "get_cheat_on_close_time() -> str",
+          "get_epoch() -> datetime.date",
+          "get_data_source() -> str",
+          "get_tushare_token() -> str",
+          "get_dingtalk_access_token() -> str",
+          "get_dingtalk_secret() -> str",
+          "get_dingtalk_keyword() -> str",
+          "get_mail_receivers() -> list[str]",
+          "get_mail_sender() -> str",
+          "get_mail_server() -> str"
+        ],
         "accepted_inputs_and_boundaries": [
-          "parse_cheat_on_close_timevalue: Any",
-          "parse_cheat_on_close_time: boundary `not isinstance(value, str)`",
-          "parse_cheat_on_close_time: boundary `len(parts) != 2`",
-          "parse_cheat_on_close_time: boundary `not (0 <= h <= 23 and 0 <= m <= 59)`",
-          "parse_cheat_on_close_time: boundary `not 9 <= h <= 15 or (h == 15 and m > 0)`",
-          "Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE",
-          "get_settings",
-          "get_settings: boundary `dev_stubs_enabled()`",
-          "get_data_home",
-          "get_timezone",
-          "get_cheat_on_close_time",
-          "get_epoch",
-          "get_data_source",
-          "get_tushare_token",
-          "get_tushare_token: boundary `dev_stubs_enabled()`",
-          "get_dingtalk_access_token",
-          "get_dingtalk_secret",
-          "get_dingtalk_keyword",
-          "get_mail_receivers",
-          "get_mail_sender",
-          "get_mail_server",
-          "module import exposes re-exports: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home",
-          "module import exposes constants/schema hooks: DEFAULT_TIMEZONE"
+          "`Settings.from_state` accepts an AppState-like object or `None`; getters read initialized SQLite state or defaults.",
+          "Cheat-on-close input must be `HH:MM` in inclusive 09:00-15:00.",
+          "Mail receivers accept a list or comma/semicolon-delimited persisted text."
         ],
         "observable_outputs": [
-          "parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)",
-          "Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…",
-          "get_settings.get_settings -> settings, _apply_dev_stub_overrides(settings)",
-          "get_data_home.get_data_home -> get_settings().app_home",
-          "get_timezone.get_timezone -> get_settings().timezone",
-          "get_cheat_on_close_time.get_cheat_on_close_time -> raw, '14:57'",
-          "get_epoch.get_epoch -> get_settings().epoch",
-          "get_data_source.get_data_source -> get_settings().data_source",
-          "get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN",
-          "get_dingtalk_access_token.get_dingtalk_access_token -> str(getattr(state, 'notify_dingtalk_access_token', '') or '')",
-          "get_dingtalk_secret.get_dingtalk_secret -> str(getattr(state, 'notify_dingtalk_secret', '') or '')",
-          "get_dingtalk_keyword.get_dingtalk_keyword -> str(getattr(state, 'notify_dingtalk_keyword', '') or '')",
-          "get_mail_receivers.get_mail_receivers -> _normalize_receivers(getattr(state, 'notify_mail_to', ''))",
-          "get_mail_sender.get_mail_sender -> str(getattr(state, 'notify_mail_from', '') or '')",
-          "get_mail_server.get_mail_server -> str(getattr(state, 'notify_mail_server', '') or '')",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home",
-          "read-only public values are available: DEFAULT_TIMEZONE"
+          "Returns an immutable effective settings snapshot with normalized branding, paths, gateway URL, runtime/data modes, epoch/timezone, and close time.",
+          "Missing/uninitialized/failed app-state reads use defaults; invalid persisted close time becomes `14:57`.",
+          "Enabled dev stubs overlay gateway/live/Tushare values without persisting them."
         ],
         "failure_error_fallback": [
-          "parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')",
-          "parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be HH:MM, got {value!r}')",
-          "parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time out of clock range: {value!r}')",
-          "parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be in 09:00-15:00, got {value!r}')",
-          "parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time parts must be integers, got {value!r}')",
-          "parse_cheat_on_close_time: on ValueError: raise ValueError(f'cheat_on_close_time parts must be integers, got {value!r}')",
-          "get_cheat_on_close_time: on ValueError: return '14:57'"
+          "`parse_cheat_on_close_time` raises `ValueError` for wrong type/shape/range.",
+          "DB read exceptions are debug-logged once per distinct consecutive error and fall back to defaults.",
+          "Type conversion errors not handled by the explicit normalizers propagate."
         ],
         "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`"
+          "Reads SQLite and environment; does not persist settings.",
+          "Tracks the last DB load error to suppress repeated logs; dev-stub getters may start the opt-in runtime."
+        ],
+        "source_anchors": [
+          {
+            "symbol": "DEFAULT_TIMEZONE",
+            "lines": "quantide/config/settings.py:25"
+          },
+          {
+            "symbol": "parse_cheat_on_close_time",
+            "lines": "quantide/config/settings.py:47-66"
+          },
+          {
+            "symbol": "Settings",
+            "lines": "quantide/config/settings.py:173-260"
+          },
+          {
+            "symbol": "effective core getters",
+            "lines": "quantide/config/settings.py:263-313"
+          },
+          {
+            "symbol": "notification getters",
+            "lines": "quantide/config/settings.py:316-361"
+          },
+          {
+            "symbol": "explicit export list",
+            "lines": "quantide/config/settings.py:364-379"
+          }
         ],
         "upstream_contract_sources": [
-          "v0.2-003 FR-0703",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+          ".louke/project/specs/v0.2-003-coverage/spec.md:594-602 (FR-0703)",
+          ".louke/project/specs/v0.2-003-coverage/acceptance.md:689-695 (FR-0703 AC-1..2)",
+          ".louke/project/specs/v0.2-001-strategy-framework/spec-strategy.md (FR-050 close-time policy)"
         ],
         "consumer_evidence": [
-          "quantide/app_factory.py",
-          "quantide/core/runtime/gateway_client.py",
-          "quantide/core/runtime/modes.py",
-          "quantide/core/scheduler.py",
-          "quantide/data/fetchers/registry.py",
-          "quantide/data/fetchers/tushare.py",
-          "quantide/data/models/app_state.py",
-          "quantide/data/models/calendar.py",
-          "quantide/data/models/daily_bars.py",
-          "quantide/data/models/stocks.py",
-          "quantide/data/stores/base.py",
-          "quantide/notify/dingtalk.py",
-          "quantide/notify/mail.py",
-          "quantide/service/grid_search.py",
-          "quantide/service/init_wizard.py",
-          "quantide/service/livequote.py",
-          "quantide/service/runner.py",
-          "quantide/service/strategy_runtime.py",
-          "quantide/service/trade_lightning.py",
-          "quantide/web/apis/broker.py",
-          "quantide/web/pages/init_wizard.py",
-          "quantide/web/pages/system/datasource.py",
-          "quantide/web/pages/system/gateway.py",
-          "quantide/web/pages/trade_main.py",
-          "quantide/config/__init__.py",
-          "quantide/config/dev_stubs.py",
-          "tests/conftest.py",
-          "tests/unit/quantide/config/test_fr_470_install.py",
-          "tests/unit/quantide/config/test_settings.py",
-          "tests/unit/quantide/data/models/test_calendar.py"
+          "tests/unit/quantide/config/test_settings.py:55-306",
+          "quantide/service/runner.py:8",
+          "quantide/notify/dingtalk.py:14-17",
+          "quantide/notify/mail.py:17-21"
         ],
+        "evidence_note": "`get_cheat_on_close_time` and `parse_cheat_on_close_time` are included because production/tests consume them despite omission from `__all__`; imported helpers are excluded.",
         "proposed_acs": [
           {
             "id": "AC-PROP-2BD66780-01",
-            "surface": "function: parse_cheat_on_close_time, get_settings, get_data_home, get_timezone, get_cheat_on_close_time",
-            "statement": "`quantide/config/settings.py` 的 function `parse_cheat_on_close_time, get_settings, get_data_home, get_timezone, get_cheat_on_close_time` 接受/边界：parse_cheat_on_close_timevalue: Any；parse_cheat_on_close_time: boundary `not isinstance(value, str)`；parse_cheat_on_close_time: boundary `len(parts) != 2`；parse_cheat_on_close_time: boundary `not (0 <= h <= 23 and 0 <= m <= 59)`；可观察输出：parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)；get_settings.get_settings -> settings, _apply_dev_stub_overrides(settings)；get_data_home.get_data_home -> get_settings().app_home；get_timezone.get_timezone -> get_settings().timezone；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be HH:MM, got {value!r}')；parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time out of clock range: {value!r}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
-          },
-          {
-            "id": "AC-PROP-2BD66780-02",
-            "surface": "function: get_epoch, get_data_source, get_tushare_token, get_dingtalk_access_token, get_dingtalk_secret",
-            "statement": "`quantide/config/settings.py` 的 function `get_epoch, get_data_source, get_tushare_token, get_dingtalk_access_token, get_dingtalk_secret` 接受/边界：get_epoch；get_data_source；get_tushare_token；get_tushare_token: boundary `dev_stubs_enabled()`；可观察输出：get_epoch.get_epoch -> get_settings().epoch；get_data_source.get_data_source -> get_settings().data_source；get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN；get_dingtalk_access_token.get_dingtalk_access_token -> str(getattr(state, 'notify_dingtalk_access_token', '') or '')；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
-          },
-          {
-            "id": "AC-PROP-2BD66780-03",
-            "surface": "function: get_dingtalk_keyword, get_mail_receivers, get_mail_sender, get_mail_server",
-            "statement": "`quantide/config/settings.py` 的 function `get_dingtalk_keyword, get_mail_receivers, get_mail_sender, get_mail_server` 接受/边界：get_dingtalk_keyword；get_mail_receivers；get_mail_sender；get_mail_server；可观察输出：get_dingtalk_keyword.get_dingtalk_keyword -> str(getattr(state, 'notify_dingtalk_keyword', '') or '')；get_mail_receivers.get_mail_receivers -> _normalize_receivers(getattr(state, 'notify_mail_to', ''))；get_mail_sender.get_mail_sender -> str(getattr(state, 'notify_mail_from', '') or '')；get_mail_server.get_mail_server -> str(getattr(state, 'notify_mail_server', '') or '')；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
-          },
-          {
-            "id": "AC-PROP-2BD66780-04",
-            "surface": "class: Settings",
-            "statement": "`quantide/config/settings.py` 的 class `Settings` 接受/边界：Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE；可观察输出：Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
-          },
-          {
-            "id": "AC-PROP-2BD66780-05",
-            "surface": "schema/re-export: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home, DEFAULT_TIMEZONE",
-            "statement": "`quantide/config/settings.py` 的 schema/re-export `annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home, DEFAULT_TIMEZONE` 接受/边界：parse_cheat_on_close_timevalue: Any；Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE；get_settings: boundary `dev_stubs_enabled()`；get_tushare_token: boundary `dev_stubs_enabled()`；可观察输出：parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)；Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…；get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN；attribute lookup yields re-exported symbols: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
+            "surface": "source-grounded public surface",
+            "statement": "Settings getters project initialized `AppState` or defaults into immutable normalized settings, overlay opt-in dev stubs without persistence, validate close time as 09:00-15:00 with persisted fallback `14:57`, normalize recipients, and degrade DB read failures to defaults with deduplicated diagnostics."
           }
         ]
       },
       "contract_ac_proposals": [
         {
           "id": "AC-PROP-2BD66780-01",
-          "surface": "function: parse_cheat_on_close_time, get_settings, get_data_home, get_timezone, get_cheat_on_close_time",
-          "statement": "`quantide/config/settings.py` 的 function `parse_cheat_on_close_time, get_settings, get_data_home, get_timezone, get_cheat_on_close_time` 接受/边界：parse_cheat_on_close_timevalue: Any；parse_cheat_on_close_time: boundary `not isinstance(value, str)`；parse_cheat_on_close_time: boundary `len(parts) != 2`；parse_cheat_on_close_time: boundary `not (0 <= h <= 23 and 0 <= m <= 59)`；可观察输出：parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)；get_settings.get_settings -> settings, _apply_dev_stub_overrides(settings)；get_data_home.get_data_home -> get_settings().app_home；get_timezone.get_timezone -> get_settings().timezone；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be HH:MM, got {value!r}')；parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time out of clock range: {value!r}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
-        },
-        {
-          "id": "AC-PROP-2BD66780-02",
-          "surface": "function: get_epoch, get_data_source, get_tushare_token, get_dingtalk_access_token, get_dingtalk_secret",
-          "statement": "`quantide/config/settings.py` 的 function `get_epoch, get_data_source, get_tushare_token, get_dingtalk_access_token, get_dingtalk_secret` 接受/边界：get_epoch；get_data_source；get_tushare_token；get_tushare_token: boundary `dev_stubs_enabled()`；可观察输出：get_epoch.get_epoch -> get_settings().epoch；get_data_source.get_data_source -> get_settings().data_source；get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN；get_dingtalk_access_token.get_dingtalk_access_token -> str(getattr(state, 'notify_dingtalk_access_token', '') or '')；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
-        },
-        {
-          "id": "AC-PROP-2BD66780-03",
-          "surface": "function: get_dingtalk_keyword, get_mail_receivers, get_mail_sender, get_mail_server",
-          "statement": "`quantide/config/settings.py` 的 function `get_dingtalk_keyword, get_mail_receivers, get_mail_sender, get_mail_server` 接受/边界：get_dingtalk_keyword；get_mail_receivers；get_mail_sender；get_mail_server；可观察输出：get_dingtalk_keyword.get_dingtalk_keyword -> str(getattr(state, 'notify_dingtalk_keyword', '') or '')；get_mail_receivers.get_mail_receivers -> _normalize_receivers(getattr(state, 'notify_mail_to', ''))；get_mail_sender.get_mail_sender -> str(getattr(state, 'notify_mail_from', '') or '')；get_mail_server.get_mail_server -> str(getattr(state, 'notify_mail_server', '') or '')；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
-        },
-        {
-          "id": "AC-PROP-2BD66780-04",
-          "surface": "class: Settings",
-          "statement": "`quantide/config/settings.py` 的 class `Settings` 接受/边界：Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE；可观察输出：Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
-        },
-        {
-          "id": "AC-PROP-2BD66780-05",
-          "surface": "schema/re-export: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home, DEFAULT_TIMEZONE",
-          "statement": "`quantide/config/settings.py` 的 schema/re-export `annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home, DEFAULT_TIMEZONE` 接受/边界：parse_cheat_on_close_timevalue: Any；Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE；get_settings: boundary `dev_stubs_enabled()`；get_tushare_token: boundary `dev_stubs_enabled()`；可观察输出：parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)；Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…；get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN；attribute lookup yields re-exported symbols: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。"
+          "surface": "source-grounded public surface",
+          "statement": "Settings getters project initialized `AppState` or defaults into immutable normalized settings, overlay opt-in dev stubs without persistence, validate close time as 09:00-15:00 with persisted fallback `14:57`, normalize recipients, and degrade DB read failures to defaults with deduplicated diagnostics."
         }
       ],
       "record_id": "prod-2bd66780053c",
       "source_markdown": {
-        "production_file_audit": "## `quantide/config/settings.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `parse_cheat_on_close_time`, `Settings`, `get_settings`, `get_data_home`, `get_timezone`, `get_cheat_on_close_time`, `get_epoch`, `get_data_source`, `get_tushare_token`, `get_dingtalk_access_token`, `get_dingtalk_secret`, `get_dingtalk_keyword`, `get_mail_receivers`, `get_mail_sender`, `get_mail_server`, `annotations`, `dataclass`, `replace`, `Any`, `logger`, `get_branding`, `DEV_STUB_TUSHARE_TOKEN`, `dev_stubs_enabled`, `ensure_dev_stubs_started`, `normalize_data_home`, `DEFAULT_TIMEZONE`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: parse_cheat_on_close_timevalue: Any; parse_cheat_on_close_time: boundary `not isinstance(value, str)`; parse_cheat_on_close_time: boundary `len(parts) != 2`; parse_cheat_on_close_time: boundary `not (0 <= h <= 23 and 0 <= m <= 59)`; parse_cheat_on_close_time: boundary `not 9 <= h <= 15 or (h == 15 and m > 0)`; Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE; get_settings; get_settings: boundary `dev_stubs_enabled()`; get_data_home; get_timezone; get_cheat_on_close_time; get_epoch; get_data_source; get_tushare_token; get_tushare_token: boundary `dev_stubs_enabled()`; get_dingtalk_access_token; get_dingtalk_secret; get_dingtalk_keyword; get_mail_receivers; get_mail_sender; get_mail_server; module import exposes re-exports: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home; module import exposes constants/schema hooks: DEFAULT_TIMEZONE.\n- **Observable outputs/DTO/HTML/persistence/events**: parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m); Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…; get_settings.get_settings -> settings, _apply_dev_stub_overrides(settings); get_data_home.get_data_home -> get_settings().app_home; get_timezone.get_timezone -> get_settings().timezone; get_cheat_on_close_time.get_cheat_on_close_time -> raw, '14:57'; get_epoch.get_epoch -> get_settings().epoch; get_data_source.get_data_source -> get_settings().data_source; get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN; get_dingtalk_access_token.get_dingtalk_access_token -> str(getattr(state, 'notify_dingtalk_access_token', '') or ''); get_dingtalk_secret.get_dingtalk_secret -> str(getattr(state, 'notify_dingtalk_secret', '') or ''); get_dingtalk_keyword.get_dingtalk_keyword -> str(getattr(state, 'notify_dingtalk_keyword', '') or ''); get_mail_receivers.get_mail_receivers -> _normalize_receivers(getattr(state, 'notify_mail_to', '')); get_mail_sender.get_mail_sender -> str(getattr(state, 'notify_mail_from', '') or ''); get_mail_server.get_mail_server -> str(getattr(state, 'notify_mail_server', '') or ''); attribute lookup yields re-exported symbols: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home; read-only public values are available: DEFAULT_TIMEZONE.\n- **Failure/error/fallback**: parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}'); parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be HH:MM, got {value!r}'); parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time out of clock range: {value!r}'); parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be in 09:00-15:00, got {value!r}'); parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time parts must be integers, got {value!r}'); parse_cheat_on_close_time: on ValueError: raise ValueError(f'cheat_on_close_time parts must be integers, got {value!r}'); get_cheat_on_close_time: on ValueError: return '14:57'.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`.\n- **Upstream source**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/app_factory.py; quantide/core/runtime/gateway_client.py; quantide/core/runtime/modes.py; quantide/core/scheduler.py; quantide/data/fetchers/registry.py; quantide/data/fetchers/tushare.py; quantide/data/models/app_state.py; quantide/data/models/calendar.py; quantide/data/models/daily_bars.py; quantide/data/models/stocks.py; quantide/data/stores/base.py; quantide/notify/dingtalk.py; quantide/notify/mail.py; quantide/service/grid_search.py; quantide/service/init_wizard.py; quantide/service/livequote.py; quantide/service/runner.py; quantide/service/strategy_runtime.py; quantide/service/trade_lightning.py; quantide/web/apis/broker.py; quantide/web/pages/init_wizard.py; quantide/web/pages/system/datasource.py; quantide/web/pages/system/gateway.py; quantide/web/pages/trade_main.py; quantide/config/__init__.py; quantide/config/dev_stubs.py; tests/conftest.py; tests/unit/quantide/config/test_fr_470_install.py; tests/unit/quantide/config/test_settings.py; tests/unit/quantide/data/models/test_calendar.py.\n- **Proposed ACs**: AC-PROP-2BD66780-01; AC-PROP-2BD66780-02; AC-PROP-2BD66780-03; AC-PROP-2BD66780-04; AC-PROP-2BD66780-05.\n",
-        "proposed_requirements": "## `quantide/config/settings.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-2BD66780-01** (function: parse_cheat_on_close_time, get_settings, get_data_home, get_timezone, get_cheat_on_close_time): `quantide/config/settings.py` 的 function `parse_cheat_on_close_time, get_settings, get_data_home, get_timezone, get_cheat_on_close_time` 接受/边界：parse_cheat_on_close_timevalue: Any；parse_cheat_on_close_time: boundary `not isinstance(value, str)`；parse_cheat_on_close_time: boundary `len(parts) != 2`；parse_cheat_on_close_time: boundary `not (0 <= h <= 23 and 0 <= m <= 59)`；可观察输出：parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)；get_settings.get_settings -> settings, _apply_dev_stub_overrides(settings)；get_data_home.get_data_home -> get_settings().app_home；get_timezone.get_timezone -> get_settings().timezone；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be HH:MM, got {value!r}')；parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time out of clock range: {value!r}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。\n- **AC-PROP-2BD66780-02** (function: get_epoch, get_data_source, get_tushare_token, get_dingtalk_access_token, get_dingtalk_secret): `quantide/config/settings.py` 的 function `get_epoch, get_data_source, get_tushare_token, get_dingtalk_access_token, get_dingtalk_secret` 接受/边界：get_epoch；get_data_source；get_tushare_token；get_tushare_token: boundary `dev_stubs_enabled()`；可观察输出：get_epoch.get_epoch -> get_settings().epoch；get_data_source.get_data_source -> get_settings().data_source；get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN；get_dingtalk_access_token.get_dingtalk_access_token -> str(getattr(state, 'notify_dingtalk_access_token', '') or '')；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。\n- **AC-PROP-2BD66780-03** (function: get_dingtalk_keyword, get_mail_receivers, get_mail_sender, get_mail_server): `quantide/config/settings.py` 的 function `get_dingtalk_keyword, get_mail_receivers, get_mail_sender, get_mail_server` 接受/边界：get_dingtalk_keyword；get_mail_receivers；get_mail_sender；get_mail_server；可观察输出：get_dingtalk_keyword.get_dingtalk_keyword -> str(getattr(state, 'notify_dingtalk_keyword', '') or '')；get_mail_receivers.get_mail_receivers -> _normalize_receivers(getattr(state, 'notify_mail_to', ''))；get_mail_sender.get_mail_sender -> str(getattr(state, 'notify_mail_from', '') or '')；get_mail_server.get_mail_server -> str(getattr(state, 'notify_mail_server', '') or '')；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。\n- **AC-PROP-2BD66780-04** (class: Settings): `quantide/config/settings.py` 的 class `Settings` 接受/边界：Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE；可观察输出：Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。\n- **AC-PROP-2BD66780-05** (schema/re-export: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home, DEFAULT_TIMEZONE): `quantide/config/settings.py` 的 schema/re-export `annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home, DEFAULT_TIMEZONE` 接受/边界：parse_cheat_on_close_timevalue: Any；Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE；get_settings: boundary `dev_stubs_enabled()`；get_tushare_token: boundary `dev_stubs_enabled()`；可观察输出：parse_cheat_on_close_time.parse_cheat_on_close_timevalue: Any -> datetime.time(h, m)；Settings.from_statecls, state: Any | None, *, timezone: datetime.tzinfo=DEFAULT_TIMEZONE -> cls(edition=branding.edition, runtime_name=branding.runtime_name, product_name=branding.product_name, release_package=branding.release_package, app_home=normalize_data_home(getatt…；get_tushare_token.get_tushare_token -> str(getattr(state, 'tushare_token', '') or ''), DEV_STUB_TUSHARE_TOKEN；attribute lookup yields re-exported symbols: annotations, dataclass, replace, Any, logger, get_branding, DEV_STUB_TUSHARE_TOKEN, dev_stubs_enabled, ensure_dev_stubs_started, normalize_data_home；失败/回退：parse_cheat_on_close_time: raises ValueError(f'cheat_on_close_time must be string, got {type(value).__name__}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/config/settings.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/app_factory.py; quantide/core/runtime/gateway_client.py; quantide/core/runtime/modes.py; quantide/core/scheduler.py; quantide/data/fetchers/registry.py.\n- **Coverage target**: 80%.\n"
+        "production_file_audit": "## `quantide/config/settings.py`\n\n- **Source-grounded contract**: Settings getters project initialized `AppState` or defaults into immutable normalized settings, overlay opt-in dev stubs without persistence, validate close time as 09:00-15:00 with persisted fallback `14:57`, normalize recipients, and degrade DB read failures to defaults with deduplicated diagnostics.\n- **Source anchors**: DEFAULT_TIMEZONE at quantide/config/settings.py:25; parse_cheat_on_close_time at quantide/config/settings.py:47-66; Settings at quantide/config/settings.py:173-260; effective core getters at quantide/config/settings.py:263-313; notification getters at quantide/config/settings.py:316-361; explicit export list at quantide/config/settings.py:364-379.\n- **Evidence**: .louke/project/specs/v0.2-003-coverage/spec.md:594-602 (FR-0703); .louke/project/specs/v0.2-003-coverage/acceptance.md:689-695 (FR-0703 AC-1..2); .louke/project/specs/v0.2-001-strategy-framework/spec-strategy.md (FR-050 close-time policy); tests/unit/quantide/config/test_settings.py:55-306; quantide/service/runner.py:8; quantide/notify/dingtalk.py:14-17; quantide/notify/mail.py:17-21.\n",
+        "proposed_requirements": "## `quantide/config/settings.py`\n\n- **AC-PROP-2BD66780-01**: Settings getters project initialized `AppState` or defaults into immutable normalized settings, overlay opt-in dev stubs without persistence, validate close time as 09:00-15:00 with persisted fallback `14:57`, normalize recipients, and degrade DB read failures to defaults with deduplicated diagnostics.\n"
       }
     }
   ]

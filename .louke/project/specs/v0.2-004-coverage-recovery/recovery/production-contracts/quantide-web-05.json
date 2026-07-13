@@ -4,20 +4,16 @@
   "family": "quantide-web",
   "part": 5,
   "record_count": 8,
-  "records_sha256": "d4158375b7980f05303c33315412e487266920ea394a8502817773d7a0d870b6",
+  "records_sha256": "ca6ca1418956a81a50d03f4e5f51a6b84a82765713b4421288c29e1a7224491b",
   "records": [
     {
+      "record_id": "prod-2d8079c7b50c",
       "path": "quantide/web/services/runtime_control.py",
       "origin": "v0.2-added",
       "first_commit": "cf72144",
-      "modifying_commits_001_to_002_count": 1,
-      "modifying_commits_002_to_003_count": 0,
-      "modifying_commits_003_to_head_count": 0,
-      "modifying_commits_001_to_002": [
+      "material_v0_2_commits": [
         "cf72144 feat: green – #138 – FR-0040/0060 调度+dry-run: 转入表单/本金只读/实例生命周期状态机"
       ],
-      "modifying_commits_002_to_003": [],
-      "modifying_commits_003_to_head": [],
       "coverage_status": "measured",
       "num_statements": 53,
       "covered_lines": 53,
@@ -26,186 +22,46 @@
       "num_branches": 4,
       "covered_branches": 4,
       "missing_branches": 0,
-      "production_consumer_count": 1,
-      "production_consumers": [
-        "quantide/web/services/scheduling.py"
-      ],
-      "test_file_count": 2,
-      "test_files_importing": [
-        "tests/unit/quantide/web/services/test_runtime_control.py",
-        "tests/unit/quantide/web/services/test_scheduling.py"
-      ],
-      "material_v0_2_commits": [
-        "cf72144 feat: green – #138 – FR-0040/0060 调度+dry-run: 转入表单/本金只读/实例生命周期状态机"
-      ],
-      "consumers_importers_routes_registries": [
-        "quantide/web/services/scheduling.py"
-      ],
-      "governing_upstream_references": [
-        "v0.2-003 FR-0501~0505",
-        "corresponding v0.2-003 AC",
-        "v0.2-003 interfaces then v0.2-001/002 by precedence"
-      ],
-      "existing_003_spec_ac_coverage": "full",
-      "mapped_test_modules": [
-        "tests/unit/quantide/web/services/test_runtime_control.py",
-        "tests/unit/quantide/web/services/test_scheduling.py"
-      ],
-      "mapped_test_functions": "function records in test-trace-data.json",
-      "test_quality": "aligned",
       "classification": "active v0.2 product",
       "classification_basis": "evidence",
       "classification_evidence": "explicit source/locked contract",
-      "proposed_disposition": "retain and behavior-test to >= 95%",
-      "proposed_requirement_ac_text": [
-        "`quantide/web/services/runtime_control.py` 的 function `is_strategy_backtestable, can_start_backtest, can_promote_to_paper, can_promote_to_live, is_principal_editable` 接受/边界：is_strategy_backtestablestrategy_type: str；can_start_backteststrategy_type: str；can_promote_to_paperstrategy_type: str, has_backtest: bool；can_promote_to_livestrategy_type: str, has_backtest: bool；可观察输出：is_strategy_backtestable.is_strategy_backtestablestrategy_type: str -> strategy_type == 'day'；can_start_backtest.can_start_backteststrategy_type: str -> is_strategy_backtestable(strategy_type)；can_promote_to_paper.can_promote_to_paperstrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest；can_promote_to_live.can_promote_to_livestrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。",
-        "`quantide/web/services/runtime_control.py` 的 function `validate_promote_request` 接受/边界：validate_promote_requestreq: PromoteRequest；validate_promote_request: boundary `not req.account_name.strip()`；validate_promote_request: boundary `req.principal <= 0`；可观察输出：validate_promote_request.validate_promote_requestreq: PromoteRequest -> True；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；validate_promote_request: raises PromoteValidationError('本金必须 > 0')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。",
-        "`quantide/web/services/runtime_control.py` 的 class `RuntimeMode, PromoteMode, RuntimeInstanceStatus, PromoteValidationError, PromoteRequest` 接受/边界：is_principal_editablemode: RuntimeMode；validate_promote_requestreq: PromoteRequest；可观察输出：RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE；RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)；RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE；RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；validate_promote_request: raises PromoteValidationError('本金必须 > 0')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。",
-        "`quantide/web/services/runtime_control.py` 的 class `RuntimeInstance` 接受/边界：RuntimeInstance.can_startself；RuntimeInstance.can_stopself；RuntimeInstance.can_pauseself；RuntimeInstance.can_resumeself；可观察输出：RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE；RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)；RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE；RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。",
-        "`quantide/web/services/runtime_control.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-      ],
-      "aaron_decision_candidate": null,
+      "existing_003_spec_ac_coverage": "full",
       "coverage_target_percent": 95,
       "coverage_gap_statements_estimate": 0,
-      "waiver_or_deletion_blockers": "no waiver permitted",
       "normative_contract": {
-        "status": "retained executable public surface",
-        "public_symbols": [
-          "RuntimeMode",
-          "PromoteMode",
-          "RuntimeInstanceStatus",
-          "PromoteValidationError",
-          "PromoteRequest",
-          "RuntimeInstance",
-          "is_strategy_backtestable",
-          "can_start_backtest",
-          "can_promote_to_paper",
-          "can_promote_to_live",
-          "is_principal_editable",
-          "validate_promote_request",
-          "annotations",
-          "dataclass",
-          "Enum"
+        "status": "v0.2 runtime-policy API consumed only by the unintegrated scheduling model",
+        "surfaces": [
+          "RuntimeMode, PromoteMode, RuntimeInstanceStatus, PromoteValidationError, PromoteRequest, RuntimeInstance datatypes @ quantide/web/services/runtime_control.py:17-97",
+          "is_strategy_backtestable(strategy_type: str) -> bool; can_start_backtest(strategy_type: str) -> bool; can_promote_to_paper(strategy_type: str, has_backtest: bool) -> bool; can_promote_to_live(strategy_type: str, has_backtest: bool) -> bool @ :100-136",
+          "is_principal_editable(mode: RuntimeMode) -> bool; validate_promote_request(req: PromoteRequest) -> bool @ :139-170"
         ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "RuntimeInstance.can_startself",
-          "RuntimeInstance.can_stopself",
-          "RuntimeInstance.can_pauseself",
-          "RuntimeInstance.can_resumeself",
-          "is_strategy_backtestablestrategy_type: str",
-          "can_start_backteststrategy_type: str",
-          "can_promote_to_paperstrategy_type: str, has_backtest: bool",
-          "can_promote_to_livestrategy_type: str, has_backtest: bool",
-          "is_principal_editablemode: RuntimeMode",
-          "validate_promote_requestreq: PromoteRequest",
-          "validate_promote_request: boundary `not req.account_name.strip()`",
-          "validate_promote_request: boundary `req.principal <= 0`",
-          "module import exposes re-exports: annotations, dataclass, Enum"
+        "inputs_boundaries": [
+          "Only strategy_type == day is backtestable/promotable, promotion also requires has_backtest, and only TOTAL_LIVE principal is editable.",
+          "PromoteRequest requires a nonblank account_name and principal > 0; RuntimeInstance transitions are exposed as can_start/can_stop/can_pause/can_resume predicates."
         ],
         "observable_outputs": [
-          "RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE",
-          "RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)",
-          "RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE",
-          "RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED",
-          "is_strategy_backtestable.is_strategy_backtestablestrategy_type: str -> strategy_type == 'day'",
-          "can_start_backtest.can_start_backteststrategy_type: str -> is_strategy_backtestable(strategy_type)",
-          "can_promote_to_paper.can_promote_to_paperstrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest",
-          "can_promote_to_live.can_promote_to_livestrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest",
-          "is_principal_editable.is_principal_editablemode: RuntimeMode -> mode == RuntimeMode.TOTAL_LIVE",
-          "validate_promote_request.validate_promote_requestreq: PromoteRequest -> True",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, Enum"
+          "Predicates return source booleans; stopped is terminal because can_start accepts only idle, and pause accepts only running live instances.",
+          "validate_promote_request returns True or raises PromoteValidationError with the exact account-name/principal message."
         ],
-        "failure_error_fallback": [
-          "validate_promote_request: raises PromoteValidationError('账户名不能为空')",
-          "validate_promote_request: raises PromoteValidationError('本金必须 > 0')"
+        "auth_error_fallback_cleanup": [
+          "Pure policy only: no route, authentication, persistence, event publication, state transition, rollback, or cleanup is performed."
         ],
-        "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`"
-        ],
-        "upstream_contract_sources": [
-          "v0.2-003 FR-0501~0505",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
-        ],
-        "consumer_evidence": [
-          "quantide/web/services/scheduling.py",
+        "evidence": [
           "tests/unit/quantide/web/services/test_runtime_control.py",
-          "tests/unit/quantide/web/services/test_scheduling.py"
-        ],
-        "proposed_acs": [
-          {
-            "id": "AC-PROP-2D8079C7-01",
-            "surface": "function: is_strategy_backtestable, can_start_backtest, can_promote_to_paper, can_promote_to_live, is_principal_editable",
-            "statement": "`quantide/web/services/runtime_control.py` 的 function `is_strategy_backtestable, can_start_backtest, can_promote_to_paper, can_promote_to_live, is_principal_editable` 接受/边界：is_strategy_backtestablestrategy_type: str；can_start_backteststrategy_type: str；can_promote_to_paperstrategy_type: str, has_backtest: bool；can_promote_to_livestrategy_type: str, has_backtest: bool；可观察输出：is_strategy_backtestable.is_strategy_backtestablestrategy_type: str -> strategy_type == 'day'；can_start_backtest.can_start_backteststrategy_type: str -> is_strategy_backtestable(strategy_type)；can_promote_to_paper.can_promote_to_paperstrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest；can_promote_to_live.can_promote_to_livestrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-          },
-          {
-            "id": "AC-PROP-2D8079C7-02",
-            "surface": "function: validate_promote_request",
-            "statement": "`quantide/web/services/runtime_control.py` 的 function `validate_promote_request` 接受/边界：validate_promote_requestreq: PromoteRequest；validate_promote_request: boundary `not req.account_name.strip()`；validate_promote_request: boundary `req.principal <= 0`；可观察输出：validate_promote_request.validate_promote_requestreq: PromoteRequest -> True；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；validate_promote_request: raises PromoteValidationError('本金必须 > 0')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-          },
-          {
-            "id": "AC-PROP-2D8079C7-03",
-            "surface": "class: RuntimeMode, PromoteMode, RuntimeInstanceStatus, PromoteValidationError, PromoteRequest",
-            "statement": "`quantide/web/services/runtime_control.py` 的 class `RuntimeMode, PromoteMode, RuntimeInstanceStatus, PromoteValidationError, PromoteRequest` 接受/边界：is_principal_editablemode: RuntimeMode；validate_promote_requestreq: PromoteRequest；可观察输出：RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE；RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)；RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE；RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；validate_promote_request: raises PromoteValidationError('本金必须 > 0')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-          },
-          {
-            "id": "AC-PROP-2D8079C7-04",
-            "surface": "class: RuntimeInstance",
-            "statement": "`quantide/web/services/runtime_control.py` 的 class `RuntimeInstance` 接受/边界：RuntimeInstance.can_startself；RuntimeInstance.can_stopself；RuntimeInstance.can_pauseself；RuntimeInstance.can_resumeself；可观察输出：RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE；RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)；RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE；RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-          },
-          {
-            "id": "AC-PROP-2D8079C7-05",
-            "surface": "schema/re-export: annotations, dataclass, Enum",
-            "statement": "`quantide/web/services/runtime_control.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-          }
+          "quantide/web/services/scheduling.py:15-20",
+          "v0.2-002-ui interfaces.md runtime/account contracts; v0.2-003-coverage acceptance.md FR-0504."
         ]
       },
-      "contract_ac_proposals": [
-        {
-          "id": "AC-PROP-2D8079C7-01",
-          "surface": "function: is_strategy_backtestable, can_start_backtest, can_promote_to_paper, can_promote_to_live, is_principal_editable",
-          "statement": "`quantide/web/services/runtime_control.py` 的 function `is_strategy_backtestable, can_start_backtest, can_promote_to_paper, can_promote_to_live, is_principal_editable` 接受/边界：is_strategy_backtestablestrategy_type: str；can_start_backteststrategy_type: str；can_promote_to_paperstrategy_type: str, has_backtest: bool；can_promote_to_livestrategy_type: str, has_backtest: bool；可观察输出：is_strategy_backtestable.is_strategy_backtestablestrategy_type: str -> strategy_type == 'day'；can_start_backtest.can_start_backteststrategy_type: str -> is_strategy_backtestable(strategy_type)；can_promote_to_paper.can_promote_to_paperstrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest；can_promote_to_live.can_promote_to_livestrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-        },
-        {
-          "id": "AC-PROP-2D8079C7-02",
-          "surface": "function: validate_promote_request",
-          "statement": "`quantide/web/services/runtime_control.py` 的 function `validate_promote_request` 接受/边界：validate_promote_requestreq: PromoteRequest；validate_promote_request: boundary `not req.account_name.strip()`；validate_promote_request: boundary `req.principal <= 0`；可观察输出：validate_promote_request.validate_promote_requestreq: PromoteRequest -> True；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；validate_promote_request: raises PromoteValidationError('本金必须 > 0')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-        },
-        {
-          "id": "AC-PROP-2D8079C7-03",
-          "surface": "class: RuntimeMode, PromoteMode, RuntimeInstanceStatus, PromoteValidationError, PromoteRequest",
-          "statement": "`quantide/web/services/runtime_control.py` 的 class `RuntimeMode, PromoteMode, RuntimeInstanceStatus, PromoteValidationError, PromoteRequest` 接受/边界：is_principal_editablemode: RuntimeMode；validate_promote_requestreq: PromoteRequest；可观察输出：RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE；RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)；RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE；RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；validate_promote_request: raises PromoteValidationError('本金必须 > 0')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-        },
-        {
-          "id": "AC-PROP-2D8079C7-04",
-          "surface": "class: RuntimeInstance",
-          "statement": "`quantide/web/services/runtime_control.py` 的 class `RuntimeInstance` 接受/边界：RuntimeInstance.can_startself；RuntimeInstance.can_stopself；RuntimeInstance.can_pauseself；RuntimeInstance.can_resumeself；可观察输出：RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE；RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)；RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE；RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-        },
-        {
-          "id": "AC-PROP-2D8079C7-05",
-          "surface": "schema/re-export: annotations, dataclass, Enum",
-          "statement": "`quantide/web/services/runtime_control.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。"
-        }
-      ],
-      "record_id": "prod-2d8079c7b50c",
-      "source_markdown": {
-        "production_file_audit": "## `quantide/web/services/runtime_control.py`\n\n- **Status/classification**: retained executable public surface / `active v0.2 product` (evidence).\n- **Public symbols**: `RuntimeMode`, `PromoteMode`, `RuntimeInstanceStatus`, `PromoteValidationError`, `PromoteRequest`, `RuntimeInstance`, `is_strategy_backtestable`, `can_start_backtest`, `can_promote_to_paper`, `can_promote_to_live`, `is_principal_editable`, `validate_promote_request`, `annotations`, `dataclass`, `Enum`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: RuntimeInstance.can_startself; RuntimeInstance.can_stopself; RuntimeInstance.can_pauseself; RuntimeInstance.can_resumeself; is_strategy_backtestablestrategy_type: str; can_start_backteststrategy_type: str; can_promote_to_paperstrategy_type: str, has_backtest: bool; can_promote_to_livestrategy_type: str, has_backtest: bool; is_principal_editablemode: RuntimeMode; validate_promote_requestreq: PromoteRequest; validate_promote_request: boundary `not req.account_name.strip()`; validate_promote_request: boundary `req.principal <= 0`; module import exposes re-exports: annotations, dataclass, Enum.\n- **Observable outputs/DTO/HTML/persistence/events**: RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE; RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED); RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE; RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED; is_strategy_backtestable.is_strategy_backtestablestrategy_type: str -> strategy_type == 'day'; can_start_backtest.can_start_backteststrategy_type: str -> is_strategy_backtestable(strategy_type); can_promote_to_paper.can_promote_to_paperstrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest; can_promote_to_live.can_promote_to_livestrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest; is_principal_editable.is_principal_editablemode: RuntimeMode -> mode == RuntimeMode.TOTAL_LIVE; validate_promote_request.validate_promote_requestreq: PromoteRequest -> True; attribute lookup yields re-exported symbols: annotations, dataclass, Enum.\n- **Failure/error/fallback**: validate_promote_request: raises PromoteValidationError('账户名不能为空'); validate_promote_request: raises PromoteValidationError('本金必须 > 0').\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`.\n- **Upstream source**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/web/services/scheduling.py; tests/unit/quantide/web/services/test_runtime_control.py; tests/unit/quantide/web/services/test_scheduling.py.\n- **Proposed ACs**: AC-PROP-2D8079C7-01; AC-PROP-2D8079C7-02; AC-PROP-2D8079C7-03; AC-PROP-2D8079C7-04; AC-PROP-2D8079C7-05.\n",
-        "proposed_requirements": "## `quantide/web/services/runtime_control.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-2D8079C7-01** (function: is_strategy_backtestable, can_start_backtest, can_promote_to_paper, can_promote_to_live, is_principal_editable): `quantide/web/services/runtime_control.py` 的 function `is_strategy_backtestable, can_start_backtest, can_promote_to_paper, can_promote_to_live, is_principal_editable` 接受/边界：is_strategy_backtestablestrategy_type: str；can_start_backteststrategy_type: str；can_promote_to_paperstrategy_type: str, has_backtest: bool；can_promote_to_livestrategy_type: str, has_backtest: bool；可观察输出：is_strategy_backtestable.is_strategy_backtestablestrategy_type: str -> strategy_type == 'day'；can_start_backtest.can_start_backteststrategy_type: str -> is_strategy_backtestable(strategy_type)；can_promote_to_paper.can_promote_to_paperstrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest；can_promote_to_live.can_promote_to_livestrategy_type: str, has_backtest: bool -> is_strategy_backtestable(strategy_type) and has_backtest；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。\n- **AC-PROP-2D8079C7-02** (function: validate_promote_request): `quantide/web/services/runtime_control.py` 的 function `validate_promote_request` 接受/边界：validate_promote_requestreq: PromoteRequest；validate_promote_request: boundary `not req.account_name.strip()`；validate_promote_request: boundary `req.principal <= 0`；可观察输出：validate_promote_request.validate_promote_requestreq: PromoteRequest -> True；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；validate_promote_request: raises PromoteValidationError('本金必须 > 0')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。\n- **AC-PROP-2D8079C7-03** (class: RuntimeMode, PromoteMode, RuntimeInstanceStatus, PromoteValidationError, PromoteRequest): `quantide/web/services/runtime_control.py` 的 class `RuntimeMode, PromoteMode, RuntimeInstanceStatus, PromoteValidationError, PromoteRequest` 接受/边界：is_principal_editablemode: RuntimeMode；validate_promote_requestreq: PromoteRequest；可观察输出：RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE；RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)；RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE；RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；validate_promote_request: raises PromoteValidationError('本金必须 > 0')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。\n- **AC-PROP-2D8079C7-04** (class: RuntimeInstance): `quantide/web/services/runtime_control.py` 的 class `RuntimeInstance` 接受/边界：RuntimeInstance.can_startself；RuntimeInstance.can_stopself；RuntimeInstance.can_pauseself；RuntimeInstance.can_resumeself；可观察输出：RuntimeInstance.can_startself -> self.status == RuntimeInstanceStatus.IDLE；RuntimeInstance.can_stopself -> self.status in (RuntimeInstanceStatus.RUNNING, RuntimeInstanceStatus.PAUSED)；RuntimeInstance.can_pauseself -> self.status == RuntimeInstanceStatus.RUNNING and self.mode == RuntimeMode.LIVE；RuntimeInstance.can_resumeself -> self.status == RuntimeInstanceStatus.PAUSED；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。\n- **AC-PROP-2D8079C7-05** (schema/re-export: annotations, dataclass, Enum): `quantide/web/services/runtime_control.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：validate_promote_request: raises PromoteValidationError('账户名不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/runtime_control.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/web/services/scheduling.py; tests/unit/quantide/web/services/test_runtime_control.py; tests/unit/quantide/web/services/test_scheduling.py.\n- **Coverage target**: 95%.\n"
-      }
+      "aaron_decision_candidate": "[AD-WEB-30] Runtime-control policy is tested and imported by scheduling.py, but that scheduling model has no production consumer. Decide its integration point or whether both modules remain contract-only artifacts."
     },
     {
+      "record_id": "prod-8a5063510667",
       "path": "quantide/web/services/scheduling.py",
       "origin": "v0.2-added",
       "first_commit": "7cafa67",
-      "modifying_commits_001_to_002_count": 1,
-      "modifying_commits_002_to_003_count": 0,
-      "modifying_commits_003_to_head_count": 0,
-      "modifying_commits_001_to_002": [
+      "material_v0_2_commits": [
         "7cafa67 feat: green – #145 – FR-0260 调度 UI 聚合: 策略选择+运行时参数+调度操作 ViewModel"
       ],
-      "modifying_commits_002_to_003": [],
-      "modifying_commits_003_to_head": [],
       "coverage_status": "measured",
       "num_statements": 20,
       "covered_lines": 20,
@@ -214,133 +70,43 @@
       "num_branches": 0,
       "covered_branches": 0,
       "missing_branches": 0,
-      "production_consumer_count": 0,
-      "production_consumers": [],
-      "test_file_count": 1,
-      "test_files_importing": [
-        "tests/unit/quantide/web/services/test_scheduling.py"
-      ],
-      "material_v0_2_commits": [
-        "7cafa67 feat: green – #145 – FR-0260 调度 UI 聚合: 策略选择+运行时参数+调度操作 ViewModel"
-      ],
-      "consumers_importers_routes_registries": [],
-      "governing_upstream_references": [
-        "v0.2-003 FR-0501~0505",
-        "corresponding v0.2-003 AC",
-        "v0.2-003 interfaces then v0.2-001/002 by precedence"
-      ],
-      "existing_003_spec_ac_coverage": "full",
-      "mapped_test_modules": [
-        "tests/unit/quantide/web/services/test_scheduling.py"
-      ],
-      "mapped_test_functions": "function records in test-trace-data.json",
-      "test_quality": "aligned",
       "classification": "active v0.2 product",
       "classification_basis": "evidence",
       "classification_evidence": "explicit source/locked contract",
-      "proposed_disposition": "retain and behavior-test to >= 95%",
-      "proposed_requirement_ac_text": [
-        "`quantide/web/services/scheduling.py` 的 function `build_scheduling_page_model` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。",
-        "`quantide/web/services/scheduling.py` 的 class `SchedulingPageModel` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。",
-        "`quantide/web/services/scheduling.py` 的 schema/re-export `annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；attribute lookup yields re-exported symbols: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。"
-      ],
-      "aaron_decision_candidate": null,
+      "existing_003_spec_ac_coverage": "full",
       "coverage_target_percent": 95,
       "coverage_gap_statements_estimate": 0,
-      "waiver_or_deletion_blockers": "no waiver permitted",
       "normative_contract": {
-        "status": "retained executable public surface",
-        "public_symbols": [
-          "SchedulingPageModel",
-          "build_scheduling_page_model",
-          "annotations",
-          "dataclass",
-          "DEFAULT_RUNTIME_PARAMS",
-          "RuntimeParams",
-          "can_promote_to_live",
-          "can_promote_to_paper",
-          "can_start_backtest",
-          "StrategyItem",
-          "StrategyType",
-          "filter_strategies",
-          "sort_strategies"
+        "status": "tested v0.2 scheduling ViewModel with no production consumer or route",
+        "surfaces": [
+          "SchedulingPageModel dataclass @ quantide/web/services/scheduling.py:29-47",
+          "build_scheduling_page_model(strategies: list[StrategyItem], *, query: str=\"\", strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=False) -> SchedulingPageModel @ :50-103"
         ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…",
-          "module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies"
+        "inputs_boundaries": [
+          "Selection is restricted to the sorted/filtered result; a selected ID removed by filtering resolves to None."
         ],
         "observable_outputs": [
-          "build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies"
+          "Returns filtered strategies, selected strategy, three runtime-control capability flags, and DEFAULT_RUNTIME_PARAMS; all flags are False when no selected item survives."
         ],
-        "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`"
+        "auth_error_fallback_cleanup": [
+          "Pure aggregation; dependency/type errors propagate. No route, auth, persistence, events, mutation, fallback, or cleanup."
         ],
-        "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`"
-        ],
-        "upstream_contract_sources": [
-          "v0.2-003 FR-0501~0505",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
-        ],
-        "consumer_evidence": [
-          "tests/unit/quantide/web/services/test_scheduling.py"
-        ],
-        "proposed_acs": [
-          {
-            "id": "AC-PROP-8A506351-01",
-            "surface": "function: build_scheduling_page_model",
-            "statement": "`quantide/web/services/scheduling.py` 的 function `build_scheduling_page_model` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。"
-          },
-          {
-            "id": "AC-PROP-8A506351-02",
-            "surface": "class: SchedulingPageModel",
-            "statement": "`quantide/web/services/scheduling.py` 的 class `SchedulingPageModel` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。"
-          },
-          {
-            "id": "AC-PROP-8A506351-03",
-            "surface": "schema/re-export: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies",
-            "statement": "`quantide/web/services/scheduling.py` 的 schema/re-export `annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；attribute lookup yields re-exported symbols: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。"
-          }
+        "evidence": [
+          "tests/unit/quantide/web/services/test_scheduling.py",
+          "No production importer of quantide.web.services.scheduling exists.",
+          "v0.2-002-ui scheduling contracts; v0.2-003-coverage spec.md:40-55."
         ]
       },
-      "contract_ac_proposals": [
-        {
-          "id": "AC-PROP-8A506351-01",
-          "surface": "function: build_scheduling_page_model",
-          "statement": "`quantide/web/services/scheduling.py` 的 function `build_scheduling_page_model` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。"
-        },
-        {
-          "id": "AC-PROP-8A506351-02",
-          "surface": "class: SchedulingPageModel",
-          "statement": "`quantide/web/services/scheduling.py` 的 class `SchedulingPageModel` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。"
-        },
-        {
-          "id": "AC-PROP-8A506351-03",
-          "surface": "schema/re-export: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies",
-          "statement": "`quantide/web/services/scheduling.py` 的 schema/re-export `annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；attribute lookup yields re-exported symbols: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。"
-        }
-      ],
-      "record_id": "prod-8a5063510667",
-      "source_markdown": {
-        "production_file_audit": "## `quantide/web/services/scheduling.py`\n\n- **Status/classification**: retained executable public surface / `active v0.2 product` (evidence).\n- **Public symbols**: `SchedulingPageModel`, `build_scheduling_page_model`, `annotations`, `dataclass`, `DEFAULT_RUNTIME_PARAMS`, `RuntimeParams`, `can_promote_to_live`, `can_promote_to_paper`, `can_start_backtest`, `StrategyItem`, `StrategyType`, `filter_strategies`, `sort_strategies`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…; module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies.\n- **Observable outputs/DTO/HTML/persistence/events**: build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…; attribute lookup yields re-exported symbols: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`.\n- **Upstream source**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: tests/unit/quantide/web/services/test_scheduling.py.\n- **Proposed ACs**: AC-PROP-8A506351-01; AC-PROP-8A506351-02; AC-PROP-8A506351-03.\n",
-        "proposed_requirements": "## `quantide/web/services/scheduling.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-8A506351-01** (function: build_scheduling_page_model): `quantide/web/services/scheduling.py` 的 function `build_scheduling_page_model` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。\n- **AC-PROP-8A506351-02** (class: SchedulingPageModel): `quantide/web/services/scheduling.py` 的 class `SchedulingPageModel` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。\n- **AC-PROP-8A506351-03** (schema/re-export: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies): `quantide/web/services/scheduling.py` 的 schema/re-export `annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies` 接受/边界：build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F…；module import exposes re-exports: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；可观察输出：build_scheduling_page_model.build_scheduling_page_modelstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False, selected_strategy_id: str | None=None, selected_has_backtest: bool=F… -> SchedulingPageModel(strategies=filtered, selected_strategy=selected, can_backtest=can_start_backtest(strategy_type_value) if selected else False, can_promote_to_paper=can_promote_…；attribute lookup yields re-exported symbols: annotations, dataclass, DEFAULT_RUNTIME_PARAMS, RuntimeParams, can_promote_to_live, can_promote_to_paper, can_start_backtest, StrategyItem, StrategyType, filter_strategies, sort_strategies；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/scheduling.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/scheduling.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; tests/unit/quantide/web/services/test_scheduling.py.\n- **Coverage target**: 95%.\n"
-      }
+      "aaron_decision_candidate": "[AD-WEB-31] Decide whether the scheduling ViewModel must be wired into a shipped scheduling page or removed/quarantined; tests alone do not establish a production API consumer."
     },
     {
+      "record_id": "prod-0bcc092fc87f",
       "path": "quantide/web/services/stock_query.py",
       "origin": "v0.2-added",
       "first_commit": "1b5ef25",
-      "modifying_commits_001_to_002_count": 1,
-      "modifying_commits_002_to_003_count": 0,
-      "modifying_commits_003_to_head_count": 0,
-      "modifying_commits_001_to_002": [
+      "material_v0_2_commits": [
         "1b5ef25 feat: green – #148 – FR-0330 股票查询: 名字/代码/拼音模糊匹配 + K 线 OHLCV schema"
       ],
-      "modifying_commits_002_to_003": [],
-      "modifying_commits_003_to_head": [],
       "coverage_status": "measured",
       "num_statements": 29,
       "covered_lines": 28,
@@ -349,133 +115,43 @@
       "num_branches": 4,
       "covered_branches": 3,
       "missing_branches": 1,
-      "production_consumer_count": 0,
-      "production_consumers": [],
-      "test_file_count": 1,
-      "test_files_importing": [
-        "tests/unit/quantide/web/services/test_stock_query.py"
-      ],
-      "material_v0_2_commits": [
-        "1b5ef25 feat: green – #148 – FR-0330 股票查询: 名字/代码/拼音模糊匹配 + K 线 OHLCV schema"
-      ],
-      "consumers_importers_routes_registries": [],
-      "governing_upstream_references": [
-        "v0.2-003 FR-0501~0505",
-        "corresponding v0.2-003 AC",
-        "v0.2-003 interfaces then v0.2-001/002 by precedence"
-      ],
-      "existing_003_spec_ac_coverage": "partial",
-      "mapped_test_modules": [
-        "tests/unit/quantide/web/services/test_stock_query.py"
-      ],
-      "mapped_test_functions": "function records in test-trace-data.json",
-      "test_quality": "aligned",
       "classification": "active v0.2 product",
       "classification_basis": "evidence",
       "classification_evidence": "explicit source/locked contract",
-      "proposed_disposition": "retain and behavior-test to >= 95%",
-      "proposed_requirement_ac_text": [
-        "`quantide/web/services/stock_query.py` 的 function `match_stock, match_stocks` 接受/边界：match_stockstock: StockSearchResult, query: str；match_stock: boundary `not query`；match_stocksstocks: list[StockSearchResult], query: str；match_stocks: boundary `not query`；可观察输出：match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True；match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。",
-        "`quantide/web/services/stock_query.py` 的 class `StockSearchResult, KlineBar, StockSearchValidator` 接受/边界：StockSearchValidator.validatequery: str；match_stockstock: StockSearchResult, query: str；match_stocksstocks: list[StockSearchResult], query: str；可观察输出：StockSearchValidator.validatequery: str -> bool(query and query.strip())；match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True；match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。",
-        "`quantide/web/services/stock_query.py` 的 schema/re-export `annotations, dataclass` 接受/边界：module import exposes re-exports: annotations, dataclass；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。"
-      ],
-      "aaron_decision_candidate": null,
+      "existing_003_spec_ac_coverage": "partial",
       "coverage_target_percent": 95,
       "coverage_gap_statements_estimate": 0,
-      "waiver_or_deletion_blockers": "no waiver permitted",
       "normative_contract": {
-        "status": "retained executable public surface",
-        "public_symbols": [
-          "StockSearchResult",
-          "KlineBar",
-          "StockSearchValidator",
-          "match_stock",
-          "match_stocks",
-          "annotations",
-          "dataclass"
+        "status": "tested stock-query DTO/pure matching API with no production consumer",
+        "surfaces": [
+          "StockSearchResult and KlineBar dataclasses; StockSearchValidator.validate(query: str) -> bool @ quantide/web/services/stock_query.py:16-65",
+          "match_stock(stock: StockSearchResult, query: str) -> bool; match_stocks(stocks: list[StockSearchResult], query: str) -> list[StockSearchResult] @ :68-98"
         ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "StockSearchValidator.validatequery: str",
-          "match_stockstock: StockSearchResult, query: str",
-          "match_stock: boundary `not query`",
-          "match_stocksstocks: list[StockSearchResult], query: str",
-          "match_stocks: boundary `not query`",
-          "module import exposes re-exports: annotations, dataclass"
+        "inputs_boundaries": [
+          "Validator rejects empty/whitespace input; matching lowercases symbol and pinyin, but compares the lowercased query to name without lowercasing name. Empty query matches/returns all."
         ],
         "observable_outputs": [
-          "StockSearchValidator.validatequery: str -> bool(query and query.strip())",
-          "match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True",
-          "match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)",
-          "attribute lookup yields re-exported symbols: annotations, dataclass"
+          "Returns booleans or an order-preserving new list. KlineBar is schema only and does not load or render K-line data."
         ],
-        "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`"
+        "auth_error_fallback_cleanup": [
+          "No I/O, route, auth, persistence, events, mutation, fallback, or cleanup; malformed object attributes propagate."
         ],
-        "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`"
-        ],
-        "upstream_contract_sources": [
-          "v0.2-003 FR-0501~0505",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
-        ],
-        "consumer_evidence": [
-          "tests/unit/quantide/web/services/test_stock_query.py"
-        ],
-        "proposed_acs": [
-          {
-            "id": "AC-PROP-0BCC092F-01",
-            "surface": "function: match_stock, match_stocks",
-            "statement": "`quantide/web/services/stock_query.py` 的 function `match_stock, match_stocks` 接受/边界：match_stockstock: StockSearchResult, query: str；match_stock: boundary `not query`；match_stocksstocks: list[StockSearchResult], query: str；match_stocks: boundary `not query`；可观察输出：match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True；match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。"
-          },
-          {
-            "id": "AC-PROP-0BCC092F-02",
-            "surface": "class: StockSearchResult, KlineBar, StockSearchValidator",
-            "statement": "`quantide/web/services/stock_query.py` 的 class `StockSearchResult, KlineBar, StockSearchValidator` 接受/边界：StockSearchValidator.validatequery: str；match_stockstock: StockSearchResult, query: str；match_stocksstocks: list[StockSearchResult], query: str；可观察输出：StockSearchValidator.validatequery: str -> bool(query and query.strip())；match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True；match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。"
-          },
-          {
-            "id": "AC-PROP-0BCC092F-03",
-            "surface": "schema/re-export: annotations, dataclass",
-            "statement": "`quantide/web/services/stock_query.py` 的 schema/re-export `annotations, dataclass` 接受/边界：module import exposes re-exports: annotations, dataclass；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。"
-          }
+        "evidence": [
+          "tests/unit/quantide/web/services/test_stock_query.py",
+          "No production importer of quantide.web.services.stock_query exists.",
+          "v0.2-002-ui interfaces.md:118-120 canonical K-line route; v0.2-003-coverage spec.md:40-55."
         ]
       },
-      "contract_ac_proposals": [
-        {
-          "id": "AC-PROP-0BCC092F-01",
-          "surface": "function: match_stock, match_stocks",
-          "statement": "`quantide/web/services/stock_query.py` 的 function `match_stock, match_stocks` 接受/边界：match_stockstock: StockSearchResult, query: str；match_stock: boundary `not query`；match_stocksstocks: list[StockSearchResult], query: str；match_stocks: boundary `not query`；可观察输出：match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True；match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。"
-        },
-        {
-          "id": "AC-PROP-0BCC092F-02",
-          "surface": "class: StockSearchResult, KlineBar, StockSearchValidator",
-          "statement": "`quantide/web/services/stock_query.py` 的 class `StockSearchResult, KlineBar, StockSearchValidator` 接受/边界：StockSearchValidator.validatequery: str；match_stockstock: StockSearchResult, query: str；match_stocksstocks: list[StockSearchResult], query: str；可观察输出：StockSearchValidator.validatequery: str -> bool(query and query.strip())；match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True；match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。"
-        },
-        {
-          "id": "AC-PROP-0BCC092F-03",
-          "surface": "schema/re-export: annotations, dataclass",
-          "statement": "`quantide/web/services/stock_query.py` 的 schema/re-export `annotations, dataclass` 接受/边界：module import exposes re-exports: annotations, dataclass；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。"
-        }
-      ],
-      "record_id": "prod-0bcc092fc87f",
-      "source_markdown": {
-        "production_file_audit": "## `quantide/web/services/stock_query.py`\n\n- **Status/classification**: retained executable public surface / `active v0.2 product` (evidence).\n- **Public symbols**: `StockSearchResult`, `KlineBar`, `StockSearchValidator`, `match_stock`, `match_stocks`, `annotations`, `dataclass`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: StockSearchValidator.validatequery: str; match_stockstock: StockSearchResult, query: str; match_stock: boundary `not query`; match_stocksstocks: list[StockSearchResult], query: str; match_stocks: boundary `not query`; module import exposes re-exports: annotations, dataclass.\n- **Observable outputs/DTO/HTML/persistence/events**: StockSearchValidator.validatequery: str -> bool(query and query.strip()); match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True; match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks); attribute lookup yields re-exported symbols: annotations, dataclass.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`.\n- **Upstream source**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: tests/unit/quantide/web/services/test_stock_query.py.\n- **Proposed ACs**: AC-PROP-0BCC092F-01; AC-PROP-0BCC092F-02; AC-PROP-0BCC092F-03.\n",
-        "proposed_requirements": "## `quantide/web/services/stock_query.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-0BCC092F-01** (function: match_stock, match_stocks): `quantide/web/services/stock_query.py` 的 function `match_stock, match_stocks` 接受/边界：match_stockstock: StockSearchResult, query: str；match_stock: boundary `not query`；match_stocksstocks: list[StockSearchResult], query: str；match_stocks: boundary `not query`；可观察输出：match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True；match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。\n- **AC-PROP-0BCC092F-02** (class: StockSearchResult, KlineBar, StockSearchValidator): `quantide/web/services/stock_query.py` 的 class `StockSearchResult, KlineBar, StockSearchValidator` 接受/边界：StockSearchValidator.validatequery: str；match_stockstock: StockSearchResult, query: str；match_stocksstocks: list[StockSearchResult], query: str；可观察输出：StockSearchValidator.validatequery: str -> bool(query and query.strip())；match_stock.match_stockstock: StockSearchResult, query: str -> q in stock.symbol.lower() or q in stock.name or q in stock.pinyin.lower(), True；match_stocks.match_stocksstocks: list[StockSearchResult], query: str -> [s for s in stocks if match_stock(s, query)], list(stocks)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。\n- **AC-PROP-0BCC092F-03** (schema/re-export: annotations, dataclass): `quantide/web/services/stock_query.py` 的 schema/re-export `annotations, dataclass` 接受/边界：module import exposes re-exports: annotations, dataclass；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/stock_query.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/stock_query.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; tests/unit/quantide/web/services/test_stock_query.py.\n- **Coverage target**: 95%.\n"
-      }
+      "aaron_decision_candidate": "[AD-WEB-32] Decide whether stock_query is the intended implementation behind the canonical stock search/K-line surface; currently it is an unconsumed DTO/predicate module and performs no query."
     },
     {
+      "record_id": "prod-d105bd52bcfb",
       "path": "quantide/web/services/strategy_management.py",
       "origin": "v0.2-added",
       "first_commit": "62fa7c5",
-      "modifying_commits_001_to_002_count": 1,
-      "modifying_commits_002_to_003_count": 0,
-      "modifying_commits_003_to_head_count": 0,
-      "modifying_commits_001_to_002": [
+      "material_v0_2_commits": [
         "62fa7c5 feat: green – #133 – FR-0010~0013 策略管理: 排序/过滤/搜索/扫描/屏蔽/删除二次确认"
       ],
-      "modifying_commits_002_to_003": [],
-      "modifying_commits_003_to_head": [],
       "coverage_status": "measured",
       "num_statements": 82,
       "covered_lines": 76,
@@ -484,167 +160,45 @@
       "num_branches": 22,
       "covered_branches": 17,
       "missing_branches": 5,
-      "production_consumer_count": 1,
-      "production_consumers": [
-        "quantide/web/services/scheduling.py"
-      ],
-      "test_file_count": 2,
-      "test_files_importing": [
-        "tests/unit/quantide/web/services/test_scheduling.py",
-        "tests/unit/quantide/web/services/test_strategy_management.py"
-      ],
-      "material_v0_2_commits": [
-        "62fa7c5 feat: green – #133 – FR-0010~0013 策略管理: 排序/过滤/搜索/扫描/屏蔽/删除二次确认"
-      ],
-      "consumers_importers_routes_registries": [
-        "quantide/web/services/scheduling.py"
-      ],
-      "governing_upstream_references": [
-        "v0.2-003 FR-0501~0505",
-        "corresponding v0.2-003 AC",
-        "v0.2-003 interfaces then v0.2-001/002 by precedence"
-      ],
-      "existing_003_spec_ac_coverage": "partial",
-      "mapped_test_modules": [
-        "tests/unit/quantide/web/services/test_scheduling.py",
-        "tests/unit/quantide/web/services/test_strategy_management.py"
-      ],
-      "mapped_test_functions": "function records in test-trace-data.json",
-      "test_quality": "aligned",
       "classification": "active v0.2 product",
       "classification_basis": "evidence",
       "classification_evidence": "explicit source/locked contract",
-      "proposed_disposition": "retain and behavior-test to >= 95%",
-      "proposed_requirement_ac_text": [
-        "`quantide/web/services/strategy_management.py` 的 function `sort_strategies, filter_strategies, scan_strategies` 接受/边界：sort_strategiesstrategies: list[StrategyItem]；filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False；scan_strategies*, new_count: int, updated_count: int, failed: bool=False；scan_strategies: boundary `failed`；可观察输出：sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))；filter_strategies.filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False -> result；scan_strategies.scan_strategies*, new_count: int, updated_count: int, failed: bool=False -> ScanResult(new_count=new_count, updated_count=updated_count, failed=False, message=f'已加载 {new_count} 个新策略 / 更新了 {updated_count} 个'), ScanResult(new_count=0, updated_count=0, failed=True, message='扫描失败, 列表保留扫描前状态')；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。",
-        "`quantide/web/services/strategy_management.py` 的 class `StrategyType, StrategySource, StrategyItem, ScanResult, StrategyHideRequest` 接受/边界：StrategyItem.is_deletableself；StrategyItem.delete_block_reasonself；StrategyItem: boundary `self.running_live`；StrategyDeleteRequest.validateself, strategy: StrategyItem；可观察输出：StrategyItem.is_deletableself -> not self.running_live；StrategyItem.delete_block_reasonself -> '', '正在运行中 (实盘) 的策略不可删除, 请先停止策略运行'；StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')；sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。",
-        "`quantide/web/services/strategy_management.py` 的 class `StrategyDeleteRequest, StrategyDeleteResult` 接受/边界：StrategyDeleteRequest.validateself, strategy: StrategyItem；StrategyDeleteRequest: boundary `not strategy.is_deletable()`；StrategyDeleteRequest: boundary `self.confirm_name != strategy.name`；可观察输出：StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。",
-        "`quantide/web/services/strategy_management.py` 的 schema/re-export `annotations, dataclass, field, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, field, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-      ],
-      "aaron_decision_candidate": null,
+      "existing_003_spec_ac_coverage": "partial",
       "coverage_target_percent": 95,
       "coverage_gap_statements_estimate": 2,
-      "waiver_or_deletion_blockers": "no waiver permitted",
       "normative_contract": {
-        "status": "retained executable public surface",
-        "public_symbols": [
-          "StrategyType",
-          "StrategySource",
-          "StrategyItem",
-          "ScanResult",
-          "StrategyHideRequest",
-          "StrategyDeleteRequest",
-          "StrategyDeleteResult",
-          "sort_strategies",
-          "filter_strategies",
-          "scan_strategies",
-          "annotations",
-          "dataclass",
-          "field",
-          "Enum"
+        "status": "tested strategy-management policy consumed only by the unintegrated scheduling model",
+        "surfaces": [
+          "StrategyType, StrategySource, StrategyItem, ScanResult, StrategyHideRequest, StrategyDeleteRequest, StrategyDeleteResult @ quantide/web/services/strategy_management.py:20-154",
+          "sort_strategies(strategies: list[StrategyItem]) -> list[StrategyItem]; filter_strategies(strategies: list[StrategyItem], *, query: str=\"\", strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False) -> list[StrategyItem] @ :157-204",
+          "scan_strategies(*, new_count: int, updated_count: int, failed: bool=False) -> ScanResult @ :220-238"
         ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "StrategyItem.is_deletableself",
-          "StrategyItem.delete_block_reasonself",
-          "StrategyItem: boundary `self.running_live`",
-          "StrategyDeleteRequest.validateself, strategy: StrategyItem",
-          "StrategyDeleteRequest: boundary `not strategy.is_deletable()`",
-          "StrategyDeleteRequest: boundary `self.confirm_name != strategy.name`",
-          "sort_strategiesstrategies: list[StrategyItem]",
-          "filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False",
-          "scan_strategies*, new_count: int, updated_count: int, failed: bool=False",
-          "scan_strategies: boundary `failed`",
-          "module import exposes re-exports: annotations, dataclass, field, Enum"
+        "inputs_boundaries": [
+          "User strategies sort before built-ins, then by name; hidden, overridden, type, and case-insensitive text filters apply in source order.",
+          "StrategyDeleteRequest.validate blocks running_live, then requires exact strategy-name confirmation; running_paper does not block deletion."
         ],
         "observable_outputs": [
-          "StrategyItem.is_deletableself -> not self.running_live",
-          "StrategyItem.delete_block_reasonself -> '', '正在运行中 (实盘) 的策略不可删除, 请先停止策略运行'",
-          "StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')",
-          "sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))",
-          "filter_strategies.filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False -> result",
-          "scan_strategies.scan_strategies*, new_count: int, updated_count: int, failed: bool=False -> ScanResult(new_count=new_count, updated_count=updated_count, failed=False, message=f'已加载 {new_count} 个新策略 / 更新了 {updated_count} 个'), ScanResult(new_count=0, updated_count=0, failed=True, message='扫描失败, 列表保留扫描前状态')",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum"
+          "Deduplication keeps one item per strategy_id and replaces a seen built-in with a later user item; scan failure zeros counts and returns the fixed failure message."
         ],
-        "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`"
+        "auth_error_fallback_cleanup": [
+          "Policy methods do not scan, hide, delete, persist, publish, or roll back anything; they return decisions/DTOs only."
         ],
-        "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`"
-        ],
-        "upstream_contract_sources": [
-          "v0.2-003 FR-0501~0505",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
-        ],
-        "consumer_evidence": [
-          "quantide/web/services/scheduling.py",
-          "tests/unit/quantide/web/services/test_scheduling.py",
-          "tests/unit/quantide/web/services/test_strategy_management.py"
-        ],
-        "proposed_acs": [
-          {
-            "id": "AC-PROP-D105BD52-01",
-            "surface": "function: sort_strategies, filter_strategies, scan_strategies",
-            "statement": "`quantide/web/services/strategy_management.py` 的 function `sort_strategies, filter_strategies, scan_strategies` 接受/边界：sort_strategiesstrategies: list[StrategyItem]；filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False；scan_strategies*, new_count: int, updated_count: int, failed: bool=False；scan_strategies: boundary `failed`；可观察输出：sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))；filter_strategies.filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False -> result；scan_strategies.scan_strategies*, new_count: int, updated_count: int, failed: bool=False -> ScanResult(new_count=new_count, updated_count=updated_count, failed=False, message=f'已加载 {new_count} 个新策略 / 更新了 {updated_count} 个'), ScanResult(new_count=0, updated_count=0, failed=True, message='扫描失败, 列表保留扫描前状态')；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-          },
-          {
-            "id": "AC-PROP-D105BD52-02",
-            "surface": "class: StrategyType, StrategySource, StrategyItem, ScanResult, StrategyHideRequest",
-            "statement": "`quantide/web/services/strategy_management.py` 的 class `StrategyType, StrategySource, StrategyItem, ScanResult, StrategyHideRequest` 接受/边界：StrategyItem.is_deletableself；StrategyItem.delete_block_reasonself；StrategyItem: boundary `self.running_live`；StrategyDeleteRequest.validateself, strategy: StrategyItem；可观察输出：StrategyItem.is_deletableself -> not self.running_live；StrategyItem.delete_block_reasonself -> '', '正在运行中 (实盘) 的策略不可删除, 请先停止策略运行'；StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')；sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-          },
-          {
-            "id": "AC-PROP-D105BD52-03",
-            "surface": "class: StrategyDeleteRequest, StrategyDeleteResult",
-            "statement": "`quantide/web/services/strategy_management.py` 的 class `StrategyDeleteRequest, StrategyDeleteResult` 接受/边界：StrategyDeleteRequest.validateself, strategy: StrategyItem；StrategyDeleteRequest: boundary `not strategy.is_deletable()`；StrategyDeleteRequest: boundary `self.confirm_name != strategy.name`；可观察输出：StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-          },
-          {
-            "id": "AC-PROP-D105BD52-04",
-            "surface": "schema/re-export: annotations, dataclass, field, Enum",
-            "statement": "`quantide/web/services/strategy_management.py` 的 schema/re-export `annotations, dataclass, field, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, field, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-          }
+        "evidence": [
+          "tests/unit/quantide/web/services/test_strategy_management.py",
+          "quantide/web/services/scheduling.py:21-25 is the only production importer, and scheduling itself is unconsumed.",
+          "v0.2-002-ui strategy contracts; v0.2-003-coverage spec.md:40-55."
         ]
       },
-      "contract_ac_proposals": [
-        {
-          "id": "AC-PROP-D105BD52-01",
-          "surface": "function: sort_strategies, filter_strategies, scan_strategies",
-          "statement": "`quantide/web/services/strategy_management.py` 的 function `sort_strategies, filter_strategies, scan_strategies` 接受/边界：sort_strategiesstrategies: list[StrategyItem]；filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False；scan_strategies*, new_count: int, updated_count: int, failed: bool=False；scan_strategies: boundary `failed`；可观察输出：sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))；filter_strategies.filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False -> result；scan_strategies.scan_strategies*, new_count: int, updated_count: int, failed: bool=False -> ScanResult(new_count=new_count, updated_count=updated_count, failed=False, message=f'已加载 {new_count} 个新策略 / 更新了 {updated_count} 个'), ScanResult(new_count=0, updated_count=0, failed=True, message='扫描失败, 列表保留扫描前状态')；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-        },
-        {
-          "id": "AC-PROP-D105BD52-02",
-          "surface": "class: StrategyType, StrategySource, StrategyItem, ScanResult, StrategyHideRequest",
-          "statement": "`quantide/web/services/strategy_management.py` 的 class `StrategyType, StrategySource, StrategyItem, ScanResult, StrategyHideRequest` 接受/边界：StrategyItem.is_deletableself；StrategyItem.delete_block_reasonself；StrategyItem: boundary `self.running_live`；StrategyDeleteRequest.validateself, strategy: StrategyItem；可观察输出：StrategyItem.is_deletableself -> not self.running_live；StrategyItem.delete_block_reasonself -> '', '正在运行中 (实盘) 的策略不可删除, 请先停止策略运行'；StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')；sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-        },
-        {
-          "id": "AC-PROP-D105BD52-03",
-          "surface": "class: StrategyDeleteRequest, StrategyDeleteResult",
-          "statement": "`quantide/web/services/strategy_management.py` 的 class `StrategyDeleteRequest, StrategyDeleteResult` 接受/边界：StrategyDeleteRequest.validateself, strategy: StrategyItem；StrategyDeleteRequest: boundary `not strategy.is_deletable()`；StrategyDeleteRequest: boundary `self.confirm_name != strategy.name`；可观察输出：StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-        },
-        {
-          "id": "AC-PROP-D105BD52-04",
-          "surface": "schema/re-export: annotations, dataclass, field, Enum",
-          "statement": "`quantide/web/services/strategy_management.py` 的 schema/re-export `annotations, dataclass, field, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, field, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。"
-        }
-      ],
-      "record_id": "prod-d105bd52bcfb",
-      "source_markdown": {
-        "production_file_audit": "## `quantide/web/services/strategy_management.py`\n\n- **Status/classification**: retained executable public surface / `active v0.2 product` (evidence).\n- **Public symbols**: `StrategyType`, `StrategySource`, `StrategyItem`, `ScanResult`, `StrategyHideRequest`, `StrategyDeleteRequest`, `StrategyDeleteResult`, `sort_strategies`, `filter_strategies`, `scan_strategies`, `annotations`, `dataclass`, `field`, `Enum`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: StrategyItem.is_deletableself; StrategyItem.delete_block_reasonself; StrategyItem: boundary `self.running_live`; StrategyDeleteRequest.validateself, strategy: StrategyItem; StrategyDeleteRequest: boundary `not strategy.is_deletable()`; StrategyDeleteRequest: boundary `self.confirm_name != strategy.name`; sort_strategiesstrategies: list[StrategyItem]; filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False; scan_strategies*, new_count: int, updated_count: int, failed: bool=False; scan_strategies: boundary `failed`; module import exposes re-exports: annotations, dataclass, field, Enum.\n- **Observable outputs/DTO/HTML/persistence/events**: StrategyItem.is_deletableself -> not self.running_live; StrategyItem.delete_block_reasonself -> '', '正在运行中 (实盘) 的策略不可删除, 请先停止策略运行'; StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配'); sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name)); filter_strategies.filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False -> result; scan_strategies.scan_strategies*, new_count: int, updated_count: int, failed: bool=False -> ScanResult(new_count=new_count, updated_count=updated_count, failed=False, message=f'已加载 {new_count} 个新策略 / 更新了 {updated_count} 个'), ScanResult(new_count=0, updated_count=0, failed=True, message='扫描失败, 列表保留扫描前状态'); attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`.\n- **Upstream source**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/web/services/scheduling.py; tests/unit/quantide/web/services/test_scheduling.py; tests/unit/quantide/web/services/test_strategy_management.py.\n- **Proposed ACs**: AC-PROP-D105BD52-01; AC-PROP-D105BD52-02; AC-PROP-D105BD52-03; AC-PROP-D105BD52-04.\n",
-        "proposed_requirements": "## `quantide/web/services/strategy_management.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-D105BD52-01** (function: sort_strategies, filter_strategies, scan_strategies): `quantide/web/services/strategy_management.py` 的 function `sort_strategies, filter_strategies, scan_strategies` 接受/边界：sort_strategiesstrategies: list[StrategyItem]；filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False；scan_strategies*, new_count: int, updated_count: int, failed: bool=False；scan_strategies: boundary `failed`；可观察输出：sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))；filter_strategies.filter_strategiesstrategies: list[StrategyItem], *, query: str='', strategy_types: set[StrategyType] | None=None, show_hidden: bool=False, show_overridden: bool=False -> result；scan_strategies.scan_strategies*, new_count: int, updated_count: int, failed: bool=False -> ScanResult(new_count=new_count, updated_count=updated_count, failed=False, message=f'已加载 {new_count} 个新策略 / 更新了 {updated_count} 个'), ScanResult(new_count=0, updated_count=0, failed=True, message='扫描失败, 列表保留扫描前状态')；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。\n- **AC-PROP-D105BD52-02** (class: StrategyType, StrategySource, StrategyItem, ScanResult, StrategyHideRequest): `quantide/web/services/strategy_management.py` 的 class `StrategyType, StrategySource, StrategyItem, ScanResult, StrategyHideRequest` 接受/边界：StrategyItem.is_deletableself；StrategyItem.delete_block_reasonself；StrategyItem: boundary `self.running_live`；StrategyDeleteRequest.validateself, strategy: StrategyItem；可观察输出：StrategyItem.is_deletableself -> not self.running_live；StrategyItem.delete_block_reasonself -> '', '正在运行中 (实盘) 的策略不可删除, 请先停止策略运行'；StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')；sort_strategies.sort_strategiesstrategies: list[StrategyItem] -> sorted(strategies, key=lambda s: (s.is_builtin, s.name))；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。\n- **AC-PROP-D105BD52-03** (class: StrategyDeleteRequest, StrategyDeleteResult): `quantide/web/services/strategy_management.py` 的 class `StrategyDeleteRequest, StrategyDeleteResult` 接受/边界：StrategyDeleteRequest.validateself, strategy: StrategyItem；StrategyDeleteRequest: boundary `not strategy.is_deletable()`；StrategyDeleteRequest: boundary `self.confirm_name != strategy.name`；可观察输出：StrategyDeleteRequest.validateself, strategy: StrategyItem -> StrategyDeleteResult(ok=True, message='删除成功'), StrategyDeleteResult(ok=False, message=strategy.delete_block_reason()), StrategyDeleteResult(ok=False, message='策略名不匹配')；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。\n- **AC-PROP-D105BD52-04** (schema/re-export: annotations, dataclass, field, Enum): `quantide/web/services/strategy_management.py` 的 schema/re-export `annotations, dataclass, field, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, field, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, field, Enum；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/strategy_management.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/strategy_management.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/web/services/scheduling.py; tests/unit/quantide/web/services/test_scheduling.py; tests/unit/quantide/web/services/test_strategy_management.py.\n- **Coverage target**: 95%.\n"
-      }
+      "aaron_decision_candidate": "[AD-WEB-33] Decide whether the shipped /strategy implementation must adopt this policy API; it currently has a separate implementation and no production path reaches this module."
     },
     {
+      "record_id": "prod-ff6ea2d19774",
       "path": "quantide/web/services/tasks.py",
       "origin": "v0.2-added",
       "first_commit": "145f70e",
-      "modifying_commits_001_to_002_count": 1,
-      "modifying_commits_002_to_003_count": 0,
-      "modifying_commits_003_to_head_count": 0,
-      "modifying_commits_001_to_002": [
+      "material_v0_2_commits": [
         "145f70e feat: green – #146 – FR-0310 数据同步任务: 列表/cron 校验/启停/历史 N=10"
       ],
-      "modifying_commits_002_to_003": [],
-      "modifying_commits_003_to_head": [],
       "coverage_status": "measured",
       "num_statements": 56,
       "covered_lines": 56,
@@ -653,158 +207,44 @@
       "num_branches": 12,
       "covered_branches": 12,
       "missing_branches": 0,
-      "production_consumer_count": 1,
-      "production_consumers": [
-        "quantide/web/services/dashboard.py"
-      ],
-      "test_file_count": 2,
-      "test_files_importing": [
-        "tests/unit/quantide/web/services/test_dashboard.py",
-        "tests/unit/quantide/web/services/test_tasks.py"
-      ],
-      "material_v0_2_commits": [
-        "145f70e feat: green – #146 – FR-0310 数据同步任务: 列表/cron 校验/启停/历史 N=10"
-      ],
-      "consumers_importers_routes_registries": [
-        "quantide/web/services/dashboard.py"
-      ],
-      "governing_upstream_references": [
-        "v0.2-003 FR-0501~0505",
-        "corresponding v0.2-003 AC",
-        "v0.2-003 interfaces then v0.2-001/002 by precedence"
-      ],
-      "existing_003_spec_ac_coverage": "full",
-      "mapped_test_modules": [
-        "tests/unit/quantide/web/services/test_dashboard.py",
-        "tests/unit/quantide/web/services/test_tasks.py"
-      ],
-      "mapped_test_functions": "function records in test-trace-data.json",
-      "test_quality": "aligned",
       "classification": "active v0.2 product",
       "classification_basis": "evidence",
       "classification_evidence": "explicit source/locked contract",
-      "proposed_disposition": "retain and behavior-test to >= 95%",
-      "proposed_requirement_ac_text": [
-        "`quantide/web/services/tasks.py` 的 function `validate_cron_expression, truncate_task_history` 接受/边界：validate_cron_expressioncron: str；validate_cron_expression: boundary `len(fields) != 5`；validate_cron_expression: boundary `not _is_valid_cron_field(field)`；truncate_task_historyhistory: list[TaskHistoryItem]；可观察输出：validate_cron_expression.validate_cron_expressioncron: str -> True；truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。",
-        "`quantide/web/services/tasks.py` 的 class `TaskStatus, CronValidationError, TaskHistoryItem, TaskListItem, TaskRunRequest` 接受/边界：truncate_task_historyhistory: list[TaskHistoryItem]；可观察输出：truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。",
-        "`quantide/web/services/tasks.py` 的 class `TaskRunResult, TaskToggleRequest` 接受/边界：validate_cron_expressioncron: str；validate_cron_expression: boundary `len(fields) != 5`；可观察输出：validate_cron_expression.validate_cron_expressioncron: str -> True；truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。",
-        "`quantide/web/services/tasks.py` 的 schema/re-export `annotations, dataclass, Enum, DATA_SYNC_TASK_NAMES` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；module import exposes constants/schema hooks: DATA_SYNC_TASK_NAMES；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；read-only public values are available: DATA_SYNC_TASK_NAMES；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-      ],
-      "aaron_decision_candidate": null,
+      "existing_003_spec_ac_coverage": "full",
       "coverage_target_percent": 95,
       "coverage_gap_statements_estimate": 0,
-      "waiver_or_deletion_blockers": "no waiver permitted",
       "normative_contract": {
-        "status": "retained executable public surface",
-        "public_symbols": [
-          "TaskStatus",
-          "CronValidationError",
-          "TaskHistoryItem",
-          "TaskListItem",
-          "TaskRunRequest",
-          "TaskRunResult",
-          "TaskToggleRequest",
-          "validate_cron_expression",
-          "truncate_task_history",
-          "annotations",
-          "dataclass",
-          "Enum",
-          "DATA_SYNC_TASK_NAMES"
+        "status": "tested task DTO/validation API with no production consumer",
+        "surfaces": [
+          "DATA_SYNC_TASK_NAMES; TaskStatus, CronValidationError, TaskHistoryItem, TaskListItem, TaskRunRequest, TaskRunResult, TaskToggleRequest @ quantide/web/services/tasks.py:18-116",
+          "validate_cron_expression(cron: str) -> bool; truncate_task_history(history: list[TaskHistoryItem]) -> list[TaskHistoryItem] @ :119-163"
         ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "validate_cron_expressioncron: str",
-          "validate_cron_expression: boundary `len(fields) != 5`",
-          "validate_cron_expression: boundary `not _is_valid_cron_field(field)`",
-          "truncate_task_historyhistory: list[TaskHistoryItem]",
-          "module import exposes re-exports: annotations, dataclass, Enum",
-          "module import exposes constants/schema hooks: DATA_SYNC_TASK_NAMES"
+        "inputs_boundaries": [
+          "Cron must have exactly five fields; each field permits only *, digits, and digit compositions using comma, hyphen, or slash. Range semantics are not validated.",
+          "History truncation takes the last ten input entries without sorting."
         ],
         "observable_outputs": [
-          "validate_cron_expression.validate_cron_expressioncron: str -> True",
-          "truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, Enum",
-          "read-only public values are available: DATA_SYNC_TASK_NAMES"
+          "Cron validation returns True or raises CronValidationError with the exact field-count/illegal-field message; truncation returns a slice."
         ],
-        "failure_error_fallback": [
-          "validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')",
-          "validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')"
+        "auth_error_fallback_cleanup": [
+          "DTO/policy only: requests do not run/toggle tasks, and no scheduler, persistence, auth, event, retry, or cleanup is implemented."
         ],
-        "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`"
-        ],
-        "upstream_contract_sources": [
-          "v0.2-003 FR-0501~0505",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
-        ],
-        "consumer_evidence": [
-          "quantide/web/services/dashboard.py",
-          "tests/unit/quantide/web/services/test_tasks.py"
-        ],
-        "proposed_acs": [
-          {
-            "id": "AC-PROP-FF6EA2D1-01",
-            "surface": "function: validate_cron_expression, truncate_task_history",
-            "statement": "`quantide/web/services/tasks.py` 的 function `validate_cron_expression, truncate_task_history` 接受/边界：validate_cron_expressioncron: str；validate_cron_expression: boundary `len(fields) != 5`；validate_cron_expression: boundary `not _is_valid_cron_field(field)`；truncate_task_historyhistory: list[TaskHistoryItem]；可观察输出：validate_cron_expression.validate_cron_expressioncron: str -> True；truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-          },
-          {
-            "id": "AC-PROP-FF6EA2D1-02",
-            "surface": "class: TaskStatus, CronValidationError, TaskHistoryItem, TaskListItem, TaskRunRequest",
-            "statement": "`quantide/web/services/tasks.py` 的 class `TaskStatus, CronValidationError, TaskHistoryItem, TaskListItem, TaskRunRequest` 接受/边界：truncate_task_historyhistory: list[TaskHistoryItem]；可观察输出：truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-          },
-          {
-            "id": "AC-PROP-FF6EA2D1-03",
-            "surface": "class: TaskRunResult, TaskToggleRequest",
-            "statement": "`quantide/web/services/tasks.py` 的 class `TaskRunResult, TaskToggleRequest` 接受/边界：validate_cron_expressioncron: str；validate_cron_expression: boundary `len(fields) != 5`；可观察输出：validate_cron_expression.validate_cron_expressioncron: str -> True；truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-          },
-          {
-            "id": "AC-PROP-FF6EA2D1-04",
-            "surface": "schema/re-export: annotations, dataclass, Enum, DATA_SYNC_TASK_NAMES",
-            "statement": "`quantide/web/services/tasks.py` 的 schema/re-export `annotations, dataclass, Enum, DATA_SYNC_TASK_NAMES` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；module import exposes constants/schema hooks: DATA_SYNC_TASK_NAMES；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；read-only public values are available: DATA_SYNC_TASK_NAMES；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-          }
+        "evidence": [
+          "tests/unit/quantide/web/services/test_tasks.py",
+          "No production importer of quantide.web.services.tasks exists; /system/jobs uses independent logic.",
+          "v0.2-003-coverage spec.md:40-55."
         ]
       },
-      "contract_ac_proposals": [
-        {
-          "id": "AC-PROP-FF6EA2D1-01",
-          "surface": "function: validate_cron_expression, truncate_task_history",
-          "statement": "`quantide/web/services/tasks.py` 的 function `validate_cron_expression, truncate_task_history` 接受/边界：validate_cron_expressioncron: str；validate_cron_expression: boundary `len(fields) != 5`；validate_cron_expression: boundary `not _is_valid_cron_field(field)`；truncate_task_historyhistory: list[TaskHistoryItem]；可观察输出：validate_cron_expression.validate_cron_expressioncron: str -> True；truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-        },
-        {
-          "id": "AC-PROP-FF6EA2D1-02",
-          "surface": "class: TaskStatus, CronValidationError, TaskHistoryItem, TaskListItem, TaskRunRequest",
-          "statement": "`quantide/web/services/tasks.py` 的 class `TaskStatus, CronValidationError, TaskHistoryItem, TaskListItem, TaskRunRequest` 接受/边界：truncate_task_historyhistory: list[TaskHistoryItem]；可观察输出：truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-        },
-        {
-          "id": "AC-PROP-FF6EA2D1-03",
-          "surface": "class: TaskRunResult, TaskToggleRequest",
-          "statement": "`quantide/web/services/tasks.py` 的 class `TaskRunResult, TaskToggleRequest` 接受/边界：validate_cron_expressioncron: str；validate_cron_expression: boundary `len(fields) != 5`；可观察输出：validate_cron_expression.validate_cron_expressioncron: str -> True；truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-        },
-        {
-          "id": "AC-PROP-FF6EA2D1-04",
-          "surface": "schema/re-export: annotations, dataclass, Enum, DATA_SYNC_TASK_NAMES",
-          "statement": "`quantide/web/services/tasks.py` 的 schema/re-export `annotations, dataclass, Enum, DATA_SYNC_TASK_NAMES` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；module import exposes constants/schema hooks: DATA_SYNC_TASK_NAMES；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；read-only public values are available: DATA_SYNC_TASK_NAMES；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。"
-        }
-      ],
-      "record_id": "prod-ff6ea2d19774",
-      "source_markdown": {
-        "production_file_audit": "## `quantide/web/services/tasks.py`\n\n- **Status/classification**: retained executable public surface / `active v0.2 product` (evidence).\n- **Public symbols**: `TaskStatus`, `CronValidationError`, `TaskHistoryItem`, `TaskListItem`, `TaskRunRequest`, `TaskRunResult`, `TaskToggleRequest`, `validate_cron_expression`, `truncate_task_history`, `annotations`, `dataclass`, `Enum`, `DATA_SYNC_TASK_NAMES`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: validate_cron_expressioncron: str; validate_cron_expression: boundary `len(fields) != 5`; validate_cron_expression: boundary `not _is_valid_cron_field(field)`; truncate_task_historyhistory: list[TaskHistoryItem]; module import exposes re-exports: annotations, dataclass, Enum; module import exposes constants/schema hooks: DATA_SYNC_TASK_NAMES.\n- **Observable outputs/DTO/HTML/persistence/events**: validate_cron_expression.validate_cron_expressioncron: str -> True; truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]; attribute lookup yields re-exported symbols: annotations, dataclass, Enum; read-only public values are available: DATA_SYNC_TASK_NAMES.\n- **Failure/error/fallback**: validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)'); validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}').\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`.\n- **Upstream source**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/web/services/dashboard.py; tests/unit/quantide/web/services/test_tasks.py.\n- **Proposed ACs**: AC-PROP-FF6EA2D1-01; AC-PROP-FF6EA2D1-02; AC-PROP-FF6EA2D1-03; AC-PROP-FF6EA2D1-04.\n",
-        "proposed_requirements": "## `quantide/web/services/tasks.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-FF6EA2D1-01** (function: validate_cron_expression, truncate_task_history): `quantide/web/services/tasks.py` 的 function `validate_cron_expression, truncate_task_history` 接受/边界：validate_cron_expressioncron: str；validate_cron_expression: boundary `len(fields) != 5`；validate_cron_expression: boundary `not _is_valid_cron_field(field)`；truncate_task_historyhistory: list[TaskHistoryItem]；可观察输出：validate_cron_expression.validate_cron_expressioncron: str -> True；truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。\n- **AC-PROP-FF6EA2D1-02** (class: TaskStatus, CronValidationError, TaskHistoryItem, TaskListItem, TaskRunRequest): `quantide/web/services/tasks.py` 的 class `TaskStatus, CronValidationError, TaskHistoryItem, TaskListItem, TaskRunRequest` 接受/边界：truncate_task_historyhistory: list[TaskHistoryItem]；可观察输出：truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；validate_cron_expression: raises CronValidationError(f'cron 字段非法: {field}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。\n- **AC-PROP-FF6EA2D1-03** (class: TaskRunResult, TaskToggleRequest): `quantide/web/services/tasks.py` 的 class `TaskRunResult, TaskToggleRequest` 接受/边界：validate_cron_expressioncron: str；validate_cron_expression: boundary `len(fields) != 5`；可观察输出：validate_cron_expression.validate_cron_expressioncron: str -> True；truncate_task_history.truncate_task_historyhistory: list[TaskHistoryItem] -> history[-_TASK_HISTORY_LIMIT:]；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。\n- **AC-PROP-FF6EA2D1-04** (schema/re-export: annotations, dataclass, Enum, DATA_SYNC_TASK_NAMES): `quantide/web/services/tasks.py` 的 schema/re-export `annotations, dataclass, Enum, DATA_SYNC_TASK_NAMES` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；module import exposes constants/schema hooks: DATA_SYNC_TASK_NAMES；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；read-only public values are available: DATA_SYNC_TASK_NAMES；失败/回退：validate_cron_expression: raises CronValidationError('cron 表达式必须为 5 个字段 (分 时 日 月 周)')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/tasks.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/web/services/dashboard.py; tests/unit/quantide/web/services/test_tasks.py.\n- **Coverage target**: 95%.\n"
-      }
+      "aaron_decision_candidate": "[AD-WEB-34] Decide whether /system/jobs should be migrated to this v0.2 task contract; the shipped page uses a separate scheduler model and this module is unconsumed."
     },
     {
+      "record_id": "prod-dde49eed52e7",
       "path": "quantide/web/services/trade.py",
       "origin": "v0.2-added",
       "first_commit": "e57f845",
-      "modifying_commits_001_to_002_count": 1,
-      "modifying_commits_002_to_003_count": 0,
-      "modifying_commits_003_to_head_count": 0,
-      "modifying_commits_001_to_002": [
+      "material_v0_2_commits": [
         "e57f845 feat: green – #156 – FR-0420 订单校验: 风控目标/可卖数量/金额反算/100股整数倍"
       ],
-      "modifying_commits_002_to_003": [],
-      "modifying_commits_003_to_head": [],
       "coverage_status": "measured",
       "num_statements": 57,
       "covered_lines": 55,
@@ -813,230 +253,45 @@
       "num_branches": 18,
       "covered_branches": 16,
       "missing_branches": 2,
-      "production_consumer_count": 23,
-      "production_consumers": [
-        "quantide/app_factory.py",
-        "quantide/core/domain/events.py",
-        "quantide/core/runtime/gateway_broker.py",
-        "quantide/data/models/calendar.py",
-        "quantide/data/sqlite.py",
-        "quantide/service/abstract_broker.py",
-        "quantide/service/backtest_broker.py",
-        "quantide/service/sim_broker.py",
-        "quantide/web/apis/broker.py",
-        "quantide/web/layouts/main.py",
-        "quantide/web/middleware_feature.py",
-        "quantide/web/nfr_error_degradation.py",
-        "quantide/web/pages/analysis.py",
-        "quantide/web/pages/history_orders.py",
-        "quantide/web/pages/history_positions.py"
-      ],
-      "test_file_count": 16,
-      "test_files_importing": [
-        "tests/unit/quantide/core/domain/test_events.py",
-        "tests/unit/quantide/core/ports/test_protocol_structural.py",
-        "tests/unit/quantide/core/test_gateway_broker_adapter.py",
-        "tests/unit/quantide/core/test_gateway_protocol_contract.py",
-        "tests/unit/quantide/data/models/test_calendar.py",
-        "tests/unit/quantide/data/test_sqlite.py",
-        "tests/unit/quantide/service/test_abstract_broker.py",
-        "tests/unit/quantide/service/test_backtest_broker.py",
-        "tests/unit/quantide/test_nfr_010_050_nonfunctional.py",
-        "tests/unit/quantide/web/services/test_notifications.py",
-        "tests/unit/quantide/web/services/test_trade.py",
-        "tests/unit/quantide/web/services/test_trade_history.py",
-        "tests/unit/quantide/web/test_nfr_error_degradation.py",
-        "tests/unit/quantide/web/test_nfr_partial_refresh.py",
-        "tests/unit/quantide/web/test_strategy.py",
-        "tests/unit/quantide/web/test_trade.py"
-      ],
-      "material_v0_2_commits": [
-        "e57f845 feat: green – #156 – FR-0420 订单校验: 风控目标/可卖数量/金额反算/100股整数倍"
-      ],
-      "consumers_importers_routes_registries": [
-        "quantide/app_factory.py",
-        "quantide/core/domain/events.py",
-        "quantide/core/runtime/gateway_broker.py",
-        "quantide/data/models/calendar.py",
-        "quantide/data/sqlite.py",
-        "quantide/service/abstract_broker.py",
-        "quantide/service/backtest_broker.py",
-        "quantide/service/sim_broker.py",
-        "quantide/web/apis/broker.py",
-        "quantide/web/layouts/main.py",
-        "quantide/web/middleware_feature.py",
-        "quantide/web/nfr_error_degradation.py",
-        "quantide/web/pages/analysis.py",
-        "quantide/web/pages/history_orders.py",
-        "quantide/web/pages/history_positions.py"
-      ],
-      "governing_upstream_references": [
-        "v0.2-003 FR-0501~0505",
-        "corresponding v0.2-003 AC",
-        "v0.2-003 interfaces then v0.2-001/002 by precedence"
-      ],
-      "existing_003_spec_ac_coverage": "partial",
-      "mapped_test_modules": [
-        "tests/unit/quantide/core/domain/test_events.py",
-        "tests/unit/quantide/core/ports/test_protocol_structural.py",
-        "tests/unit/quantide/core/test_gateway_broker_adapter.py",
-        "tests/unit/quantide/core/test_gateway_protocol_contract.py",
-        "tests/unit/quantide/data/models/test_calendar.py",
-        "tests/unit/quantide/data/test_sqlite.py",
-        "tests/unit/quantide/service/test_abstract_broker.py",
-        "tests/unit/quantide/service/test_backtest_broker.py",
-        "tests/unit/quantide/test_nfr_010_050_nonfunctional.py",
-        "tests/unit/quantide/web/services/test_notifications.py",
-        "tests/unit/quantide/web/services/test_trade.py",
-        "tests/unit/quantide/web/services/test_trade_history.py",
-        "tests/unit/quantide/web/test_nfr_error_degradation.py",
-        "tests/unit/quantide/web/test_nfr_partial_refresh.py",
-        "tests/unit/quantide/web/test_strategy.py",
-        "tests/unit/quantide/web/test_trade.py"
-      ],
-      "mapped_test_functions": "function records in test-trace-data.json",
-      "test_quality": "aligned",
       "classification": "active v0.2 product",
       "classification_basis": "evidence",
       "classification_evidence": "explicit source/locked contract",
-      "proposed_disposition": "retain and behavior-test to >= 95%",
-      "proposed_requirement_ac_text": [
-        "`quantide/web/services/trade.py` 的 function `is_risk_strategy_target, calculate_sellable_quantity, calculate_shares_from_amount, validate_order_request` 接受/边界：is_risk_strategy_targetstrategy_type: str；calculate_sellable_quantityposition: int, pending_orders: int；calculate_shares_from_amountamount: float, price: float；calculate_shares_from_amount: boundary `price <= 0 or amount <= 0`；可观察输出：is_risk_strategy_target.is_risk_strategy_targetstrategy_type: str -> strategy_type == 'risk'；calculate_sellable_quantity.calculate_sellable_quantityposition: int, pending_orders: int -> max(0, position - pending_orders)；calculate_shares_from_amount.calculate_shares_from_amountamount: float, price: float -> math.floor(amount / price / 100) * 100, 0；validate_order_request.validate_order_requestorder: OrderRequest -> True；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')；validate_order_request: raises OrderValidationError('证券代码不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。",
-        "`quantide/web/services/trade.py` 的 class `OrderSide, OrderType, PriceSource, OrderRequest, OrderValidationError` 接受/边界：validate_order_requestorder: OrderRequest；validate_order_request: boundary `order.order_type == OrderType.LIMIT`；可观察输出：validate_order_request.validate_order_requestorder: OrderRequest -> True；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')；validate_order_request: raises OrderValidationError('证券代码不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。",
-        "`quantide/web/services/trade.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。"
-      ],
-      "aaron_decision_candidate": null,
+      "existing_003_spec_ac_coverage": "partial",
       "coverage_target_percent": 95,
       "coverage_gap_statements_estimate": 0,
-      "waiver_or_deletion_blockers": "no waiver permitted",
       "normative_contract": {
-        "status": "retained executable public surface",
-        "public_symbols": [
-          "OrderSide",
-          "OrderType",
-          "PriceSource",
-          "OrderRequest",
-          "OrderValidationError",
-          "is_risk_strategy_target",
-          "calculate_sellable_quantity",
-          "calculate_shares_from_amount",
-          "validate_order_request",
-          "annotations",
-          "dataclass",
-          "Enum"
+        "status": "tested order-validation DTO/policy API not used by shipped trade handlers",
+        "surfaces": [
+          "OrderSide, OrderType, PriceSource, OrderRequest, OrderValidationError @ quantide/web/services/trade.py:18-74",
+          "is_risk_strategy_target(strategy_type: str) -> bool; calculate_sellable_quantity(position: int, pending_orders: int) -> int; calculate_shares_from_amount(amount: float, price: float) -> int @ :77-118",
+          "validate_order_request(order: OrderRequest) -> bool @ :121-148"
         ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "is_risk_strategy_targetstrategy_type: str",
-          "calculate_sellable_quantityposition: int, pending_orders: int",
-          "calculate_shares_from_amountamount: float, price: float",
-          "calculate_shares_from_amount: boundary `price <= 0 or amount <= 0`",
-          "validate_order_requestorder: OrderRequest",
-          "validate_order_request: boundary `not order.strategy_id`",
-          "validate_order_request: boundary `is_risk_strategy_target(order.strategy_type)`",
-          "validate_order_request: boundary `not order.symbol`",
-          "validate_order_request: boundary `order.quantity <= 0`",
-          "validate_order_request: boundary `order.quantity % 100 != 0`",
-          "validate_order_request: boundary `order.order_type == OrderType.LIMIT`",
-          "validate_order_request: boundary `order.price is None or order.price <= 0`",
-          "validate_order_request: boundary `order.price is not None and order.price < 0`",
-          "module import exposes re-exports: annotations, dataclass, Enum"
+        "inputs_boundaries": [
+          "Validation requires strategy_id, non-risk strategy_type, symbol, positive quantity divisible by 100, positive limit price; market price may be None/zero but not negative.",
+          "Sellable quantity floors at zero; amount conversion returns zero for nonpositive inputs and otherwise floors to board lots of 100."
         ],
         "observable_outputs": [
-          "is_risk_strategy_target.is_risk_strategy_targetstrategy_type: str -> strategy_type == 'risk'",
-          "calculate_sellable_quantity.calculate_sellable_quantityposition: int, pending_orders: int -> max(0, position - pending_orders)",
-          "calculate_shares_from_amount.calculate_shares_from_amountamount: float, price: float -> math.floor(amount / price / 100) * 100, 0",
-          "validate_order_request.validate_order_requestorder: OrderRequest -> True",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, Enum"
+          "Calculators return integers/booleans; validation returns True or raises OrderValidationError at the first failed source check with its exact message."
         ],
-        "failure_error_fallback": [
-          "validate_order_request: raises OrderValidationError('目标策略必选')",
-          "validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')",
-          "validate_order_request: raises OrderValidationError('证券代码不能为空')",
-          "validate_order_request: raises OrderValidationError('数量必须大于 0')",
-          "validate_order_request: raises OrderValidationError('数量必须为 100 股整数倍')",
-          "validate_order_request: raises OrderValidationError('限价单委托价必须 > 0')",
-          "validate_order_request: raises OrderValidationError('委托价不能为负数')"
+        "auth_error_fallback_cleanup": [
+          "No broker call, authentication, persistence, event publication, order creation, rollback, or cleanup."
         ],
-        "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`"
-        ],
-        "upstream_contract_sources": [
-          "v0.2-003 FR-0501~0505",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
-        ],
-        "consumer_evidence": [
-          "quantide/app_factory.py",
-          "quantide/core/domain/events.py",
-          "quantide/core/runtime/gateway_broker.py",
-          "quantide/data/models/calendar.py",
-          "quantide/data/sqlite.py",
-          "quantide/service/abstract_broker.py",
-          "quantide/service/backtest_broker.py",
-          "quantide/service/sim_broker.py",
-          "quantide/web/apis/broker.py",
-          "quantide/web/layouts/main.py",
-          "quantide/web/middleware_feature.py",
-          "quantide/web/nfr_error_degradation.py",
-          "quantide/web/pages/analysis.py",
-          "quantide/web/pages/history_orders.py",
-          "quantide/web/pages/history_positions.py",
-          "tests/unit/quantide/web/services/test_trade.py"
-        ],
-        "proposed_acs": [
-          {
-            "id": "AC-PROP-DDE49EED-01",
-            "surface": "function: is_risk_strategy_target, calculate_sellable_quantity, calculate_shares_from_amount, validate_order_request",
-            "statement": "`quantide/web/services/trade.py` 的 function `is_risk_strategy_target, calculate_sellable_quantity, calculate_shares_from_amount, validate_order_request` 接受/边界：is_risk_strategy_targetstrategy_type: str；calculate_sellable_quantityposition: int, pending_orders: int；calculate_shares_from_amountamount: float, price: float；calculate_shares_from_amount: boundary `price <= 0 or amount <= 0`；可观察输出：is_risk_strategy_target.is_risk_strategy_targetstrategy_type: str -> strategy_type == 'risk'；calculate_sellable_quantity.calculate_sellable_quantityposition: int, pending_orders: int -> max(0, position - pending_orders)；calculate_shares_from_amount.calculate_shares_from_amountamount: float, price: float -> math.floor(amount / price / 100) * 100, 0；validate_order_request.validate_order_requestorder: OrderRequest -> True；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')；validate_order_request: raises OrderValidationError('证券代码不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。"
-          },
-          {
-            "id": "AC-PROP-DDE49EED-02",
-            "surface": "class: OrderSide, OrderType, PriceSource, OrderRequest, OrderValidationError",
-            "statement": "`quantide/web/services/trade.py` 的 class `OrderSide, OrderType, PriceSource, OrderRequest, OrderValidationError` 接受/边界：validate_order_requestorder: OrderRequest；validate_order_request: boundary `order.order_type == OrderType.LIMIT`；可观察输出：validate_order_request.validate_order_requestorder: OrderRequest -> True；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')；validate_order_request: raises OrderValidationError('证券代码不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。"
-          },
-          {
-            "id": "AC-PROP-DDE49EED-03",
-            "surface": "schema/re-export: annotations, dataclass, Enum",
-            "statement": "`quantide/web/services/trade.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。"
-          }
+        "evidence": [
+          "tests/unit/quantide/web/services/test_trade.py",
+          "No production importer of quantide.web.services.trade exists; quantide/web/pages/trade_main.py:1812-1902 validates independently.",
+          "v0.2-002-ui interfaces.md order DTO; v0.2-003-coverage spec.md:40-55."
         ]
       },
-      "contract_ac_proposals": [
-        {
-          "id": "AC-PROP-DDE49EED-01",
-          "surface": "function: is_risk_strategy_target, calculate_sellable_quantity, calculate_shares_from_amount, validate_order_request",
-          "statement": "`quantide/web/services/trade.py` 的 function `is_risk_strategy_target, calculate_sellable_quantity, calculate_shares_from_amount, validate_order_request` 接受/边界：is_risk_strategy_targetstrategy_type: str；calculate_sellable_quantityposition: int, pending_orders: int；calculate_shares_from_amountamount: float, price: float；calculate_shares_from_amount: boundary `price <= 0 or amount <= 0`；可观察输出：is_risk_strategy_target.is_risk_strategy_targetstrategy_type: str -> strategy_type == 'risk'；calculate_sellable_quantity.calculate_sellable_quantityposition: int, pending_orders: int -> max(0, position - pending_orders)；calculate_shares_from_amount.calculate_shares_from_amountamount: float, price: float -> math.floor(amount / price / 100) * 100, 0；validate_order_request.validate_order_requestorder: OrderRequest -> True；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')；validate_order_request: raises OrderValidationError('证券代码不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。"
-        },
-        {
-          "id": "AC-PROP-DDE49EED-02",
-          "surface": "class: OrderSide, OrderType, PriceSource, OrderRequest, OrderValidationError",
-          "statement": "`quantide/web/services/trade.py` 的 class `OrderSide, OrderType, PriceSource, OrderRequest, OrderValidationError` 接受/边界：validate_order_requestorder: OrderRequest；validate_order_request: boundary `order.order_type == OrderType.LIMIT`；可观察输出：validate_order_request.validate_order_requestorder: OrderRequest -> True；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')；validate_order_request: raises OrderValidationError('证券代码不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。"
-        },
-        {
-          "id": "AC-PROP-DDE49EED-03",
-          "surface": "schema/re-export: annotations, dataclass, Enum",
-          "statement": "`quantide/web/services/trade.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。"
-        }
-      ],
-      "record_id": "prod-dde49eed52e7",
-      "source_markdown": {
-        "production_file_audit": "## `quantide/web/services/trade.py`\n\n- **Status/classification**: retained executable public surface / `active v0.2 product` (evidence).\n- **Public symbols**: `OrderSide`, `OrderType`, `PriceSource`, `OrderRequest`, `OrderValidationError`, `is_risk_strategy_target`, `calculate_sellable_quantity`, `calculate_shares_from_amount`, `validate_order_request`, `annotations`, `dataclass`, `Enum`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: is_risk_strategy_targetstrategy_type: str; calculate_sellable_quantityposition: int, pending_orders: int; calculate_shares_from_amountamount: float, price: float; calculate_shares_from_amount: boundary `price <= 0 or amount <= 0`; validate_order_requestorder: OrderRequest; validate_order_request: boundary `not order.strategy_id`; validate_order_request: boundary `is_risk_strategy_target(order.strategy_type)`; validate_order_request: boundary `not order.symbol`; validate_order_request: boundary `order.quantity <= 0`; validate_order_request: boundary `order.quantity % 100 != 0`; validate_order_request: boundary `order.order_type == OrderType.LIMIT`; validate_order_request: boundary `order.price is None or order.price <= 0`; validate_order_request: boundary `order.price is not None and order.price < 0`; module import exposes re-exports: annotations, dataclass, Enum.\n- **Observable outputs/DTO/HTML/persistence/events**: is_risk_strategy_target.is_risk_strategy_targetstrategy_type: str -> strategy_type == 'risk'; calculate_sellable_quantity.calculate_sellable_quantityposition: int, pending_orders: int -> max(0, position - pending_orders); calculate_shares_from_amount.calculate_shares_from_amountamount: float, price: float -> math.floor(amount / price / 100) * 100, 0; validate_order_request.validate_order_requestorder: OrderRequest -> True; attribute lookup yields re-exported symbols: annotations, dataclass, Enum.\n- **Failure/error/fallback**: validate_order_request: raises OrderValidationError('目标策略必选'); validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标'); validate_order_request: raises OrderValidationError('证券代码不能为空'); validate_order_request: raises OrderValidationError('数量必须大于 0'); validate_order_request: raises OrderValidationError('数量必须为 100 股整数倍'); validate_order_request: raises OrderValidationError('限价单委托价必须 > 0'); validate_order_request: raises OrderValidationError('委托价不能为负数').\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`.\n- **Upstream source**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/app_factory.py; quantide/core/domain/events.py; quantide/core/runtime/gateway_broker.py; quantide/data/models/calendar.py; quantide/data/sqlite.py; quantide/service/abstract_broker.py; quantide/service/backtest_broker.py; quantide/service/sim_broker.py; quantide/web/apis/broker.py; quantide/web/layouts/main.py; quantide/web/middleware_feature.py; quantide/web/nfr_error_degradation.py; quantide/web/pages/analysis.py; quantide/web/pages/history_orders.py; quantide/web/pages/history_positions.py; tests/unit/quantide/web/services/test_trade.py.\n- **Proposed ACs**: AC-PROP-DDE49EED-01; AC-PROP-DDE49EED-02; AC-PROP-DDE49EED-03.\n",
-        "proposed_requirements": "## `quantide/web/services/trade.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-DDE49EED-01** (function: is_risk_strategy_target, calculate_sellable_quantity, calculate_shares_from_amount, validate_order_request): `quantide/web/services/trade.py` 的 function `is_risk_strategy_target, calculate_sellable_quantity, calculate_shares_from_amount, validate_order_request` 接受/边界：is_risk_strategy_targetstrategy_type: str；calculate_sellable_quantityposition: int, pending_orders: int；calculate_shares_from_amountamount: float, price: float；calculate_shares_from_amount: boundary `price <= 0 or amount <= 0`；可观察输出：is_risk_strategy_target.is_risk_strategy_targetstrategy_type: str -> strategy_type == 'risk'；calculate_sellable_quantity.calculate_sellable_quantityposition: int, pending_orders: int -> max(0, position - pending_orders)；calculate_shares_from_amount.calculate_shares_from_amountamount: float, price: float -> math.floor(amount / price / 100) * 100, 0；validate_order_request.validate_order_requestorder: OrderRequest -> True；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')；validate_order_request: raises OrderValidationError('证券代码不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。\n- **AC-PROP-DDE49EED-02** (class: OrderSide, OrderType, PriceSource, OrderRequest, OrderValidationError): `quantide/web/services/trade.py` 的 class `OrderSide, OrderType, PriceSource, OrderRequest, OrderValidationError` 接受/边界：validate_order_requestorder: OrderRequest；validate_order_request: boundary `order.order_type == OrderType.LIMIT`；可观察输出：validate_order_request.validate_order_requestorder: OrderRequest -> True；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；validate_order_request: raises OrderValidationError('风控策略不可作为手动交易目标')；validate_order_request: raises OrderValidationError('证券代码不能为空')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。\n- **AC-PROP-DDE49EED-03** (schema/re-export: annotations, dataclass, Enum): `quantide/web/services/trade.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：validate_order_request: raises OrderValidationError('目标策略必选')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/app_factory.py; quantide/core/domain/events.py; quantide/core/runtime/gateway_broker.py; quantide/data/models/calendar.py; quantide/data/sqlite.py.\n- **Coverage target**: 95%.\n"
-      }
+      "aaron_decision_candidate": "[AD-WEB-35] Decide whether shipped trade/order handlers must use this canonical validator. Current production paths bypass it and therefore do not inherit all strategy/board-lot rules."
     },
     {
+      "record_id": "prod-60a64d86fc7a",
       "path": "quantide/web/services/trade_history.py",
       "origin": "v0.2-added",
       "first_commit": "bf2ac7d",
-      "modifying_commits_001_to_002_count": 1,
-      "modifying_commits_002_to_003_count": 0,
-      "modifying_commits_003_to_head_count": 0,
-      "modifying_commits_001_to_002": [
+      "material_v0_2_commits": [
         "bf2ac7d feat: green – #153 – FR-0400/0430 委托成交+仿真: 三态tab/组合筛选/无下单辅助/补单入口"
       ],
-      "modifying_commits_002_to_003": [],
-      "modifying_commits_003_to_head": [],
       "coverage_status": "measured",
       "num_statements": 42,
       "covered_lines": 42,
@@ -1045,131 +300,41 @@
       "num_branches": 10,
       "covered_branches": 10,
       "missing_branches": 0,
-      "production_consumer_count": 0,
-      "production_consumers": [],
-      "test_file_count": 1,
-      "test_files_importing": [
-        "tests/unit/quantide/web/services/test_trade_history.py"
-      ],
-      "material_v0_2_commits": [
-        "bf2ac7d feat: green – #153 – FR-0400/0430 委托成交+仿真: 三态tab/组合筛选/无下单辅助/补单入口"
-      ],
-      "consumers_importers_routes_registries": [],
-      "governing_upstream_references": [
-        "v0.2-003 FR-0501~0505",
-        "corresponding v0.2-003 AC",
-        "v0.2-003 interfaces then v0.2-001/002 by precedence"
-      ],
-      "existing_003_spec_ac_coverage": "full",
-      "mapped_test_modules": [
-        "tests/unit/quantide/web/services/test_trade_history.py"
-      ],
-      "mapped_test_functions": "function records in test-trace-data.json",
-      "test_quality": "aligned",
       "classification": "active v0.2 product",
       "classification_basis": "evidence",
       "classification_evidence": "explicit source/locked contract",
-      "proposed_disposition": "retain and behavior-test to >= 95%",
-      "proposed_requirement_ac_text": [
-        "`quantide/web/services/trade_history.py` 的 function `filter_history_records, has_trade_assist_in_paper, supports_makeup_order` 接受/边界：filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter；has_trade_assist_in_paper；supports_makeup_ordermode: str；可观察输出：filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result；has_trade_assist_in_paper.has_trade_assist_in_paper -> False；supports_makeup_order.supports_makeup_ordermode: str -> mode == 'paper'；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。",
-        "`quantide/web/services/trade_history.py` 的 class `HistoryRecordType, HistoryRecord, HistoryFilter` 接受/边界：filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter；可观察输出：filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。",
-        "`quantide/web/services/trade_history.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。"
-      ],
-      "aaron_decision_candidate": null,
+      "existing_003_spec_ac_coverage": "full",
       "coverage_target_percent": 95,
       "coverage_gap_statements_estimate": 0,
-      "waiver_or_deletion_blockers": "no waiver permitted",
       "normative_contract": {
-        "status": "retained executable public surface",
-        "public_symbols": [
-          "HistoryRecordType",
-          "HistoryRecord",
-          "HistoryFilter",
-          "filter_history_records",
-          "has_trade_assist_in_paper",
-          "supports_makeup_order",
-          "annotations",
-          "dataclass",
-          "Enum"
+        "status": "tested trade-history DTO/filter policy with no production consumer",
+        "surfaces": [
+          "HistoryRecordType, HistoryRecord, HistoryFilter @ quantide/web/services/trade_history.py:18-68",
+          "filter_history_records(records: list[HistoryRecord], flt: HistoryFilter) -> list[HistoryRecord]; has_trade_assist_in_paper() -> bool; supports_makeup_order(mode: str) -> bool @ :71-122"
         ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter",
-          "has_trade_assist_in_paper",
-          "supports_makeup_ordermode: str",
-          "module import exposes re-exports: annotations, dataclass, Enum"
+        "inputs_boundaries": [
+          "Optional mode, strategy_id, symbol, date_from, and date_to filters are exact string comparisons; date_to appends T23:59:59."
         ],
         "observable_outputs": [
-          "filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result",
-          "has_trade_assist_in_paper.has_trade_assist_in_paper -> False",
-          "supports_makeup_order.supports_makeup_ordermode: str -> mode == 'paper'",
-          "attribute lookup yields re-exported symbols: annotations, dataclass, Enum"
+          "Filtering preserves order and returns a copy; paper assist is always False and makeup order support is True only for mode == paper."
         ],
-        "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`"
+        "auth_error_fallback_cleanup": [
+          "Pure policy only; no route, data read, order submission, persistence, events, mutation, or cleanup."
         ],
-        "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`"
-        ],
-        "upstream_contract_sources": [
-          "v0.2-003 FR-0501~0505",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
-        ],
-        "consumer_evidence": [
-          "tests/unit/quantide/web/services/test_trade_history.py"
-        ],
-        "proposed_acs": [
-          {
-            "id": "AC-PROP-60A64D86-01",
-            "surface": "function: filter_history_records, has_trade_assist_in_paper, supports_makeup_order",
-            "statement": "`quantide/web/services/trade_history.py` 的 function `filter_history_records, has_trade_assist_in_paper, supports_makeup_order` 接受/边界：filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter；has_trade_assist_in_paper；supports_makeup_ordermode: str；可观察输出：filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result；has_trade_assist_in_paper.has_trade_assist_in_paper -> False；supports_makeup_order.supports_makeup_ordermode: str -> mode == 'paper'；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。"
-          },
-          {
-            "id": "AC-PROP-60A64D86-02",
-            "surface": "class: HistoryRecordType, HistoryRecord, HistoryFilter",
-            "statement": "`quantide/web/services/trade_history.py` 的 class `HistoryRecordType, HistoryRecord, HistoryFilter` 接受/边界：filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter；可观察输出：filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。"
-          },
-          {
-            "id": "AC-PROP-60A64D86-03",
-            "surface": "schema/re-export: annotations, dataclass, Enum",
-            "statement": "`quantide/web/services/trade_history.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。"
-          }
+        "evidence": [
+          "tests/unit/quantide/web/services/test_trade_history.py",
+          "No production importer of quantide.web.services.trade_history exists.",
+          "quantide/web/pages/history_trades.py:89-142 is an independent production history implementation."
         ]
       },
-      "contract_ac_proposals": [
-        {
-          "id": "AC-PROP-60A64D86-01",
-          "surface": "function: filter_history_records, has_trade_assist_in_paper, supports_makeup_order",
-          "statement": "`quantide/web/services/trade_history.py` 的 function `filter_history_records, has_trade_assist_in_paper, supports_makeup_order` 接受/边界：filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter；has_trade_assist_in_paper；supports_makeup_ordermode: str；可观察输出：filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result；has_trade_assist_in_paper.has_trade_assist_in_paper -> False；supports_makeup_order.supports_makeup_ordermode: str -> mode == 'paper'；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。"
-        },
-        {
-          "id": "AC-PROP-60A64D86-02",
-          "surface": "class: HistoryRecordType, HistoryRecord, HistoryFilter",
-          "statement": "`quantide/web/services/trade_history.py` 的 class `HistoryRecordType, HistoryRecord, HistoryFilter` 接受/边界：filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter；可观察输出：filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。"
-        },
-        {
-          "id": "AC-PROP-60A64D86-03",
-          "surface": "schema/re-export: annotations, dataclass, Enum",
-          "statement": "`quantide/web/services/trade_history.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。"
-        }
-      ],
-      "record_id": "prod-60a64d86fc7a",
-      "source_markdown": {
-        "production_file_audit": "## `quantide/web/services/trade_history.py`\n\n- **Status/classification**: retained executable public surface / `active v0.2 product` (evidence).\n- **Public symbols**: `HistoryRecordType`, `HistoryRecord`, `HistoryFilter`, `filter_history_records`, `has_trade_assist_in_paper`, `supports_makeup_order`, `annotations`, `dataclass`, `Enum`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter; has_trade_assist_in_paper; supports_makeup_ordermode: str; module import exposes re-exports: annotations, dataclass, Enum.\n- **Observable outputs/DTO/HTML/persistence/events**: filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result; has_trade_assist_in_paper.has_trade_assist_in_paper -> False; supports_makeup_order.supports_makeup_ordermode: str -> mode == 'paper'; attribute lookup yields re-exported symbols: annotations, dataclass, Enum.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`.\n- **Upstream source**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: tests/unit/quantide/web/services/test_trade_history.py.\n- **Proposed ACs**: AC-PROP-60A64D86-01; AC-PROP-60A64D86-02; AC-PROP-60A64D86-03.\n",
-        "proposed_requirements": "## `quantide/web/services/trade_history.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-60A64D86-01** (function: filter_history_records, has_trade_assist_in_paper, supports_makeup_order): `quantide/web/services/trade_history.py` 的 function `filter_history_records, has_trade_assist_in_paper, supports_makeup_order` 接受/边界：filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter；has_trade_assist_in_paper；supports_makeup_ordermode: str；可观察输出：filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result；has_trade_assist_in_paper.has_trade_assist_in_paper -> False；supports_makeup_order.supports_makeup_ordermode: str -> mode == 'paper'；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。\n- **AC-PROP-60A64D86-02** (class: HistoryRecordType, HistoryRecord, HistoryFilter): `quantide/web/services/trade_history.py` 的 class `HistoryRecordType, HistoryRecord, HistoryFilter` 接受/边界：filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter；可观察输出：filter_history_records.filter_history_recordsrecords: list[HistoryRecord], flt: HistoryFilter -> result；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。\n- **AC-PROP-60A64D86-03** (schema/re-export: annotations, dataclass, Enum): `quantide/web/services/trade_history.py` 的 schema/re-export `annotations, dataclass, Enum` 接受/边界：module import exposes re-exports: annotations, dataclass, Enum；可观察输出：attribute lookup yields re-exported symbols: annotations, dataclass, Enum；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/services/trade_history.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/services/trade_history.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; tests/unit/quantide/web/services/test_trade_history.py.\n- **Coverage target**: 95%.\n"
-      }
+      "aaron_decision_candidate": "[AD-WEB-36] Decide whether the production history pages must adopt this filter contract; the current /trade/records/history handler does not use it and ignores end_date."
     },
     {
+      "record_id": "prod-e674896a1781",
       "path": "quantide/web/theme.py",
       "origin": "pre-v0.2-existing",
       "first_commit": "1e7c095",
-      "modifying_commits_001_to_002_count": 0,
-      "modifying_commits_002_to_003_count": 0,
-      "modifying_commits_003_to_head_count": 0,
-      "modifying_commits_001_to_002": [],
-      "modifying_commits_002_to_003": [],
-      "modifying_commits_003_to_head": [],
+      "material_v0_2_commits": [],
       "coverage_status": "measured",
       "num_statements": 13,
       "covered_lines": 13,
@@ -1178,150 +343,34 @@
       "num_branches": 0,
       "covered_branches": 0,
       "missing_branches": 0,
-      "production_consumer_count": 20,
-      "production_consumers": [
-        "quantide/app_factory.py",
-        "quantide/web/layouts/main.py",
-        "quantide/web/pages/accounts.py",
-        "quantide/web/pages/analysis.py",
-        "quantide/web/pages/data_calendar.py",
-        "quantide/web/pages/data_db.py",
-        "quantide/web/pages/data_market.py",
-        "quantide/web/pages/data_stocks.py",
-        "quantide/web/pages/home.py",
-        "quantide/web/pages/init_wizard.py",
-        "quantide/web/pages/live.py",
-        "quantide/web/pages/paper.py",
-        "quantide/web/pages/system/calendar.py",
-        "quantide/web/pages/system/datasource.py",
-        "quantide/web/pages/system/gateway.py"
-      ],
-      "test_file_count": 0,
-      "test_files_importing": [],
-      "material_v0_2_commits": [],
-      "consumers_importers_routes_registries": [
-        "quantide/app_factory.py",
-        "quantide/web/layouts/main.py",
-        "quantide/web/pages/accounts.py",
-        "quantide/web/pages/analysis.py",
-        "quantide/web/pages/data_calendar.py",
-        "quantide/web/pages/data_db.py",
-        "quantide/web/pages/data_market.py",
-        "quantide/web/pages/data_stocks.py",
-        "quantide/web/pages/home.py",
-        "quantide/web/pages/init_wizard.py",
-        "quantide/web/pages/live.py",
-        "quantide/web/pages/paper.py",
-        "quantide/web/pages/system/calendar.py",
-        "quantide/web/pages/system/datasource.py",
-        "quantide/web/pages/system/gateway.py"
-      ],
-      "governing_upstream_references": [
-        "v0.2-003 FR-0501~0505",
-        "corresponding v0.2-003 AC",
-        "v0.2-003 interfaces then v0.2-001/002 by precedence"
-      ],
-      "existing_003_spec_ac_coverage": "full",
-      "mapped_test_modules": [],
-      "mapped_test_functions": "function records in test-trace-data.json",
-      "test_quality": "incomplete",
       "classification": "active retained legacy",
       "classification_basis": "inference",
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
-      "proposed_disposition": "retain and behavior-test to >= 80%",
-      "proposed_requirement_ac_text": [
-        "`quantide/web/theme.py` 的 class `AppTheme` 接受/边界：AppTheme.headers；可观察输出：AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`。",
-        "`quantide/web/theme.py` 的 schema/re-export `*, Theme, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR` 接受/边界：AppTheme.headers；module import exposes re-exports: *, Theme；module import exposes constants/schema hooks: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR；可观察输出：AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]；attribute lookup yields re-exported symbols: *, Theme；read-only public values are available: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`。"
-      ],
-      "aaron_decision_candidate": null,
+      "existing_003_spec_ac_coverage": "full",
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 0,
-      "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "retained executable public surface",
-        "public_symbols": [
-          "AppTheme",
-          "*",
-          "Theme",
-          "PRIMARY_COLOR",
-          "SECONDARY_COLOR",
-          "TEXT_COLOR",
-          "BORDER_COLOR"
+        "status": "active shared theme-header API",
+        "surfaces": [
+          "PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR @ quantide/web/theme.py:10-13",
+          "AppTheme.headers() @ :16-59"
         ],
-        "routes_or_registry_hooks": [],
-        "accepted_inputs_and_boundaries": [
-          "AppTheme.headers",
-          "module import exposes re-exports: *, Theme",
-          "module import exposes constants/schema hooks: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR"
+        "inputs_boundaries": [
+          "headers takes no arguments and derives base headers from Theme.red."
         ],
         "observable_outputs": [
-          "AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]",
-          "attribute lookup yields re-exported symbols: *, Theme",
-          "read-only public values are available: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR"
+          "Returns a new list containing MonsterUI red headers followed by custom Style and HTMX 1.9.12 Script nodes."
         ],
-        "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`"
+        "auth_error_fallback_cleanup": [
+          "Framework/header-construction failures propagate; no request state, persistence, event publication, fallback, or cleanup. Wildcard FastHTML imports are not public APIs."
         ],
-        "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`"
-        ],
-        "upstream_contract_sources": [
-          "v0.2-003 FR-0501~0505",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
-        ],
-        "consumer_evidence": [
-          "quantide/app_factory.py",
-          "quantide/web/layouts/main.py",
-          "quantide/web/pages/accounts.py",
-          "quantide/web/pages/analysis.py",
-          "quantide/web/pages/data_calendar.py",
-          "quantide/web/pages/data_db.py",
-          "quantide/web/pages/data_market.py",
-          "quantide/web/pages/data_stocks.py",
-          "quantide/web/pages/home.py",
-          "quantide/web/pages/init_wizard.py",
-          "quantide/web/pages/live.py",
-          "quantide/web/pages/paper.py",
-          "quantide/web/pages/system/calendar.py",
-          "quantide/web/pages/system/datasource.py",
-          "quantide/web/pages/system/gateway.py",
-          "quantide/web/pages/system/jobs.py",
-          "quantide/web/pages/system/market.py",
-          "quantide/web/pages/system/risk_events.py",
-          "quantide/web/pages/system/runtime_monitor.py",
-          "quantide/web/pages/system/stocks.py"
-        ],
-        "proposed_acs": [
-          {
-            "id": "AC-PROP-E674896A-01",
-            "surface": "class: AppTheme",
-            "statement": "`quantide/web/theme.py` 的 class `AppTheme` 接受/边界：AppTheme.headers；可观察输出：AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`。"
-          },
-          {
-            "id": "AC-PROP-E674896A-02",
-            "surface": "schema/re-export: *, Theme, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR",
-            "statement": "`quantide/web/theme.py` 的 schema/re-export `*, Theme, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR` 接受/边界：AppTheme.headers；module import exposes re-exports: *, Theme；module import exposes constants/schema hooks: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR；可观察输出：AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]；attribute lookup yields re-exported symbols: *, Theme；read-only public values are available: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`。"
-          }
+        "evidence": [
+          "quantide/web/pages/home.py:18-20 and page sub-app constructors consume AppTheme.headers().",
+          "tests/unit/quantide/web/test_trade.py exercises themed pages.",
+          "v0.2-003-coverage acceptance.md:517-519 layout coverage."
         ]
       },
-      "contract_ac_proposals": [
-        {
-          "id": "AC-PROP-E674896A-01",
-          "surface": "class: AppTheme",
-          "statement": "`quantide/web/theme.py` 的 class `AppTheme` 接受/边界：AppTheme.headers；可观察输出：AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`。"
-        },
-        {
-          "id": "AC-PROP-E674896A-02",
-          "surface": "schema/re-export: *, Theme, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR",
-          "statement": "`quantide/web/theme.py` 的 schema/re-export `*, Theme, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR` 接受/边界：AppTheme.headers；module import exposes re-exports: *, Theme；module import exposes constants/schema hooks: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR；可观察输出：AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]；attribute lookup yields re-exported symbols: *, Theme；read-only public values are available: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`。"
-        }
-      ],
-      "record_id": "prod-e674896a1781",
-      "source_markdown": {
-        "production_file_audit": "## `quantide/web/theme.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `AppTheme`, `*`, `Theme`, `PRIMARY_COLOR`, `SECONDARY_COLOR`, `TEXT_COLOR`, `BORDER_COLOR`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: AppTheme.headers; module import exposes re-exports: *, Theme; module import exposes constants/schema hooks: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR.\n- **Observable outputs/DTO/HTML/persistence/events**: AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]; attribute lookup yields re-exported symbols: *, Theme; read-only public values are available: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`.\n- **Upstream source**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/app_factory.py; quantide/web/layouts/main.py; quantide/web/pages/accounts.py; quantide/web/pages/analysis.py; quantide/web/pages/data_calendar.py; quantide/web/pages/data_db.py; quantide/web/pages/data_market.py; quantide/web/pages/data_stocks.py; quantide/web/pages/home.py; quantide/web/pages/init_wizard.py; quantide/web/pages/live.py; quantide/web/pages/paper.py; quantide/web/pages/system/calendar.py; quantide/web/pages/system/datasource.py; quantide/web/pages/system/gateway.py; quantide/web/pages/system/jobs.py; quantide/web/pages/system/market.py; quantide/web/pages/system/risk_events.py; quantide/web/pages/system/runtime_monitor.py; quantide/web/pages/system/stocks.py.\n- **Proposed ACs**: AC-PROP-E674896A-01; AC-PROP-E674896A-02.\n",
-        "proposed_requirements": "## `quantide/web/theme.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-E674896A-01** (class: AppTheme): `quantide/web/theme.py` 的 class `AppTheme` 接受/边界：AppTheme.headers；可观察输出：AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`。\n- **AC-PROP-E674896A-02** (schema/re-export: *, Theme, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR): `quantide/web/theme.py` 的 schema/re-export `*, Theme, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR` 接受/边界：AppTheme.headers；module import exposes re-exports: *, Theme；module import exposes constants/schema hooks: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR；可观察输出：AppTheme.headers -> list(base_headers) + [custom_css, htmx_script]；attribute lookup yields re-exported symbols: *, Theme；read-only public values are available: PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, BORDER_COLOR；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/web/theme.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/web/theme.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0501~0505; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/app_factory.py; quantide/web/layouts/main.py; quantide/web/pages/accounts.py; quantide/web/pages/analysis.py; quantide/web/pages/data_calendar.py.\n- **Coverage target**: 80%.\n"
-      }
+      "aaron_decision_candidate": null
     }
   ]
 }

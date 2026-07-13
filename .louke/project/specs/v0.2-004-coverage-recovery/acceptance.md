@@ -8,7 +8,7 @@
 
 ## 169 文件规范映射
 
-规范路径集合 `P` 由 SHA-256 `dea992b446a352d7f48253af03cc6f472d632a661c9d68bfd771cf729a079dd4` 的 `recovery/production-file-inventory.json` 按 shard manifest SHA-256 `56ee03f245e931478fc2d6ca5f1e8e6cacdb79813a7d70ae466a01961d710616` 加载并校验全部 13 个 production-contract shards 后重建，得到 169 个唯一 path；index 单独不是合同。每条行为合同再应用 `recovery/sage-semantic-review.md` 的 160 条记录修正规则及上游优先级。对每个 `p ∈ P`，机器可验证的 outlet 为：
+规范路径集合 `P` 由 SHA-256 `8410d32fb4b64c0d38ef21f947c45be7164185dcaa09f36a7061bc99b9c8bfbe` 的 `recovery/production-file-inventory.json` 按 shard manifest SHA-256 `4ec8dbdbf8eaabfe1d8a355df778ae438e03b6dc3b18b0038955ba91472cac39` 加载并校验全部 13 个 corrected production-contract shards 后重建，得到 169 个唯一 path；index、通用模板或 overlay 单独都不是合同。每条行为合同以其 shard 行的 source-grounded `normative_contract` 为正文，并受上游优先级约束。对每个 `p ∈ P`，机器可验证的 outlet 为：
 
 - manifest/classification：FR-1001 AC-1~3、FR-1101 AC-1~3；
 - behavior：FR-1201 AC-1~7，加上该行 `governing_upstream_references` 指向的最高优先级上游 AC；`existing_003_spec_ac_coverage=none` 的 retained 路径还必须命中 spec.md FR-1201 的同路径文件特定条目；
@@ -28,7 +28,7 @@ AC-FR1001-01
 ### AC-2
 AC-FR1001-02
 
-- 当前 production index hash 精确为 `dea992b446a352d7f48253af03cc6f472d632a661c9d68bfd771cf729a079dd4`，shard manifest hash 精确为 `56ee03f245e931478fc2d6ca5f1e8e6cacdb79813a7d70ae466a01961d710616`；13 shards 重建 169 个唯一 path。任一 hash、shard 内容或计数变化时验收失败并要求 review 新版本。
+- 当前 production index hash 精确为 `8410d32fb4b64c0d38ef21f947c45be7164185dcaa09f36a7061bc99b9c8bfbe`，shard manifest hash 精确为 `4ec8dbdbf8eaabfe1d8a355df778ae438e03b6dc3b18b0038955ba91472cac39`；13 corrected shards 重建 169 个唯一 path。任一 hash、shard 内容或计数变化时验收失败并要求 review 新版本。
 
 ### AC-3
 AC-FR1001-03
@@ -97,7 +97,7 @@ AC-FR1201-06
 ### AC-7
 AC-FR1201-07
 
-- 对 169 条逐行应用 Sage 语义复核：恰好 160 条剔除非显式 re-export 的 imported dependency surface、恢复源码签名并禁止 AST 表达式发明行为，9 条无需修正；每条修正后仍含 path-specific input/boundary、observable output、failure/fallback、state/cleanup 和 precedence source。抽出任一 imported dependency 当公共 API 或任一 mangled signature 时验收失败。
+- 直接从 13 个固定 corrected shards 重建 169 条 source-grounded 合同；结果必须为 169 source-grounded、0 pseudo-import APIs、0 mangled signatures、0 missing anchors。每条 shard 行自身含 path-specific public surface、source signature、input/boundary、observable output、failure/fallback、state/cleanup 和 precedence source；若需要通用 overlay 才能确定任一路径语义，或任一计数非上述值，验收失败。
 
 ## FR-1301 现有测试逐项复核与缺陷归因
 
@@ -124,7 +124,12 @@ AC-FR1301-04
 ### AC-5
 AC-FR1301-05
 
-- trace 中原 179 个 `update` 函数逐条产生 open M-DEV work：85 incomplete、52 self-fulfilling、41 import-only、1 fake；work item 含 function id、质量证据、目标 AC、修复或五证据删除候选出口。任一 generic “update later” 或缺 work item 均阻断。
+- 最终 trace 的 196 个 `update` 函数逐条产生 open M-DEV work：87 incomplete、61 self-fulfilling、41 import-only、3 fake、2 conflicting、2 spec-gap；work item 含 function id、质量证据、目标 AC、修复或五证据删除候选出口。任一 generic “update later” 或缺 work item 均阻断。
+
+### AC-6
+AC-FR1301-06
+
+- `recovery/devon-work-items.json` exact SHA-256 为 `bac42a69bcd6359afe16fbcdc8ae710314ad00ced431dff9c1625186cb2bd088`，含 196 个唯一 open `RW-*` 与 196 个唯一 update function id；每个 update function 恰好出现一次、每个 work item 恰好绑定一个 update function，双向差集、重复和空绑定均为 0。
 
 ## FR-1401 生产修复、测试修复与重复测量
 
@@ -142,6 +147,11 @@ AC-FR1401-02
 AC-FR1401-03
 
 - 当 issue 列表为空但矩阵仍含任一 blocker 时，stage 保持 FAIL 并生成后续任务。
+
+### AC-4
+AC-FR1401-04
+
+- 每个 `RW-*` 只有在同一 traceable revision 记录 AC-derived Red failure、修复后的 Green exit 0/独立断言、完整隔离 suite 与逐文件 gate 证据后才算 closed；或由保留原 function id、AC refs 和全部 evidence obligations 的 replacement work item 双向链接并标记 superseded。GitHub issue/list completion、单独 Green 或缺 full-suite evidence 均不满足 DoD。
 
 ## FR-1501 Aaron 六项待决处置
 
@@ -165,7 +175,7 @@ AC-FR1501-03
 ### AC-1
 AC-FR1601-01
 
-- 扫描完整 `tests/**/*.py` 得到与复核 revision 一致的模块/函数清单；当前 test index SHA-256 为 `02d1ff2e51d4ca7d824e04f06cfa17b33c7b7737554e5e4841667e644c4e002a`、11-shard manifest SHA-256 为 `f8305dfdc251d1d15fb934fd981966ed336419af7ac9fb56e0d4ab2eab9fa07f`，重建 240 模块、1651 test functions；只读 index、缺 shard 或任何未解释变化均失败。
+- 扫描完整 `tests/**/*.py` 得到与复核 revision 一致的模块/函数清单；当前 test index SHA-256 为 `3d7ebc07cc8d014aab8981c025a142f1112c7d7cfb05390254de02c19da38fd0`、11-shard manifest SHA-256 为 `f48b15e808737352ad6a5c4d8da2b2a5f9b97fa3fb56a4ca2881463ec2380352`，重建 240 模块、1651 test functions；只读 index、缺 shard 或任何未解释变化均失败。
 
 ### AC-2
 AC-FR1601-02
@@ -185,17 +195,22 @@ AC-FR1601-04
 ### AC-5
 AC-FR1601-05
 
-- 对原 57 个 `needs-Sage-contract` function id 应用 Sage 覆盖层后，结果精确为 40 `aligned`（每条至少一个 spec-qualified ref）和 17 `update`（每条有具体 mismatch、目标 AC 或 spec-gap、未来 Devon 工作）；剩余 `needs-Sage-contract=0`，不得以模块级或 generic mapping 替代。
+- 固定 test shards 已实体化原 57 个 disposition：40 `aligned`（每条至少一个 spec-qualified ref）和 17 `update`（每条有具体 mismatch、目标 AC 或 spec-gap）；剩余 `needs-Sage-contract=0`，不得依赖外部 generic overlay、模块级映射或 future-work prose 才能确定 disposition。
 
 ### AC-6
 AC-FR1601-06
 
-- 合并 Sage disposition 后，trace 为 1455 aligned、196 update、0 needs-Sage-contract；196 update 全部绑定 open M-DEV work，且零 empty-ref function 被计为 aligned/keep。17 个新增 update 与原 179 个 update 都不授权删除。
+- 固定 trace 为 1455 aligned、196 update、0 needs-Sage-contract；1651/1651 function 均有 spec-qualified ref，196 update 全部绑定 open M-DEV work，且零 empty-ref function 被计为 aligned/keep。没有 update 因绑定而获准删除。
 
 ### AC-7
 AC-FR1601-07
 
 - 六项 Aaron decision 仍为 pending；任何 trace overlay、update/delete candidate 或生产合同语义复核均不得把 AD-01~AD-06 解释为 delete/retain/waiver 决定。
+
+### AC-8
+AC-FR1601-08
+
+- 同时校验 test index `3d7ebc07cc8d014aab8981c025a142f1112c7d7cfb05390254de02c19da38fd0`、test shard manifest `f48b15e808737352ad6a5c4d8da2b2a5f9b97fa3fb56a4ca2881463ec2380352` 与 Devon registry `bac42a69bcd6359afe16fbcdc8ae710314ad00ced431dff9c1625186cb2bd088`：240 modules、1651 functions、1455 aligned、196 update、196 unique open work items、196 one-to-one bindings 全部匹配；任一 hash/count/binding 变化或 superseded replacement 不可追踪时失败。
 
 ## FR-1701 剩余矩阵驱动的迭代闭合
 

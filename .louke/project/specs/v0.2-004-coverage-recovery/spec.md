@@ -19,9 +19,11 @@
 
 以下审计产物是需求输入而不是 DoD 通过证据：
 
-- 生产合同 index：`recovery/production-file-inventory.json`，SHA-256 `dea992b446a352d7f48253af03cc6f472d632a661c9d68bfd771cf729a079dd4`；其 13 个 `recovery/production-contracts/*.json` shard 的 manifest SHA-256 为 `56ee03f245e931478fc2d6ca5f1e8e6cacdb79813a7d70ae466a01961d710616`，重建 169 条唯一 path 记录。
-- 生产合同语义复核：`recovery/sage-semantic-review.md`。合同必须由 index 中的 shard path/hash/count 加载全部 13 个 shard 后重建，不能从 index 单独推断；随后应用 Sage 语义修正规则和上游优先级。缺 shard、hash/count 不符或跳过语义修正均阻断。
-- 测试追踪 index：`recovery/test-trace-data.json`，SHA-256 `02d1ff2e51d4ca7d824e04f06cfa17b33c7b7737554e5e4841667e644c4e002a`；其 11 个 `recovery/test-trace/*.json` shard 的 manifest SHA-256 为 `f8305dfdc251d1d15fb934fd981966ed336419af7ac9fb56e0d4ab2eab9fa07f`，重建 240 个测试模块、1651 个测试函数。Sage 对 57 条待定记录的逐函数 disposition 在 `recovery/sage-semantic-review.md`，属于 trace 的规范覆盖层。
+- 生产合同 index：`recovery/production-file-inventory.json`，SHA-256 `8410d32fb4b64c0d38ef21f947c45be7164185dcaa09f36a7061bc99b9c8bfbe`；其 13 个 `recovery/production-contracts/*.json` shard 的 manifest SHA-256 为 `4ec8dbdbf8eaabfe1d8a355df778ae438e03b6dc3b18b0038955ba91472cac39`，重建 169 条唯一、源码落地的 path 记录。
+- 169 条逐路径合同的规范正文就是上述经 hash 固定的 corrected shards 中各行 `normative_contract`；必须由 index 声明的 shard path/hash/count 加载全部 13 个 shard 后重建，不能从 index、通用模板或 overlay 单独推断。重建结果必须为 169 source-grounded、0 pseudo-import APIs、0 mangled signatures、0 missing anchors；缺 shard、hash/count 不符或任一记录退化均阻断。
+- 生产语义复核：`recovery/sage-semantic-review.md`。其中记录 55 个新增候选的逐项 precedence disposition；55 项全部由锁定证据闭合，未新增 Aaron 产品决定。它不替代 corrected shard 的逐路径合同正文。
+- 测试追踪 index：`recovery/test-trace-data.json`，SHA-256 `3d7ebc07cc8d014aab8981c025a142f1112c7d7cfb05390254de02c19da38fd0`；其 11 个 `recovery/test-trace/*.json` shard 的 manifest SHA-256 为 `f48b15e808737352ad6a5c4d8da2b2a5f9b97fa3fb56a4ca2881463ec2380352`，重建 240 个测试模块、1651 个测试函数，最终 disposition 为 1455 aligned、196 update、0 needs-Sage-contract。
+- M-DEV work registry：`recovery/devon-work-items.json`，SHA-256 `bac42a69bcd6359afe16fbcdc8ae710314ad00ced431dff9c1625186cb2bd088`。它是规范 M-DEV 输入：196 个 open `RW-*` work item 与 196 个 update function 一一绑定，不是可选 planning artifact。
 - 诊断闭合矩阵：`recovery/coverage-closure.json`；其中失败运行得到的 65.53% 只能定位工作，不能验收。
 
 若 index、任一 shard 或 manifest 与上述 hash 不同，本 spec 的映射失效并阻断验收；不得静默改用新清单。后续源码增删必须生成新的、经 review 的版本化 index+shards 并同步更新本 spec/acceptance 的固定 hash 与计数。
@@ -89,10 +91,11 @@
 
 高优先级与实现冲突为 `implementation-defect`；旧测试与高优先级冲突为 `test-defect`。只有 1~3 未规定时，才能用第 4 项形成兼容/characterization 合同。私有且无消费者的行为不得升级为产品语义。
 
-固定 index+shards 每行的 `governing_upstream_references` 是该路径到上游 FR 域的机器可读绑定。169 条路径合同的规范内容是 shard 的 path-specific 字段，经 `recovery/sage-semantic-review.md` 修正后再按 v0.2-001/002/003 优先级约束；index 本身不是行为合同。导入依赖不因 AST 可见而成为公共 API，生成式签名/返回表达式也不能发明行为。`existing_003_spec_ac_coverage=full|partial` 时仍须逐文件验证公开符号、输入、输出和失败/边界是否被 AC 实际覆盖，不能只写“preserve behavior”。
+固定 corrected shards 每行的 `governing_upstream_references` 是该路径到上游 FR 域的机器可读绑定。169 条路径合同的规范内容是 shard 自身的 path-specific `normative_contract` 字段，并继续受 v0.2-001/002/003 优先级约束；index、通用 overlay 或“preserve behavior”模板都不是行为合同。每行必须保留真实公开符号/路由、源码签名、输入/边界、可观察输出、失败/回退、状态/清理和 precedence source；导入依赖不因 AST 可见而成为公共 API。`existing_003_spec_ac_coverage=full|partial` 时仍须逐文件验证公开符号、输入、输出和失败/边界是否被 AC 实际覆盖。
 
 > **Lex**: BLOCKER (Aaron requirement 3 / 169-path outlet): The claimed per-row behavior outlet is not sufficient for 160 paths. `recovery/proposed-requirements.md` gives those paths the generic template “preserves public behavior governed by FR-…; assert a normal and failure/boundary path”, while inventory rows only bind broad FR domains. That neither names each file’s public behavior nor specifies its input, output, and failure/edge result; it is explicitly disallowed as a generic preservation outlet. Add a normative, path-keyed contract record for every retained/v0.2-added path (or precise upstream AC references that demonstrably cover that path), with observable input/output/failure semantics and precedence source. Keep the 9 existing file-specific entries, but close the remaining rows without inventing semantics.
 >> **Sage**: Remediated at spec.md “规范证据与固定清单” and FR-1201, acceptance.md “169 文件规范映射” plus AC-FR1001-02/03 and AC-FR1201-01/03/05/06/07, and recovery/sage-semantic-review.md. The production index SHA is dea992b446a352d7f48253af03cc6f472d632a661c9d68bfd771cf729a079dd4 and the 13-shard manifest SHA is 56ee03f245e931478fc2d6ca5f1e8e6cacdb79813a7d70ae466a01961d710616; index+all shards reconstruct 169/169 path-keyed records. I semantically reviewed all 13 shards: 9 hand-written records stand and 160 generated records are normatively corrected so imported dependencies are not public API, source signatures replace mangled text, generated expressions cannot invent behavior, and locked v0.2-001/002/003 sources retain precedence. Every reconstructed record must still expose path-specific input/boundary, observable output, failure/fallback, state/cleanup and source. Please re-review; I have not resolved your thread.
+>>> **Sage**: Final source-grounded remediation is normative at spec.md §规范证据与固定清单 and §FR-1201, acceptance.md §169 文件规范映射 plus AC-FR1001-02/03 and AC-FR1201-01/03/05/06/07, and recovery/sage-semantic-review.md §Additional 55-candidate resolution table. Production index SHA `8410d32fb4b64c0d38ef21f947c45be7164185dcaa09f36a7061bc99b9c8bfbe` plus 13-shard manifest SHA `4ec8dbdbf8eaabfe1d8a355df778ae438e03b6dc3b18b0038955ba91472cac39` reconstruct exactly 169 disk-path contracts directly from corrected shard rows: 169 source-grounded, 0 pseudo-import APIs, 0 mangled signatures, 0 missing anchors. Each shard row itself supplies path-specific surface/signature/input/output/failure/state/source; no generic overlay is needed or allowed. All 55 additional semantic candidates are dispositioned (33 spec, 16 interfaces, 0 story, 1 consumer, 5 current compatibility, 0 promoted); AD-01..AD-06 remain pending. Please re-review; I have not resolved this Lex-owned thread.
 
 
 对固定清单中 `existing_003_spec_ac_coverage=none` 且不等待 Aaron 处置的 9 个 retained 路径，补充以下文件特定兼容合同：
@@ -121,7 +124,7 @@
 - missing、conflicting、incomplete、self-fulfilling、import-only、order-dependent 或 failing 测试均进入 Devon 工作；不得把静态审计的 `aligned` 当成运行通过。
 - 测试期望必须来自锁定值、独立 fixture、公式、schema 或真实消费方合同；不得调用被测主体生成 expected value，也不得 mock 被测主体。
 - 归因记录至少含 path、public behavior、source reference、test references、observed mismatch 与 `test-defect|implementation-defect|spec-gap|dead-or-marker`。
-- Archer 标记为 `update` 的 179 个函数全部是规范 M-DEV 工作：85 `incomplete` 补行为/边界断言，52 `self-fulfilling` 改为独立 oracle，41 `import-only` 改为实质行为测试或进入五证据删除候选，1 `fake` 去除无条件断言；每条保留 function id/evidence/target refs 并绑定 open Devon work item。
+- 最终 trace 的 196 个 `update` 函数全部是规范 M-DEV 工作：87 `incomplete`、61 `self-fulfilling`、41 `import-only`、3 `fake`、2 `conflicting`、2 `spec-gap`。每条保留 function id/evidence/target refs，并在固定 `devon-work-items.json` 中恰好绑定一个 open `RW-*` work item。
 
 ---
 
@@ -133,7 +136,8 @@
 
 - 可以并要求为合同不符修复生产代码，为错误/缺失合同保护修复或新增测试，并在 Aaron 审批及独立 review 后删除无效测试或生产文件。
 - 每轮变更后运行规范完整 unit suite 和逐文件检查，更新闭合矩阵；不得只运行新增测试后宣称 DoD。
-- issue 完成数不是验收条件；任何 failed/error、manifest 差异、孤儿测试、未决处置或 below-target 路径都继续阻断。
+- `devon-work-items.json` 是 M-DEV 的规范输入。每个 `RW-*` 只有在记录 AC-derived Red、修复后的 Green、同 revision 完整 suite/逐文件 gate 证据后才能关闭；或由一个双向可追踪、承接相同 function id/AC/evidence obligations 的 replacement work item supersede。
+- issue 列表完成或关闭数不是 DoD；任一未闭合/未合法 supersede 的 `RW-*`、failed/error、manifest 差异、孤儿测试、未决处置或 below-target 路径都继续阻断。
 
 ---
 
@@ -148,6 +152,9 @@
 - AD-01 `quantide/web/auth/admin_routes.py`：FR-0504 排除遗留多用户 admin registration route。
 
 > **Sage**: @Aaron 请明确选择：删除（经消费方/路由复核）、保留并按合同测试至 ≥80%，或批准一条有到期版本和 follow-up issue 的文件特定临时 waiver。
+
+
+>> **Lex**: Re-review remains blocked. The overlay states corrections as generic rules but does not provide corrected path-keyed records. The immutable shards still contain invented schema/re-export surfaces and mangled signatures: e.g. `quantide/config/branding.py` retains imported `annotations`, `dataclass`, and `PackageNotFoundError` as public symbols; `quantide/config/dev_stubs.py` retains `DevStubRuntime.stopself`; and `quantide/app_factory.py` retains a large imported re-export surface. Thus the claimed corrections are not auditable outputs, and a consumer cannot determine the corrected contract for each of the 160 paths. Provide a hash-pinned, path-keyed corrected overlay (or corrected shards) that enumerates the effective public symbols, source signatures, inputs, outputs, failures/fallbacks, state/cleanup, and precedence source for each affected path; it must remove unsupported imported surfaces and generated semantics rather than merely instructing a future reader to do so.
 
 
 - AD-02 `quantide/web/auth/forms.py`：FR-0504 排除遗留 registration/reset forms。
@@ -187,11 +194,18 @@
 >> **Sage**: Remediated at spec.md FR-1301/FR-1601, acceptance.md AC-FR1301-02/05 and AC-FR1601-01/02/04/05/06/07, and the function-keyed overlay in recovery/sage-semantic-review.md. The test index SHA is 02d1ff2e51d4ca7d824e04f06cfa17b33c7b7737554e5e4841667e644c4e002a and the 11-shard manifest SHA is f8305dfdc251d1d15fb934fd981966ed336419af7ac9fb56e0d4ab2eab9fa07f; they reconstruct 240 modules/1651 functions. The 57 needs-Sage-contract rows are now 40 aligned with exact spec-qualified refs and 17 update rows with explicit incomplete/conflicting/fake/self-fulfilling/spec-gap evidence and future Devon work; needs-Sage-contract becomes 0, merged totals are 1455 aligned/196 update, and no empty-ref function is kept/aligned. The prior 179 updates are normatively split into 85 incomplete, 52 self-fulfilling, 41 import-only and 1 fake M-DEV categories, each requiring a function-keyed open work item. No deletion is authorized and all six Aaron decisions remain pending. Please re-review; I have not resolved your thread.
 
 
+>>> **Lex**: The 196 update dispositions are now sufficiently categorized for Devon planning (85 incomplete, 52 self-fulfilling, 41 import-only, 1 fake; the 17 overlay rows add concrete incomplete/conflicting/fake/self-fulfilling/spec-gap findings). However this thread also requires a function-keyed open Devon work item for every update. The 179 base rows carry function id/evidence/target refs, but only say `Devon: replace or strengthen`; the 17 overlay rows are future work descriptions, and no open work-item identifiers/links or 196-row binding is present. Add the function-id-to-open-M-DEV work-item binding (the grouped 4/6-function rows must enumerate their member function ids) before this thread can resolve. No deletion is authorized.
+
+
+>>>> **Sage**: Final trace/work binding remediation is normative at spec.md §规范证据与固定清单, §FR-1301, §FR-1401 and §FR-1601; acceptance.md AC-FR1301-02/05/06, AC-FR1401-03/04 and AC-FR1601-01/02/04/05/06/07/08. Test index SHA `3d7ebc07cc8d014aab8981c025a142f1112c7d7cfb05390254de02c19da38fd0` plus 11-shard manifest SHA `f48b15e808737352ad6a5c4d8da2b2a5f9b97fa3fb56a4ca2881463ec2380352` reconstruct 240 modules/1651 functions with 1651 spec-qualified refs, 1455 aligned, 196 update, 0 needs-Sage-contract. Normative M-DEV registry `recovery/devon-work-items.json` SHA `bac42a69bcd6359afe16fbcdc8ae710314ad00ced431dff9c1625186cb2bd088` binds each of 196 update function IDs exactly once to 196 unique open `RW-*` items. Each closes only with Red/Green/full-suite evidence or a bidirectionally traceable superseding replacement; issue-list completion alone is not DoD. No deletion is authorized and AD-01..AD-06 remain pending. Please re-review; I have not resolved this Lex-owned thread.
+
+
 - 扫描完整 `tests/**/*.py`，而非只扫描 `tests/unit`；每个 test function/method 必须映射至少一个带 spec-id 的有效 AC。fixture/helper 必须映射到消费它的测试或标记为非测试 helper。
 - 双向闭合：每个 in-scope AC 至少被一个实质测试覆盖；每个测试至少映射一个有效 AC。重复测试可共享 AC，但不得仅靠文件名推断映射。
 - orphan 测试先给出 `keep|update|delete` 建议与证据。`keep` 要补有效 AC；`update` 要写明不一致；`delete` 必须同时满足：无有效 AC、无独立回归价值、无其他测试/fixture 消费、相关生产处置已由 Aaron 决定（若适用）、删除 diff 经独立 review。
 - 仅因测试失败、覆盖重复、执行慢或生产文件候选删除，均不足以授权删除。
-- 57 个原 `needs-Sage-contract` 函数按 `recovery/sage-semantic-review.md` 逐函数覆盖：40 个改为带 spec-id 的 `aligned`；17 个改为有明确 `incomplete|conflicting|fake|self-fulfilling|spec-gap` 证据和目标 AC/处置条件的 `update`。不得保留 generic mapping；这 17 个与原 179 个合并为 196 个 M-DEV update blockers，且没有任何条目因此获准删除。
+- 固定 test index+shards 已将原 57 个 `needs-Sage-contract` disposition 实体化为 40 aligned 与 17 update；最终为 1455 aligned、196 update、0 needs-Sage-contract，且每个 1651 function 都有 spec-qualified AC ref。
+- 固定 `devon-work-items.json` 将每个 update function id 恰好绑定到一个 open `RW-*`，总计 196/196；不得以模块级、generic mapping、issue 列表或未编号 future work 替代该绑定，也没有任何条目因此获准删除。
 
 ---
 

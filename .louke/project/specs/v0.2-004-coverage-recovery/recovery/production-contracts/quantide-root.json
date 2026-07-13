@@ -4,7 +4,7 @@
   "family": "quantide-root",
   "part": 1,
   "record_count": 3,
-  "records_sha256": "fb2e619fe30cdcdfb3826e0dfebd91fd3b43f0fe2d4ecd924b5a4795bbed5317",
+  "records_sha256": "84840ff049c0e3573fc25a72290a65bd733fe9b01459dc3c086397e63f12275e",
   "records": [
     {
       "path": "quantide/__init__.py",
@@ -44,55 +44,66 @@
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
       "proposed_disposition": "retain and behavior-test to >= 80%",
       "proposed_requirement_ac_text": [
-        "`quantide/__init__.py` 的 marker `__init__` 接受/边界：import `quantide/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)；可观察输出：observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/__init__.py`。"
+        "Importing `quantide` exposes only the source-declared package metadata `__author__`, `__email__`, and `__version__`; it defines no callable, registry hook, persistence, mutation, fallback, or cleanup behavior."
       ],
       "aaron_decision_candidate": null,
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 0,
       "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "package marker/re-export surface; no independent callable behavior",
-        "public_symbols": [],
+        "status": "package metadata marker; no callable API",
+        "public_symbols": [
+          "__author__",
+          "__email__",
+          "__version__"
+        ],
         "routes_or_registry_hooks": [],
+        "signatures": [],
         "accepted_inputs_and_boundaries": [
-          "import `quantide/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)"
+          "Importing `quantide` takes no callable input."
         ],
         "observable_outputs": [
-          "observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)"
+          "The package exposes static author, contact, and version metadata with source values `aaron yang`, `aaron_yang@jieyu.ai`, and `0.1.0`."
         ],
         "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/__init__.py`"
+          "The module has no path-local fallback or explicit exception; ordinary Python import errors propagate."
         ],
         "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/__init__.py`"
+          "Import performs no mutation or cleanup."
+        ],
+        "source_anchors": [
+          {
+            "symbol": "module metadata (__author__, __email__, __version__)",
+            "lines": "quantide/__init__.py:1-5"
+          }
         ],
         "upstream_contract_sources": [
-          "v0.2-003 FR-0001/NFR-0030",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+          ".louke/project/specs/v0.2-003-coverage/spec.md:639-648 (NFR-0030 marker handling)",
+          ".louke/project/specs/v0.2-003-coverage/acceptance.md:726-730 (executable marker coverage)"
         ],
         "consumer_evidence": [
-          "tests/unit/quantide/test_nfr_010_050_nonfunctional.py"
+          "quantide/__init__.py:1-5"
         ],
+        "evidence_note": "Classification, origin, and coverage inventory are unchanged.",
         "proposed_acs": [
           {
             "id": "AC-PROP-9624A803-01",
-            "surface": "marker: __init__",
-            "statement": "`quantide/__init__.py` 的 marker `__init__` 接受/边界：import `quantide/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)；可观察输出：observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/__init__.py`。"
+            "surface": "source-grounded public surface",
+            "statement": "Importing `quantide` exposes only the source-declared package metadata `__author__`, `__email__`, and `__version__`; it defines no callable, registry hook, persistence, mutation, fallback, or cleanup behavior."
           }
         ]
       },
       "contract_ac_proposals": [
         {
           "id": "AC-PROP-9624A803-01",
-          "surface": "marker: __init__",
-          "statement": "`quantide/__init__.py` 的 marker `__init__` 接受/边界：import `quantide/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)；可观察输出：observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/__init__.py`。"
+          "surface": "source-grounded public surface",
+          "statement": "Importing `quantide` exposes only the source-declared package metadata `__author__`, `__email__`, and `__version__`; it defines no callable, registry hook, persistence, mutation, fallback, or cleanup behavior."
         }
       ],
       "record_id": "prod-9624a803d482",
       "source_markdown": {
-        "production_file_audit": "## `quantide/__init__.py`\n\n- **Status/classification**: package marker/re-export surface; no independent callable behavior / `active retained legacy` (inference).\n- **Public symbols**: none.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: import `quantide/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior).\n- **Observable outputs/DTO/HTML/persistence/events**: observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior).\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/__init__.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/__init__.py`.\n- **Upstream source**: v0.2-003 FR-0001/NFR-0030; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: tests/unit/quantide/test_nfr_010_050_nonfunctional.py.\n- **Proposed ACs**: AC-PROP-9624A803-01.\n",
-        "proposed_requirements": "## `quantide/__init__.py`\n\n- **Status**: package marker/re-export surface; no independent callable behavior.\n- **AC-PROP-9624A803-01** (marker: __init__): `quantide/__init__.py` 的 marker `__init__` 接受/边界：import `quantide/__init__.py` as a Python module; no callable input is defined (package marker/re-export surface; no independent callable behavior)；可观察输出：observable import surface is `no public symbols` (package marker/re-export surface; no independent callable behavior)；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/__init__.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/__init__.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0001/NFR-0030; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; tests/unit/quantide/test_nfr_010_050_nonfunctional.py.\n- **Coverage target**: 80%.\n"
+        "production_file_audit": "## `quantide/__init__.py`\n\n- **Source-grounded contract**: Importing `quantide` exposes only the source-declared package metadata `__author__`, `__email__`, and `__version__`; it defines no callable, registry hook, persistence, mutation, fallback, or cleanup behavior.\n- **Source anchors**: module metadata (__author__, __email__, __version__) at quantide/__init__.py:1-5.\n- **Evidence**: .louke/project/specs/v0.2-003-coverage/spec.md:639-648 (NFR-0030 marker handling); .louke/project/specs/v0.2-003-coverage/acceptance.md:726-730 (executable marker coverage); quantide/__init__.py:1-5.\n",
+        "proposed_requirements": "## `quantide/__init__.py`\n\n- **AC-PROP-9624A803-01**: Importing `quantide` exposes only the source-declared package metadata `__author__`, `__email__`, and `__version__`; it defines no callable, registry hook, persistence, mutation, fallback, or cleanup behavior.\n"
       }
     },
     {
@@ -197,94 +208,89 @@
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
       "proposed_disposition": "retain and behavior-test to >= 80%",
       "proposed_requirement_ac_text": [
-        "`quantide/app.py` 的 function `init, main` 接受/边界：initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；main；可观察输出：init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)；main.main -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app.py`。",
-        "`quantide/app.py` 的 schema/re-export `annotations, Path, Any, serve, create_app, APP_IMPORT_PATH` 接受/边界：initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；module import exposes re-exports: annotations, Path, Any, serve, create_app；module import exposes constants/schema hooks: APP_IMPORT_PATH；可观察输出：init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)；attribute lookup yields re-exported symbols: annotations, Path, Any, serve, create_app；read-only public values are available: APP_IMPORT_PATH；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app.py`。"
+        "`init(app_config_dir=None, enforce_single_instance=True)` delegates unchanged to `create_app` and returns the ASGI app; importing `quantide.app` exposes that app, while `main()` delegates to `serve(appname='quantide.app')` without pre-constructing the reloader parent app."
       ],
       "aaron_decision_candidate": null,
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 0,
       "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "retained executable public surface",
+        "status": "ASGI and CLI entry-point module",
         "public_symbols": [
+          "APP_IMPORT_PATH",
           "init",
           "main",
-          "annotations",
-          "Path",
-          "Any",
-          "serve",
-          "create_app",
-          "APP_IMPORT_PATH"
+          "app"
         ],
-        "routes_or_registry_hooks": [],
+        "routes_or_registry_hooks": [
+          "ASGI import hook `quantide.app:app`",
+          "CLI hook `python -m quantide.app`"
+        ],
+        "signatures": [
+          "init(app_config_dir: str | Path | None = None, enforce_single_instance: bool = True) -> Any",
+          "main() -> None"
+        ],
         "accepted_inputs_and_boundaries": [
-          "initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True",
-          "main",
-          "module import exposes re-exports: annotations, Path, Any, serve, create_app",
-          "module import exposes constants/schema hooks: APP_IMPORT_PATH"
+          "`init` accepts an optional config directory and the single-instance flag without rewriting either value.",
+          "`main` accepts no arguments; module import follows the non-`__main__` branch."
         ],
         "observable_outputs": [
-          "init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)",
-          "main.main -> implicit None",
-          "attribute lookup yields re-exported symbols: annotations, Path, Any, serve, create_app",
-          "read-only public values are available: APP_IMPORT_PATH"
+          "`init` returns `create_app(app_config_dir=..., enforce_single_instance=...)`.",
+          "`main` calls `serve(appname='quantide.app')` and returns `None`.",
+          "Normal module import assigns `app = init()` for ASGI consumption."
         ],
         "failure_error_fallback": [
-          "no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`"
+          "Factory and server exceptions propagate unchanged; this module adds no fallback."
         ],
         "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/app.py`"
+          "Normal import constructs the ASGI app once in that module execution; CLI execution deliberately does not construct it before delegating to the import path."
+        ],
+        "source_anchors": [
+          {
+            "symbol": "APP_IMPORT_PATH",
+            "lines": "quantide/app.py:14"
+          },
+          {
+            "symbol": "init",
+            "lines": "quantide/app.py:17-33"
+          },
+          {
+            "symbol": "main",
+            "lines": "quantide/app.py:36-47"
+          },
+          {
+            "symbol": "app module hook",
+            "lines": "quantide/app.py:50-53"
+          }
         ],
         "upstream_contract_sources": [
-          "v0.2-003 FR-0703",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+          ".louke/project/specs/v0.2-003-coverage/spec.md:594-609 (FR-0703)",
+          ".louke/project/specs/v0.2-003-coverage/acceptance.md:687-711 (FR-0703 AC-1..6)"
         ],
         "consumer_evidence": [
-          "quantide/app_factory.py",
-          "quantide/config/paths.py",
-          "quantide/web/apis/analysis/__init__.py",
-          "quantide/web/apis/analysis/kline.py",
-          "quantide/web/apis/analysis/search.py",
-          "quantide/web/apis/broker.py",
-          "quantide/web/auth/admin_routes.py",
-          "quantide/web/auth/database.py",
-          "quantide/web/auth/manager.py",
-          "quantide/web/auth/routes.py",
-          "quantide/web/middleware.py",
-          "quantide/web/pages/accounts.py",
-          "quantide/web/pages/init_wizard.py",
-          "quantide/web/pages/strategy.py"
+          "tests/unit/test_app.py:10-48",
+          "quantide/app_factory.py:212-500"
         ],
+        "evidence_note": "Imported `Path`, `Any`, `serve`, and `create_app` are dependencies, not facade exports.",
         "proposed_acs": [
           {
             "id": "AC-PROP-F655DA5F-01",
-            "surface": "function: init, main",
-            "statement": "`quantide/app.py` 的 function `init, main` 接受/边界：initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；main；可观察输出：init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)；main.main -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app.py`。"
-          },
-          {
-            "id": "AC-PROP-F655DA5F-02",
-            "surface": "schema/re-export: annotations, Path, Any, serve, create_app, APP_IMPORT_PATH",
-            "statement": "`quantide/app.py` 的 schema/re-export `annotations, Path, Any, serve, create_app, APP_IMPORT_PATH` 接受/边界：initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；module import exposes re-exports: annotations, Path, Any, serve, create_app；module import exposes constants/schema hooks: APP_IMPORT_PATH；可观察输出：init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)；attribute lookup yields re-exported symbols: annotations, Path, Any, serve, create_app；read-only public values are available: APP_IMPORT_PATH；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app.py`。"
+            "surface": "source-grounded public surface",
+            "statement": "`init(app_config_dir=None, enforce_single_instance=True)` delegates unchanged to `create_app` and returns the ASGI app; importing `quantide.app` exposes that app, while `main()` delegates to `serve(appname='quantide.app')` without pre-constructing the reloader parent app."
           }
         ]
       },
       "contract_ac_proposals": [
         {
           "id": "AC-PROP-F655DA5F-01",
-          "surface": "function: init, main",
-          "statement": "`quantide/app.py` 的 function `init, main` 接受/边界：initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；main；可观察输出：init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)；main.main -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app.py`。"
-        },
-        {
-          "id": "AC-PROP-F655DA5F-02",
-          "surface": "schema/re-export: annotations, Path, Any, serve, create_app, APP_IMPORT_PATH",
-          "statement": "`quantide/app.py` 的 schema/re-export `annotations, Path, Any, serve, create_app, APP_IMPORT_PATH` 接受/边界：initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；module import exposes re-exports: annotations, Path, Any, serve, create_app；module import exposes constants/schema hooks: APP_IMPORT_PATH；可观察输出：init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)；attribute lookup yields re-exported symbols: annotations, Path, Any, serve, create_app；read-only public values are available: APP_IMPORT_PATH；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app.py`。"
+          "surface": "source-grounded public surface",
+          "statement": "`init(app_config_dir=None, enforce_single_instance=True)` delegates unchanged to `create_app` and returns the ASGI app; importing `quantide.app` exposes that app, while `main()` delegates to `serve(appname='quantide.app')` without pre-constructing the reloader parent app."
         }
       ],
       "record_id": "prod-f655da5fbd1b",
       "source_markdown": {
-        "production_file_audit": "## `quantide/app.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `init`, `main`, `annotations`, `Path`, `Any`, `serve`, `create_app`, `APP_IMPORT_PATH`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True; main; module import exposes re-exports: annotations, Path, Any, serve, create_app; module import exposes constants/schema hooks: APP_IMPORT_PATH.\n- **Observable outputs/DTO/HTML/persistence/events**: init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance); main.main -> implicit None; attribute lookup yields re-exported symbols: annotations, Path, Any, serve, create_app; read-only public values are available: APP_IMPORT_PATH.\n- **Failure/error/fallback**: no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`.\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/app.py`.\n- **Upstream source**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/app_factory.py; quantide/config/paths.py; quantide/web/apis/analysis/__init__.py; quantide/web/apis/analysis/kline.py; quantide/web/apis/analysis/search.py; quantide/web/apis/broker.py; quantide/web/auth/admin_routes.py; quantide/web/auth/database.py; quantide/web/auth/manager.py; quantide/web/auth/routes.py; quantide/web/middleware.py; quantide/web/pages/accounts.py; quantide/web/pages/init_wizard.py; quantide/web/pages/strategy.py.\n- **Proposed ACs**: AC-PROP-F655DA5F-01; AC-PROP-F655DA5F-02.\n",
-        "proposed_requirements": "## `quantide/app.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-F655DA5F-01** (function: init, main): `quantide/app.py` 的 function `init, main` 接受/边界：initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；main；可观察输出：init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)；main.main -> implicit None；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app.py`。\n- **AC-PROP-F655DA5F-02** (schema/re-export: annotations, Path, Any, serve, create_app, APP_IMPORT_PATH): `quantide/app.py` 的 schema/re-export `annotations, Path, Any, serve, create_app, APP_IMPORT_PATH` 接受/边界：initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；module import exposes re-exports: annotations, Path, Any, serve, create_app；module import exposes constants/schema hooks: APP_IMPORT_PATH；可观察输出：init.initapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> create_app(app_config_dir=app_config_dir, enforce_single_instance=enforce_single_instance)；attribute lookup yields re-exported symbols: annotations, Path, Any, serve, create_app；read-only public values are available: APP_IMPORT_PATH；失败/回退：no path-local explicit raise/fallback; import failure propagates as Python import error for `quantide/app.py`；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/app_factory.py; quantide/config/paths.py; quantide/web/apis/analysis/__init__.py; quantide/web/apis/analysis/kline.py; quantide/web/apis/analysis/search.py.\n- **Coverage target**: 80%.\n"
+        "production_file_audit": "## `quantide/app.py`\n\n- **Source-grounded contract**: `init(app_config_dir=None, enforce_single_instance=True)` delegates unchanged to `create_app` and returns the ASGI app; importing `quantide.app` exposes that app, while `main()` delegates to `serve(appname='quantide.app')` without pre-constructing the reloader parent app.\n- **Source anchors**: APP_IMPORT_PATH at quantide/app.py:14; init at quantide/app.py:17-33; main at quantide/app.py:36-47; app module hook at quantide/app.py:50-53.\n- **Evidence**: .louke/project/specs/v0.2-003-coverage/spec.md:594-609 (FR-0703); .louke/project/specs/v0.2-003-coverage/acceptance.md:687-711 (FR-0703 AC-1..6); tests/unit/test_app.py:10-48; quantide/app_factory.py:212-500.\n",
+        "proposed_requirements": "## `quantide/app.py`\n\n- **AC-PROP-F655DA5F-01**: `init(app_config_dir=None, enforce_single_instance=True)` delegates unchanged to `create_app` and returns the ASGI app; importing `quantide.app` exposes that app, while `main()` delegates to `serve(appname='quantide.app')` without pre-constructing the reloader parent app.\n"
       }
     },
     {
@@ -351,159 +357,85 @@
       "classification_evidence": "consumer/import and precedence analysis; destructive action requires Aaron",
       "proposed_disposition": "retain and behavior-test to >= 80%",
       "proposed_requirement_ac_text": [
-        "`quantide/app_factory.py` 的 function `create_app` 接受/边界：create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；可观察输出：create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)；失败/回退：create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`。",
-        "`quantide/app_factory.py` 的 schema/re-export `annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme` 接受/边界：create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；module import exposes re-exports: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme；可观察输出：create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)；attribute lookup yields re-exported symbols: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme；失败/回退：create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`。"
+        "`create_app(app_config_dir=None, enforce_single_instance=True)` builds and returns the routed FastHTML app in the selected config root, installs middleware/handlers and runtime state, skips PID work only when requested, repairs an existing corrupt DB by backup/recreate, and degrades runtime-bootstrap failures to wizard mode instead of exporting imported route handlers as API."
       ],
       "aaron_decision_candidate": null,
       "coverage_target_percent": 80,
       "coverage_gap_statements_estimate": 20,
       "waiver_or_deletion_blockers": "specific expiring waiver only",
       "normative_contract": {
-        "status": "retained executable public surface",
+        "status": "application factory and route-registration surface",
         "public_symbols": [
-          "create_app",
-          "annotations",
-          "Path",
-          "Mount",
-          "Route",
-          "fast_app",
-          "logger",
-          "Middleware",
-          "RedirectResponse",
-          "StaticFiles",
-          "get_branding",
-          "ensure_dev_stubs_started",
-          "get_app_config_dir",
-          "get_app_db_path",
-          "get_pid_file_path",
-          "set_app_config_dir_override",
-          "get_data_home",
-          "BaseTradeError",
-          "RuntimeBootstrap",
-          "init_data",
-          "db",
-          "BrokerRegistry",
-          "strategy_runtime_manager",
-          "kline_router",
-          "search_router",
-          "broker_api_app",
-          "AuthManager",
-          "BrokerRegistryMiddleware",
-          "exception_handler",
-          "FeatureCheckMiddleware",
-          "InitCheckMiddleware",
-          "accounts_app",
-          "accounts_list",
-          "analysis_handler",
-          "data_calendar_app",
-          "data_db_app",
-          "data_market_app",
-          "data_stocks_app",
-          "history_orders_list",
-          "history_positions_list",
-          "history_trades_list",
-          "home_app",
-          "init_wizard",
-          "init_wizard_app",
-          "live_app",
-          "paper_app",
-          "strategy_app",
-          "system_calendar_app",
-          "system_datasource_app",
-          "system_gateway_app",
-          "system_jobs_app",
-          "system_market_app",
-          "system_risk_events_app",
-          "system_runtime_monitor_app",
-          "system_stocks_app",
-          "trade_lightning_clear",
-          "trade_lightning_clear_modal",
-          "trade_lightning_create",
-          "trade_lightning_create_modal",
-          "trade_lightning_delete",
-          "trade_lightning_delete_modal",
-          "trade_lightning_edit_modal",
-          "trade_lightning_execute",
-          "trade_lightning_search",
-          "trade_lightning_update",
-          "place_order_trade",
-          "search_trade_assets",
-          "set_active_account",
-          "trade_asset_stats",
-          "trade_live_quote",
-          "trade_main_page",
-          "trade_positions_refresh",
-          "trade_orders_refresh",
-          "AppTheme"
+          "create_app"
         ],
-        "routes_or_registry_hooks": [],
+        "routes_or_registry_hooks": [
+          "Registers root routes/mounts listed at source lines 260-486",
+          "Registers POST `/trade/set-active` at source lines 496-498"
+        ],
+        "signatures": [
+          "create_app(app_config_dir: str | Path | None = None, enforce_single_instance: bool = True)"
+        ],
         "accepted_inputs_and_boundaries": [
-          "create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True",
-          "module import exposes re-exports: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme"
+          "`app_config_dir` selects process-local SQLite, PID, runtime-state, and backtest-log roots.",
+          "`enforce_single_instance=False` skips the PID guard; `True` checks/writes a PID in the selected config directory."
         ],
         "observable_outputs": [
-          "create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)",
-          "attribute lookup yields re-exported symbols: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme"
+          "Returns the FastHTML root app with auth, init/feature/registry middleware, exception handlers, redirects, routes, mounts, and app state populated.",
+          "The app state exposes `runtime`, `strategy_runtime_manager`, and the effective `app_config_dir`; mounted apps receive root/runtime references."
         ],
         "failure_error_fallback": [
-          "create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')"
+          "An unreadable existing DB is renamed to `*.corrupt.<timestamp>.db` and reinitialized; a missing DB initialization error or failed backup propagates.",
+          "Runtime bootstrap errors are logged and fall back to an app with `runtime=None` so the initialization wizard remains reachable.",
+          "A live duplicate PID raises `RuntimeError`; malformed/stale PID files are removed."
         ],
         "state_mutations_and_cleanup": [
-          "no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`"
+          "Sets the process config override, initializes SQLite and optional dev stubs, may start scheduler/runtime services, initializes auth, writes app/mounted-app state, and may write a PID.",
+          "PID cleanup is registered with `atexit`; dev-stub cleanup is owned by `ensure_dev_stubs_started`."
+        ],
+        "source_anchors": [
+          {
+            "symbol": "create_app",
+            "lines": "quantide/app_factory.py:212-500"
+          },
+          {
+            "symbol": "route and mount registry",
+            "lines": "quantide/app_factory.py:248-498"
+          },
+          {
+            "symbol": "explicit export list",
+            "lines": "quantide/app_factory.py:503"
+          }
         ],
         "upstream_contract_sources": [
-          "v0.2-003 FR-0703",
-          "corresponding v0.2-003 AC",
-          "v0.2-003 interfaces then v0.2-001/002 by precedence"
+          ".louke/project/specs/v0.2-003-coverage/spec.md:594-609 (FR-0703)",
+          ".louke/project/specs/v0.2-003-coverage/acceptance.md:697-711 (FR-0703 AC-3..6)",
+          ".louke/project/specs/v0.2-002-ui/interfaces.md:40-137 (HTTP route contract)"
         ],
         "consumer_evidence": [
-          "quantide/app.py",
-          "quantide/web/pages/init_wizard.py",
-          "tests/e2e/conftest.py",
-          "tests/e2e/http_integration/test_http_broker_api.py",
-          "tests/e2e/support/init_wizard_session.py",
-          "tests/e2e/support/system_settings_session.py",
-          "tests/e2e/test_app_factory_e2e.py",
-          "tests/e2e/test_boot_smoke.py",
-          "tests/unit/quantide/test_app_factory.py",
-          "tests/unit/quantide/web/pages/system/test_calendar.py",
-          "tests/unit/quantide/web/pages/system/test_datasource.py",
-          "tests/unit/quantide/web/pages/system/test_jobs.py",
-          "tests/unit/quantide/web/pages/system/test_market.py",
-          "tests/unit/quantide/web/pages/system/test_risk_events.py",
-          "tests/unit/quantide/web/pages/system/test_runtime_monitor.py",
-          "tests/unit/quantide/web/pages/system/test_stocks.py",
-          "tests/unit/test_app.py"
+          "tests/unit/quantide/test_app_factory.py:12-20",
+          "tests/e2e/test_app_factory_e2e.py:18-35",
+          "quantide/app.py:17-33"
         ],
+        "evidence_note": "`__all__` explicitly limits the module API to `create_app`; imported handlers and framework classes are implementation dependencies.",
         "proposed_acs": [
           {
             "id": "AC-PROP-377AD2D0-01",
-            "surface": "function: create_app",
-            "statement": "`quantide/app_factory.py` 的 function `create_app` 接受/边界：create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；可观察输出：create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)；失败/回退：create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`。"
-          },
-          {
-            "id": "AC-PROP-377AD2D0-02",
-            "surface": "schema/re-export: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme",
-            "statement": "`quantide/app_factory.py` 的 schema/re-export `annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme` 接受/边界：create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；module import exposes re-exports: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme；可观察输出：create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)；attribute lookup yields re-exported symbols: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme；失败/回退：create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`。"
+            "surface": "source-grounded public surface",
+            "statement": "`create_app(app_config_dir=None, enforce_single_instance=True)` builds and returns the routed FastHTML app in the selected config root, installs middleware/handlers and runtime state, skips PID work only when requested, repairs an existing corrupt DB by backup/recreate, and degrades runtime-bootstrap failures to wizard mode instead of exporting imported route handlers as API."
           }
         ]
       },
       "contract_ac_proposals": [
         {
           "id": "AC-PROP-377AD2D0-01",
-          "surface": "function: create_app",
-          "statement": "`quantide/app_factory.py` 的 function `create_app` 接受/边界：create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；可观察输出：create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)；失败/回退：create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`。"
-        },
-        {
-          "id": "AC-PROP-377AD2D0-02",
-          "surface": "schema/re-export: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme",
-          "statement": "`quantide/app_factory.py` 的 schema/re-export `annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme` 接受/边界：create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；module import exposes re-exports: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme；可观察输出：create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)；attribute lookup yields re-exported symbols: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme；失败/回退：create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`。"
+          "surface": "source-grounded public surface",
+          "statement": "`create_app(app_config_dir=None, enforce_single_instance=True)` builds and returns the routed FastHTML app in the selected config root, installs middleware/handlers and runtime state, skips PID work only when requested, repairs an existing corrupt DB by backup/recreate, and degrades runtime-bootstrap failures to wizard mode instead of exporting imported route handlers as API."
         }
       ],
       "record_id": "prod-377ad2d09023",
       "source_markdown": {
-        "production_file_audit": "## `quantide/app_factory.py`\n\n- **Status/classification**: retained executable public surface / `active retained legacy` (inference).\n- **Public symbols**: `create_app`, `annotations`, `Path`, `Mount`, `Route`, `fast_app`, `logger`, `Middleware`, `RedirectResponse`, `StaticFiles`, `get_branding`, `ensure_dev_stubs_started`, `get_app_config_dir`, `get_app_db_path`, `get_pid_file_path`, `set_app_config_dir_override`, `get_data_home`, `BaseTradeError`, `RuntimeBootstrap`, `init_data`, `db`, `BrokerRegistry`, `strategy_runtime_manager`, `kline_router`, `search_router`, `broker_api_app`, `AuthManager`, `BrokerRegistryMiddleware`, `exception_handler`, `FeatureCheckMiddleware`, `InitCheckMiddleware`, `accounts_app`, `accounts_list`, `analysis_handler`, `data_calendar_app`, `data_db_app`, `data_market_app`, `data_stocks_app`, `history_orders_list`, `history_positions_list`, `history_trades_list`, `home_app`, `init_wizard`, `init_wizard_app`, `live_app`, `paper_app`, `strategy_app`, `system_calendar_app`, `system_datasource_app`, `system_gateway_app`, `system_jobs_app`, `system_market_app`, `system_risk_events_app`, `system_runtime_monitor_app`, `system_stocks_app`, `trade_lightning_clear`, `trade_lightning_clear_modal`, `trade_lightning_create`, `trade_lightning_create_modal`, `trade_lightning_delete`, `trade_lightning_delete_modal`, `trade_lightning_edit_modal`, `trade_lightning_execute`, `trade_lightning_search`, `trade_lightning_update`, `place_order_trade`, `search_trade_assets`, `set_active_account`, `trade_asset_stats`, `trade_live_quote`, `trade_main_page`, `trade_positions_refresh`, `trade_orders_refresh`, `AppTheme`.\n- **Routes/registry hooks**: none declared in this path.\n- **Accepted inputs and boundaries**: create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True; module import exposes re-exports: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme.\n- **Observable outputs/DTO/HTML/persistence/events**: create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session); attribute lookup yields re-exported symbols: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme.\n- **Failure/error/fallback**: create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}').\n- **State mutation/cleanup**: no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`.\n- **Upstream source**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence.\n- **Consumer evidence**: quantide/app.py; quantide/web/pages/init_wizard.py; tests/e2e/conftest.py; tests/e2e/http_integration/test_http_broker_api.py; tests/e2e/support/init_wizard_session.py; tests/e2e/support/system_settings_session.py; tests/e2e/test_app_factory_e2e.py; tests/e2e/test_boot_smoke.py; tests/unit/quantide/test_app_factory.py; tests/unit/quantide/web/pages/system/test_calendar.py; tests/unit/quantide/web/pages/system/test_datasource.py; tests/unit/quantide/web/pages/system/test_jobs.py; tests/unit/quantide/web/pages/system/test_market.py; tests/unit/quantide/web/pages/system/test_risk_events.py; tests/unit/quantide/web/pages/system/test_runtime_monitor.py; tests/unit/quantide/web/pages/system/test_stocks.py; tests/unit/test_app.py.\n- **Proposed ACs**: AC-PROP-377AD2D0-01; AC-PROP-377AD2D0-02.\n",
-        "proposed_requirements": "## `quantide/app_factory.py`\n\n- **Status**: retained executable public surface.\n- **AC-PROP-377AD2D0-01** (function: create_app): `quantide/app_factory.py` 的 function `create_app` 接受/边界：create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；可观察输出：create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)；失败/回退：create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`。\n- **AC-PROP-377AD2D0-02** (schema/re-export: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme): `quantide/app_factory.py` 的 schema/re-export `annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme` 接受/边界：create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True；module import exposes re-exports: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme；可观察输出：create_app.create_appapp_config_dir: str | Path | None=None, enforce_single_instance: bool=True -> app, await set_active_account(req, session)；attribute lookup yields re-exported symbols: annotations, Path, Mount, Route, fast_app, logger, Middleware, RedirectResponse, StaticFiles, get_branding, ensure_dev_stubs_started, get_app_config_dir, get_app_db_path, get_pid_file_path, set_app_config_dir_override, get_data_home, BaseTradeError, RuntimeBootstrap, init_data, db, BrokerRegistry, strategy_runtime_manager, kline_router, search_router, broker_api_app, AuthManager, BrokerRegistryMiddleware, exception_handler, FeatureCheckMiddleware, InitCheckMiddleware, accounts_app, accounts_list, analysis_handler, data_calendar_app, data_db_app, data_market_app, data_stocks_app, history_orders_list, history_positions_list, history_trades_list, home_app, init_wizard, init_wizard_app, live_app, paper_app, strategy_app, system_calendar_app, system_datasource_app, system_gateway_app, system_jobs_app, system_market_app, system_risk_events_app, system_runtime_monitor_app, system_stocks_app, trade_lightning_clear, trade_lightning_clear_modal, trade_lightning_create, trade_lightning_create_modal, trade_lightning_delete, trade_lightning_delete_modal, trade_lightning_edit_modal, trade_lightning_execute, trade_lightning_search, trade_lightning_update, place_order_trade, search_trade_assets, set_active_account, trade_asset_stats, trade_live_quote, trade_main_page, trade_positions_refresh, trade_orders_refresh, AppTheme；失败/回退：create_app: on Exception: logger.warning(f'应用运行时初始化失败，将进入初始化向导模式: {exc}')；状态/清理：no path-local public state mutation or cleanup operation is present in `quantide/app_factory.py`。\n- **Contract source/consumer evidence**: v0.2-003 FR-0703; corresponding v0.2-003 AC; v0.2-003 interfaces then v0.2-001/002 by precedence; quantide/app.py; quantide/web/pages/init_wizard.py; tests/e2e/conftest.py; tests/e2e/http_integration/test_http_broker_api.py; tests/e2e/support/init_wizard_session.py.\n- **Coverage target**: 80%.\n"
+        "production_file_audit": "## `quantide/app_factory.py`\n\n- **Source-grounded contract**: `create_app(app_config_dir=None, enforce_single_instance=True)` builds and returns the routed FastHTML app in the selected config root, installs middleware/handlers and runtime state, skips PID work only when requested, repairs an existing corrupt DB by backup/recreate, and degrades runtime-bootstrap failures to wizard mode instead of exporting imported route handlers as API.\n- **Source anchors**: create_app at quantide/app_factory.py:212-500; route and mount registry at quantide/app_factory.py:248-498; explicit export list at quantide/app_factory.py:503.\n- **Evidence**: .louke/project/specs/v0.2-003-coverage/spec.md:594-609 (FR-0703); .louke/project/specs/v0.2-003-coverage/acceptance.md:697-711 (FR-0703 AC-3..6); .louke/project/specs/v0.2-002-ui/interfaces.md:40-137 (HTTP route contract); tests/unit/quantide/test_app_factory.py:12-20; tests/e2e/test_app_factory_e2e.py:18-35; quantide/app.py:17-33.\n",
+        "proposed_requirements": "## `quantide/app_factory.py`\n\n- **AC-PROP-377AD2D0-01**: `create_app(app_config_dir=None, enforce_single_instance=True)` builds and returns the routed FastHTML app in the selected config root, installs middleware/handlers and runtime state, skips PID work only when requested, repairs an existing corrupt DB by backup/recreate, and degrades runtime-bootstrap failures to wizard mode instead of exporting imported route handlers as API.\n"
       }
     }
   ]

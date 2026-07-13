@@ -2,14 +2,16 @@
 
 - Test modules: **240**.
 - Test functions: **1651/1651** with disposition and concrete target behavior.
-- Functions with spec-qualified refs: **1594**.
-- Dispositions: `{'aligned': 1415, 'needs-Sage-contract': 57, 'update': 179}`.
-- Semantic quality: `{'aligned': 1458, 'fake': 2, 'import-only': 48, 'incomplete': 91, 'self-fulfilling': 52}`.
+- Functions with spec-qualified refs: **1651**.
+- Dispositions: `{'aligned': 1455, 'update': 196}`.
+- Semantic quality: `{'aligned': 1455, 'conflicting': 2, 'fake': 3, 'import-only': 41, 'incomplete': 87, 'self-fulfilling': 61, 'spec-gap': 2}`.
+- Open Devon work items: **196**; update binding coverage: **196/196**; registry status: **open**.
+- Registry: `devon-work-items.json`, SHA-256 `bac42a69bcd6359afe16fbcdc8ae710314ad00ced431dff9c1625186cb2bd088`.
 - Full suite was prohibited and was not run; `failing` is recorded only when statically encoded, never guessed from old CI.
 
 ## Normative shard index
 
-All module metadata, function-level refs/targets/behavior/quality/disposition/evidence, and the original module audit prose are normative in the listed JSON shard records (`modules[].functions` and `source_markdown.test_trace_audit`).
+All module metadata and function-level records are normative in the listed JSON shards. Sage's 57 dispositions and all 196 open Devon bindings are materialized in those records.
 
 | Test module | Functions | Recommendation | Dispositions | Quality | Normative record |
 |---|---:|---|---|---|---|
@@ -38,7 +40,7 @@ All module metadata, function-level refs/targets/behavior/quality/disposition/ev
 | `tests/e2e/paper/test_dual_ma_accuracy.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-2275e676e6aa`](test-trace/tests-e2e-01.json) |
 | `tests/e2e/paper/test_fr_115_185_360_e2e.py` | 7 | update | `{"aligned": 6, "update": 1}` | `{"aligned": 6, "incomplete": 1}` | [`testmod-20c4cd0d408e`](test-trace/tests-e2e-01.json) |
 | `tests/e2e/paper/test_fr_140_190_trading_rules_e2e.py` | 11 | update | `{"aligned": 9, "update": 2}` | `{"aligned": 9, "incomplete": 2}` | [`testmod-6cbae8223032`](test-trace/tests-e2e-01.json) |
-| `tests/e2e/paper/test_fr_440_450_200_360_e2e.py` | 11 | needs-Sage-contract | `{"aligned": 9, "needs-Sage-contract": 2}` | `{"aligned": 10, "import-only": 1}` | [`testmod-80c9181f1d10`](test-trace/tests-e2e-01.json) |
+| `tests/e2e/paper/test_fr_440_450_200_360_e2e.py` | 11 | keep | `{"aligned": 11}` | `{"aligned": 11}` | [`testmod-80c9181f1d10`](test-trace/tests-e2e-01.json) |
 | `tests/e2e/paper/test_l1_paper_smoke.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-6e8cee0f1cf6`](test-trace/tests-e2e-01.json) |
 | `tests/e2e/risk_strategy/test_fr_013_risk_strategy.py` | 7 | keep | `{"aligned": 7}` | `{"aligned": 7}` | [`testmod-00e587545887`](test-trace/tests-e2e-01.json) |
 | `tests/e2e/risk_strategy/test_fr_013_risk_structure.py` | 18 | update | `{"aligned": 15, "update": 3}` | `{"aligned": 15, "incomplete": 3}` | [`testmod-592922ca1a7f`](test-trace/tests-e2e-01.json) |
@@ -63,13 +65,13 @@ All module metadata, function-level refs/targets/behavior/quality/disposition/ev
 | `tests/e2e/support/virtual_clock.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-bf0a168ceaf5`](test-trace/tests-e2e-01.json) |
 | `tests/e2e/test_app_factory_e2e.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-103f14651d1b`](test-trace/tests-e2e-01.json) |
 | `tests/e2e/test_boot_smoke.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-d1f4a8f11f81`](test-trace/tests-e2e-01.json) |
-| `tests/e2e/test_ci_workflow_e2e.py` | 4 | needs-Sage-contract | `{"needs-Sage-contract": 4}` | `{"aligned": 4}` | [`testmod-6cebff91eb07`](test-trace/tests-e2e-02.json) |
+| `tests/e2e/test_ci_workflow_e2e.py` | 4 | keep | `{"aligned": 4}` | `{"aligned": 4}` | [`testmod-6cebff91eb07`](test-trace/tests-e2e-02.json) |
 | `tests/e2e/test_coverage_checker_e2e.py` | 3 | keep | `{"aligned": 3}` | `{"aligned": 3}` | [`testmod-6b059aae3b64`](test-trace/tests-e2e-02.json) |
-| `tests/e2e/test_gateway.py` | 3 | needs-Sage-contract | `{"aligned": 2, "needs-Sage-contract": 1}` | `{"aligned": 3}` | [`testmod-ce3b3180c209`](test-trace/tests-e2e-02.json) |
-| `tests/e2e/test_isolation_e2e.py` | 1 | needs-Sage-contract | `{"needs-Sage-contract": 1}` | `{"aligned": 1}` | [`testmod-fe2ee2a381f9`](test-trace/tests-e2e-02.json) |
-| `tests/e2e/test_live_smoke.py` | 1 | needs-Sage-contract | `{"needs-Sage-contract": 1}` | `{"aligned": 1}` | [`testmod-7af10b84d636`](test-trace/tests-e2e-02.json) |
+| `tests/e2e/test_gateway.py` | 3 | keep | `{"aligned": 3}` | `{"aligned": 3}` | [`testmod-ce3b3180c209`](test-trace/tests-e2e-02.json) |
+| `tests/e2e/test_isolation_e2e.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-fe2ee2a381f9`](test-trace/tests-e2e-02.json) |
+| `tests/e2e/test_live_smoke.py` | 1 | update | `{"update": 1}` | `{"incomplete": 1}` | [`testmod-7af10b84d636`](test-trace/tests-e2e-02.json) |
 | `tests/e2e/test_paper.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-1c4d2660cd0e`](test-trace/tests-e2e-02.json) |
-| `tests/e2e/test_smoke.py` | 2 | needs-Sage-contract | `{"aligned": 1, "needs-Sage-contract": 1}` | `{"aligned": 2}` | [`testmod-7fd9f3f7e57a`](test-trace/tests-e2e-02.json) |
+| `tests/e2e/test_smoke.py` | 2 | update | `{"aligned": 1, "update": 1}` | `{"aligned": 1, "conflicting": 1}` | [`testmod-7fd9f3f7e57a`](test-trace/tests-e2e-02.json) |
 | `tests/e2e/three_mode/__init__.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-a1fbfbf6e3d9`](test-trace/tests-e2e-02.json) |
 | `tests/e2e/three_mode/test_dual_ma_parity.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-be4e04466068`](test-trace/tests-e2e-02.json) |
 | `tests/e2e/web/__init__.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-da44b0a9d1b8`](test-trace/tests-e2e-02.json) |
@@ -82,7 +84,7 @@ All module metadata, function-level refs/targets/behavior/quality/disposition/ev
 | `tests/ground_truth/calendar.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-fa0ed23423ff`](test-trace/tests-ground-truth.json) |
 | `tests/ground_truth/discovery.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-ecb4bc1cf2ee`](test-trace/tests-ground-truth.json) |
 | `tests/ground_truth/stocks.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-4736fd2b9c80`](test-trace/tests-ground-truth.json) |
-| `tests/ground_truth/test_purity.py` | 2 | needs-Sage-contract | `{"needs-Sage-contract": 2}` | `{"aligned": 2}` | [`testmod-58d32b901ffe`](test-trace/tests-ground-truth.json) |
+| `tests/ground_truth/test_purity.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-58d32b901ffe`](test-trace/tests-ground-truth.json) |
 | `tests/unit/_checkers/per_file_coverage.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-7ceddc39750c`](test-trace/tests-unit-01.json) |
 | `tests/unit/_infra/test_coverage_artifact.py` | 3 | keep | `{"aligned": 3}` | `{"aligned": 3}` | [`testmod-f89d8de2aba4`](test-trace/tests-unit-01.json) |
 | `tests/unit/_infra/test_coverage_thresholds.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-06cd54682e71`](test-trace/tests-unit-01.json) |
@@ -96,7 +98,7 @@ All module metadata, function-level refs/targets/behavior/quality/disposition/ev
 | `tests/unit/quantide/config/test_fr_470_install.py` | 6 | update | `{"aligned": 5, "update": 1}` | `{"aligned": 5, "incomplete": 1}` | [`testmod-b7d5289b7f51`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/config/test_paths.py` | 5 | keep | `{"aligned": 5}` | `{"aligned": 5}` | [`testmod-9c911e0760a8`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/config/test_settings.py` | 14 | keep | `{"aligned": 14}` | `{"aligned": 14}` | [`testmod-829b0e7a65dd`](test-trace/tests-unit-01.json) |
-| `tests/unit/quantide/core/domain/test_events.py` | 2 | needs-Sage-contract | `{"needs-Sage-contract": 2}` | `{"aligned": 2}` | [`testmod-0c69705e58ba`](test-trace/tests-unit-01.json) |
+| `tests/unit/quantide/core/domain/test_events.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-0c69705e58ba`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/ports/test_protocol_structural.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-281dd382e3d3`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/runtime/test_clock_bridge.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-a64f5dedcf17`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/runtime/test_gateway_client.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-134b3b4ae715`](test-trace/tests-unit-01.json) |
@@ -104,16 +106,16 @@ All module metadata, function-level refs/targets/behavior/quality/disposition/ev
 | `tests/unit/quantide/core/strategy/test_strategy_discovery.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-142d3f69e537`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_adapter_registry.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-3fbb0dbbd35b`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_foundation_contracts.py` | 3 | keep | `{"aligned": 3}` | `{"aligned": 3}` | [`testmod-eae42ed96754`](test-trace/tests-unit-01.json) |
-| `tests/unit/quantide/core/test_fr_010_base_strategy_unit.py` | 15 | needs-Sage-contract | `{"aligned": 10, "needs-Sage-contract": 5}` | `{"aligned": 12, "incomplete": 3}` | [`testmod-7905d05486a7`](test-trace/tests-unit-01.json) |
+| `tests/unit/quantide/core/test_fr_010_base_strategy_unit.py` | 15 | keep | `{"aligned": 15}` | `{"aligned": 15}` | [`testmod-7905d05486a7`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_fr_012_live_strategy.py` | 6 | update | `{"aligned": 5, "update": 1}` | `{"aligned": 5, "import-only": 1}` | [`testmod-2a3bf4c18de0`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_gateway_broker_adapter.py` | 28 | update | `{"aligned": 26, "update": 2}` | `{"aligned": 26, "incomplete": 2}` | [`testmod-68f849a5b714`](test-trace/tests-unit-01.json) |
-| `tests/unit/quantide/core/test_gateway_protocol_contract.py` | 8 | needs-Sage-contract | `{"aligned": 2, "needs-Sage-contract": 1, "update": 5}` | `{"aligned": 3, "incomplete": 5}` | [`testmod-f206ddae1362`](test-trace/tests-unit-01.json) |
+| `tests/unit/quantide/core/test_gateway_protocol_contract.py` | 8 | update | `{"aligned": 2, "update": 6}` | `{"aligned": 2, "conflicting": 1, "incomplete": 5}` | [`testmod-f206ddae1362`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_message.py` | 11 | update | `{"aligned": 9, "update": 2}` | `{"aligned": 9, "incomplete": 1, "self-fulfilling": 1}` | [`testmod-600b8d2d8359`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_runtime_modes.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-291ff69d4985`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_sim_broker_market_data.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-5551704e96f4`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_strategy_runner.py` | 4 | keep | `{"aligned": 4}` | `{"aligned": 4}` | [`testmod-5c6842e3ec34`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/core/test_strategy_runtime_manager.py` | 12 | update | `{"aligned": 11, "update": 1}` | `{"aligned": 11, "self-fulfilling": 1}` | [`testmod-0690b0fb9571`](test-trace/tests-unit-01.json) |
-| `tests/unit/quantide/core/test_wizard_steps_v2.py` | 17 | needs-Sage-contract | `{"needs-Sage-contract": 17}` | `{"aligned": 15, "import-only": 2}` | [`testmod-26a078109d3c`](test-trace/tests-unit-01.json) |
+| `tests/unit/quantide/core/test_wizard_steps_v2.py` | 17 | keep | `{"aligned": 17}` | `{"aligned": 17}` | [`testmod-26a078109d3c`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/data/__init__.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-ab4f3f817c3c`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/data/fetchers/__init__.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-4486e80d7b29`](test-trace/tests-unit-01.json) |
 | `tests/unit/quantide/data/fetchers/test_coverage_fetchers.py` | 4 | keep | `{"aligned": 4}` | `{"aligned": 4}` | [`testmod-df95a8ed6e23`](test-trace/tests-unit-01.json) |
@@ -128,24 +130,24 @@ All module metadata, function-level refs/targets/behavior/quality/disposition/ev
 | `tests/unit/quantide/data/models/test_fr_330_data_query.py` | 6 | keep | `{"aligned": 6}` | `{"aligned": 6}` | [`testmod-2b8341925851`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/models/test_fr_485_security_code.py` | 6 | update | `{"aligned": 5, "update": 1}` | `{"aligned": 5, "import-only": 1}` | [`testmod-dd33b8e7f08d`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/models/test_stocks.py` | 8 | keep | `{"aligned": 8}` | `{"aligned": 8}` | [`testmod-1b19b352a043`](test-trace/tests-unit-02.json) |
-| `tests/unit/quantide/data/services/test_fr_320_integrity.py` | 6 | needs-Sage-contract | `{"aligned": 2, "needs-Sage-contract": 4}` | `{"aligned": 4, "fake": 1, "incomplete": 1}` | [`testmod-680c22319fef`](test-trace/tests-unit-02.json) |
+| `tests/unit/quantide/data/services/test_fr_320_integrity.py` | 6 | update | `{"aligned": 2, "update": 4}` | `{"aligned": 2, "fake": 1, "self-fulfilling": 3}` | [`testmod-680c22319fef`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/stores/__init__.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-c166a2b2e9d8`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/stores/test_bars.py` | 4 | update | `{"aligned": 3, "update": 1}` | `{"aligned": 3, "import-only": 1}` | [`testmod-71d63fe7ef74`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/stores/test_base.py` | 16 | keep | `{"aligned": 16}` | `{"aligned": 16}` | [`testmod-0dff34a8e2b7`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/stores/test_coverage_stores.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-446f3b6d60dc`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/stores/test_legacy_index_sector_fetch_retirement.py` | 1 | update | `{"update": 1}` | `{"incomplete": 1}` | [`testmod-a4c1d5678722`](test-trace/tests-unit-02.json) |
-| `tests/unit/quantide/data/test_assets_manifest.py` | 3 | needs-Sage-contract | `{"aligned": 2, "needs-Sage-contract": 1}` | `{"aligned": 3}` | [`testmod-6d48607534cb`](test-trace/tests-unit-02.json) |
+| `tests/unit/quantide/data/test_assets_manifest.py` | 3 | keep | `{"aligned": 3}` | `{"aligned": 3}` | [`testmod-6d48607534cb`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/test_coverage_helper.py` | 3 | keep | `{"aligned": 3}` | `{"aligned": 3}` | [`testmod-e05bb79b8f6a`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/test_coverage_sqlite.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-3d40924904e3`](test-trace/tests-unit-02.json) |
-| `tests/unit/quantide/data/test_fr_290_adjust_limit.py` | 7 | needs-Sage-contract | `{"needs-Sage-contract": 6, "update": 1}` | `{"aligned": 1, "import-only": 5, "incomplete": 1}` | [`testmod-d4df629b12aa`](test-trace/tests-unit-02.json) |
+| `tests/unit/quantide/data/test_fr_290_adjust_limit.py` | 7 | update | `{"update": 7}` | `{"import-only": 1, "self-fulfilling": 6}` | [`testmod-d4df629b12aa`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/test_helper.py` | 4 | keep | `{"aligned": 4}` | `{"aligned": 4}` | [`testmod-cff555dcc14f`](test-trace/tests-unit-02.json) |
-| `tests/unit/quantide/data/test_init_data.py` | 2 | needs-Sage-contract | `{"aligned": 1, "needs-Sage-contract": 1}` | `{"aligned": 2}` | [`testmod-b1c855a1c4ca`](test-trace/tests-unit-02.json) |
+| `tests/unit/quantide/data/test_init_data.py` | 2 | update | `{"aligned": 1, "update": 1}` | `{"aligned": 1, "spec-gap": 1}` | [`testmod-b1c855a1c4ca`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/test_sqlite.py` | 30 | keep | `{"aligned": 30}` | `{"aligned": 30}` | [`testmod-b78ed4507adf`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/test_sqlite_market_data_retirement.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-9a5a5d66ebe5`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/utils/__init__.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-7b1ba1aaccb4`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/utils/test_coverage_resampler.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-9862e5620efc`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/data/utils/test_fr_480_resampler.py` | 8 | update | `{"aligned": 7, "update": 1}` | `{"aligned": 7, "incomplete": 1}` | [`testmod-af1492f72f5d`](test-trace/tests-unit-02.json) |
-| `tests/unit/quantide/data/utils/test_fr_484_research_tools.py` | 7 | needs-Sage-contract | `{"aligned": 5, "needs-Sage-contract": 1, "update": 1}` | `{"aligned": 6, "incomplete": 1}` | [`testmod-5497c607c6ea`](test-trace/tests-unit-02.json) |
+| `tests/unit/quantide/data/utils/test_fr_484_research_tools.py` | 7 | update | `{"aligned": 5, "update": 2}` | `{"aligned": 5, "incomplete": 2}` | [`testmod-5497c607c6ea`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/notify/test_fr_0701_notify_channels.py` | 5 | update | `{"aligned": 4, "update": 1}` | `{"aligned": 4, "incomplete": 1}` | [`testmod-a9642c2cd41d`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/notify/test_fr_481_notification.py` | 9 | update | `{"aligned": 7, "update": 2}` | `{"aligned": 7, "incomplete": 2}` | [`testmod-c1ce7ca839f1`](test-trace/tests-unit-02.json) |
 | `tests/unit/quantide/notify/test_mail.py` | 2 | keep | `{"aligned": 2}` | `{"aligned": 2}` | [`testmod-c3b3ae71b7c0`](test-trace/tests-unit-02.json) |
@@ -193,7 +195,7 @@ All module metadata, function-level refs/targets/behavior/quality/disposition/ev
 | `tests/unit/quantide/strategies/example/test_fr_090_dual_ma.py` | 4 | keep | `{"aligned": 4}` | `{"aligned": 4}` | [`testmod-0357d03fcaa1`](test-trace/tests-unit-03.json) |
 | `tests/unit/quantide/test_app_factory.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-bc659d00d00e`](test-trace/tests-unit-03.json) |
 | `tests/unit/quantide/test_fr_010_020_030_040_sdk_discovery.py` | 22 | keep | `{"aligned": 22}` | `{"aligned": 22}` | [`testmod-c34d96afdac3`](test-trace/tests-unit-04.json) |
-| `tests/unit/quantide/test_nfr_010_050_nonfunctional.py` | 15 | needs-Sage-contract | `{"aligned": 9, "needs-Sage-contract": 4, "update": 2}` | `{"aligned": 12, "incomplete": 3}` | [`testmod-8b9593f3a1fb`](test-trace/tests-unit-04.json) |
+| `tests/unit/quantide/test_nfr_010_050_nonfunctional.py` | 15 | update | `{"aligned": 11, "update": 4}` | `{"aligned": 11, "fake": 1, "incomplete": 2, "spec-gap": 1}` | [`testmod-8b9593f3a1fb`](test-trace/tests-unit-04.json) |
 | `tests/unit/quantide/test_nfr_060_runtime_injectability.py` | 11 | keep | `{"aligned": 11}` | `{"aligned": 11}` | [`testmod-6a7d52d6718b`](test-trace/tests-unit-04.json) |
 | `tests/unit/quantide/web/__init__.py` | 0 | keep-helper | `{}` | `{}` | [`testmod-30796e6038a4`](test-trace/tests-unit-04.json) |
 | `tests/unit/quantide/web/apis/analysis/test_kline_retirement.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-ffbc98d9b86c`](test-trace/tests-unit-04.json) |
@@ -252,4 +254,4 @@ All module metadata, function-level refs/targets/behavior/quality/disposition/ev
 | `tests/unit/quantide/web/test_trade.py` | 120 | update | `{"aligned": 116, "update": 4}` | `{"aligned": 116, "import-only": 1, "incomplete": 2, "self-fulfilling": 1}` | [`testmod-110b8cf2a76f`](test-trace/tests-unit-06.json) |
 | `tests/unit/strategies/test_fr_090_100_110_builtin_strategies.py` | 11 | update | `{"aligned": 9, "update": 2}` | `{"aligned": 9, "incomplete": 2}` | [`testmod-e8dcad5b0ac1`](test-trace/tests-unit-06.json) |
 | `tests/unit/test_app.py` | 1 | keep | `{"aligned": 1}` | `{"aligned": 1}` | [`testmod-fcbbe89d576b`](test-trace/tests-unit-06.json) |
-| `tests/unit/test_env_fixture_smoke.py` | 4 | needs-Sage-contract | `{"aligned": 1, "needs-Sage-contract": 3}` | `{"aligned": 4}` | [`testmod-1f890b766e44`](test-trace/tests-unit-06.json) |
+| `tests/unit/test_env_fixture_smoke.py` | 4 | keep | `{"aligned": 4}` | `{"aligned": 4}` | [`testmod-1f890b766e44`](test-trace/tests-unit-06.json) |
