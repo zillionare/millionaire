@@ -45,6 +45,7 @@
 |---|---|---|
 | FR-0801 audit | FR-1001 + FR-1101 + FR-1201 | audit 已扩展为全 169 路径、分类和 source-grounded 合同；`FR-0801` 仅作为 story/测试计划兼容标签，不创建碰撞 AC |
 | FR-0802 v0.2-added `>=95%` | NFR-1001 + FR-1901 | 35 个 v0.2-added 路径按 inventory origin 分档且无 waiver；同次全绿证据才有效 |
+| FR-0803 豁免升级流程 | FR-1801 | 文件特定临时 waiver 验证；当前 registry 为空；schema `coverage-waivers/v1` 由 interfaces.md §8 强制 |
 | “FR-1801 RETAIN test-direction” | FR-1501 + FR-1801 | RETAIN 决定与当前实现 test-direction 归 FR-1501；FR-1801 只验证 waiver。六个 RETAIN 文件未获 waiver，因此两者共同要求保留、测试、逐文件 `>=80%` |
 | FR-1501 RESOLVED Aaron decisions | FR-1501 AC-01..09 | 6/6 `RETAIN`；corrected shard 是行为正文，`aaron-decisions.md` 是决定与测试义务 |
 | FR-1101/1201/1301/1401/1601/1701 | 同号规范 family | 依次形成 classify → contract → inspect → repair → trace → iterate 的闭环 |

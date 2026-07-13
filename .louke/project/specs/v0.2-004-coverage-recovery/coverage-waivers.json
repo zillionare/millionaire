@@ -1,5 +1,6 @@
 {
+  "schema": "coverage-waivers/v1",
   "spec_id": "v0.2-004-coverage-recovery",
-  "description": "Coverage waivers are temporary and file-specific. Every waiver requires Aaron's approval, a linked follow-up issue, and an expiry date.",
+  "description": "Coverage waivers are temporary and file-specific. Every waiver requires Aaron's approval, a linked follow-up issue, and an expiry date. The `description` field is a human-readable note; it is not part of the versioned schema contract but is preserved for traceability.",
   "waivers": []
 }

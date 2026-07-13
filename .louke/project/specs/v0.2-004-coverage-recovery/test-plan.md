@@ -41,7 +41,7 @@
 
 ### 2.1. 框架与版本
 
-- Python `>=3.13,<4.0`；pytest `>=9.0.2,<10.0.0`；pytest-cov `>=7.0.0,<8.0.0`；pytest-asyncio `>=1.3.0,<2.0.0`；pytest-timeout `>=2.4.0,<3.0.0`；freezegun `>=1.5.5,<2.0.0`，均沿用 `pyproject.toml`。
+- Python `>=3.13,<4.0`；pytest `>=9.0.2,<10.0.0`；pytest-cov `>=7.0.0,<8.0.0`；pytest-asyncio `>=1.3.0,<2.0.0`；pytest-timeout `>=2.4.0,<3.0.0`；pytest-random-order `>=3.15,<4.0`；freezegun `>=1.5.5,<2.0.0`，均沿用 `pyproject.toml`。pytest-random-order 必须显式声明；`pyproject.toml` 的 `[tool.poetry.group.test.dependencies]` 同步加入该约束；任何 fallback 仅用于诊断，绝不替代 AC-NFR1201-02 的真实 random-order baseline。
 - canonical runner 是 pytest。顺序基线必须真实执行 `pytest --random-order`；执行环境须提供与 pytest 9 兼容的 `pytest-random-order` plugin。若 pytest 报 unknown option，环境 gate 失败，不允许退化成默认顺序两次运行。当前 `tests/e2e/test_isolation_e2e.py` 的 optional fallback 仅是旧诊断，不能满足 AC-NFR1201-02。
 - `tests/conftest.py` 提供旧 fixtures，`tests/unit/conftest.py` 提供离线 `env` 和 PaperBroker cleanup；新增隔离能力应在这些既有 conftest 层实现，不引用不存在的 helper。
 
@@ -59,9 +59,9 @@
 ```bash
 HOME="$RUN_TMP/home" XDG_CONFIG_HOME="$RUN_TMP/xdg" \
 COVERAGE_PROCESS_START=pyproject.toml \
-python3 -m pytest tests/unit --timeout=120 \
+poetry run pytest tests/unit --timeout=60 -o faulthandler_timeout=90 \
   --cov=quantide --cov-branch --cov-fail-under=95 \
-  --cov-report=term-missing --cov-report=json:coverage.json
+  --cov-report=term-missing --cov-report=json:coverage.json --cov-report=html:htmlcov
 ```
 
 `--cov-fail-under=95` 只是早期保护；最终 checker 必须从同一 pytest exit-0 invocation 的 `coverage.json` 验证严格 `totals.percent_covered >95.0`。pytest exit 非 0、failed 非 0 或 errors 非 0 时，该 coverage 只能标记 diagnostic，不能输入任何 acceptance gate。pytest 完成后只允许对该 immutable artifact 做 hash、manifest、per-file、waiver、trace 和 closure 校验，不得合并另一测试 run 的数据。

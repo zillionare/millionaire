@@ -159,6 +159,7 @@ poetry run python tests/unit/_checkers/rw_registry.py close \
 |---|---|
 | Current registry | `waivers=[]`; AD-01..AD-06 have no waiver |
 | Eligible module | unique retained pre-v0.2 path present in fixed production inventory |
+| Optional metadata | the registry may carry a top-level `description` field for human-readable note; it is not part of the versioned `coverage-waivers/v1` schema but is preserved for traceability and ignored by the validator |
 | Ineligible | any v0.2-added path, unknown/duplicate path, generic glob/family/module prefix |
 | Required fields | `module`, `current_coverage`, `reason`, `evidence`, `approved_by`, `approved_at`, `expires_at`, `followup_issue` |
 | Approval | exact `approved_by="Aaron"`; valid timestamps; unexpired at run time |
