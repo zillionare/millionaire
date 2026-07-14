@@ -653,6 +653,43 @@ def test_copy_requires_config_modal():
 
 
 # ---------------------------------------------------------------------------
+# _build_backtest_sidebar_menu
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import _build_backtest_sidebar_menu
+
+
+def test_build_backtest_sidebar_menu_overview_active():
+    out = _build_backtest_sidebar_menu("p1", "overview")
+    assert isinstance(out, list)
+    # The backtest report item should be marked active
+    assert any(c.get("active") for c in out)
+
+
+def test_build_backtest_sidebar_menu_no_active():
+    out = _build_backtest_sidebar_menu("p1", "unknown")
+    assert isinstance(out, list)
+    # When unknown tab, no children active
+    for c in out:
+        if "children" in c:
+            assert not any(child.get("active") for child in c["children"])
+
+
+def test_build_backtest_sidebar_menu_has_all_tabs():
+    out = _build_backtest_sidebar_menu("p1", "overview")
+    # Each top-level item should have title, url
+    for c in out:
+        assert "title" in c
+        assert "url" in c
+    # Find the backtest report item; its children should have all tabs
+    bt = [c for c in out if c.get("title") == "回测报告"]
+    if bt:
+        children = bt[0].get("children", [])
+        assert len(children) >= 4  # overview, trades, positions, logs
+
+
+# ---------------------------------------------------------------------------
 # _coerce_form_value + _form_to_config
 # ---------------------------------------------------------------------------
 
