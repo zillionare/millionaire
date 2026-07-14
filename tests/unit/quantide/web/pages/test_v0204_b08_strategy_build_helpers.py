@@ -823,6 +823,87 @@ def test_strat_get_market_data_with_runtime():
     assert _strat_get_market_data(req) == "md"
 
 
+# ---------------------------------------------------------------------------
+# _get_paper_deploy_availability / _get_live_deploy_availability
+# ---------------------------------------------------------------------------
+
+
+from quantide.core.enums import BrokerKind
+from quantide.web.pages.strategy import (
+    _get_paper_deploy_availability,
+    _get_live_deploy_availability,
+    _get_backtest_deploy_capabilities,
+)
+
+
+def test_paper_deploy_no_runtime():
+    req = MagicMock()
+    req.app.state.runtime = None
+    ok, reason = _get_paper_deploy_availability(req)
+    assert ok is False
+    assert "运行时" in reason or "未初始化" in reason
+
+
+def test_paper_deploy_no_market_data():
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.market_data = None
+    ok, reason = _get_paper_deploy_availability(req)
+    assert ok is False
+    assert "行情源" in reason or "market" in reason.lower()
+
+
+def test_paper_deploy_available():
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.market_data = "md"
+    ok, reason = _get_paper_deploy_availability(req)
+    assert ok is True
+    assert reason == ""
+
+
+def test_live_deploy_no_registry():
+    req = MagicMock()
+    req.app.state.runtime = None
+    ok, reason = _get_live_deploy_availability(req)
+    assert ok is False
+    assert "运行时" in reason or "未初始化" in reason
+
+
+def test_live_deploy_no_gateway():
+    fake_registry = MagicMock()
+    fake_registry.get = MagicMock(return_value=None)
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.registry = fake_registry
+    ok, reason = _get_live_deploy_availability(req)
+    assert ok is False
+    assert "网关" in reason or "gateway" in reason.lower()
+
+
+def test_live_deploy_available():
+    fake_registry = MagicMock()
+    fake_registry.get = MagicMock(return_value="gateway-broker")
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.registry = fake_registry
+    ok, reason = _get_live_deploy_availability(req)
+    assert ok is True
+    assert reason == ""
+
+
+def test_backtest_deploy_capabilities_both():
+    fake_registry = MagicMock()
+    fake_registry.get = MagicMock(return_value="gateway-broker")
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.market_data = "md"
+    req.app.state.runtime.registry = fake_registry
+    caps = _get_backtest_deploy_capabilities(req)
+    assert caps["paper_available"] is True
+    assert caps["live_available"] is True
+
+
 def test_backtest_modal_unknown_strategy():
     """Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
