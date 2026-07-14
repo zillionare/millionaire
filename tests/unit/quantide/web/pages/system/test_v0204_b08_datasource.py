@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -118,3 +118,27 @@ def test_build_config_card_full():
 def test_build_config_card_missing_keys():
     out = _build_config_card({})
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _load_datasource_config — DB-backed loading (autouse seeds app_state)
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.system import datasource as ds_mod
+from quantide.web.pages.system.datasource import _load_datasource_config
+
+
+def test_load_datasource_config_with_seeded_state(db):
+    """With seeded app_state, returns its values."""
+    out = _load_datasource_config()
+    assert "data_source" in out
+    assert "epoch" in out
+    assert "history_years" in out
+
+
+def test_load_datasource_config_db_exception_falls_back(db):
+    """When db raises, falls back to settings."""
+    ds_mod.db["app_state"].get = MagicMock(side_effect=Exception("boom"))
+    out = _load_datasource_config()
+    assert "data_source" in out
