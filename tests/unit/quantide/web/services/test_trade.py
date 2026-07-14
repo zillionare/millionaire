@@ -54,6 +54,21 @@ class TestSharesFromAmount:
         shares = calculate_shares_from_amount(amount=50, price=10.0)
         assert shares == 0
 
+    def test_amount_to_shares_zero_when_price_zero(self):
+        """price<=0 returns 0 (L116-117)."""
+        shares = calculate_shares_from_amount(amount=1000, price=0)
+        assert shares == 0
+
+    def test_amount_to_shares_zero_when_amount_zero(self):
+        """amount<=0 returns 0 (L116-117)."""
+        shares = calculate_shares_from_amount(amount=0, price=10.0)
+        assert shares == 0
+
+    def test_amount_to_shares_zero_when_price_negative(self):
+        """negative price returns 0 (L116-117)."""
+        shares = calculate_shares_from_amount(amount=1000, price=-1.0)
+        assert shares == 0
+
 
 class TestRiskStrategyTarget:
     """AC-11: 风控策略不可作为手动交易目标."""
@@ -128,6 +143,13 @@ class TestOrderValidation:
         with pytest.raises(OrderValidationError) as exc:
             validate_order_request(order)
         assert "委托价" in str(exc.value)
+
+    def test_market_order_with_negative_price_rejected(self):
+        """L147: market order with negative price raises '委托价不能为负数'."""
+        order = self._make_valid_order(order_type=OrderType.MARKET, price=-1.0)
+        with pytest.raises(OrderValidationError) as exc:
+            validate_order_request(order)
+        assert "委托价不能为负数" in str(exc.value)
 
     def test_empty_symbol_rejected(self):
         order = self._make_valid_order(symbol="")

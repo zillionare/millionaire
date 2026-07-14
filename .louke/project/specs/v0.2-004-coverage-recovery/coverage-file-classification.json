@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T06:27:43.110737+00:00",
-  "coverage_source": "/tmp/cov-modes.json",
+  "generated_at": "2026-07-14T06:33:52.229177+00:00",
+  "coverage_source": "/tmp/cov-final.json",
   "thresholds": {
     "v0.2_added": 95.0,
     "pre_v0.2_retained": 80.0
@@ -11,25 +11,9 @@
     "total_files": 169,
     "v0.2_added_count": 35,
     "pre_v0.2_retained_count": 134,
-    "v0.2_added_passing": 32,
+    "v0.2_added_passing": 35,
     "pre_v0.2_retained_passing": 95,
-    "v0.2_added_under_threshold": [
-      {
-        "path": "quantide/web/services/stock_query.py",
-        "percent_covered": 93.94,
-        "num_statements": 29
-      },
-      {
-        "path": "quantide/web/services/strategy_management.py",
-        "percent_covered": 89.42,
-        "num_statements": 82
-      },
-      {
-        "path": "quantide/web/services/trade.py",
-        "percent_covered": 94.67,
-        "num_statements": 57
-      }
-    ],
+    "v0.2_added_under_threshold": [],
     "pre_v0.2_retained_under_threshold": [
       {
         "path": "quantide/core/ports/clock.py",
@@ -2026,23 +2010,23 @@
       "path": "quantide/web/services/stock_query.py",
       "origin": "v0.2-added",
       "threshold": 95.0,
-      "percent_covered": 93.94,
+      "percent_covered": 100.0,
       "num_statements": 29,
       "num_branches": 4,
-      "covered_branches": 3,
+      "covered_branches": 4,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/services/strategy_management.py",
       "origin": "v0.2-added",
       "threshold": 95.0,
-      "percent_covered": 89.42,
+      "percent_covered": 98.08,
       "num_statements": 82,
       "num_branches": 22,
-      "covered_branches": 17,
+      "covered_branches": 21,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/services/tasks.py",
@@ -2059,12 +2043,12 @@
       "path": "quantide/web/services/trade.py",
       "origin": "v0.2-added",
       "threshold": 95.0,
-      "percent_covered": 94.67,
+      "percent_covered": 100.0,
       "num_statements": 57,
       "num_branches": 18,
-      "covered_branches": 16,
+      "covered_branches": 18,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/services/trade_history.py",

@@ -19,7 +19,7 @@ from pathlib import Path
 
 SPEC_DIR = Path(".louke/project/specs/v0.2-004-coverage-recovery")
 SHARD_DIR = SPEC_DIR / "recovery" / "production-contracts"
-COVERAGE_JSON = Path("/tmp/cov-modes.json")
+COVERAGE_JSON = Path("/tmp/cov-final.json")
 OUT_PATH = SPEC_DIR / "coverage-file-classification.json"
 
 V02_THRESHOLD = 95.0

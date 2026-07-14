@@ -68,6 +68,12 @@ class TestMatchMultiple:
         results = match_stocks(stocks, "")
         assert len(results) == 2
 
+    def test_match_stock_with_empty_query_returns_true(self):
+        """When query is empty/None, match_stock returns True (matches everything)."""
+        s = _stock("000001.SZ", "平安银行", "payh")
+        assert match_stock(s, "") is True
+        assert match_stock(s, None) is True  # type: ignore[arg-type]
+
 
 class TestSearchValidator:
     def test_valid_query(self):

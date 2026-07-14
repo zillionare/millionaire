@@ -18,6 +18,7 @@ from quantide.web.services.strategy_management import (
     StrategyItem,
     StrategySource,
     StrategyType,
+    _dedupe_overridden,
     filter_strategies,
     scan_strategies,
     sort_strategies,
@@ -50,6 +51,24 @@ class TestStrategySorting:
         ]
         sorted_list = sort_strategies(strategies)
         assert sorted_list[0].strategy_id == "s2"
+
+    def test_dedupe_overridden_user_replaces_builtin(self):
+        """L215-216: when same id, USER source replaces BUILTIN."""
+        builtin = _strat("dup", "Builtin", StrategySource.BUILTIN)
+        user = _strat("dup", "User", StrategySource.USER)
+        result = _dedupe_overridden([builtin, user])
+        # User version wins.
+        assert len(result) == 1
+        assert result[0].name == "User"
+
+    def test_dedupe_overridden_builtin_does_not_replace_user(self):
+        """L215-216: when same id, BUILTIN does NOT replace USER."""
+        user = _strat("dup", "User", StrategySource.USER)
+        builtin = _strat("dup", "Builtin", StrategySource.BUILTIN)
+        result = _dedupe_overridden([user, builtin])
+        # User wins regardless of order.
+        assert len(result) == 1
+        assert result[0].name == "User"
 
     def test_same_source_sorted_by_name(self):
         strategies = [
@@ -135,6 +154,28 @@ class TestScanResult:
         """AC-3: 扫描失败 -> 列表保留扫描前状态."""
         result = ScanResult(new_count=0, updated_count=0, failed=True, message="扫描失败")
         assert result.failed is True
+
+    def test_scan_strategies_failed_returns_failed_scan_result(self):
+        """L231-232: scan_strategies with failed=True returns ScanResult with failed=True."""
+        from quantide.web.services.strategy_management import scan_strategies
+        out = scan_strategies(new_count=5, updated_count=2, failed=True)
+        assert out.failed is True
+        assert out.new_count == 0
+        assert out.updated_count == 0
+        assert "失败" in out.message
+
+    def test_scan_strategies_success_returns_counted_result(self):
+        """L233+: scan_strategies with failed=False returns ScanResult with counts."""
+        from quantide.web.services.strategy_management import scan_strategies
+        out = scan_strategies(new_count=3, updated_count=1, failed=False)
+        assert out.failed is False
+        assert out.new_count == 3
+        assert out.updated_count == 1
+
+    def test_strategy_deletable_when_not_live_returns_empty(self):
+        """L83: StrategyItem.delete_block_reason returns empty when not running live."""
+        s = _strat("s1", "x", running_live=False)
+        assert s.delete_block_reason() == ""
 
 
 class TestStrategyHide:
