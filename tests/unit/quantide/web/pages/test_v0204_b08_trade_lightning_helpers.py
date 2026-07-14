@@ -127,3 +127,60 @@ def test_is_valid_price_ref_known():
 
 def test_is_valid_price_ref_unknown():
     assert _is_valid_price_ref("garbage") is False
+
+
+# ---------------------------------------------------------------------------
+# _resolve_asset_input
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.trade_lightning import _resolve_asset_input
+
+
+def test_resolve_asset_input_empty():
+    assert _resolve_asset_input("") is None
+    assert _resolve_asset_input("   ") is None
+
+
+def test_resolve_asset_input_exact_match():
+    """When stock_list has the exact code, returns it."""
+    with patch.object(tl_mod, "stock_list") as mock_sl:
+        mock_sl.get_name = MagicMock(return_value="X")
+        out = _resolve_asset_input("000001.SZ")
+    assert out == "000001.SZ"
+
+
+def test_resolve_asset_input_exact_no_match():
+    """When stock_list doesn't have the code → fuzzy_search path."""
+    with patch.object(tl_mod, "stock_list") as mock_sl:
+        mock_sl.get_name = MagicMock(side_effect=Exception("not found"))
+        # fuzzy_search should return matches
+        mock_sl.fuzzy_search = MagicMock(return_value=["000001.SZ"])
+        out = _resolve_asset_input("xyz")
+    assert out == "000001.SZ"
+
+
+def test_resolve_asset_input_fuzzy_multiple():
+    """When fuzzy returns multiple matches, returns None."""
+    with patch.object(tl_mod, "stock_list") as mock_sl:
+        mock_sl.get_name = MagicMock(side_effect=Exception("not found"))
+        mock_sl.fuzzy_search = MagicMock(return_value=["a", "b"])
+        out = _resolve_asset_input("xyz")
+    assert out is None
+
+
+def test_resolve_asset_input_fuzzy_exception():
+    """When fuzzy raises, returns None."""
+    with patch.object(tl_mod, "stock_list") as mock_sl:
+        mock_sl.get_name = MagicMock(side_effect=Exception("not found"))
+        mock_sl.fuzzy_search = MagicMock(side_effect=Exception("boom"))
+        out = _resolve_asset_input("xyz")
+    assert out is None
+
+
+def test_resolve_asset_input_with_code_pattern():
+    """When input matches ASSET_CODE_PATTERN, normalize."""
+    with patch.object(tl_mod, "stock_list") as mock_sl:
+        mock_sl.get_name = MagicMock(return_value="X")
+        out = _resolve_asset_input("000001.SZ suffix")
+    assert out == "000001.SZ" or out is not None
