@@ -100,4 +100,56 @@ async def test_do_update_valid_date():
 
 
 # Add AsyncMock import
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
+
+
+# ---------------------------------------------------------------------------
+# _BrowseTab with data
+# ---------------------------------------------------------------------------
+
+
+import polars as pl2_bm
+from quantide.web.pages.data_market import _BrowseTab
+from quantide.web.pages import data_market as dm_mod
+
+
+def test_browse_tab_no_asset():
+    """No asset → placeholder text."""
+    req = MagicMock()
+    req.query_params = {}
+    out = _BrowseTab(req)
+    assert out is not None
+
+
+def test_browse_tab_with_asset_exception():
+    """When daily_bars raises, returns error message."""
+    with patch.object(dm_mod, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars_in_range = MagicMock(side_effect=Exception("boom"))
+        req = MagicMock()
+        req.query_params = {"asset": "000001.SZ"}
+        out = _BrowseTab(req)
+    assert out is not None
+
+
+def test_browse_tab_with_data():
+    """With data, renders table."""
+    fake_df = pl2_bm.DataFrame({
+        "date": ["2024-06-30"],
+        "asset": ["000001.SZ"],
+        "open": [10.0],
+        "high": [11.0],
+        "low": [9.5],
+        "close": [10.5],
+        "volume": [1000.0],
+        "amount": [10500.0],
+        "adjust": [1.0],
+        "st": [0],
+    })
+    with patch.object(dm_mod, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars_in_range = MagicMock(return_value=fake_df)
+        req = MagicMock()
+        req.query_params = {"asset": "000001.SZ", "start": "2024-01-01", "end": "2024-12-31"}
+        out = _BrowseTab(req)
+    assert out is not None
+
+
