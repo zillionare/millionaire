@@ -479,6 +479,30 @@ async def test_profile_submit_password_empty():
     assert resp is not None
 
 
+@pytest.mark.asyncio
+async def test_profile_submit_update_raises():
+    """When auth.user_repo.update raises, falls back to modal."""
+    auth = MagicMock()
+    auth.config = {}
+    auth.user_repo = MagicMock()
+    auth.user_repo.verify_password = MagicMock(return_value=True)
+    auth.user_repo.update = MagicMock(side_effect=Exception("boom"))
+    routes = AuthRoutes(auth)
+    fake_rt = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    routes._register_profile_route(rt=fake_rt, prefix="/auth")
+    profile_submit = routes.routes["profile_submit"]
+    req = MagicMock()
+    req.scope = {"user": MagicMock(), "session": {}}
+    req.form = AsyncMock(return_value={
+        "current_password": "old",
+        "new_password": "newpass",
+        "confirm_password": "newpass",
+    })
+    sess = {}
+    resp = await profile_submit(req)
+    assert resp is not None
+
+
 # ---------------------------------------------------------------------------
 # register_all + admin_dashboard
 # ---------------------------------------------------------------------------
