@@ -450,6 +450,62 @@ def test_normalize_scan_directory_valid():
 
 
 # ---------------------------------------------------------------------------
+# _parse_params
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import _parse_params
+
+
+def test_parse_params_empty():
+    assert _parse_params({}) == {}
+
+
+def test_parse_params_no_prefix():
+    """Non-prefixed keys are skipped."""
+    assert _parse_params({"other_key": "v"}) == {}
+
+
+def test_parse_params_bool_true():
+    """'true' → True."""
+    assert _parse_params({"param_x": "true"})["x"] is True
+
+
+def test_parse_params_bool_false():
+    assert _parse_params({"param_x": "false"})["x"] is False
+
+
+def test_parse_params_int():
+    assert _parse_params({"param_n": "42"})["n"] == 42
+
+
+def test_parse_params_float():
+    assert _parse_params({"param_f": "3.14"})["f"] == 3.14
+
+
+def test_parse_params_string_passthrough():
+    assert _parse_params({"param_s": "hello"})["s"] == "hello"
+
+
+def test_parse_params_custom_prefix():
+    """Custom prefix strips correctly."""
+    assert _parse_params({"my_x": "42"}, prefix="my_")["x"] == 42
+
+
+def test_parse_params_multiple():
+    out = _parse_params({
+        "param_a": "1",
+        "param_b": "true",
+        "param_c": "hello",
+        "skipped": "x",
+    })
+    assert out["a"] == 1
+    assert out["b"] is True
+    assert out["c"] == "hello"
+    assert "skipped" not in out
+
+
+# ---------------------------------------------------------------------------
 # _coerce_form_value + _form_to_config
 # ---------------------------------------------------------------------------
 
