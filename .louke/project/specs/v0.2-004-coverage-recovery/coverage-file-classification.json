@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T08:08:48.028453+00:00",
+  "generated_at": "2026-07-14T08:16:53.199851+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -32,7 +32,7 @@
       },
       {
         "path": "quantide/web/auth/admin_routes.py",
-        "percent_covered": 0.0,
+        "percent_covered": 8.48,
         "num_statements": 172
       },
       {
@@ -52,7 +52,7 @@
       },
       {
         "path": "quantide/web/auth/routes.py",
-        "percent_covered": 27.27,
+        "percent_covered": 42.05,
         "num_statements": 200
       },
       {
@@ -1077,7 +1077,7 @@
       "path": "quantide/web/auth/admin_routes.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 0.0,
+      "percent_covered": 8.48,
       "num_statements": 172,
       "num_branches": 52,
       "covered_branches": 0,
@@ -1165,10 +1165,10 @@
       "path": "quantide/web/auth/routes.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 27.27,
+      "percent_covered": 42.05,
       "num_statements": 200,
       "num_branches": 64,
-      "covered_branches": 7,
+      "covered_branches": 15,
       "coverage_status": "measured",
       "passes_threshold": false
     },
