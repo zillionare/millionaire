@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
@@ -503,6 +503,56 @@ def test_parse_params_multiple():
     assert out["b"] is True
     assert out["c"] == "hello"
     assert "skipped" not in out
+
+
+# ---------------------------------------------------------------------------
+# deploy_backtest_to_paper (async route handler)
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages import strategy as strategy_mod_alias
+from quantide.web.pages.strategy import deploy_backtest_to_paper
+
+
+@pytest.mark.asyncio
+async def test_deploy_to_paper_invalid_principal():
+    """When paper_principal is not a number, returns error modal."""
+    with patch.object(strategy_mod_alias, "_load_backtest_run_config") as mock_load, \
+         patch.object(strategy_mod_alias, "_paper_deploy_modal") as mock_modal:
+        mock_load.return_value = ({}, None)
+        mock_modal.return_value = "modal-error"
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"paper_principal": "not-a-number"})
+        resp = await deploy_backtest_to_paper(req, portfolio_id="p1")
+    assert resp == "modal-error"
+
+
+@pytest.mark.asyncio
+async def test_deploy_to_paper_zero_principal():
+    """When principal <= 0, returns error modal."""
+    with patch.object(strategy_mod_alias, "_load_backtest_run_config") as mock_load, \
+         patch.object(strategy_mod_alias, "_paper_deploy_modal") as mock_modal:
+        mock_load.return_value = ({}, None)
+        mock_modal.return_value = "modal-zero"
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"paper_principal": "0"})
+        resp = await deploy_backtest_to_paper(req, portfolio_id="p1")
+    assert resp == "modal-zero"
+
+
+@pytest.mark.asyncio
+async def test_deploy_to_paper_no_registry():
+    """When no registry, returns error modal."""
+    with patch.object(strategy_mod_alias, "_get_registry") as mock_getreg, \
+         patch.object(strategy_mod_alias, "_load_backtest_run_config") as mock_load, \
+         patch.object(strategy_mod_alias, "_paper_deploy_modal") as mock_modal:
+        mock_getreg.return_value = None
+        mock_load.return_value = ({}, None)
+        mock_modal.return_value = "modal-no-reg"
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"paper_principal": "1000000"})
+        resp = await deploy_backtest_to_paper(req, portfolio_id="p1")
+    assert resp == "modal-no-reg"
 
 
 # ---------------------------------------------------------------------------
