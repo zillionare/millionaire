@@ -1076,6 +1076,75 @@ def test_build_series_payload_with_trades():
     assert "trade_count" in out
 
 
+# ---------------------------------------------------------------------------
+# _build_daily_positions + _build_daily_summary with data
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import (
+    _build_daily_positions,
+    _build_daily_summary,
+)
+
+
+def test_build_daily_positions_with_data():
+    """With positions data, returns list of dicts."""
+    import datetime
+    fake_pos = pl.DataFrame({
+        "dt": [datetime.date(2024, 1, 1)],
+        "asset": ["000001.SZ"],
+        "shares": [100.0],
+        "avail": [100.0],
+        "price": [10.0],
+        "mv": [1000.0],
+        "profit": [50.0],
+    })
+    with patch.object(strategy_mod_alias, "db") as mock_db:
+        mock_db.positions_all = MagicMock(return_value=fake_pos)
+        out = _build_daily_positions("p1")
+    assert len(out) == 1
+    assert out[0]["asset"] == "000001.SZ"
+
+
+def test_build_daily_summary_with_data():
+    """With assets data, computes daily_pnl and daily_return."""
+    import datetime
+    fake_assets = pl.DataFrame({
+        "dt": [
+            datetime.date(2024, 1, 1),
+            datetime.date(2024, 1, 2),
+        ],
+        "total": [100.0, 110.0],
+        "cash": [50.0, 50.0],
+        "market_value": [50.0, 60.0],
+    })
+    with patch.object(strategy_mod_alias, "db") as mock_db:
+        mock_db.query_assets = MagicMock(return_value=fake_assets)
+        out = _build_daily_summary("p1")
+    assert len(out) == 2
+    assert out[0]["daily_pnl"] == 0.0  # First row, no previous
+    assert out[1]["daily_pnl"] == 10.0  # 110 - 100
+    assert out[1]["daily_return"] == 0.1  # 10 / 100
+
+
+def test_build_daily_summary_zero_prev_total():
+    """When previous total is 0, daily_return is 0."""
+    import datetime
+    fake_assets = pl.DataFrame({
+        "dt": [
+            datetime.date(2024, 1, 1),
+            datetime.date(2024, 1, 2),
+        ],
+        "total": [0.0, 100.0],
+        "cash": [0.0, 50.0],
+        "market_value": [0.0, 50.0],
+    })
+    with patch.object(strategy_mod_alias, "db") as mock_db:
+        mock_db.query_assets = MagicMock(return_value=fake_assets)
+        out = _build_daily_summary("p1")
+    assert out[1]["daily_return"] == 0.0
+
+
 def test_backtest_modal_unknown_strategy():
     """Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
