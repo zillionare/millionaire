@@ -1022,6 +1022,60 @@ def test_format_log_lines_no_extra():
     assert "| " not in out[0].split("hi")[-1] or out[0].endswith("hi")
 
 
+# ---------------------------------------------------------------------------
+# _build_series_payload with assets to drive benchmark series
+# ---------------------------------------------------------------------------
+
+
+def test_build_series_payload_with_benchmark():
+    """With multiple dates and benchmark data, fills benchmark series."""
+    import datetime
+    fake_assets = pl.DataFrame({
+        "dt": [
+            datetime.date(2024, 1, 1),
+            datetime.date(2024, 1, 2),
+        ],
+        "total": [100.0, 110.0],
+        "benchmark_total": [100.0, 105.0],
+    })
+    fake_bars = pl.DataFrame({
+        "date": [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
+        "close": [100.0, 105.0],
+    })
+    with patch.object(strategy_mod_alias, "db") as mock_db, \
+         patch.object(strategy_mod_alias, "daily_bars") as mock_dbars:
+        mock_db.query_assets = MagicMock(return_value=fake_assets)
+        mock_dbars.get_bars_in_range = MagicMock(return_value=fake_bars)
+        out = _build_series_payload("p1", date_axis=["2024-01-01", "2024-01-02"])
+    assert "benchmark" in out
+    assert "trade_count" in out
+
+
+def test_build_series_payload_with_trades():
+    """With trades DataFrame, fills trade_count series."""
+    import datetime
+    fake_assets = pl.DataFrame({
+        "dt": [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
+        "total": [100.0, 110.0],
+    })
+    fake_trades = pl.DataFrame({
+        "tm": [datetime.datetime(2024, 1, 1, 10, 0)],
+        "asset": ["000001.SZ"],
+        "side": [1],
+        "price": [10.0],
+        "shares": [100.0],
+        "amount": [1000.0],
+        "fee": [1.0],
+    })
+    with patch.object(strategy_mod_alias, "db") as mock_db, \
+         patch.object(strategy_mod_alias, "daily_bars") as mock_dbars:
+        mock_db.query_assets = MagicMock(return_value=fake_assets)
+        mock_dbars.get_bars_in_range = MagicMock(return_value=pl.DataFrame())
+        mock_db.trades_all = MagicMock(return_value=fake_trades)
+        out = _build_series_payload("p1", date_axis=["2024-01-01", "2024-01-02"])
+    assert "trade_count" in out
+
+
 def test_backtest_modal_unknown_strategy():
     """Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
