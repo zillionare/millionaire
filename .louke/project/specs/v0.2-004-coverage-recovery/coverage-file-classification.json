@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T08:28:51.240438+00:00",
+  "generated_at": "2026-07-14T08:35:16.329930+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -82,7 +82,7 @@
       },
       {
         "path": "quantide/web/pages/live.py",
-        "percent_covered": 25.42,
+        "percent_covered": 44.07,
         "num_statements": 153
       },
       {
@@ -1352,10 +1352,10 @@
       "path": "quantide/web/layouts/main.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 93.27,
+      "percent_covered": 94.23,
       "num_statements": 154,
       "num_branches": 54,
-      "covered_branches": 50,
+      "covered_branches": 51,
       "coverage_status": "measured",
       "passes_threshold": true
     },
@@ -1605,10 +1605,10 @@
       "path": "quantide/web/pages/live.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 25.42,
+      "percent_covered": 44.07,
       "num_statements": 153,
       "num_branches": 24,
-      "covered_branches": 3,
+      "covered_branches": 7,
       "coverage_status": "measured",
       "passes_threshold": false
     },
