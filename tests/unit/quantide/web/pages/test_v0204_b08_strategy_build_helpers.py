@@ -117,3 +117,87 @@ def test_build_series_payload_with_assets():
         out = _build_series_payload("p1", date_axis=["2024-01-01", "2024-01-02"])
     assert "total" in out
     assert "benchmark" in out
+
+
+# ---------------------------------------------------------------------------
+# _build_benchmark_returns
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import _build_benchmark_returns
+
+
+def test_build_benchmark_returns_no_assets():
+    """When no assets, returns None."""
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.query_assets = MagicMock(return_value=pl.DataFrame())
+        out = _build_benchmark_returns("p1")
+    assert out is None
+
+
+def test_build_benchmark_returns_daily_bars_exception():
+    """When daily_bars.get_bars_in_range raises, returns None."""
+    fake_assets = pl.DataFrame({"dt": [__import__("datetime").date(2024, 1, 1)]})
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.query_assets = MagicMock(return_value=fake_assets)
+        with patch.object(strategy_mod, "daily_bars") as mock_dbars:
+            mock_dbars.get_bars_in_range = MagicMock(side_effect=Exception("boom"))
+            out = _build_benchmark_returns("p1")
+    assert out is None
+
+
+def test_build_benchmark_returns_empty_dataframe():
+    """When daily_bars returns empty df, returns None."""
+    import datetime
+    fake_assets = pl.DataFrame({"dt": [datetime.date(2024, 1, 1)]})
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.query_assets = MagicMock(return_value=fake_assets)
+        with patch.object(strategy_mod, "daily_bars") as mock_dbars:
+            mock_dbars.get_bars_in_range = MagicMock(return_value=pl.DataFrame())
+            out = _build_benchmark_returns("p1")
+    assert out is None
+
+
+def test_build_benchmark_returns_with_data():
+    """With proper data, returns percent-change df."""
+    import datetime
+    fake_assets = pl.DataFrame({
+        "dt": [
+            datetime.date(2024, 1, 1),
+            datetime.date(2024, 1, 2),
+        ]
+    })
+    fake_bars = pl.DataFrame({
+        "date": [
+            datetime.date(2024, 1, 1),
+            datetime.date(2024, 1, 2),
+        ],
+        "close": [100.0, 110.0],
+    })
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.query_assets = MagicMock(return_value=fake_assets)
+        with patch.object(strategy_mod, "daily_bars") as mock_dbars:
+            mock_dbars.get_bars_in_range = MagicMock(return_value=fake_bars)
+            out = _build_benchmark_returns("p1")
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _build_metrics_payload — uses metrics(...) which is heavy; mock it
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import _build_metrics_payload, BENCHMARK_ASSET
+
+
+def test_build_metrics_payload_with_stats():
+    """Build metrics from a normal stats DataFrame."""
+    import pandas as pd
+    fake_df = pd.DataFrame({"v": [1.0]}, index=["Sharpe Ratio"])
+    with patch.object(strategy_mod, "metrics") as mock_metrics, \
+         patch.object(strategy_mod, "_build_benchmark_returns", return_value=None):
+        mock_metrics.return_value = fake_df
+        out = _build_metrics_payload("p1")
+    assert "annual_return" in out
+    assert "sharpe" in out
+    assert "max_drawdown" in out
