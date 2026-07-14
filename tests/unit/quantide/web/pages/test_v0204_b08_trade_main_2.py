@@ -612,3 +612,113 @@ def test_trade_main_page_default_tab():
     out = trade_main_page(req)
     assert out is not None
 
+
+# ---------------------------------------------------------------------------
+# _get_all_accounts + _get_active_account
+# ---------------------------------------------------------------------------
+
+
+from quantide.core.enums import BrokerKind
+from quantide.web.pages.trade_main import (
+    _get_all_accounts,
+    _get_active_account,
+)
+
+
+def test_get_all_accounts_empty():
+    """No accounts in registry → empty list."""
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(return_value=[])
+    assert _get_all_accounts(fake_reg) == []
+
+
+def test_get_all_accounts_qmt_only():
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "q1", "name": "MyBroker", "status": True}
+    ] if kind == BrokerKind.QMT else [])
+    accounts = _get_all_accounts(fake_reg)
+    assert len(accounts) == 1
+    assert accounts[0]["id"] == "q1"
+    assert accounts[0]["is_live"] is True
+
+
+def test_get_all_accounts_sim_only():
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "s1", "name": "S1", "status": False}
+    ] if kind == BrokerKind.SIMULATION else [])
+    accounts = _get_all_accounts(fake_reg)
+    assert len(accounts) == 1
+    assert accounts[0]["is_live"] is False
+
+
+def test_get_all_accounts_both():
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "q1", "name": "Q1", "status": True},
+    ] if kind == BrokerKind.QMT else [
+        {"id": "s1", "name": "S1", "status": True},
+    ])
+    accounts = _get_all_accounts(fake_reg)
+    assert len(accounts) == 2
+
+
+def test_get_active_account_no_kind_no_default():
+    """No kind/id and no default → returns None."""
+    fake_reg = MagicMock()
+    fake_reg.get_default = MagicMock(return_value=None)
+    assert _get_active_account(fake_reg, {}) is None
+
+
+def test_get_active_account_uses_default():
+    """No kind/id but default exists → returns default."""
+    fake_reg = MagicMock()
+    fake_reg.get_default = MagicMock(return_value=(BrokerKind.QMT.value, "default-id"))
+    fake_broker = MagicMock()
+    fake_broker.portfolio_name = "Default Broker"
+    fake_broker.status = True
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    out = _get_active_account(fake_reg, {})
+    assert out["id"] == "default-id"
+    assert out["is_live"] is True
+
+
+def test_get_active_account_with_explicit():
+    fake_reg = MagicMock()
+    fake_broker = MagicMock()
+    fake_broker.portfolio_name = "MyBroker"
+    fake_broker.status = False
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    out = _get_active_account(fake_reg, {
+        "active_account_kind": BrokerKind.SIMULATION.value,
+        "active_account_id": "s1",
+    })
+    assert out["id"] == "s1"
+    assert out["status"] is False
+
+
+def test_get_active_account_no_broker():
+    """When broker not found, returns None."""
+    fake_reg = MagicMock()
+    fake_reg.get = MagicMock(return_value=None)
+    out = _get_active_account(fake_reg, {
+        "active_account_kind": BrokerKind.SIMULATION.value,
+        "active_account_id": "s1",
+    })
+    assert out is None
+
+
+def test_get_active_account_sim_label():
+    """SIM account gets 仿真 label."""
+    fake_reg = MagicMock()
+    fake_broker = MagicMock()
+    fake_broker.portfolio_name = "Sim"
+    fake_broker.status = True
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    out = _get_active_account(fake_reg, {
+        "active_account_kind": BrokerKind.SIMULATION.value,
+        "active_account_id": "s1",
+    })
+    assert out["label"] == "仿真"
+
