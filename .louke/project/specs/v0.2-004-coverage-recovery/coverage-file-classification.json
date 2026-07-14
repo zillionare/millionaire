@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T07:57:55.381130+00:00",
+  "generated_at": "2026-07-14T08:08:48.028453+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -22,7 +22,7 @@
       },
       {
         "path": "quantide/web/apis/analysis/kline.py",
-        "percent_covered": 13.83,
+        "percent_covered": 52.13,
         "num_statements": 136
       },
       {
@@ -87,7 +87,7 @@
       },
       {
         "path": "quantide/web/pages/paper.py",
-        "percent_covered": 53.91,
+        "percent_covered": 73.04,
         "num_statements": 93
       },
       {
@@ -1033,10 +1033,10 @@
       "path": "quantide/web/apis/analysis/kline.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 13.83,
+      "percent_covered": 52.13,
       "num_statements": 136,
       "num_branches": 52,
-      "covered_branches": 0,
+      "covered_branches": 22,
       "coverage_status": "measured",
       "passes_threshold": false
     },
@@ -1616,10 +1616,10 @@
       "path": "quantide/web/pages/paper.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 53.91,
+      "percent_covered": 73.04,
       "num_statements": 93,
       "num_branches": 22,
-      "covered_branches": 12,
+      "covered_branches": 16,
       "coverage_status": "measured",
       "passes_threshold": false
     },
