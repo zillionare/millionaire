@@ -245,3 +245,103 @@ def test_get_job_status_with_history(db):
         with patch.object(jobs_mod, "_get_job_history", return_value=[rec]):
             out = _get_job_status("x")
     assert out["last_run"] == rec
+
+
+# ---------------------------------------------------------------------------
+# run_job + job_detail + _build_jobs_table + _build_detail_panel + _get_job_status
+# ---------------------------------------------------------------------------
+
+
+import pytest
+from quantide.web.pages.system.jobs import (
+    run_job,
+    job_detail,
+    _build_jobs_table,
+    _build_detail_panel,
+    _get_job_status,
+)
+
+
+@pytest.mark.asyncio
+async def test_run_job_unknown():
+    """Unknown job_id → redirect to /system/jobs/."""
+    resp = await run_job("unknown-job")
+    assert "redirect" in str(resp).lower() or "system/jobs" in str(resp).lower()
+
+
+@pytest.mark.asyncio
+async def test_run_job_success(db):
+    """Known job_id → calls _run_job_now."""
+    from quantide.web.pages.system.jobs import _run_job_now, PREDEFINED_JOBS
+    with patch("quantide.web.pages.system.jobs._run_job_now") as mock_run:
+        # Pick a real predefined job
+        jid = list(PREDEFINED_JOBS.keys())[0]
+        resp = await run_job(jid)
+    mock_run.assert_called_once_with(jid)
+
+
+@pytest.mark.asyncio
+async def test_run_job_exception(db):
+    """When _run_job_now raises, still redirects."""
+    from quantide.web.pages.system.jobs import PREDEFINED_JOBS
+    with patch("quantide.web.pages.system.jobs._run_job_now") as mock_run:
+        mock_run.side_effect = Exception("boom")
+        jid = list(PREDEFINED_JOBS.keys())[0]
+        resp = await run_job(jid)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_job_detail_unknown():
+    resp = await job_detail("unknown-job")
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_job_detail_known(db):
+    """Known job_id → returns _build_detail_panel output."""
+    from quantide.web.pages.system.jobs import PREDEFINED_JOBS
+    with patch("quantide.web.pages.system.jobs._build_detail_panel", return_value="detail"):
+        jid = list(PREDEFINED_JOBS.keys())[0]
+        resp = await job_detail(jid)
+    assert resp == "detail"
+
+
+def test_build_jobs_table_empty():
+    out = _build_jobs_table([])
+    assert out is not None
+
+
+def test_build_detail_panel():
+    from quantide.web.pages.system.jobs import PREDEFINED_JOBS
+    jid = list(PREDEFINED_JOBS.keys())[0]
+    out = _build_detail_panel(jid)
+    assert out is not None
+
+
+def test_build_detail_panel_unknown():
+    out = _build_detail_panel("unknown-job")
+    assert out is not None
+
+
+def test_get_job_status_with_data(db):
+    """When history exists, return last_run."""
+    from quantide.web.pages.system.jobs import (
+        _job_enabled_state, _get_job_history,
+    )
+    fake_rec = MagicMock()
+    fake_rec.executed_at = __import__("datetime").datetime(2024, 1, 1)
+    fake_rec.status = "success"
+    fake_rec.message = "ok"
+    fake_rec.duration_ms = 100
+    fake_rec.id = "1"
+    fake_rec.job_id = "x"
+    with patch.object(_job_enabled_state.__class__ if False else __import__(
+        "quantide.web.pages.system.jobs", fromlist=["_job_enabled_state"]
+    ), "_get_job_history", return_value=[fake_rec]):
+        with patch(
+            "quantide.web.pages.system.jobs.scheduler",
+        ) as mock_sched:
+            mock_sched.scheduler.get_job = MagicMock(return_value=None)
+            out = _get_job_status("x")
+    assert "last_run" in out or "has_scheduler_job" in out
