@@ -12,6 +12,7 @@ from quantide.web.pages.init_wizard import (
     _coerce_checkbox,
     _extract_form_updates,
     _format_date_zh,
+    _get_download_error,
     _merge_state,
     _normalize_form_values,
     _parse_epoch_input,
@@ -19,6 +20,11 @@ from quantide.web.pages.init_wizard import (
     _parse_positive_int_input,
     _pick_first_value,
     _render_inline_error,
+    _request_in_force_mode,
+    _set_download_error,
+    _set_reconfigure_mode,
+    _update_sync_status,
+    _with_force_query,
 )
 
 
@@ -257,3 +263,112 @@ def test_parse_positive_int_input_default():
 def test_render_inline_error():
     out = _render_inline_error("Something broke")
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _set_download_error / _get_download_error
+# ---------------------------------------------------------------------------
+
+
+def test_set_download_error_then_get():
+    iw_mod._download_error_message = None
+    _set_download_error("boom")
+    assert iw_mod._download_error_message == "boom"
+
+
+def test_set_download_error_empty_clears():
+    iw_mod._download_error_message = "old"
+    _set_download_error("")
+    assert iw_mod._download_error_message is None
+
+
+def test_set_download_error_strips_whitespace():
+    iw_mod._download_error_message = None
+    _set_download_error("  boom  ")
+    assert iw_mod._download_error_message == "boom"
+
+
+def test_get_download_error_step5_uses_global():
+    iw_mod._download_error_message = "global-msg"
+    got = _get_download_error(step=5)
+    assert got == "global-msg"
+
+
+def test_get_download_error_step_not_5():
+    iw_mod._download_error_message = "global-msg"
+    got = _get_download_error(step=1)
+    assert got is None
+
+
+def test_get_download_error_explicit_overrides():
+    got = _get_download_error(step=1, explicit_error="explicit")
+    assert got == "explicit"
+
+
+# ---------------------------------------------------------------------------
+# _set_reconfigure_mode / _request_in_force_mode / _with_force_query
+# ---------------------------------------------------------------------------
+
+
+def test_set_reconfigure_mode():
+    iw_mod._reconfigure_mode_active = False
+    _set_reconfigure_mode(True)
+    assert iw_mod._reconfigure_mode_active is True
+    _set_reconfigure_mode(False)
+    assert iw_mod._reconfigure_mode_active is False
+
+
+def test_request_in_force_mode_true():
+    req = MagicMock()
+    req.query_params = {"force": "true"}
+    assert _request_in_force_mode(req) is True
+
+
+def test_request_in_force_mode_false():
+    req = MagicMock()
+    req.query_params = {"force": "false"}
+    assert _request_in_force_mode(req) is False
+
+
+def test_request_in_force_mode_no_force():
+    req = MagicMock()
+    req.query_params = {}
+    assert _request_in_force_mode(req) is False
+
+
+def test_with_force_query_not_in_reconfigure():
+    iw_mod._reconfigure_mode_active = False
+    out = _with_force_query("/path")
+    assert out == "/path"
+
+
+def test_with_force_query_in_reconfigure_no_q():
+    iw_mod._reconfigure_mode_active = True
+    out = _with_force_query("/path")
+    assert "force=true" in out
+    assert out == "/path?force=true"
+
+
+def test_with_force_query_in_reconfigure_with_q():
+    iw_mod._reconfigure_mode_active = True
+    out = _with_force_query("/path?x=1")
+    assert out == "/path?x=1&force=true"
+
+
+# ---------------------------------------------------------------------------
+# _update_sync_status
+# ---------------------------------------------------------------------------
+
+
+def test_update_sync_status_sets_progress():
+    _update_sync_status(50, "mid", "half way", completed=False, error=None)
+    assert iw_mod._sync_status["progress"] == 50
+    assert iw_mod._sync_status["stage"] == "mid"
+    assert iw_mod._sync_status["message"] == "half way"
+    assert iw_mod._sync_status["completed"] is False
+    assert iw_mod._sync_status["error"] is None
+
+
+def test_update_sync_status_no_message_uses_stage():
+    _update_sync_status(0, "start", message=None)
+    assert iw_mod._sync_status["message"] == "start"
