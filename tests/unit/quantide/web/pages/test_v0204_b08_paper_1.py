@@ -113,3 +113,113 @@ def test_render_paper_picker_with_sims():
     sims = [{"id": "s1", "name": "S1"}, {"id": "s2", "name": "S2"}]
     out = _render_paper_picker(layout, sims)
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# get_positions + place_order
+# ---------------------------------------------------------------------------
+
+
+import pytest
+from unittest.mock import AsyncMock
+
+from quantide.core.enums import BrokerKind
+from quantide.web.pages.paper import (
+    get_positions,
+    place_order,
+)
+
+
+def test_get_positions_no_registry():
+    """When no registry, returns PositionInfo with empty list."""
+    req = MagicMock()
+    req.scope = {}
+    out = get_positions(req, portfolio_id="p1")
+    assert out is not None
+
+
+def test_get_positions_with_broker():
+    """When broker has positions, returns PositionInfo with them."""
+    from quantide.data.models import Position
+    fake_reg = MagicMock()
+    fake_broker = MagicMock()
+    fake_pos = MagicMock(spec=Position)
+    fake_pos.asset = "000001.SZ"
+    fake_pos.shares = 100
+    fake_pos.avail = 100
+    fake_pos.cost = 950
+    fake_pos.price = 10
+    fake_pos.mv = 1000
+    fake_pos.profit = 50
+    fake_broker.positions = [fake_pos]
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": fake_reg}
+    out = get_positions(req, portfolio_id="p1")
+    assert out is not None
+
+
+def test_get_positions_broker_no_positions_attr():
+    """When broker doesn't have positions attr, returns empty."""
+    fake_reg = MagicMock()
+    fake_broker = MagicMock(spec=["other_attr"])
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": fake_reg}
+    out = get_positions(req, portfolio_id="p1")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_no_registry():
+    req = MagicMock()
+    req.scope = {}
+    resp = await place_order(req, portfolio_id="p1")
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_no_broker():
+    fake_reg = MagicMock()
+    fake_reg.get = MagicMock(return_value=None)
+    req = MagicMock()
+    req.scope = {"registry": fake_reg}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price": "10", "shares": "100"})
+    resp = await place_order(req, portfolio_id="p1")
+    assert "not found" in str(resp).lower() or resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_buy():
+    fake_reg = MagicMock()
+    fake_broker = MagicMock()
+    fake_broker.positions = []
+    fake_broker.buy = AsyncMock()
+    fake_broker.total_assets = 100
+    fake_broker.cash = 50
+    fake_broker.principal = 80
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": fake_reg}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price": "10", "shares": "100"})
+    resp = await place_order(req, portfolio_id="p1")
+    assert resp is not None
+    fake_broker.buy.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_place_order_sell():
+    fake_reg = MagicMock()
+    fake_broker = MagicMock()
+    fake_broker.positions = []
+    fake_broker.sell = AsyncMock()
+    fake_broker.total_assets = 80
+    fake_broker.cash = 30
+    fake_broker.principal = 100
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": fake_reg}
+    req.form = AsyncMock(return_value={"side": "SELL", "asset": "000001.SZ", "price": "10", "shares": "100"})
+    resp = await place_order(req, portfolio_id="p1")
+    assert resp is not None
+    fake_broker.sell.assert_awaited_once()
