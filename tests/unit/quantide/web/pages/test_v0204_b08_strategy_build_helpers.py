@@ -556,6 +556,63 @@ async def test_deploy_to_paper_no_registry():
 
 
 # ---------------------------------------------------------------------------
+# deploy_backtest_to_live
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import deploy_backtest_to_live
+
+
+@pytest.mark.asyncio
+async def test_deploy_to_live_no_registry():
+    """When no registry, returns modal with empty live_accounts."""
+    with patch.object(strategy_mod_alias, "_get_registry") as mock_getreg, \
+         patch.object(strategy_mod_alias, "_load_backtest_run_config") as mock_load, \
+         patch.object(strategy_mod_alias, "_live_deploy_modal") as mock_modal, \
+         patch.object(strategy_mod_alias, "_get_live_accounts", return_value=[]):
+        mock_getreg.return_value = None
+        mock_load.return_value = ({}, None)
+        mock_modal.return_value = "modal-no-reg"
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"live_account_id": "x"})
+        resp = await deploy_backtest_to_live(req, portfolio_id="p1")
+    assert resp == "modal-no-reg"
+
+
+@pytest.mark.asyncio
+async def test_deploy_to_live_no_live_accounts():
+    """When no live accounts, returns modal with empty list."""
+    with patch.object(strategy_mod_alias, "_get_registry") as mock_getreg, \
+         patch.object(strategy_mod_alias, "_load_backtest_run_config") as mock_load, \
+         patch.object(strategy_mod_alias, "_live_deploy_modal") as mock_modal, \
+         patch.object(strategy_mod_alias, "_get_live_accounts", return_value=[]):
+        mock_getreg.return_value = MagicMock()
+        mock_load.return_value = ({}, None)
+        mock_modal.return_value = "modal-no-accts"
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"live_account_id": "x"})
+        resp = await deploy_backtest_to_live(req, portfolio_id="p1")
+    assert resp == "modal-no-accts"
+
+
+@pytest.mark.asyncio
+async def test_deploy_to_live_already_deployed():
+    """When existing_runtime exists, returns error modal."""
+    from quantide.web.pages.strategy import strategy_runtime_manager as srm
+    fake_runtime = MagicMock()
+    fake_runtime.portfolio_id = "p1-live"
+    fake_runtime.strategy_id = "strat-1"
+    with patch.object(strategy_mod_alias, "_get_registry") as mock_getreg, \
+         patch.object(strategy_mod_alias, "_get_live_accounts", return_value=[{"id": "x"}]), \
+         patch.object(srm, "get_active_backtest_deployment", return_value=fake_runtime):
+        mock_getreg.return_value = MagicMock()
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"live_account_id": "x"})
+        resp = await deploy_backtest_to_live(req, portfolio_id="p1")
+    assert resp is not None
+
+
+# ---------------------------------------------------------------------------
 # _coerce_form_value + _form_to_config
 # ---------------------------------------------------------------------------
 
