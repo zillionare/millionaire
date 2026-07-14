@@ -111,3 +111,41 @@ def test_coerce_gateway_form_api_key():
 def test_coerce_gateway_form_with_prefix():
     out = _coerce_gateway_form({"gateway_prefix": "/api/"})
     assert out["prefix"] == "/api"
+
+
+# ---------------------------------------------------------------------------
+# _test_gateway_connection branches (needs urllib mocking)
+# ---------------------------------------------------------------------------
+
+
+from unittest.mock import patch, MagicMock
+
+
+
+from quantide.web.pages.system import gateway as gw_mod
+from quantide.web.pages.system.gateway import _test_gateway_connection
+
+
+class _FakeURLResp:
+    def __init__(self, code):
+        self._code = code
+
+    def getcode(self):
+        return self._code
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def test_test_gateway_connection_success():
+    """When URL returns 200, success=True."""
+    fake_resp = _FakeURLResp(200)
+    with patch.object(gw_mod, "urllib") as mock_urllib:
+        mock_urllib.request.Request = MagicMock()
+        mock_urllib.request.urlopen = MagicMock(return_value=fake_resp)
+        out = _test_gateway_connection("http://x", api_key="k", timeout=1)
+    assert out["success"] is True
+
