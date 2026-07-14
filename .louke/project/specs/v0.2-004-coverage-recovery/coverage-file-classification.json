@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T07:11:19.931795+00:00",
+  "generated_at": "2026-07-14T07:19:20.187090+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -12,7 +12,7 @@
     "v0.2_added_count": 35,
     "pre_v0.2_retained_count": 134,
     "v0.2_added_passing": 35,
-    "pre_v0.2_retained_passing": 98,
+    "pre_v0.2_retained_passing": 101,
     "v0.2_added_under_threshold": [],
     "pre_v0.2_retained_under_threshold": [
       {
@@ -64,21 +64,6 @@
         "path": "quantide/web/auth/routes.py",
         "percent_covered": 27.27,
         "num_statements": 200
-      },
-      {
-        "path": "quantide/web/middleware.py",
-        "percent_covered": 60.87,
-        "num_statements": 19
-      },
-      {
-        "path": "quantide/web/middleware_feature.py",
-        "percent_covered": 69.7,
-        "num_statements": 52
-      },
-      {
-        "path": "quantide/web/middleware_init.py",
-        "percent_covered": 41.67,
-        "num_statements": 36
       },
       {
         "path": "quantide/web/pages/accounts.py",
@@ -1434,34 +1419,34 @@
       "path": "quantide/web/middleware.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 60.87,
+      "percent_covered": 100.0,
       "num_statements": 19,
       "num_branches": 4,
-      "covered_branches": 2,
+      "covered_branches": 4,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/middleware_feature.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 69.7,
+      "percent_covered": 100.0,
       "num_statements": 52,
       "num_branches": 14,
-      "covered_branches": 10,
+      "covered_branches": 14,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/middleware_init.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 41.67,
+      "percent_covered": 100.0,
       "num_statements": 36,
       "num_branches": 12,
-      "covered_branches": 3,
+      "covered_branches": 12,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/nfr_accessibility.py",
