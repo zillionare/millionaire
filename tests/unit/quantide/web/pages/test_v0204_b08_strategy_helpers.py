@@ -267,3 +267,48 @@ def test_params_to_text_dict_value():
 def test_params_to_text_dict_no_default():
     out = _params_to_text({"x": {"other": "v"}})
     assert "x=" in out
+
+
+
+# ---------------------------------------------------------------------------
+# _format_number + _params_to_text
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import _format_number, _params_to_text
+
+
+def test_format_number_invalid():
+    assert _format_number("not-a-number") == "--"
+
+
+def test_format_number_none():
+    assert _format_number(None) == "--"
+
+
+def test_format_number_decimal():
+    assert _format_number(3.14) == "3.14"
+
+
+def test_format_number_int():
+    assert _format_number(42) == "42.00"
+
+
+def test_format_number_string_int():
+    assert _format_number("10") == "10.00"
+
+
+def test_params_to_text_empty():
+    assert _params_to_text({}) == "--"
+
+
+def test_params_to_text_simple():
+    out = _params_to_text({"x": 1, "y": "abc"})
+    assert "x=1" in out
+    assert "y=abc" in out
+
+
+def test_params_to_text_dict_value():
+    out = _params_to_text({"x": {"default": "val"}})
+    assert "x=val" in out
+
