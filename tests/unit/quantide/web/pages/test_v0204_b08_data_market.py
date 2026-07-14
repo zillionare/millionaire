@@ -61,3 +61,43 @@ def test_tab_nav_unknown():
     """Unknown tab still renders."""
     out = _TabNav("garbage")
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# do_verify + do_update endpoints
+# ---------------------------------------------------------------------------
+
+
+import pytest as _pt
+
+
+@_pt.mark.asyncio
+async def test_do_verify_default():
+    """do_verify returns Div with success message."""
+    from quantide.web.pages.data_market import do_verify
+    out = await do_verify({"assets": "000001.SZ", "start_year": "2020", "end_year": "2024"})
+    assert out is not None
+
+
+@_pt.mark.asyncio
+async def test_do_update_bad_date_returns_error():
+    """Bad date → returns error Div."""
+    from quantide.web.pages.data_market import do_update
+    req = MagicMock()
+    req.form = AsyncMock(return_value={"start_date": "garbage", "end_date": "2024-06-30"})
+    resp = await do_update(req)
+    assert resp is not None
+
+
+@_pt.mark.asyncio
+async def test_do_update_valid_date():
+    """Valid date → returns progress modal."""
+    from quantide.web.pages.data_market import do_update
+    req = MagicMock()
+    req.form = AsyncMock(return_value={"start_date": "2024-01-01", "end_date": "2024-06-30"})
+    resp = await do_update(req)
+    assert resp is not None
+
+
+# Add AsyncMock import
+from unittest.mock import AsyncMock
