@@ -594,3 +594,38 @@ def test_admin_user_delete_confirm(admin, fake_app):
     req = MagicMock()
     out = fn(req, id=1)
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# admin_users_list rendering
+# ---------------------------------------------------------------------------
+
+
+def test_admin_users_list_paginated(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.list_all = MagicMock(return_value=[
+        MagicMock(username="alice", email="a@x.com", role="user", active=True),
+        MagicMock(username="bob", email="b@x.com", role="user", active=True),
+    ])
+    fn = admin.routes["admin_users_list"]
+    req = MagicMock()
+    req.query_params = {"page": "1"}
+    req.scope = {"session": {}}
+    out = fn(req)
+    assert out is not None
+
+
+def test_admin_users_list_with_search_filter(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.list_all = MagicMock(return_value=[
+        MagicMock(username="alice", email="a@x.com", role="user", active=True),
+        MagicMock(username="bob", email="b@x.com", role="admin", active=False),
+    ])
+    fn = admin.routes["admin_users_list"]
+    req = MagicMock()
+    req.query_params = {"page": "1", "search": "alice", "role": "user", "status": "active"}
+    req.scope = {"session": {}}
+    out = fn(req)
+    assert out is not None
