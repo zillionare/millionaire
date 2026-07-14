@@ -609,4 +609,79 @@ async def test_load_backtest_valid():
     assert resp.body == b'{"ok": true}' or "ok" in str(resp.body)
 
 
+# ---------------------------------------------------------------------------
+# list_strategies — relies on strategy_loader
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_strategies_empty():
+    """When strategy_loader returns [], result is empty strategies list."""
+    with patch.object(broker_api, "strategy_loader") as mock_loader:
+        mock_loader.list_strategies = MagicMock(return_value=[])
+        mock_loader.get_builtin_scan_directory = MagicMock(return_value="/builtin")
+        req = MagicMock()
+        resp = await list_strategies(req)
+    assert resp["strategies"] == []
+    assert resp["diagnostics"] == []
+
+
+@pytest.mark.asyncio
+async def test_list_strategies_with_info():
+    """When strategies exist, formats them correctly."""
+    fake_info = MagicMock()
+    fake_info.name = "MyStrat"
+    fake_info.module_path = "mymod"
+    fake_info.description = "test"
+    fake_info.strategy_type = "long_only"
+    fake_info.file_path = "/builtin/strat.py"
+    fake_info.params = '{"key":"value"}'
+
+    with patch.object(broker_api, "strategy_loader") as mock_loader:
+        mock_loader.list_strategies = MagicMock(return_value=[fake_info])
+        mock_loader.get_builtin_scan_directory = MagicMock(return_value="/builtin")
+        req = MagicMock()
+        resp = await list_strategies(req)
+    assert len(resp["strategies"]) == 1
+    s = resp["strategies"][0]
+    assert s["strategy_id"] == "mymod.MyStrat"
+    assert s["name"] == "MyStrat"
+    assert s["default_config"] == {"key": "value"}
+    assert s["is_builtin"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_strategies_invalid_params_falls_back():
+    """Bad params JSON → empty dict."""
+    fake_info = MagicMock()
+    fake_info.name = "x"
+    fake_info.module_path = "m"
+    fake_info.description = ""
+    fake_info.strategy_type = ""
+    fake_info.file_path = None
+    fake_info.params = "not valid json"
+
+    with patch.object(broker_api, "strategy_loader") as mock_loader:
+        mock_loader.list_strategies = MagicMock(return_value=[fake_info])
+        mock_loader.get_builtin_scan_directory = MagicMock(return_value="/x")
+        req = MagicMock()
+        resp = await list_strategies(req)
+    assert resp["strategies"][0]["default_config"] == {}
+
+
+# ---------------------------------------------------------------------------
+# get_assets
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.apis.broker import get_assets
+
+
+@pytest.mark.asyncio
+async def test_get_assets_no_broker_raises():
+    req = _req()
+    with pytest.raises(RuntimeError):
+        await get_assets(req)
+
+
 from unittest.mock import AsyncMock, patch
