@@ -136,6 +136,8 @@ def test_is_valid_price_ref_unknown():
 
 from quantide.web.pages.trade_lightning import _resolve_asset_input
 
+from quantide.web.pages import trade_lightning as tl_mod_main
+
 
 def test_resolve_asset_input_empty():
     assert _resolve_asset_input("") is None
@@ -184,3 +186,49 @@ def test_resolve_asset_input_with_code_pattern():
         mock_sl.get_name = MagicMock(return_value="X")
         out = _resolve_asset_input("000001.SZ suffix")
     assert out == "000001.SZ" or out is not None
+
+
+
+# ---------------------------------------------------------------------------
+# trade_lightning_create_modal + trade_lightning_delete_modal
+# ---------------------------------------------------------------------------
+
+
+import pytest as _pt
+from quantide.web.pages.trade_lightning import (
+    trade_lightning_create_modal,
+    trade_lightning_delete_modal,
+)
+
+
+@_pt.mark.asyncio
+async def test_trade_lightning_create_modal():
+    req = MagicMock()
+    req.path_params = {"portfolio_id": "p1"}
+    out = await trade_lightning_create_modal(req)
+    assert out is not None
+
+
+@_pt.mark.asyncio
+async def test_trade_lightning_delete_modal_not_found():
+    """When entry is None, returns toast."""
+    with patch.object(tl_mod_main, "get_trade_lightning_entry", return_value=None):
+        req = MagicMock()
+        req.path_params = {"portfolio_id": "p1", "asset": "000001.SZ"}
+        out = await trade_lightning_delete_modal(req)
+    assert out is not None
+
+
+@_pt.mark.asyncio
+async def test_trade_lightning_delete_modal_found():
+    """When entry exists, returns delete modal."""
+    fake_entry = MagicMock()
+    fake_entry.asset = "000001.SZ"
+    fake_entry.amount_wan = 5.0
+    fake_entry.price_ref = "current"
+    with patch.object(tl_mod_main, "get_trade_lightning_entry", return_value=fake_entry):
+        req = MagicMock()
+        req.path_params = {"portfolio_id": "p1", "asset": "000001.SZ"}
+        out = await trade_lightning_delete_modal(req)
+    assert out is not None
+
