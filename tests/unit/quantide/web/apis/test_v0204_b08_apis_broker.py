@@ -684,4 +684,82 @@ async def test_get_assets_no_broker_raises():
         await get_assets(req)
 
 
+# ---------------------------------------------------------------------------
+# run_grid_search_job + run_backtest_job — input validation paths
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.apis.broker import (
+    run_grid_search_job,
+    run_backtest_job,
+)
+
+
+@pytest.mark.asyncio
+async def test_run_grid_search_unknown_strategy():
+    """Unknown strategy → 404."""
+    import quantide.web.apis.broker as broker_mod
+    req = MagicMock()
+    req.json = AsyncMock(return_value={"strategy_name": "missing"})
+    with patch.object(broker_mod, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={})
+        resp = await run_grid_search_job(req)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_run_grid_search_no_dates_returns_400():
+    import quantide.web.apis.broker as broker_mod
+    req = MagicMock()
+    req.json = AsyncMock(return_value={"strategy_name": "x", "start_date": None, "end_date": None})
+    with patch.object(broker_mod, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"x": MagicMock()})
+        resp = await run_grid_search_job(req)
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_run_grid_search_bad_dates_returns_400():
+    import quantide.web.apis.broker as broker_mod
+    req = MagicMock()
+    req.json = AsyncMock(return_value={"strategy_name": "x", "start_date": "garbage", "end_date": "ok"})
+    with patch.object(broker_mod, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"x": MagicMock()})
+        resp = await run_grid_search_job(req)
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_unknown_strategy():
+    import quantide.web.apis.broker as broker_mod
+    req = MagicMock()
+    req.json = AsyncMock(return_value={"strategy_name": "missing"})
+    with patch.object(broker_mod, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={})
+        resp = await run_backtest_job(req)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_no_dates():
+    import quantide.web.apis.broker as broker_mod
+    req = MagicMock()
+    req.json = AsyncMock(return_value={"strategy_name": "x"})
+    with patch.object(broker_mod, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"x": MagicMock()})
+        resp = await run_backtest_job(req)
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_bad_dates():
+    import quantide.web.apis.broker as broker_mod
+    req = MagicMock()
+    req.json = AsyncMock(return_value={"strategy_name": "x", "start_date": "garbage", "end_date": "ok"})
+    with patch.object(broker_mod, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"x": MagicMock()})
+        resp = await run_backtest_job(req)
+    assert resp.status_code == 400
+
+
 from unittest.mock import AsyncMock, patch
