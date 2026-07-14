@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from quantide.web.pages.accounts import LiveAccountCard, SimAccountCard
 
@@ -304,3 +306,49 @@ def test_reset_sim_account():
     accounts_mod.db = fake_db
     resp = reset_sim_account(req, account_id="s1")
     assert resp is not None
+
+
+# ---------------------------------------------------------------------------
+# create_sim_account — early branches
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.accounts import create_sim_account
+
+
+@pytest.mark.asyncio
+async def test_create_sim_account_no_registry():
+    """When no registry, returns error Div."""
+    req = MagicMock()
+    req.scope = {"session": {}}
+    resp = await create_sim_account(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_create_sim_account_empty_name():
+    """Empty name returns error."""
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(return_value=[])
+    req = MagicMock()
+    req.scope = {"session": {}, "registry": fake_reg}
+    req.form = AsyncMock(return_value={"name": "", "principal": "100"})
+    resp = await create_sim_account(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_create_sim_account_name_taken():
+    """When name already exists, redirects."""
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(return_value=[
+        {"id": "s_old", "name": "Taken"}
+    ])
+    req = MagicMock()
+    req.scope = {"session": {}, "registry": fake_reg}
+    req.form = AsyncMock(return_value={"name": "Taken", "principal": "100"})
+    resp = await create_sim_account(req)
+    assert resp is not None
+    # Should be RedirectResponse
+    location = str(resp.headers.get("location", "")) if hasattr(resp, "headers") else ""
+    assert location == "/system/accounts"
