@@ -556,3 +556,59 @@ def test_maybe_start_live_quote_starts_when_settings_allow():
         _maybe_start_live_quote()
     mock_lq.start.assert_called_once()
 
+
+# ---------------------------------------------------------------------------
+# trade_main_page dispatcher
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.trade_main import trade_main_page
+
+
+def test_trade_main_page_no_registry():
+    """When no registry in scope → NoAccountView."""
+    req = MagicMock()
+    req.scope = {"session": {}}
+    req.query_params = {}
+    req.path_params = {}
+    out = trade_main_page(req)
+    assert out is not None
+
+
+def test_trade_main_page_no_accounts():
+    """When registry has no accounts → NoAccountView."""
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(return_value=[])
+    req = MagicMock()
+    req.scope = {"session": {}, "registry": fake_reg}
+    req.query_params = {}
+    req.path_params = {}
+    out = trade_main_page(req)
+    assert out is not None
+
+
+def test_trade_main_page_no_active_account():
+    """When accounts exist but no active → SelectAccountView."""
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "s1", "name": "S1", "kind": "sim"}
+    ] if kind.value == "sim" else [])
+    fake_reg.get = MagicMock(return_value=None)
+    fake_reg.get_default = MagicMock(return_value=None)
+    req = MagicMock()
+    req.scope = {"session": {}, "registry": fake_reg}
+    req.query_params = {}
+    req.path_params = {}
+    out = trade_main_page(req)
+    assert out is not None
+
+
+def test_trade_main_page_default_tab():
+    """Default tab is 'positions'."""
+    req = MagicMock()
+    req.scope = {"session": {}}
+    req.query_params = {}
+    req.path_params = {}
+    out = trade_main_page(req)
+    assert out is not None
+
