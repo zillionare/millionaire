@@ -762,6 +762,67 @@ async def test_run_backtest_bad_dates():
     assert resp is not None
 
 
+# ---------------------------------------------------------------------------
+# _get_runtime + _get_registry + _get_market_data + _get_paper_deploy_availability
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import (
+    _get_runtime,
+    _get_registry as _strat_get_registry,
+    _get_market_data as _strat_get_market_data,
+)
+
+
+def test_strat_get_runtime_no_request():
+    """When req is None, returns None."""
+    assert _get_runtime(None) is None
+
+
+def test_strat_get_runtime_no_app():
+    """When req has no app attr, returns None."""
+    req = MagicMock()
+    del req.app
+    assert _get_runtime(req) is None
+
+
+def test_strat_get_runtime_runtime_set():
+    """Returns runtime from app.state.runtime."""
+    req = MagicMock()
+    req.app.state.runtime = "my-runtime"
+    assert _get_runtime(req) == "my-runtime"
+
+
+def test_strat_get_registry_no_runtime():
+    """When no runtime, returns None."""
+    req = MagicMock()
+    req.app = MagicMock()
+    req.app.state = MagicMock()
+    req.app.state.runtime = None
+    assert _strat_get_registry(req) is None
+
+
+def test_strat_get_registry_with_runtime():
+    """Returns runtime.registry."""
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.registry = "my-registry"
+    assert _strat_get_registry(req) == "my-registry"
+
+
+def test_strat_get_market_data_no_runtime():
+    req = MagicMock()
+    req.app.state.runtime = None
+    assert _strat_get_market_data(req) is None
+
+
+def test_strat_get_market_data_with_runtime():
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.market_data = "md"
+    assert _strat_get_market_data(req) == "md"
+
+
 def test_backtest_modal_unknown_strategy():
     """Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
