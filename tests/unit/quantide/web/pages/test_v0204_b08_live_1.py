@@ -214,3 +214,66 @@ def test_portfolio_list_multiple():
         {"portfolio_id": "p3", "name": "C", "status": False},
     ])
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# live_list dispatcher
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.live import (
+    live_list,
+    show_create_modal,
+    portfolio_detail,
+)
+
+
+def test_live_list_no_registry():
+    """No registry → empty portfolios list."""
+    req = MagicMock()
+    req.scope = {}
+    out = live_list(req, session={})
+    assert out is not None
+
+
+def test_live_list_with_qmt_portfolios():
+    from quantide.core.enums import BrokerKind
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "q1", "name": "Q1", "status": True, "kind": BrokerKind.QMT.value}
+    ] if kind == BrokerKind.QMT else [])
+    fake_broker = MagicMock()
+    fake_broker.asset = MagicMock(total=110, principal=100)
+    fake_broker.is_connected = True
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": fake_reg}
+    out = live_list(req, session={"auth": "alice"})
+    assert out is not None
+
+
+def test_live_list_broker_no_asset():
+    from quantide.core.enums import BrokerKind
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "q1", "name": "Q1", "status": True}
+    ] if kind == BrokerKind.QMT else [])
+    fake_broker = MagicMock(spec=["is_connected"])  # no asset attr
+    fake_broker.is_connected = False
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": fake_reg}
+    out = live_list(req, session={})
+    assert out is not None
+
+
+def test_show_create_modal():
+    out = show_create_modal()
+    assert out is not None
+
+
+def test_portfolio_detail_no_registry():
+    req = MagicMock()
+    req.scope = {}
+    out = portfolio_detail(req, session={}, portfolio_id="q1")
+    assert out is not None
