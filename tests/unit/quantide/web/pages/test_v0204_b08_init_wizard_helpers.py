@@ -689,3 +689,23 @@ async def test_handle_step_prev_no_action():
         resp = await handle_step(req, step=2)
     # No save_runtime_config call expected
     mock_iw.save_runtime_config.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# gateway_test
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.init_wizard import gateway_test
+
+
+@pytest.mark.asyncio
+async def test_gateway_test_disabled():
+    """When gateway_enabled is False → return info Div."""
+    with patch.object(iw_mod, "dev_stubs_enabled", return_value=False), \
+         patch.object(iw_mod, "_gateway_form_state", return_value={"gateway_enabled": False, "gateway_server": "x", "gateway_port": 8000, "gateway_prefix": "/", "gateway_api_key": ""}), \
+         patch.object(iw_mod, "_extract_form_updates", return_value={}):
+        req = MagicMock()
+        req.form = AsyncMock(return_value={})
+        resp = await gateway_test(req)
+    assert resp is not None
