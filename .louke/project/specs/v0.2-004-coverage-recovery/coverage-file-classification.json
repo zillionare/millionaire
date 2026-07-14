@@ -1,0 +1,2092 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "generated_at": "2026-07-14T06:27:43.110737+00:00",
+  "coverage_source": "/tmp/cov-modes.json",
+  "thresholds": {
+    "v0.2_added": 95.0,
+    "pre_v0.2_retained": 80.0
+  },
+  "summary": {
+    "total_files": 169,
+    "v0.2_added_count": 35,
+    "pre_v0.2_retained_count": 134,
+    "v0.2_added_passing": 32,
+    "pre_v0.2_retained_passing": 95,
+    "v0.2_added_under_threshold": [
+      {
+        "path": "quantide/web/services/stock_query.py",
+        "percent_covered": 93.94,
+        "num_statements": 29
+      },
+      {
+        "path": "quantide/web/services/strategy_management.py",
+        "percent_covered": 89.42,
+        "num_statements": 82
+      },
+      {
+        "path": "quantide/web/services/trade.py",
+        "percent_covered": 94.67,
+        "num_statements": 57
+      }
+    ],
+    "pre_v0.2_retained_under_threshold": [
+      {
+        "path": "quantide/core/ports/clock.py",
+        "percent_covered": 72.73,
+        "num_statements": 11
+      },
+      {
+        "path": "quantide/core/ports/data_fetcher.py",
+        "percent_covered": 65.0,
+        "num_statements": 20
+      },
+      {
+        "path": "quantide/core/ports/market_data.py",
+        "percent_covered": 62.5,
+        "num_statements": 16
+      },
+      {
+        "path": "quantide/core/runtime/gateway_broker.py",
+        "percent_covered": 75.48,
+        "num_statements": 454
+      },
+      {
+        "path": "quantide/core/runtime/port_broker.py",
+        "percent_covered": 70.08,
+        "num_statements": 109
+      },
+      {
+        "path": "quantide/web/apis/analysis/kline.py",
+        "percent_covered": 13.83,
+        "num_statements": 136
+      },
+      {
+        "path": "quantide/web/apis/analysis/search.py",
+        "percent_covered": 37.5,
+        "num_statements": 24
+      },
+      {
+        "path": "quantide/web/apis/broker.py",
+        "percent_covered": 21.67,
+        "num_statements": 246
+      },
+      {
+        "path": "quantide/web/auth/admin_routes.py",
+        "percent_covered": 0.0,
+        "num_statements": 172
+      },
+      {
+        "path": "quantide/web/auth/forms.py",
+        "percent_covered": 27.38,
+        "num_statements": 58
+      },
+      {
+        "path": "quantide/web/auth/middleware.py",
+        "percent_covered": 51.25,
+        "num_statements": 64
+      },
+      {
+        "path": "quantide/web/auth/repository.py",
+        "percent_covered": 32.53,
+        "num_statements": 124
+      },
+      {
+        "path": "quantide/web/auth/routes.py",
+        "percent_covered": 27.27,
+        "num_statements": 200
+      },
+      {
+        "path": "quantide/web/middleware.py",
+        "percent_covered": 60.87,
+        "num_statements": 19
+      },
+      {
+        "path": "quantide/web/middleware_feature.py",
+        "percent_covered": 69.7,
+        "num_statements": 52
+      },
+      {
+        "path": "quantide/web/middleware_init.py",
+        "percent_covered": 41.67,
+        "num_statements": 36
+      },
+      {
+        "path": "quantide/web/pages/accounts.py",
+        "percent_covered": 14.29,
+        "num_statements": 204
+      },
+      {
+        "path": "quantide/web/pages/analysis.py",
+        "percent_covered": 43.75,
+        "num_statements": 16
+      },
+      {
+        "path": "quantide/web/pages/data_calendar.py",
+        "percent_covered": 15.52,
+        "num_statements": 98
+      },
+      {
+        "path": "quantide/web/pages/data_db.py",
+        "percent_covered": 15.09,
+        "num_statements": 82
+      },
+      {
+        "path": "quantide/web/pages/data_market.py",
+        "percent_covered": 17.24,
+        "num_statements": 142
+      },
+      {
+        "path": "quantide/web/pages/data_stocks.py",
+        "percent_covered": 21.3,
+        "num_statements": 92
+      },
+      {
+        "path": "quantide/web/pages/history_orders.py",
+        "percent_covered": 15.38,
+        "num_statements": 51
+      },
+      {
+        "path": "quantide/web/pages/history_positions.py",
+        "percent_covered": 14.44,
+        "num_statements": 68
+      },
+      {
+        "path": "quantide/web/pages/history_trades.py",
+        "percent_covered": 15.62,
+        "num_statements": 50
+      },
+      {
+        "path": "quantide/web/pages/home.py",
+        "percent_covered": 21.62,
+        "num_statements": 224
+      },
+      {
+        "path": "quantide/web/pages/init_wizard.py",
+        "percent_covered": 67.57,
+        "num_statements": 660
+      },
+      {
+        "path": "quantide/web/pages/live.py",
+        "percent_covered": 25.42,
+        "num_statements": 153
+      },
+      {
+        "path": "quantide/web/pages/paper.py",
+        "percent_covered": 53.91,
+        "num_statements": 93
+      },
+      {
+        "path": "quantide/web/pages/strategy.py",
+        "percent_covered": 46.62,
+        "num_statements": 892
+      },
+      {
+        "path": "quantide/web/pages/system/datasource.py",
+        "percent_covered": 65.35,
+        "num_statements": 170
+      },
+      {
+        "path": "quantide/web/pages/system/gateway.py",
+        "percent_covered": 53.64,
+        "num_statements": 180
+      },
+      {
+        "path": "quantide/web/pages/system/jobs.py",
+        "percent_covered": 49.46,
+        "num_statements": 225
+      },
+      {
+        "path": "quantide/web/pages/system/market.py",
+        "percent_covered": 60.66,
+        "num_statements": 104
+      },
+      {
+        "path": "quantide/web/pages/system/runtime_monitor.py",
+        "percent_covered": 40.58,
+        "num_statements": 57
+      },
+      {
+        "path": "quantide/web/pages/system/runtime_support.py",
+        "percent_covered": 74.53,
+        "num_statements": 72
+      },
+      {
+        "path": "quantide/web/pages/system/stocks.py",
+        "percent_covered": 62.81,
+        "num_statements": 99
+      },
+      {
+        "path": "quantide/web/pages/trade_lightning.py",
+        "percent_covered": 67.87,
+        "num_statements": 329
+      },
+      {
+        "path": "quantide/web/pages/trade_main.py",
+        "percent_covered": 71.39,
+        "num_statements": 508
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "quantide/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 3,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/app.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 9,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/app_factory.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 84.77,
+      "num_statements": 133,
+      "num_branches": 18,
+      "covered_branches": 11,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/config/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 1,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/config/branding.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 83.18,
+      "num_statements": 85,
+      "num_branches": 22,
+      "covered_branches": 15,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/config/dev_stubs.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 59,
+      "num_branches": 6,
+      "covered_branches": 6,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/config/paths.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 94.74,
+      "num_statements": 47,
+      "num_branches": 10,
+      "covered_branches": 9,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/config/settings.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 86.32,
+      "num_statements": 192,
+      "num_branches": 42,
+      "covered_branches": 29,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/domain/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 2,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/domain/events.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 49,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/enums.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 98.68,
+      "num_statements": 68,
+      "num_branches": 8,
+      "covered_branches": 8,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/errors.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 97,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/init_wizard_steps.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 11,
+      "num_branches": 2,
+      "covered_branches": 2,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/message.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 84.3,
+      "num_statements": 95,
+      "num_branches": 26,
+      "covered_branches": 18,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/notifications.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 8,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/order_execution.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 6,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/ports/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 5,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/ports/broker.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 86.54,
+      "num_statements": 102,
+      "num_branches": 2,
+      "covered_branches": 1,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/ports/clock.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 72.73,
+      "num_statements": 11,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/core/ports/data_fetcher.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 65.0,
+      "num_statements": 20,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/core/ports/market_data.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 62.5,
+      "num_statements": 16,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/core/risk_events.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 55,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/runtime/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 86.67,
+      "num_statements": 13,
+      "num_branches": 2,
+      "covered_branches": 1,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/runtime/adapter_registry.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 93.33,
+      "num_statements": 24,
+      "num_branches": 6,
+      "covered_branches": 5,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/runtime/clock_bridge.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 95.24,
+      "num_statements": 21,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/runtime/gateway_broker.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 75.48,
+      "num_statements": 454,
+      "num_branches": 166,
+      "covered_branches": 104,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/core/runtime/gateway_client.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 90.1,
+      "num_statements": 79,
+      "num_branches": 22,
+      "covered_branches": 18,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/runtime/modes.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 85.19,
+      "num_statements": 90,
+      "num_branches": 18,
+      "covered_branches": 13,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/runtime/port_broker.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 70.08,
+      "num_statements": 109,
+      "num_branches": 18,
+      "covered_branches": 9,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/core/runtime/registration.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 80.95,
+      "num_statements": 17,
+      "num_branches": 4,
+      "covered_branches": 2,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/scheduler.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 35,
+      "num_branches": 8,
+      "covered_branches": 8,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/sdk_metadata.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 93.51,
+      "num_statements": 63,
+      "num_branches": 14,
+      "covered_branches": 14,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/singleton.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 16,
+      "num_branches": 2,
+      "covered_branches": 2,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/strategy.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 96.5,
+      "num_statements": 123,
+      "num_branches": 20,
+      "covered_branches": 18,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/strategy_discovery.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 92.65,
+      "num_statements": 114,
+      "num_branches": 22,
+      "covered_branches": 20,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/utils.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 19,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "missing-from-coverage",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/core/wizard_steps_v2.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 37,
+      "num_branches": 8,
+      "covered_branches": 8,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 82.86,
+      "num_statements": 29,
+      "num_branches": 6,
+      "covered_branches": 3,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/fetchers/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 2,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/fetchers/registry.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 92.0,
+      "num_statements": 40,
+      "num_branches": 10,
+      "covered_branches": 8,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/fetchers/tushare.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 95.16,
+      "num_statements": 238,
+      "num_branches": 72,
+      "covered_branches": 68,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/helper.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 94.67,
+      "num_statements": 53,
+      "num_branches": 22,
+      "covered_branches": 20,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 3,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/app_state.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 88.3,
+      "num_statements": 141,
+      "num_branches": 30,
+      "covered_branches": 26,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/base.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 96.23,
+      "num_statements": 37,
+      "num_branches": 16,
+      "covered_branches": 15,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/calendar.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 89.45,
+      "num_statements": 352,
+      "num_branches": 122,
+      "covered_branches": 100,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/daily_bars.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 80.16,
+      "num_statements": 98,
+      "num_branches": 28,
+      "covered_branches": 21,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/entities.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 97.31,
+      "num_statements": 148,
+      "num_branches": 38,
+      "covered_branches": 34,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/index_bars.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 3,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/stocks.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 85.14,
+      "num_statements": 116,
+      "num_branches": 32,
+      "covered_branches": 21,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/models/strategy_config.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 62,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/services/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 0,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "zero-statement",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/sqlite.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 88.06,
+      "num_statements": 356,
+      "num_branches": 138,
+      "covered_branches": 114,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/stores/base.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 85.37,
+      "num_statements": 371,
+      "num_branches": 162,
+      "covered_branches": 132,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/stores/index_bars.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 46,
+      "num_branches": 20,
+      "covered_branches": 20,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/utils/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 2,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/data/utils/resampler.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 81.48,
+      "num_statements": 36,
+      "num_branches": 18,
+      "covered_branches": 13,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/notify/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 89.33,
+      "num_statements": 55,
+      "num_branches": 20,
+      "covered_branches": 14,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/notify/dingtalk.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 83.33,
+      "num_statements": 78,
+      "num_branches": 18,
+      "covered_branches": 13,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/notify/mail.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 81.0,
+      "num_statements": 66,
+      "num_branches": 34,
+      "covered_branches": 22,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/abstract_broker.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 96.27,
+      "num_statements": 175,
+      "num_branches": 66,
+      "covered_branches": 60,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/backtest_broker.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 89.5,
+      "num_statements": 372,
+      "num_branches": 104,
+      "covered_branches": 81,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/backtest_logs.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 86.0,
+      "num_statements": 76,
+      "num_branches": 24,
+      "covered_branches": 17,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/datafeed.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 84.8,
+      "num_statements": 125,
+      "num_branches": 46,
+      "covered_branches": 38,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/discovery.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 90.47,
+      "num_statements": 322,
+      "num_branches": 108,
+      "covered_branches": 99,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/grid_search.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 82.0,
+      "num_statements": 106,
+      "num_branches": 44,
+      "covered_branches": 32,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/init_wizard.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 82.02,
+      "num_statements": 272,
+      "num_branches": 84,
+      "covered_branches": 56,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/livequote.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 83.46,
+      "num_statements": 299,
+      "num_branches": 82,
+      "covered_branches": 55,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/metrics.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 93.18,
+      "num_statements": 134,
+      "num_branches": 42,
+      "covered_branches": 35,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/registry.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 93.42,
+      "num_statements": 52,
+      "num_branches": 24,
+      "covered_branches": 20,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/runner.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 91.36,
+      "num_statements": 128,
+      "num_branches": 34,
+      "covered_branches": 28,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/sim_broker.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 83.49,
+      "num_statements": 580,
+      "num_branches": 280,
+      "covered_branches": 211,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/strategy_runtime.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 82.64,
+      "num_statements": 579,
+      "num_branches": 170,
+      "covered_branches": 121,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/trade_lightning.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 87.7,
+      "num_statements": 143,
+      "num_branches": 44,
+      "covered_branches": 35,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/service/triple_barrier.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 97.33,
+      "num_statements": 57,
+      "num_branches": 18,
+      "covered_branches": 17,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/strategies/cost_stop_loss.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 82.35,
+      "num_statements": 35,
+      "num_branches": 16,
+      "covered_branches": 11,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/strategies/example/dual_ma.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 35,
+      "num_branches": 10,
+      "covered_branches": 10,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/strategies/pullback_sell.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 87.8,
+      "num_statements": 58,
+      "num_branches": 24,
+      "covered_branches": 18,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 0,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "zero-statement",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/apis/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 0,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "zero-statement",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/apis/analysis/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 3,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/apis/analysis/kline.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 13.83,
+      "num_statements": 136,
+      "num_branches": 52,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/apis/analysis/search.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 37.5,
+      "num_statements": 24,
+      "num_branches": 8,
+      "covered_branches": 1,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/apis/broker.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 21.67,
+      "num_statements": 246,
+      "num_branches": 54,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/auth/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 11,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/auth/admin_routes.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 0.0,
+      "num_statements": 172,
+      "num_branches": 52,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/auth/database.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 80.77,
+      "num_statements": 22,
+      "num_branches": 4,
+      "covered_branches": 2,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/auth/forms.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 27.38,
+      "num_statements": 58,
+      "num_branches": 26,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/auth/init.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 0,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "zero-statement",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/auth/manager.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 85.71,
+      "num_statements": 68,
+      "num_branches": 16,
+      "covered_branches": 13,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/auth/middleware.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 51.25,
+      "num_statements": 64,
+      "num_branches": 16,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/auth/models.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 84.38,
+      "num_statements": 54,
+      "num_branches": 10,
+      "covered_branches": 8,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/auth/repository.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 32.53,
+      "num_statements": 124,
+      "num_branches": 42,
+      "covered_branches": 10,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/auth/routes.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 27.27,
+      "num_statements": 200,
+      "num_branches": 64,
+      "covered_branches": 7,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/auth/utils.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 24,
+      "num_branches": 10,
+      "covered_branches": 10,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 3,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/analysis/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 3,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/analysis/backtest_charts.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 35,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/analysis/kline_chart.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 95.56,
+      "num_statements": 39,
+      "num_branches": 6,
+      "covered_branches": 5,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/analysis/stock_list.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 18,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/asset_label.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 8,
+      "num_branches": 2,
+      "covered_branches": 2,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/header.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 65,
+      "num_branches": 14,
+      "covered_branches": 14,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/runtime_params.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 24,
+      "num_branches": 10,
+      "covered_branches": 10,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/sidebar.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 48,
+      "num_branches": 18,
+      "covered_branches": 18,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/components/toast.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 29,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/degradation.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 97.37,
+      "num_statements": 56,
+      "num_branches": 20,
+      "covered_branches": 19,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/errors.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 26,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/events.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 95.65,
+      "num_statements": 42,
+      "num_branches": 4,
+      "covered_branches": 3,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/layouts/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 3,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/layouts/base.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 88.89,
+      "num_statements": 9,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/layouts/main.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 93.27,
+      "num_statements": 154,
+      "num_branches": 54,
+      "covered_branches": 50,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/local_storage.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 28,
+      "num_branches": 10,
+      "covered_branches": 10,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/middleware.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 60.87,
+      "num_statements": 19,
+      "num_branches": 4,
+      "covered_branches": 2,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/middleware_feature.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 69.7,
+      "num_statements": 52,
+      "num_branches": 14,
+      "covered_branches": 10,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/middleware_init.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 41.67,
+      "num_statements": 36,
+      "num_branches": 12,
+      "covered_branches": 3,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/nfr_accessibility.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 24,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/nfr_error_degradation.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 7,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/nfr_long_task.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 12,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/nfr_partial_refresh.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 14,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/nfr_responsive.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 11,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/nfr_visual.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 20,
+      "num_branches": 2,
+      "covered_branches": 2,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/pages/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 2,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/pages/accounts.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 14.29,
+      "num_statements": 204,
+      "num_branches": 62,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/analysis.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 43.75,
+      "num_statements": 16,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/data_calendar.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 15.52,
+      "num_statements": 98,
+      "num_branches": 18,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/data_db.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 15.09,
+      "num_statements": 82,
+      "num_branches": 24,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/data_market.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 17.24,
+      "num_statements": 142,
+      "num_branches": 32,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/data_stocks.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 21.3,
+      "num_statements": 92,
+      "num_branches": 16,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/history_orders.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 15.38,
+      "num_statements": 51,
+      "num_branches": 14,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/history_positions.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 14.44,
+      "num_statements": 68,
+      "num_branches": 22,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/history_trades.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 15.62,
+      "num_statements": 50,
+      "num_branches": 14,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/home.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 21.62,
+      "num_statements": 224,
+      "num_branches": 72,
+      "covered_branches": 5,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/init_wizard.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 67.57,
+      "num_statements": 660,
+      "num_branches": 154,
+      "covered_branches": 90,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/live.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 25.42,
+      "num_statements": 153,
+      "num_branches": 24,
+      "covered_branches": 3,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/paper.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 53.91,
+      "num_statements": 93,
+      "num_branches": 22,
+      "covered_branches": 12,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/strategy.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 46.62,
+      "num_statements": 892,
+      "num_branches": 262,
+      "covered_branches": 88,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/system/__init__.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 0,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "zero-statement",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/pages/system/calendar.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 90.3,
+      "num_statements": 102,
+      "num_branches": 32,
+      "covered_branches": 31,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/pages/system/datasource.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 65.35,
+      "num_statements": 170,
+      "num_branches": 32,
+      "covered_branches": 15,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/system/gateway.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 53.64,
+      "num_statements": 180,
+      "num_branches": 40,
+      "covered_branches": 19,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/system/jobs.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 49.46,
+      "num_statements": 225,
+      "num_branches": 54,
+      "covered_branches": 21,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/system/market.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 60.66,
+      "num_statements": 104,
+      "num_branches": 18,
+      "covered_branches": 6,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/system/risk_events.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 17,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/pages/system/runtime_monitor.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 40.58,
+      "num_statements": 57,
+      "num_branches": 12,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/system/runtime_support.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 74.53,
+      "num_statements": 72,
+      "num_branches": 34,
+      "covered_branches": 20,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/system/stocks.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 62.81,
+      "num_statements": 99,
+      "num_branches": 22,
+      "covered_branches": 11,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/trade_lightning.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 67.87,
+      "num_statements": 329,
+      "num_branches": 88,
+      "covered_branches": 43,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/pages/trade_main.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 71.39,
+      "num_statements": 508,
+      "num_branches": 156,
+      "covered_branches": 102,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/services/__init__.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 0,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "zero-statement",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/account_overview.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 56,
+      "num_branches": 6,
+      "covered_branches": 6,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/accounts.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 96.97,
+      "num_statements": 56,
+      "num_branches": 10,
+      "covered_branches": 9,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/auth_session.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 47,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/backtest_progress.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 95.92,
+      "num_statements": 45,
+      "num_branches": 4,
+      "covered_branches": 3,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/backtest_reports.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 44,
+      "num_branches": 2,
+      "covered_branches": 2,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/dashboard.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 77,
+      "num_branches": 8,
+      "covered_branches": 8,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/gateway.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 95.24,
+      "num_statements": 32,
+      "num_branches": 10,
+      "covered_branches": 9,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/integrity.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 27,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/layout.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 24,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/notifications.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 97.67,
+      "num_statements": 33,
+      "num_branches": 10,
+      "covered_branches": 9,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/risk_events.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 33,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/routing.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 22,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/runtime_control.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 53,
+      "num_branches": 4,
+      "covered_branches": 4,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/scheduling.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 20,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/stock_query.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 93.94,
+      "num_statements": 29,
+      "num_branches": 4,
+      "covered_branches": 3,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/services/strategy_management.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 89.42,
+      "num_statements": 82,
+      "num_branches": 22,
+      "covered_branches": 17,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/services/tasks.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 56,
+      "num_branches": 12,
+      "covered_branches": 12,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/services/trade.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 94.67,
+      "num_statements": 57,
+      "num_branches": 18,
+      "covered_branches": 16,
+      "coverage_status": "measured",
+      "passes_threshold": false
+    },
+    {
+      "path": "quantide/web/services/trade_history.py",
+      "origin": "v0.2-added",
+      "threshold": 95.0,
+      "percent_covered": 100.0,
+      "num_statements": 42,
+      "num_branches": 10,
+      "covered_branches": 10,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    },
+    {
+      "path": "quantide/web/theme.py",
+      "origin": "pre-v0.2-existing",
+      "threshold": 80.0,
+      "percent_covered": 100.0,
+      "num_statements": 13,
+      "num_branches": 0,
+      "covered_branches": 0,
+      "coverage_status": "measured",
+      "passes_threshold": true
+    }
+  ]
+}
