@@ -964,6 +964,64 @@ def test_render_config_table_both():
     assert out is not None
 
 
+# ---------------------------------------------------------------------------
+# _build_log_meta + _format_log_lines
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import (
+    _build_log_meta,
+    _format_log_lines,
+)
+
+
+def test_build_log_meta_no_run():
+    """When no run, returns empty metadata."""
+    with patch.object(strategy_mod_alias, "strategy_runtime_manager") as mock_mgr:
+        mock_mgr.get_backtest_run = MagicMock(return_value=None)
+        out = _build_log_meta("p1")
+    assert out["save_requested"] is False
+    assert out["saved"] is False
+    assert "saved_path" in out
+
+
+def test_build_log_meta_with_run_save_logs():
+    fake_run = MagicMock()
+    fake_run.save_logs = True
+    with patch.object(strategy_mod_alias, "strategy_runtime_manager") as mock_mgr:
+        mock_mgr.get_backtest_run = MagicMock(return_value=fake_run)
+        out = _build_log_meta("p1")
+    assert out["save_requested"] is True
+
+
+def test_format_log_lines_empty():
+    assert _format_log_lines([]) == []
+
+
+def test_format_log_lines_with_rows():
+    out = _format_log_lines([
+        {"dt": "2024-01-01", "level": "INFO", "source": "system", "message": "hello"},
+    ])
+    assert len(out) == 1
+    assert "INFO" in out[0]
+    assert "hello" in out[0]
+
+
+def test_format_log_lines_with_extra():
+    out = _format_log_lines([
+        {"dt": "2024-01-01", "level": "WARN", "source": "broker", "message": "warn msg", "extra": "detail"},
+    ])
+    assert len(out) == 1
+    assert "detail" in out[0]
+
+
+def test_format_log_lines_no_extra():
+    out = _format_log_lines([
+        {"dt": "2024-01-01", "level": "INFO", "source": "x", "message": "hi"},
+    ])
+    assert "| " not in out[0].split("hi")[-1] or out[0].endswith("hi")
+
+
 def test_backtest_modal_unknown_strategy():
     """Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
