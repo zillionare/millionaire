@@ -613,6 +613,46 @@ async def test_deploy_to_live_already_deployed():
 
 
 # ---------------------------------------------------------------------------
+# save_scan_config + _copy_requires_config_modal
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import (
+    _copy_requires_config_modal,
+    save_scan_config,
+)
+
+
+@pytest.mark.asyncio
+async def test_save_scan_config_invalid_dir():
+    """When directory doesn't exist, returns config modal with error."""
+    with patch.object(strategy_mod_alias, "_config_modal_html") as mock_modal:
+        mock_modal.return_value = "config-error"
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"scan-dir-input": "/nonexistent/dir/12345"})
+        resp = await save_scan_config(req)
+    assert resp == "config-error"
+
+
+@pytest.mark.asyncio
+async def test_save_scan_config_generic_exception():
+    """When unexpected exception, returns error modal."""
+    with patch.object(strategy_mod_alias, "_config_modal_html") as mock_modal, \
+         patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_modal.return_value = "generic-error"
+        mock_loader.set_scan_directory = MagicMock(side_effect=Exception("boom"))
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"scan-dir-input": "/tmp"})
+        resp = await save_scan_config(req)
+    assert resp == "generic-error"
+
+
+def test_copy_requires_config_modal():
+    out = _copy_requires_config_modal()
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
 # _coerce_form_value + _form_to_config
 # ---------------------------------------------------------------------------
 
