@@ -427,3 +427,81 @@ def test_data_init_form_state_default():
 def test_data_init_form_state_with_source():
     out = _data_init_form_state({"epoch": "2020-01-01"})
     assert out["epoch"] == "2020-01-01"
+
+
+# ---------------------------------------------------------------------------
+# _wizard_step_meta + _get_step_meta
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.init_wizard import (
+    _get_step_meta,
+    _wizard_step_meta,
+)
+
+
+def test_wizard_step_meta_has_all_steps():
+    """_wizard_step_meta returns dict for steps 1-6."""
+    meta = _wizard_step_meta()
+    assert len(meta) == 6
+    for i in (1, 2, 3, 4, 5, 6):
+        assert i in meta
+        assert "title" in meta[i]
+        assert "description" in meta[i]
+
+
+def test_get_step_meta_returns_meta_for_known_steps():
+    for s in (1, 2, 3, 4, 5, 6):
+        meta = _get_step_meta(s)
+        assert "title" in meta
+        assert "description" in meta
+
+
+def test_get_step_meta_unknown_falls_back_to_step1():
+    meta = _get_step_meta(99)
+    assert "title" in meta
+
+
+# ---------------------------------------------------------------------------
+# _check_password_strength
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.init_wizard import _check_password_strength
+
+
+def test_password_too_short():
+    strength, msg = _check_password_strength("aB1!")
+    assert strength == "weak"
+    assert "8" in msg or "长度" in msg
+
+
+def test_password_strong():
+    """All 4 categories + length >= 10 → strong."""
+    strength, msg = _check_password_strength("Abcdef1!@#$%")
+    assert strength == "strong"
+    assert "强" in msg
+
+
+def test_password_medium():
+    """Exactly 3 of 4 categories, length 8-9 → medium."""
+    strength, msg = _check_password_strength("Abcdefgh1")  # 9 chars: lower+upper+digit
+    assert strength == "medium"
+
+
+def test_password_weak_no_categories():
+    """Only one category (just letters of one case)."""
+    strength, msg = _check_password_strength("aaaaaaaa")
+    assert strength == "weak"
+
+
+def test_password_strong_no_special():
+    """lower+upper+digit + length >= 10 → 3 categories, medium."""
+    strength, msg = _check_password_strength("Abcdefghi1")
+    assert strength == "medium"
+
+
+def test_password_strong_with_8_chars_no_extra_categories():
+    """8 chars, only one category → weak."""
+    strength, msg = _check_password_strength("aaaaaaaa")
+    assert strength == "weak"
