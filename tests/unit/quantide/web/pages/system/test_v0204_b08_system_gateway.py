@@ -149,3 +149,58 @@ def test_test_gateway_connection_success():
         out = _test_gateway_connection("http://x", api_key="k", timeout=1)
     assert out["success"] is True
 
+
+
+# ---------------------------------------------------------------------------
+# index + save_config routes
+# ---------------------------------------------------------------------------
+
+
+import pytest
+from unittest.mock import AsyncMock
+
+from quantide.web.pages.system import gateway as gw_mod
+from quantide.web.pages.system.gateway import (
+    index as gw_index,
+    save_config as gw_save_config,
+    test_connection as gw_test_connection,
+)
+
+
+@pytest.mark.asyncio
+async def test_gw_index():
+    """index() renders page with config."""
+    with patch.object(gw_mod, "_load_gateway_config", return_value={"enabled": False}):
+        req = MagicMock()
+        out = await gw_index(req)
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_gw_save_config():
+    """save_config POST → calls _load_gateway_config + update."""
+    with patch.object(gw_mod, "_load_gateway_config", return_value={}), \
+         patch.object(gw_mod, "init_wizard") as mock_iw:
+        mock_iw.save_gateway_config = MagicMock()
+        req = MagicMock()
+        req.form = AsyncMock(return_value={
+            "gateway_enabled": "on",
+            "gateway_server": "localhost",
+            "gateway_port": "8000",
+            "gateway_prefix": "/",
+            "gateway_api_key": "",
+        })
+        resp = await gw_save_config(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_gw_test_connection_get():
+    """test_connection with GET method → uses full config."""
+    with patch.object(gw_mod, "_load_gateway_config", return_value={
+        "enabled": True, "base_url": "http://x", "api_key": "k", "timeout": 10
+    }):
+        req = MagicMock()
+        req.method = "GET"
+        out = await gw_test_connection(req)
+    assert out is not None
