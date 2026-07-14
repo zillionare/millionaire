@@ -317,3 +317,61 @@ def test_position_info_none():
 def test_position_info_skipped_magic_mock_complex():
     """Skip detailed position info — complex mock required."""
     pass
+
+
+# ---------------------------------------------------------------------------
+# OrderTable + PositionTable + TradePanel renderers
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.home import (
+    OrderTable,
+    PositionTable,
+    TradePanel,
+)
+
+
+def test_order_table_empty():
+    out = OrderTable(orders=[])
+    assert out is not None
+
+
+def test_order_table_none():
+    out = OrderTable(orders=None)
+    assert out is not None
+
+
+def test_order_table_with_orders():
+    from quantide.core.enums import OrderStatus
+    out = OrderTable(orders=[
+        {"tm": "2024-01-01", "asset": "000001.SZ", "side": 1, "status": int(OrderStatus.REPORTED), "price": 10, "shares": 100, "filled": 100},
+    ])
+    assert out is not None
+
+
+def test_position_table_none():
+    out = PositionTable(positions=None)
+    assert out is not None
+
+
+def test_position_table_empty():
+    out = PositionTable(positions=[])
+    assert out is not None
+
+
+def test_position_table_with_positions():
+    pos1 = MagicMock()
+    pos1.asset = "000001.SZ"
+    pos1.shares = 100.0
+    pos1.mv = 1000.0
+    pos1.profit = 50.0
+    pos1.price = 10.0
+    pos1.avail = 100.0
+    pos1.cost = 950.0
+    out = PositionTable(positions=[pos1])
+    assert out is not None
+
+
+def test_trade_panel():
+    out = TradePanel()
+    assert out is not None
