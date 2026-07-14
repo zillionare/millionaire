@@ -479,4 +479,134 @@ async def test_positions_delegates():
     assert resp == {"shares": 100}
 
 
+# ---------------------------------------------------------------------------
+# More endpoints (account_info, asset_overview, etc)
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.apis.broker import (
+    account_info,
+    asset_overview,
+    metrics,
+    bills,
+    load_backtest,
+    save_backtest,
+    list_strategies,
+)
+
+
+@pytest.mark.asyncio
+async def test_account_info_delegates():
+    fake_broker = MagicMock()
+    fake_broker.get_account_info = MagicMock(return_value={"name": "x", "principal": 1000.0})
+    reg = MagicMock()
+    reg.get_default = MagicMock(return_value=("live", "b1"))
+    reg.get = MagicMock(return_value=fake_broker)
+    req = _req(scope={"registry": reg})
+    resp = await account_info(req, asset="000001.SZ")
+    assert resp == {"name": "x", "principal": 1000.0}
+
+
+@pytest.mark.asyncio
+async def test_account_info_no_broker_raises():
+    req = _req()
+    with pytest.raises(RuntimeError):
+        await account_info(req, asset="000001.SZ")
+
+
+@pytest.mark.asyncio
+async def test_asset_overview_delegates():
+    fake_asset = MagicMock()
+    fake_asset.total = 100.0
+    fake_asset.principal = 80.0
+    fake_asset.cash = 20.0
+    fake_asset.frozen_cash = 0.0
+    fake_asset.market_value = 80.0
+    fake_broker = MagicMock()
+    fake_broker.asset = fake_asset
+    reg = MagicMock()
+    reg.get_default = MagicMock(return_value=("live", "b1"))
+    reg.get = MagicMock(return_value=fake_broker)
+    req = _req(scope={"registry": reg})
+    resp = await asset_overview(req)
+    assert resp["total"] == 100.0
+
+
+@pytest.mark.asyncio
+async def test_asset_overview_no_broker_raises():
+    req = _req()
+    with pytest.raises(RuntimeError):
+        await asset_overview(req)
+
+
+@pytest.mark.asyncio
+async def test_metrics_parses_dates():
+    """metrics endpoint parses start/end dates via arrow."""
+    req = MagicMock()
+    req.args = {"start": "2024-01-01", "end": "2024-06-30", "baseline": ""}
+    resp = await metrics(req)
+    # No return statement; just exercises the parsing path
+
+
+@pytest.mark.asyncio
+async def test_metrics_no_dates():
+    req = MagicMock()
+    req.args = {}
+    resp = await metrics(req)
+
+
+@pytest.mark.asyncio
+async def test_bills_returns_none_or_empty():
+    """bills endpoint returns no-op (None)."""
+    req = MagicMock()
+    resp = await bills(req)
+    # Currently the endpoint just sets results={} implicitly; no return value.
+    # So resp is None.
+    assert resp is None or resp == {}
+
+
+@pytest.mark.asyncio
+async def test_save_backtest_missing_name_prefix_raises():
+    req = MagicMock()
+    req.json = {}
+    req.token = "t"
+    req.app.ctx.accounts = MagicMock()
+    with pytest.raises(Exception):  # TradeError or similar
+        await save_backtest(req)
+
+
+@pytest.mark.asyncio
+async def test_save_backtest_returns_name():
+    req = MagicMock()
+    req.json = {"name_prefix": "test"}
+    req.token = "t"
+    fake_accounts = MagicMock()
+    fake_accounts.save_backtest = AsyncMock(return_value="test-name")
+    req.app.ctx.accounts = fake_accounts
+    resp = await save_backtest(req)
+    assert resp.body == b"test-name" or "test-name" in str(resp.body)
+
+
+@pytest.mark.asyncio
+async def test_load_backtest_missing_name_raises():
+    req = MagicMock()
+    req.args = {}
+    req.token = "t"
+    req.app.ctx.accounts = MagicMock()
+    with pytest.raises(Exception):
+        await load_backtest(req)
+
+
+@pytest.mark.asyncio
+async def test_load_backtest_valid():
+    req = MagicMock()
+    req.args = {"name": "abc"}
+    req.token = "t"
+    fake_accounts = MagicMock()
+    fake_accounts.load_backtest = MagicMock(return_value={"ok": True})
+    req.app.ctx.accounts = fake_accounts
+    resp = await load_backtest(req)
+    assert resp.body == b'{"ok": true}' or "ok" in str(resp.body)
+
+
 from unittest.mock import AsyncMock, patch
