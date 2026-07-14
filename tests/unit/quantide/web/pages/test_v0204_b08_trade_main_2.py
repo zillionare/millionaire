@@ -498,3 +498,61 @@ async def test_place_order_default_account():
     req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "5", "order_mode": "SHARES"})
     resp = await place_order_trade(req)
     assert resp is not None
+
+
+
+# ---------------------------------------------------------------------------
+# _resolve_live_current_price exception paths
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.trade_main import (
+    _resolve_live_current_price,
+    _maybe_start_live_quote,
+    _resolve_trade_reference_close,
+)
+
+
+def test_resolve_live_current_price_quote_returns_zero_on_invalid_types():
+    """When quote has non-numeric price, returns 0.0."""
+    fake_settings = MagicMock(gateway_enabled=True, livequote_mode="", livequote_enabled=True)
+    with patch.object(tm, "get_settings", return_value=fake_settings), \
+         patch.object(tm, "live_quote") as mock_lq:
+        mock_lq.is_running = True
+        mock_lq.get_quote = MagicMock(return_value={"price": "abc", "lastPrice": "xyz"})
+        got = _resolve_live_current_price("000001.SZ")
+    assert got == 0.0
+
+
+def test_resolve_live_current_price_falls_back_to_close():
+    fake_settings = MagicMock(gateway_enabled=True, livequote_mode="", livequote_enabled=True)
+    with patch.object(tm, "get_settings", return_value=fake_settings), \
+         patch.object(tm, "live_quote") as mock_lq:
+        mock_lq.is_running = True
+        mock_lq.get_quote = MagicMock(return_value={"price": 0, "lastPrice": 0, "close": 5.0})
+        got = _resolve_live_current_price("000001.SZ")
+    assert got == 5.0
+
+
+def test_resolve_trade_reference_close_returns_zero_on_empty():
+    with patch.object(tm, "_load_trade_reference_bars", return_value=pl.DataFrame()):
+        got = _resolve_trade_reference_close("000001.SZ")
+    assert got == 0.0
+
+def test_maybe_start_live_quote_already_running():
+    fake_settings = MagicMock(gateway_enabled=True, livequote_mode="tushare", livequote_enabled=True)
+    with patch.object(tm, "get_settings", return_value=fake_settings), \
+         patch.object(tm, "live_quote") as mock_lq:
+        mock_lq.is_running = True
+        _maybe_start_live_quote()
+    mock_lq.start.assert_not_called()
+
+
+def test_maybe_start_live_quote_starts_when_settings_allow():
+    fake_settings = MagicMock(gateway_enabled=True, livequote_mode="tushare", livequote_enabled=True)
+    with patch.object(tm, "get_settings", return_value=fake_settings), \
+         patch.object(tm, "live_quote") as mock_lq:
+        mock_lq.is_running = False
+        _maybe_start_live_quote()
+    mock_lq.start.assert_called_once()
+
