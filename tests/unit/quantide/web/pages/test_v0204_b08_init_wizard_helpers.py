@@ -709,3 +709,25 @@ async def test_gateway_test_disabled():
         req.form = AsyncMock(return_value={})
         resp = await gateway_test(req)
     assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_handle_update_download_range_valid():
+    """Updates download range info with valid years."""
+    with patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=False):
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"history_years": "3"})
+        resp = await iw_mod.handle_update_download_range(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_handle_update_download_range_invalid():
+    """Bad input falls back to years=1."""
+    with patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=False):
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"history_years": "garbage"})
+        resp = await iw_mod.handle_update_download_range(req)
+    assert resp is not None
