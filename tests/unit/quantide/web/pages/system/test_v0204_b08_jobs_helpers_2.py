@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -198,3 +198,50 @@ def test_build_history_table_error():
     )
     out = _build_history_table([rec])
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _get_job_status
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.system.jobs import _get_job_status, _job_enabled_state
+
+
+def test_get_job_status_no_scheduler_job(db):
+    """When scheduler has no job, has_scheduler_job=False."""
+    with patch.object(jobs_mod, "scheduler") as mock_sched:
+        mock_sched.scheduler.get_job = MagicMock(return_value=None)
+        out = _get_job_status("x")
+    assert out["id"] == "x"
+    assert out["has_scheduler_job"] is False
+    assert out["next_run"] is None
+
+
+def test_get_job_status_with_scheduler_job(db):
+    """When scheduler has a job, includes next_run_time."""
+    fake_job = MagicMock()
+    fake_job.next_run_time = __import__("datetime").datetime(2024, 1, 1, 10, 0)
+    with patch.object(jobs_mod, "scheduler") as mock_sched:
+        mock_sched.scheduler.get_job = MagicMock(return_value=fake_job)
+        out = _get_job_status("x")
+    assert out["has_scheduler_job"] is True
+    assert out["next_run"] is not None
+
+
+def test_get_job_status_with_history(db):
+    """When history exists, includes last_run."""
+    rec = JobHistoryRecord(
+        id="1",
+        job_id="x",
+        job_name="X",
+        executed_at=__import__("datetime").datetime(2024, 1, 1, 10, 0),
+        status="success",
+        message="ok",
+        duration_ms=100,
+    )
+    with patch.object(jobs_mod, "scheduler") as mock_sched:
+        mock_sched.scheduler.get_job = MagicMock(return_value=None)
+        with patch.object(jobs_mod, "_get_job_history", return_value=[rec]):
+            out = _get_job_status("x")
+    assert out["last_run"] == rec
