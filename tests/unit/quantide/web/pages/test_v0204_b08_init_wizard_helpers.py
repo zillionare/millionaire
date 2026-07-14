@@ -372,3 +372,58 @@ def test_update_sync_status_sets_progress():
 def test_update_sync_status_no_message_uses_stage():
     _update_sync_status(0, "start", message=None)
     assert iw_mod._sync_status["message"] == "start"
+
+
+# ---------------------------------------------------------------------------
+# _runtime_form_state / _gateway_form_state / _data_init_form_state
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.init_wizard import (
+    _data_init_form_state,
+    _gateway_form_state,
+    _runtime_form_state,
+)
+from quantide.web.pages import init_wizard as iw_mod_alias
+
+
+def test_runtime_form_state_default():
+    out = _runtime_form_state()
+    assert isinstance(out, dict)
+    assert "app_host" in out or "host" in out
+
+
+def test_runtime_form_state_with_source():
+    out = _runtime_form_state({"app_host": "0.0.0.0"})
+    assert out["app_host"] == "0.0.0.0"
+
+
+def test_runtime_form_state_localhost_only():
+    out = _runtime_form_state({"app_host": "127.0.0.1"})
+    # When host is 127.0.0.1, localhost_only should be True
+    assert out.get("localhost_only") is True or out.get("app_localhost_only") is True
+
+
+def test_gateway_form_state_default():
+    out = _gateway_form_state()
+    assert isinstance(out, dict)
+
+
+def test_gateway_form_state_checkbox_enabled():
+    out = _gateway_form_state({"gateway_enabled": "on"})
+    assert out.get("gateway_enabled") is True
+
+
+def test_gateway_form_state_checkbox_disabled():
+    out = _gateway_form_state({"gateway_enabled": "off"})
+    assert out.get("gateway_enabled") is False
+
+
+def test_data_init_form_state_default():
+    out = _data_init_form_state()
+    assert isinstance(out, dict)
+
+
+def test_data_init_form_state_with_source():
+    out = _data_init_form_state({"epoch": "2020-01-01"})
+    assert out["epoch"] == "2020-01-01"
