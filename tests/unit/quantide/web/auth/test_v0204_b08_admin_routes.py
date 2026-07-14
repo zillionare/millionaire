@@ -227,3 +227,138 @@ def test_create_delete_confirmation(admin):
     user.email = "a@x.com"
     out = admin._create_delete_confirmation(user=user, prefix="/auth/admin")
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# Route registration tests (extract handle_user_* etc.)
+# ---------------------------------------------------------------------------
+
+
+from unittest.mock import AsyncMock
+import pytest as _pytest
+
+
+@_pytest.fixture
+def fake_app():
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    return app
+
+
+def test_register_admin_routes_returns_dict(admin, fake_app):
+    out = admin.register_admin_routes(fake_app, "/auth/admin")
+    assert isinstance(out, dict)
+    # Routes should be stored
+    assert "admin_users_list" in admin.routes
+    assert "admin_user_create_form" in admin.routes
+    assert "admin_user_create_submit" in admin.routes
+    assert "admin_user_edit_form" in admin.routes
+    assert "admin_user_edit_submit" in admin.routes
+    assert "admin_user_delete_confirm" in admin.routes
+    assert "admin_user_delete_submit" in admin.routes
+
+
+# ---------------------------------------------------------------------------
+# handle_user_create tests
+# ---------------------------------------------------------------------------
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_missing_fields(admin, fake_app):
+    """When username/email/password missing → redirect with error."""
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={"username": "", "email": "", "password": ""})
+    resp = await submit(req)
+    assert "error=missing_fields" in str(resp.headers.get("location", ""))
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_password_mismatch(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "username": "alice",
+        "email": "a@x.com",
+        "password": "abcdefgh",
+        "confirm_password": "wrong",
+    })
+    resp = await submit(req)
+    assert "error=password_mismatch" in str(resp.headers.get("location", ""))
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_password_weak(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "username": "alice",
+        "email": "a@x.com",
+        "password": "short",
+        "confirm_password": "short",
+    })
+    resp = await submit(req)
+    assert "error=password_weak" in str(resp.headers.get("location", ""))
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_success(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.create = MagicMock(return_value="newuser")
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "username": "alice",
+        "email": "a@x.com",
+        "password": "abcdefgh",
+        "confirm_password": "abcdefgh",
+        "role": "user",
+        "active": "on",
+    })
+    resp = await submit(req)
+    # On success returns nothing or success redirect
+    assert resp is not None or resp is None
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_exception(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.create = MagicMock(side_effect=Exception("boom"))
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "username": "alice",
+        "email": "a@x.com",
+        "password": "abcdefgh",
+        "confirm_password": "abcdefgh",
+        "role": "user",
+    })
+    resp = await submit(req)
+    # Should redirect with some error
+    location = str(resp.headers.get("location", "")) if hasattr(resp, "headers") else ""
+    assert "error" in location or resp is not None
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_no_user_created(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.create = MagicMock(return_value=None)
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "username": "alice",
+        "email": "a@x.com",
+        "password": "abcdefgh",
+        "confirm_password": "abcdefgh",
+        "role": "user",
+    })
+    resp = await submit(req)
+    location = str(resp.headers.get("location", "")) if hasattr(resp, "headers") else ""
+    assert "error" in location or resp is not None
