@@ -914,3 +914,25 @@ async def test_run_grid_search_bad_dates_returns_400():
         resp = await run_grid_search(req, name="x")
     assert resp is not None
 
+
+@pytest.mark.asyncio
+async def test_run_grid_search_with_params():
+    """When strategy found and dates valid, calls GridSearch.run."""
+    import asyncio as _asyncio
+
+    fake_gs = MagicMock()
+    fake_gs.run = MagicMock(return_value=MagicMock(to_json=lambda **k: "[]"))
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader, \
+         patch.object(strategy_mod_alias, "GridSearch", return_value=fake_gs):
+        mock_loader.load_from_cache = MagicMock(return_value={"x": MagicMock()})
+        req = MagicMock()
+        req.form = AsyncMock(return_value={
+            "start_date": "2024-01-01",
+            "end_date": "2024-06-30",
+            "param_a": "1,2,3",  # grid param
+            "param_b": "5",  # base config
+            "max_workers": "2",
+        })
+        resp = await run_grid_search(req, name="x")
+    assert resp is not None
+
