@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import polars as pl
 from unittest.mock import MagicMock, patch
 
 from quantide.web.pages import trade_lightning as tl_mod
@@ -196,9 +197,114 @@ def test_resolve_asset_input_with_code_pattern():
 
 import pytest as _pt
 from quantide.web.pages.trade_lightning import (
+    _resolve_lightning_price,
     trade_lightning_create_modal,
     trade_lightning_delete_modal,
 )
+
+
+def test_resolve_lightning_price_current_p1():
+    """current_p1 returns current * 1.01."""
+    with patch.object(tl_mod_main, "live_quote") as mock_lq:
+        mock_lq.is_running = True
+        mock_lq.get_quote = MagicMock(return_value={"price": 100.0})
+        got = _resolve_lightning_price("000001.SZ", "current_p1")
+    assert got == 101.0
+
+
+def test_resolve_lightning_price_current_no_quote():
+    """When no quote, falls back to close."""
+    with patch.object(tl_mod_main, "live_quote") as mock_lq, \
+         patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        mock_lq.is_running = True
+        mock_lq.get_quote = MagicMock(return_value=None)
+        mock_dbars.get_bars = MagicMock(return_value=pl.DataFrame())
+        got = _resolve_lightning_price("000001.SZ", "current")
+    assert got == 0.0
+
+
+def test_resolve_lightning_price_unknown_ref():
+    """Unknown price_ref → 0."""
+    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars = MagicMock(return_value=pl.DataFrame())
+        got = _resolve_lightning_price("000001.SZ", "unknown_ref")
+    assert got == 0.0
+
+
+
+def test_resolve_lightning_price_close_with_bars():
+    """close → returns last bar's close price."""
+    import datetime
+    fake_bars = pl.DataFrame({
+        "date": [datetime.date(2024, 6, 1)],
+        "close": [50.0],
+    })
+    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars = MagicMock(return_value=fake_bars)
+        got = _resolve_lightning_price("000001.SZ", "close")
+    assert got == 50.0
+
+
+def test_resolve_lightning_price_close_exception():
+    """When daily_bars.get_bars raises, returns 0."""
+    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars = MagicMock(side_effect=Exception("boom"))
+        got = _resolve_lightning_price("000001.SZ", "close")
+    assert got == 0.0
+
+
+def test_resolve_lightning_price_close_zero():
+    """When close is 0, returns 0."""
+    import datetime
+    fake_bars = pl.DataFrame({
+        "date": [datetime.date(2024, 6, 1)],
+        "close": [0.0],
+    })
+    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars = MagicMock(return_value=fake_bars)
+        got = _resolve_lightning_price("000001.SZ", "close")
+    assert got == 0.0
+
+
+def test_resolve_lightning_price_ma_invalid_format():
+    """maX with invalid number → 0."""
+    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        got = _resolve_lightning_price("000001.SZ", "ma_invalid")
+    assert got == 0.0
+
+
+def test_resolve_lightning_price_ma_too_few_bars():
+    """ma5 with only 3 bars → 0."""
+    import datetime
+    fake_bars = pl.DataFrame({
+        "date": [datetime.date(2024, 6, d) for d in range(1, 4)],
+        "close": [100.0, 105.0, 110.0],
+    })
+    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars = MagicMock(return_value=fake_bars)
+        got = _resolve_lightning_price("000001.SZ", "ma5")
+    assert got == 0.0
+
+
+def test_resolve_lightning_price_ma5_valid():
+    """ma5 with 5 bars → returns mean."""
+    import datetime
+    fake_bars = pl.DataFrame({
+        "date": [datetime.date(2024, 6, d) for d in range(1, 6)],
+        "close": [100.0, 110.0, 105.0, 115.0, 120.0],
+    })
+    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars = MagicMock(return_value=fake_bars)
+        got = _resolve_lightning_price("000001.SZ", "ma5")
+    assert got == 110.0
+
+
+def test_resolve_lightning_price_unknown_ref():
+    """Unknown price_ref → 0."""
+    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
+        mock_dbars.get_bars = MagicMock(return_value=pl.DataFrame())
+        got = _resolve_lightning_price("000001.SZ", "unknown_ref")
+    assert got == 0.0
 
 
 @_pt.mark.asyncio
