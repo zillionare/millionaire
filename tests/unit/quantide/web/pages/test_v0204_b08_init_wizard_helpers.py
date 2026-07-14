@@ -505,3 +505,41 @@ def test_password_strong_with_8_chars_no_extra_categories():
     """8 chars, only one category → weak."""
     strength, msg = _check_password_strength("aaaaaaaa")
     assert strength == "weak"
+
+
+# ---------------------------------------------------------------------------
+# _calculate_download_range + _render_download_range_info
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.init_wizard import (
+    _calculate_download_range,
+    _render_download_range_info,
+)
+
+
+def test_calculate_download_range_one_year():
+    start, end = _calculate_download_range(1)
+    today = __import__("datetime").date.today()
+    assert end == today
+    # ~365 days difference (allow +/-1 day for leap second)
+    diff = (today - start).days
+    assert 364 <= diff <= 366
+
+
+def test_calculate_download_range_three_years():
+    start, end = _calculate_download_range(3)
+    today = __import__("datetime").date.today()
+    assert end == today
+    diff = (today - start).days
+    assert 1094 <= diff <= 1097
+
+
+def test_calculate_download_range_zero_years():
+    start, end = _calculate_download_range(0)
+    assert start == end
+
+
+def test_render_download_range_info():
+    out = _render_download_range_info(3)
+    assert out is not None
