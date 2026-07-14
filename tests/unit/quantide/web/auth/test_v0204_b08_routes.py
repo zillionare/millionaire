@@ -477,3 +477,78 @@ async def test_profile_submit_password_empty():
     # Just run the path
     resp = await profile_submit(req)
     assert resp is not None
+
+
+# ---------------------------------------------------------------------------
+# register_all + admin_dashboard
+# ---------------------------------------------------------------------------
+
+
+def test_register_all_minimal_no_admin():
+    """register_all without admin option."""
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    auth.user_repo = MagicMock()
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", include_admin=False, allow_custom_login=False)
+    assert "login_page" in routes.routes
+    assert "logout" in routes.routes
+    assert "profile_page" in routes.routes
+
+
+def test_register_all_with_custom_login():
+    """When allow_custom_login=True, skip login routes."""
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    auth.user_repo = MagicMock()
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", allow_custom_login=True)
+    assert "login_page" not in routes.routes
+    assert "logout" in routes.routes
+
+
+def test_register_all_with_allow_registration():
+    auth = MagicMock()
+    auth.config = {"allow_registration": True, "allow_password_reset": False}
+    auth.user_repo = MagicMock()
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth")
+    assert "register_page" in routes.routes
+
+
+def test_register_all_with_password_reset():
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": True}
+    auth.user_repo = MagicMock()
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth")
+    assert "forgot_password" in routes.routes
+
+
+def test_admin_dashboard():
+    """admin_dashboard renders user statistics."""
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    auth.user_repo = MagicMock()
+    auth.user_repo.count_by_role = MagicMock(return_value={"admin": 1, "manager": 0, "user": 5})
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", include_admin=True)
+    dashboard = routes.routes["admin_dashboard"]
+    req = MagicMock()
+    out = dashboard(req)
+    assert out is not None
