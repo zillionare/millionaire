@@ -152,3 +152,65 @@ def test_live_trade_panel():
 def test_live_trade_panel_no_args():
     """Skipped: TradePanel requires portfolio_id."""
     pass
+
+
+# ---------------------------------------------------------------------------
+# PortfolioList rendering with portfolios
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.live import PortfolioList
+
+
+def test_portfolio_list_empty():
+    out = PortfolioList(portfolios=[], gateway_connected=False)
+    assert out is not None
+
+
+def test_portfolio_list_none():
+    out = PortfolioList(portfolios=None, gateway_connected=False)
+    assert out is not None
+
+
+def test_portfolio_list_with_one():
+    out = PortfolioList(portfolios=[{
+        "portfolio_id": "abc123def",
+        "name": "MyPortfolio",
+        "principal": 100000,
+        "total": 110000,
+        "pnl_pct": 0.1,
+        "status": True,
+    }])
+    assert out is not None
+
+
+def test_portfolio_list_disconnected():
+    out = PortfolioList(portfolios=[{"portfolio_id": "p1"}], gateway_connected=False)
+    assert out is not None
+
+
+def test_portfolio_list_with_status_false():
+    out = PortfolioList(portfolios=[{
+        "portfolio_id": "p1",
+        "name": "Stopped",
+        "status": False,
+    }])
+    assert out is not None
+
+
+def test_portfolio_list_with_negative_pnl():
+    out = PortfolioList(portfolios=[{
+        "portfolio_id": "p1",
+        "name": "Loss",
+        "pnl_pct": -0.1,
+    }])
+    assert out is not None
+
+
+def test_portfolio_list_multiple():
+    out = PortfolioList(portfolios=[
+        {"portfolio_id": "p1", "name": "A", "principal": 100, "total": 110, "pnl_pct": 0.1},
+        {"portfolio_id": "p2", "name": "B", "principal": 200, "total": 220, "pnl_pct": 0.1},
+        {"portfolio_id": "p3", "name": "C", "status": False},
+    ])
+    assert out is not None
