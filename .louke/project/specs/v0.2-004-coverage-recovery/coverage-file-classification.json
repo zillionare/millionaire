@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T07:19:20.187090+00:00",
+  "generated_at": "2026-07-14T07:22:48.468618+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -12,18 +12,13 @@
     "v0.2_added_count": 35,
     "pre_v0.2_retained_count": 134,
     "v0.2_added_passing": 35,
-    "pre_v0.2_retained_passing": 101,
+    "pre_v0.2_retained_passing": 102,
     "v0.2_added_under_threshold": [],
     "pre_v0.2_retained_under_threshold": [
       {
         "path": "quantide/core/runtime/gateway_broker.py",
         "percent_covered": 75.48,
         "num_statements": 454
-      },
-      {
-        "path": "quantide/core/runtime/port_broker.py",
-        "percent_covered": 70.08,
-        "num_statements": 109
       },
       {
         "path": "quantide/web/apis/analysis/kline.py",
@@ -495,12 +490,12 @@
       "path": "quantide/core/runtime/port_broker.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 70.08,
+      "percent_covered": 100.0,
       "num_statements": 109,
       "num_branches": 18,
-      "covered_branches": 9,
+      "covered_branches": 18,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/core/runtime/registration.py",
