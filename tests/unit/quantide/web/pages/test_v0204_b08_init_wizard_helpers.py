@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -542,4 +542,57 @@ def test_calculate_download_range_zero_years():
 
 def test_render_download_range_info():
     out = _render_download_range_info(3)
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# handle_complete + SyncProgressDialog + reset_initialization
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.init_wizard import (
+    SyncProgressDialog,
+    handle_complete,
+    reset_initialization,
+)
+
+
+@pytest.mark.asyncio
+async def test_handle_complete_success():
+    """handle_complete → returns script with redirect."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_bootstrap_runtime_for_initialized_app"), \
+         patch.object(iw_mod, "_set_reconfigure_mode"):
+        mock_iw.complete_initialization = MagicMock()
+        mock_iw.get_completion_redirect = MagicMock(return_value="/dashboard")
+        req = MagicMock()
+        req.app = MagicMock()
+        resp = await handle_complete(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_handle_complete_exception():
+    """When init_wizard raises, returns error div."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_bootstrap_runtime_for_initialized_app"), \
+         patch.object(iw_mod, "_set_reconfigure_mode"):
+        mock_iw.complete_initialization = MagicMock(side_effect=Exception("boom"))
+        req = MagicMock()
+        req.app = MagicMock()
+        resp = await handle_complete(req)
+    assert resp is not None
+
+
+def test_reset_initialization():
+    """reset_initialization just calls init_wizard.reset_initialization."""
+    import asyncio
+    with patch.object(iw_mod, "init_wizard") as mock_iw:
+        mock_iw.reset_initialization = AsyncMock()
+        asyncio.run(reset_initialization())
+    mock_iw.reset_initialization.assert_called_once()
+
+
+def test_sync_progress_dialog():
+    out = SyncProgressDialog()
     assert out is not None
