@@ -501,18 +501,86 @@ def test_form_to_config_empty():
     assert out == {"x": 1}
 
 
-def test_form_to_config_replaces_keys():
-    """Form values override base keys."""
-    base = {"key1": "old1", "key2": "old2"}
-    form = {"param_key1": "new1", "key2": "new2", "other": "ignored"}
-    # _form_to_config uses param-prefixed keys for param overrides
+def test_form_to_config_replaces_with_custom_keys():
+    """Form values override base keys via custom_{key} pattern."""
+    base = {"x": 1, "y": 2}
+    form = {"custom_x": "100", "custom_y": "200"}
     out = _form_to_config(form, base)
-    assert isinstance(out, dict)
+    assert out["x"] == 100  # int converted
+    assert out["y"] == 200
 
 
-def test_form_to_config_drops_unknown_values():
-    base = {"x": 1}
-    form = {"foo": "bar", "baz": "qux"}
+def test_form_to_config_keeps_base_when_no_custom():
+    """When form lacks custom_{key}, base value is kept."""
+    base = {"x": "old", "y": "old"}
+    form = {}
     out = _form_to_config(form, base)
-    # Unknown keys should not be added (only known keys retained/overridden)
-    assert "foo" not in out or "x" in out
+    assert out["x"] == "old"
+    assert out["y"] == "old"
+
+
+def test_form_to_config_partial_override():
+    """When form has some custom keys, others stay."""
+    base = {"a": 1, "b": 2, "c": 3}
+    form = {"custom_a": "999"}
+    out = _form_to_config(form, base)
+    assert out["a"] == 999
+    assert out["b"] == 2
+    assert out["c"] == 3
+
+
+def test_form_to_config_float_override():
+    """Override with float string."""
+    base = {"threshold": 0}
+    form = {"custom_threshold": "0.5"}
+    out = _form_to_config(form, base)
+    assert out["threshold"] == 0.5
+
+
+# ---------------------------------------------------------------------------
+# _load_backtest_run_config
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import _load_backtest_run_config
+
+
+def test_load_backtest_run_config_no_run():
+    """When no run, returns ({}, None)."""
+    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr:
+        mock_mgr.get_backtest_run_or_resolve = MagicMock(return_value=None)
+        cfg, default = _load_backtest_run_config("p1")
+    assert cfg == {}
+    assert default is None
+
+
+def test_load_backtest_run_config_with_run():
+    """When run exists, returns (config, default_config)."""
+    fake_run = MagicMock()
+    fake_run.config = {"k": "v"}
+    fake_run.strategy_name = "MyStrat"
+    fake_cls = MagicMock()
+    fake_cls.default_config = MagicMock(return_value={"default": 1})
+    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_mod, "strategy_loader") as mock_loader:
+        mock_mgr.get_backtest_run_or_resolve = MagicMock(return_value=fake_run)
+        mock_loader.load_from_cache = MagicMock(return_value={"MyStrat": fake_cls})
+        cfg, default = _load_backtest_run_config("p1")
+    assert cfg == {"k": "v"}
+    assert default == {"default": 1}
+
+
+def test_load_backtest_run_config_no_default_config():
+    """When strategy class has no default_config attr, returns (config, None)."""
+    fake_run = MagicMock()
+    fake_run.config = {"k": "v"}
+    fake_run.strategy_name = "MyStrat"
+    fake_cls = MagicMock(spec=[])  # no default_config attr
+    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_mod, "strategy_loader") as mock_loader:
+        mock_mgr.get_backtest_run_or_resolve = MagicMock(return_value=fake_run)
+        mock_loader.load_from_cache = MagicMock(return_value={"MyStrat": fake_cls})
+        cfg, default = _load_backtest_run_config("p1")
+    assert cfg == {"k": "v"}
+    # Exception in default_config path → None
+    assert default is None
