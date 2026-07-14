@@ -6,7 +6,7 @@ Push gateway_broker.py from 75.5% toward 80%.
 from __future__ import annotations
 
 import datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -16,6 +16,8 @@ from quantide.core.runtime.gateway_broker import (
     GatewayBrokerWrapper,
     GatewayTradeStateConsistencyError,
 )
+from quantide.core.enums import BrokerKind, OrderSide
+import datetime
 from quantide.core.runtime.gateway_client import GatewayClient
 
 
@@ -257,3 +259,109 @@ def test_resolve_qtoid_requested_only(adapter):
 def test_resolve_qtoid_no_qtoid_no_external_raises(adapter):
     with pytest.raises(GatewayTradeStateConsistencyError):
         adapter._resolve_qtoid({}, context="submit")
+
+
+# ---------------------------------------------------------------------------
+# GatewayBrokerWrapper basic buy/sell flow
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_wrapper_buy_when_cheat_on_close_submits_immediately():
+    """When cheat_on_close=True (default), buy calls adapter.submit."""
+    client = MagicMock()
+    adapter = GatewayBrokerAdapter(client=client)
+    wrapper = GatewayBrokerWrapper(adapter=adapter, portfolio_id="p1")
+    wrapper.set_strategy_runtime_config(cheat_on_close=True)
+    fake_ack = MagicMock()
+    fake_ack.order_id = "q1"
+    fake_ack.exec_id = "e1"
+    fake_ack.asset = "000001.SZ"
+    fake_ack.shares = 100.0
+    fake_ack.price = 10.0
+    fake_ack.amount = 1000.0
+    fake_ack.ack_time = None
+    adapter.submit = AsyncMock(return_value=fake_ack)
+    out = await wrapper.buy(asset="000001.SZ", shares=100)
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_wrapper_buy_when_not_cheat_appends_to_deferred():
+    """When cheat_on_close=False, adds to deferred_orders."""
+    client = MagicMock()
+    adapter = GatewayBrokerAdapter(client=client)
+    wrapper = GatewayBrokerWrapper(adapter=adapter, portfolio_id="p1")
+    wrapper.set_strategy_runtime_config(cheat_on_close=False)
+    out = await wrapper.buy(asset="000001.SZ", shares=100)
+    assert len(wrapper.deferred_orders) == 1
+    assert wrapper.deferred_orders[0]["asset"] == "000001.SZ"
+    assert wrapper.deferred_orders[0]["side"] == OrderSide.BUY
+
+
+@pytest.mark.asyncio
+async def test_wrapper_sell_when_not_cheat_appends_to_deferred():
+    client = MagicMock()
+    adapter = GatewayBrokerAdapter(client=client)
+    wrapper = GatewayBrokerWrapper(adapter=adapter, portfolio_id="p1")
+    wrapper.set_strategy_runtime_config(cheat_on_close=False)
+    out = await wrapper.sell(asset="000001.SZ", shares=100)
+    assert len(wrapper.deferred_orders) == 1
+    assert wrapper.deferred_orders[0]["side"] == OrderSide.SELL
+
+
+@pytest.mark.asyncio
+async def test_wrapper_cancel_order():
+    client = MagicMock()
+    adapter = GatewayBrokerAdapter(client=client)
+    adapter.cancel = AsyncMock(return_value=None)
+    wrapper = GatewayBrokerWrapper(adapter=adapter, portfolio_id="p1")
+    await wrapper.cancel_order(qt_oid="q1")
+    adapter.cancel.assert_awaited_once_with("q1")
+
+
+@pytest.mark.asyncio
+async def test_wrapper_buy_amount_and_percent():
+    """buy_amount + buy_percent behave similarly."""
+    client = MagicMock()
+    adapter = GatewayBrokerAdapter(client=client)
+    wrapper = GatewayBrokerWrapper(adapter=adapter, portfolio_id="p1")
+    wrapper.set_strategy_runtime_config(cheat_on_close=False)
+    await wrapper.buy_amount(asset="000001.SZ", amount=1000)
+    await wrapper.buy_percent(asset="000001.SZ", percent=0.1)
+    assert len(wrapper.deferred_orders) == 2
+
+
+@pytest.mark.asyncio
+async def test_wrapper_sell_amount_and_percent():
+    client = MagicMock()
+    adapter = GatewayBrokerAdapter(client=client)
+    wrapper = GatewayBrokerWrapper(adapter=adapter, portfolio_id="p1")
+    wrapper.set_strategy_runtime_config(cheat_on_close=False)
+    await wrapper.sell_amount(asset="000001.SZ", amount=1000)
+    await wrapper.sell_percent(asset="000001.SZ", percent=0.1)
+    assert len(wrapper.deferred_orders) == 2
+
+
+def test_wrapper_clock_set_and_get():
+    wrapper = GatewayBrokerWrapper(adapter=MagicMock(), portfolio_id="p1")
+    assert wrapper._clock is None
+    wrapper.set_clock(__import__("datetime").datetime.now())
+    assert wrapper._clock is not None
+
+
+def test_wrapper_kinds():
+    wrapper = GatewayBrokerWrapper(adapter=MagicMock(), portfolio_id="p1")
+    assert wrapper.kind == BrokerKind.QMT
+
+
+def test_wrapper_strategy_runtime_config():
+    wrapper = GatewayBrokerWrapper(adapter=MagicMock(), portfolio_id="p1")
+    wrapper.set_strategy_runtime_config(
+        cheat_on_close=True,
+        live_execution_window="morning",
+        live_execution_slippage=0.005,
+    )
+    assert wrapper._strategy_cheat_on_close is True
+    assert wrapper._live_execution_window == "morning"
+    assert wrapper._live_execution_slippage == 0.005
