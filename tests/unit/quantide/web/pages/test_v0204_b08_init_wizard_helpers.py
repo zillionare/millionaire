@@ -731,3 +731,51 @@ async def test_handle_update_download_range_invalid():
         req.form = AsyncMock(return_value={"history_years": "garbage"})
         resp = await iw_mod.handle_update_download_range(req)
     assert resp is not None
+
+
+# ---------------------------------------------------------------------------
+# handle_step step=3 (admin password)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_handle_step_admin_password_mismatch():
+    """step=3 + password mismatch → return error wizard main content."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=False), \
+         patch.object(iw_mod, "_render_wizard_main_content", return_value="err") as mock_render, \
+         patch.object(iw_mod, "Step3_Admin", return_value="form") as mock_step:
+        fake_state = MagicMock()
+        fake_state.to_dict = MagicMock(return_value={"k": "v"})
+        mock_iw.get_state = MagicMock(return_value=fake_state)
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"nav": "next", "_current_step": "3",
+                                              "admin_password": "abc",
+                                              "admin_password_confirm": "xyz"})
+        resp = await handle_step(req, step=3)
+    assert resp == "err"
+    mock_render.assert_called_once()
+    # Just confirm render was called (error path taken)
+    assert mock_render.called
+
+
+@pytest.mark.asyncio
+async def test_handle_step_admin_password_save_exception():
+    """step=3 + save raises → return error wizard main content."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=False), \
+         patch.object(iw_mod, "_render_wizard_main_content", return_value="err") as mock_render, \
+         patch.object(iw_mod, "Step3_Admin", return_value="form"):
+        fake_state = MagicMock()
+        fake_state.to_dict = MagicMock(return_value={"k": "v"})
+        mock_iw.get_state = MagicMock(return_value=fake_state)
+        mock_iw.save_admin_password = MagicMock(side_effect=Exception("save failed"))
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"nav": "next", "_current_step": "3",
+                                              "admin_password": "abcdefgh",
+                                              "admin_password_confirm": "abcdefgh"})
+        resp = await handle_step(req, step=3)
+    assert resp == "err"
+    assert mock_render.called
