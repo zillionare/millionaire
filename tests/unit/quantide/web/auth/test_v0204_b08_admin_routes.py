@@ -629,3 +629,75 @@ def test_admin_users_list_with_search_filter(admin, fake_app):
     req.scope = {"session": {}}
     out = fn(req)
     assert out is not None
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_username_taken(admin, fake_app):
+    """Username already exists → redirect with username_taken error."""
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_username = MagicMock(return_value="existing")
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "username": "alice",
+        "email": "a@x.com",
+        "password": "abcdefgh",
+        "confirm_password": "abcdefgh",
+        "role": "user",
+    })
+    sess = {}
+    resp = await submit(req)
+    assert "error=username_taken" in str(resp.headers.get("location", ""))
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_inactive(admin, fake_app):
+    """active='off' requires update with active=False."""
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_username = MagicMock(return_value=None)
+    fake_user = MagicMock()
+    fake_user.id = 1
+    admin.auth.user_repo.create = MagicMock(return_value=fake_user)
+    admin.auth.user_repo.update = MagicMock(return_value=True)
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "username": "alice",
+        "email": "a@x.com",
+        "password": "abcdefgh",
+        "confirm_password": "abcdefgh",
+        "role": "user",
+        "active": "",  # not "on", so should update to active=False
+    })
+    sess = {}
+    resp = await submit(req)
+    assert "success=created" in str(resp.headers.get("location", ""))
+    admin.auth.user_repo.update.assert_called_once_with(1, active=False)
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_create_active_default(admin, fake_app):
+    """active='on' (default) → no update call needed."""
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_username = MagicMock(return_value=None)
+    fake_user = MagicMock()
+    fake_user.id = 1
+    admin.auth.user_repo.create = MagicMock(return_value=fake_user)
+    admin.auth.user_repo.update = MagicMock(return_value=True)
+    submit = admin.routes["admin_user_create_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "username": "alice",
+        "email": "a@x.com",
+        "password": "abcdefgh",
+        "confirm_password": "abcdefgh",
+        "role": "user",
+        "active": "on",
+    })
+    sess = {}
+    resp = await submit(req)
+    # No update call since active=True
+    admin.auth.user_repo.update.assert_not_called()
