@@ -155,3 +155,75 @@ def test_info_row_returns_div():
 def test_info_row_with_int_value():
     out = InfoRow("Count", 42)
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _create_users_table
+# ---------------------------------------------------------------------------
+
+
+def test_create_users_table_empty(admin):
+    out = admin._create_users_table(users=[], prefix="/auth/admin")
+    assert out is not None
+
+
+def test_create_users_table_with_users(admin):
+    users = [
+        _user("alice", "a@x.com", "user", True),
+        _user("bob", "b@x.com", "admin", False),
+    ]
+    out = admin._create_users_table(users=users, prefix="/auth/admin")
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _create_user_form
+# ---------------------------------------------------------------------------
+
+
+def test_create_user_form_no_error(admin):
+    out = admin._create_user_form(action="/auth/admin/users/create")
+    assert out is not None
+
+
+def test_create_user_form_with_error(admin):
+    out = admin._create_user_form(action="/auth/admin/users/create", error="username_taken")
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _create_edit_user_form
+# ---------------------------------------------------------------------------
+
+
+def test_create_edit_user_form(admin):
+    user = MagicMock()
+    user.username = "alice"
+    user.email = "a@x.com"
+    user.role = "user"
+    user.active = True
+    out = admin._create_edit_user_form(user=user, action="/auth/admin/users/edit/1")
+    assert out is not None
+
+
+def test_create_edit_user_form_error(admin):
+    user = MagicMock()
+    user.username = "alice"
+    user.email = "a@x.com"
+    user.role = "user"
+    user.active = True
+    out = admin._create_edit_user_form(user=user, action="/auth/admin/users/edit/1", error="invalid")
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _create_delete_confirmation
+# ---------------------------------------------------------------------------
+
+
+def test_create_delete_confirmation(admin):
+    user = MagicMock()
+    user.username = "alice"
+    user.email = "a@x.com"
+    out = admin._create_delete_confirmation(user=user, prefix="/auth/admin")
+    assert out is not None
