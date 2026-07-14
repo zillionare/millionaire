@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from quantide.web.pages import init_wizard as iw_mod
+from starlette.responses import RedirectResponse
 from quantide.web.pages.init_wizard import (
     _coerce_checkbox,
     _extract_form_updates,
@@ -596,3 +597,95 @@ def test_reset_initialization():
 def test_sync_progress_dialog():
     out = SyncProgressDialog()
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# handle_step nav=prev path
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.init_wizard import (
+    InitWizardPage,
+    get as init_get,
+    handle_step,
+)
+
+
+@pytest.mark.asyncio
+async def test_init_get_when_already_initialized():
+    """When is_initialized()=True, redirect to /."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=False):
+        mock_iw.is_initialized = MagicMock(return_value=True)
+        req = MagicMock()
+        req.query_params = {}
+        resp = await init_get(req)
+    assert isinstance(resp, RedirectResponse)
+
+
+@pytest.mark.asyncio
+async def test_init_get_when_check_raises():
+    """When is_initialized raises RuntimeError, continues to render."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=False):
+        mock_iw.is_initialized = MagicMock(side_effect=RuntimeError("init failed"))
+        fake_state = MagicMock()
+        fake_state.to_dict = MagicMock(return_value={})
+        mock_iw.get_state = MagicMock(return_value=fake_state)
+        mock_iw.start_initialization = MagicMock()
+        req = MagicMock()
+        req.query_params = {}
+        resp = await init_get(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_init_get_when_start_initialization_raises():
+    """When start_initialization raises RuntimeError, continues."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=False):
+        mock_iw.is_initialized = MagicMock(return_value=False)
+        fake_state = MagicMock()
+        fake_state.to_dict = MagicMock(return_value={})
+        mock_iw.get_state = MagicMock(return_value=fake_state)
+        mock_iw.start_initialization = MagicMock(side_effect=RuntimeError("start failed"))
+        req = MagicMock()
+        req.query_params = {}
+        resp = await init_get(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_init_get_force_mode():
+    """When force mode, doesn't check is_initialized."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=True):
+        fake_state = MagicMock()
+        fake_state.to_dict = MagicMock(return_value={})
+        mock_iw.get_state = MagicMock(return_value=fake_state)
+        mock_iw.start_initialization = MagicMock()
+        req = MagicMock()
+        req.query_params = {"force": "true"}
+        resp = await init_get(req)
+    mock_iw.is_initialized.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_step_prev_no_action():
+    """nav=prev skips data validation."""
+    with patch.object(iw_mod, "init_wizard") as mock_iw, \
+         patch.object(iw_mod, "_set_reconfigure_mode"), \
+         patch.object(iw_mod, "_request_in_force_mode", return_value=False):
+        fake_state = MagicMock()
+        fake_state.to_dict = MagicMock(return_value={})
+        mock_iw.get_state = MagicMock(return_value=fake_state)
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"nav": "prev"})
+        # Just exercise the path
+        resp = await handle_step(req, step=2)
+    # No save_runtime_config call expected
+    mock_iw.save_runtime_config.assert_not_called()
