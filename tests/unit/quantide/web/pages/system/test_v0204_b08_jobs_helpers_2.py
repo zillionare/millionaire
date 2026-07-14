@@ -345,3 +345,47 @@ def test_get_job_status_with_data(db):
             mock_sched.scheduler.get_job = MagicMock(return_value=None)
             out = _get_job_status("x")
     assert "last_run" in out or "has_scheduler_job" in out
+
+
+# ---------------------------------------------------------------------------
+# toggle_job
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.system.jobs import toggle_job, _job_enabled_state
+
+
+@pytest.mark.asyncio
+async def test_toggle_job_unknown():
+    """Unknown job_id → redirect."""
+    resp = await toggle_job("unknown-job")
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_toggle_job_toggle_enable(db):
+    """When currently disabled → enables."""
+    from quantide.web.pages.system.jobs import PREDEFINED_JOBS
+    with patch("quantide.web.pages.system.jobs._toggle_job") as mock_toggle:
+        jid = list(PREDEFINED_JOBS.keys())[0]
+        # Force current state to False
+        _job_enabled_state[jid] = False
+        try:
+            resp = await toggle_job(jid)
+        finally:
+            _job_enabled_state.pop(jid, None)
+        mock_toggle.assert_called_once_with(jid, True)
+
+
+@pytest.mark.asyncio
+async def test_toggle_job_toggle_disable(db):
+    """When currently enabled → disables."""
+    from quantide.web.pages.system.jobs import PREDEFINED_JOBS
+    with patch("quantide.web.pages.system.jobs._toggle_job") as mock_toggle:
+        jid = list(PREDEFINED_JOBS.keys())[0]
+        _job_enabled_state[jid] = True
+        try:
+            resp = await toggle_job(jid)
+        finally:
+            _job_enabled_state.pop(jid, None)
+        mock_toggle.assert_called_once_with(jid, False)
