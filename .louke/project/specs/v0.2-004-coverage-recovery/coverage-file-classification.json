@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T07:22:48.468618+00:00",
+  "generated_at": "2026-07-14T07:37:35.484007+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -12,7 +12,7 @@
     "v0.2_added_count": 35,
     "pre_v0.2_retained_count": 134,
     "v0.2_added_passing": 35,
-    "pre_v0.2_retained_passing": 102,
+    "pre_v0.2_retained_passing": 103,
     "v0.2_added_under_threshold": [],
     "pre_v0.2_retained_under_threshold": [
       {
@@ -24,11 +24,6 @@
         "path": "quantide/web/apis/analysis/kline.py",
         "percent_covered": 13.83,
         "num_statements": 136
-      },
-      {
-        "path": "quantide/web/apis/analysis/search.py",
-        "percent_covered": 37.5,
-        "num_statements": 24
       },
       {
         "path": "quantide/web/apis/broker.py",
@@ -1084,12 +1079,12 @@
       "path": "quantide/web/apis/analysis/search.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 37.5,
+      "percent_covered": 100.0,
       "num_statements": 24,
       "num_branches": 8,
-      "covered_branches": 1,
+      "covered_branches": 8,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/apis/broker.py",
