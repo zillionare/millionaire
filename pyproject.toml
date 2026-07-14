@@ -194,4 +194,9 @@ exclude_lines = [
     "if 0:",
     "if __name__ == .__main__.:",
     "def main",
+    # Protocol / abstract method stubs whose body is exactly `...`
+    # (Ellipsis). These statements are never executed at runtime —
+    # they live inside the function body of a typing.Protocol and
+    # therefore cannot be reached by any runtime call path.
+    '^\s*(((async )?def .*?)?[\])]+(\s*->.*?)?:\s*)?\.\.\.\s*(#|$)',
 ]
