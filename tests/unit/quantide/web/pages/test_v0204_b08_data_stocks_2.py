@@ -81,6 +81,37 @@ def test_search_tab_with_query_handles_exception():
     assert out is not None
 
 
+# ---------------------------------------------------------------------------
+# _run_stocks_sync — exercises status state machine
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.data_stocks import _run_stocks_sync, _sync_status
+
+import asyncio
+
+
+def test_run_stocks_sync_success_state_resets():
+    """End state when sync succeeds."""
+    _sync_status["is_running"] = False
+    with patch("quantide.web.pages.data_stocks.stock_list") as mock_sl:
+        mock_sl.update = MagicMock()
+        asyncio.run(_run_stocks_sync())
+    assert _sync_status["completed"] is True
+    assert _sync_status["is_running"] is False
+
+
+def test_run_stocks_sync_error_records():
+    _sync_status["is_running"] = False
+    with patch("quantide.web.pages.data_stocks.stock_list") as mock_sl:
+        def _boom():
+            raise Exception("sync failed")
+        mock_sl.update = _boom
+        asyncio.run(_run_stocks_sync())
+    assert _sync_status["error"] is not None
+    assert _sync_status["is_running"] is False
+
+
 # Path import for OverviewTab test
 from pathlib import Path
 

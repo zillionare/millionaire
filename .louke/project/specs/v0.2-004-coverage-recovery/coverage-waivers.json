@@ -24,16 +24,6 @@
       "followup_issue": "followup/v0.2-004-uifragment-002"
     },
     {
-      "module": "quantide/web/pages/data_stocks.py",
-      "current_coverage": 69.44,
-      "reason": "Three TabNav/_OverviewTab/_SearchTab/_UpdateTab HTML payloads + fuzzy_search + price-limit lookups; pushed +7pts in v0.2-004 but remaining lines are mostly fastapi-Polars date axes and HTMX rendering fragments.",
-      "evidence": "unit tests added in v0.2-004 testing pure helpers; remaining is HTMX/FastHTML fragments",
-      "approved_by": "aaron",
-      "approved_at": "2026-07-14T11:18:45.146196+00:00",
-      "expires_at": "2027-01-10T11:18:45.146376+00:00",
-      "followup_issue": "followup/v0.2-004-uifragment-003"
-    },
-    {
       "module": "quantide/web/pages/paper.py",
       "current_coverage": 73.04,
       "reason": "paper_list dispatcher across 4 render paths (default_/_render_paper_account/_render_paper_picker/_render_empty_paper/_render_no_registry) — each branch tested but rendering helpers are FastHTML tree-builders with low coverage value when exercised.",
