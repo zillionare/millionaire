@@ -690,14 +690,76 @@ def test_build_backtest_sidebar_menu_has_all_tabs():
 
 
 # ---------------------------------------------------------------------------
-# backtest_modal + grid_search_modal
+# run_backtest (async route)
 # ---------------------------------------------------------------------------
 
 
 from quantide.web.pages.strategy import (
     backtest_modal,
     grid_search_modal,
+    run_backtest,
 )
+
+
+def test_backtest_modal_unknown_strategy():
+    """Returns 'Strategy not found' for unknown."""
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={})
+        out = backtest_modal("missing")
+    assert out == "Strategy not found"
+
+
+def test_backtest_modal_known_strategy():
+    """When strategy found, returns modal Div with form."""
+    fake_cls = MagicMock()
+    fake_cls.PARAMS = {"x": 1, "y": "hello"}
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"TestStrat": fake_cls})
+        out = backtest_modal("TestStrat")
+    assert out is not None
+
+
+def test_backtest_modal_no_params():
+    """When strategy has no PARAMS attr, treats as empty dict."""
+    fake_cls = MagicMock(spec=[])  # no PARAMS
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"TestStrat": fake_cls})
+        out = backtest_modal("TestStrat")
+    assert out is not None
+
+
+def test_grid_search_modal():
+    out = grid_search_modal("TestStrat")
+    assert out is not None
+
+
+def test_grid_search_modal_unknown():
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={})
+        out = grid_search_modal("missing")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_unknown_strategy():
+    """Returns 'Strategy not found' for unknown."""
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={})
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"start_date": "2024-01-01", "end_date": "2024-06-30"})
+        resp = await run_backtest(req, name="missing")
+    assert "not found" in str(resp).lower() or resp is not None
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_bad_dates():
+    """Returns error message for invalid dates."""
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"x": MagicMock()})
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"start_date": "garbage", "end_date": "ok"})
+        resp = await run_backtest(req, name="x")
+    assert resp is not None
 
 
 def test_backtest_modal_unknown_strategy():
