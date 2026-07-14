@@ -432,3 +432,69 @@ async def test_place_order_broker_raises_returns_toast():
     req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "5", "order_mode": "SHARES"})
     resp = await place_order_trade(req)
     assert resp is not None
+
+
+# ---------------------------------------------------------------------------
+# place_order_trade with SELL side + branch coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_place_order_sell_amount_no_amount_method():
+    """When broker lacks sell_amount, falls back to broker.sell."""
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock(spec=["sell"])  # no sell_amount
+    fake_broker.sell = AsyncMock(return_value=MagicMock(qt_oid="o2"))
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "SELL", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "5", "order_mode": "AMOUNT"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_buy_amount_no_amount_method():
+    """When broker lacks buy_amount, falls back to broker.buy."""
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock(spec=["buy"])  # no buy_amount
+    fake_broker.buy = AsyncMock(return_value=MagicMock(qt_oid="o3"))
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "5", "order_mode": "AMOUNT"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_sell_shares():
+    """SELL order_mode=SHARES → broker.sell directly."""
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock(spec=["sell"])
+    fake_broker.sell = AsyncMock(return_value=MagicMock(qt_oid="o4"))
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "SELL", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "5", "order_mode": "SHARES"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_default_account():
+    """When no active_account_kind/id, uses reg.get_default()."""
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock(spec=["buy", "sell"])
+    fake_broker.buy = AsyncMock(return_value=MagicMock(qt_oid="o5"))
+    reg.get = MagicMock(return_value=fake_broker)
+    reg.get_default = MagicMock(return_value=(BrokerKind.SIMULATION.value, "default-id"))
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "5", "order_mode": "SHARES"})
+    resp = await place_order_trade(req)
+    assert resp is not None
