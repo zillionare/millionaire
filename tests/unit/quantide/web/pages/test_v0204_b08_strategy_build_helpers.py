@@ -904,6 +904,66 @@ def test_backtest_deploy_capabilities_both():
     assert caps["live_available"] is True
 
 
+# ---------------------------------------------------------------------------
+# _get_live_accounts + _render_deploy_result + _render_config_table
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import (
+    _get_live_accounts,
+    _render_config_table,
+    _render_deploy_result,
+)
+
+
+def test_get_live_accounts_not_available():
+    req = MagicMock()
+    req.app.state.runtime = None
+    assert _get_live_accounts(req) == []
+
+
+def test_get_live_accounts_available():
+    fake_registry = MagicMock()
+    fake_registry.get = MagicMock(return_value="gateway-broker")
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.registry = fake_registry
+    accounts = _get_live_accounts(req)
+    assert len(accounts) == 1
+    assert accounts[0]["id"] == "gateway:default"
+
+
+def test_render_deploy_result_success():
+    out = _render_deploy_result("成功", is_error=False)
+    assert out is not None
+
+
+def test_render_deploy_result_error():
+    out = _render_deploy_result("失败", is_error=True)
+    assert out is not None
+
+
+def test_render_config_table_empty():
+    """Empty config + defaults → returns None."""
+    out = _render_config_table(config={}, default_config=None)
+    assert out is None
+
+
+def test_render_config_table_only_defaults():
+    out = _render_config_table(config={}, default_config={"a": 1})
+    assert out is not None
+
+
+def test_render_config_table_only_config():
+    out = _render_config_table(config={"a": 1}, default_config=None)
+    assert out is not None
+
+
+def test_render_config_table_both():
+    out = _render_config_table(config={"a": 5}, default_config={"a": 1, "b": 2})
+    assert out is not None
+
+
 def test_backtest_modal_unknown_strategy():
     """Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
