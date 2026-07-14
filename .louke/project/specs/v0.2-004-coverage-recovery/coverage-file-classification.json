@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T07:53:09.780008+00:00",
+  "generated_at": "2026-07-14T07:57:55.381130+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -12,7 +12,7 @@
     "v0.2_added_count": 35,
     "pre_v0.2_retained_count": 134,
     "v0.2_added_passing": 35,
-    "pre_v0.2_retained_passing": 109,
+    "pre_v0.2_retained_passing": 110,
     "v0.2_added_under_threshold": [],
     "pre_v0.2_retained_under_threshold": [
       {
@@ -119,11 +119,6 @@
         "path": "quantide/web/pages/system/runtime_monitor.py",
         "percent_covered": 40.58,
         "num_statements": 57
-      },
-      {
-        "path": "quantide/web/pages/system/runtime_support.py",
-        "percent_covered": 74.53,
-        "num_statements": 72
       },
       {
         "path": "quantide/web/pages/system/stocks.py",
@@ -1731,12 +1726,12 @@
       "path": "quantide/web/pages/system/runtime_support.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 74.53,
+      "percent_covered": 100.0,
       "num_statements": 72,
       "num_branches": 34,
-      "covered_branches": 20,
+      "covered_branches": 34,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/pages/system/stocks.py",
