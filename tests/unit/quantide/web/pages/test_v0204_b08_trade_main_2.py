@@ -722,3 +722,85 @@ def test_get_active_account_sim_label():
     })
     assert out["label"] == "仿真"
 
+
+# ---------------------------------------------------------------------------
+# trade_main_page with active account + broker path
+# ---------------------------------------------------------------------------
+
+
+def test_trade_main_page_with_active_account_sim():
+    """When registry has sim account + active session, renders broker view."""
+    from quantide.core.enums import BrokerKind
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "s1", "name": "Sim", "kind": "sim", "status": True}
+    ] if kind == BrokerKind.SIMULATION else [])
+    fake_broker = MagicMock()
+    fake_broker.asset = None
+    fake_broker.portfolio_name = "SimBroker"
+    fake_broker.total_assets = 1000
+    fake_broker.cash = 100
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"session": {"active_account_kind": "sim", "active_account_id": "s1"}, "registry": fake_reg}
+    req.query_params = {}
+    req.path_params = {}
+    out = trade_main_page(req)
+    assert out is not None
+
+
+def test_trade_main_page_with_active_account_qmt():
+    """When registry has QMT account + active session, renders."""
+    from quantide.core.enums import BrokerKind
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "q1", "name": "Q1", "kind": "qmt", "status": True}
+    ] if kind == BrokerKind.QMT else [])
+    fake_broker = MagicMock()
+    fake_broker.asset = MagicMock(total=100, cash=20, market_value=80)
+    fake_broker.portfolio_name = "QBroker"
+    fake_broker.status = True
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"session": {"active_account_kind": "qmt", "active_account_id": "q1"}, "registry": fake_reg}
+    req.query_params = {}
+    req.path_params = {}
+    out = trade_main_page(req)
+    assert out is not None
+
+
+def test_trade_main_page_with_active_account_total_assets():
+    """Broker has total_assets attr (sim)."""
+    from quantide.core.enums import BrokerKind
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "s1", "name": "Sim", "kind": "sim"}
+    ] if kind == BrokerKind.SIMULATION else [])
+    fake_broker = MagicMock(spec=["total_assets"])  # no asset, no cash attrs
+    fake_broker.total_assets = 1000
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"session": {"active_account_kind": "sim", "active_account_id": "s1"}, "registry": fake_reg}
+    req.query_params = {}
+    req.path_params = {}
+    out = trade_main_page(req)
+    assert out is not None
+
+
+def test_trade_main_page_broker_with_no_attrs():
+    """Broker lacks both asset and total_assets."""
+    from quantide.core.enums import BrokerKind
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
+        {"id": "s1", "name": "Sim"}
+    ] if kind == BrokerKind.SIMULATION else [])
+    fake_broker = MagicMock(spec=["portfolio_name"])  # no asset, no total_assets
+    fake_broker.portfolio_name = "Bare Broker"
+    fake_reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"session": {"active_account_kind": "sim", "active_account_id": "s1"}, "registry": fake_reg}
+    req.query_params = {}
+    req.path_params = {}
+    out = trade_main_page(req)
+    assert out is not None
+
