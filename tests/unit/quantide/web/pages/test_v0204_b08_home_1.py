@@ -320,6 +320,74 @@ def test_position_info_skipped_magic_mock_complex():
 
 
 # ---------------------------------------------------------------------------
+# _get_broker
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.home import _get_broker
+
+
+def test_get_broker_no_registry():
+    """When no registry in scope, returns None."""
+    req = MagicMock()
+    req.scope = {}
+    assert _get_broker(req) is None
+
+
+def test_get_broker_query_params():
+    """When kind+id in query_params, returns reg.get."""
+    fake_reg = MagicMock()
+    fake_reg.get = MagicMock(return_value="query-broker")
+    req = MagicMock()
+    req.scope = {"registry": fake_reg}
+    req.query_params = {"kind": "live", "id": "b1"}
+    assert _get_broker(req) == "query-broker"
+
+
+def test_get_broker_session_active():
+    """When session has active account, returns from reg."""
+    fake_reg = MagicMock()
+    fake_reg.get = MagicMock(return_value="session-broker")
+    req = MagicMock()
+    req.scope = {"registry": fake_reg, "session": {"active_account_kind": "sim", "active_account_id": "s1"}}
+    req.query_params = {}
+    assert _get_broker(req) == "session-broker"
+
+
+def test_get_broker_session_active_no_broker():
+    """When session active but broker not found, falls through to default."""
+    fake_reg = MagicMock()
+    fake_reg.get = MagicMock(return_value=None)  # session lookup returns None
+    fake_reg.get_default = MagicMock(return_value=("live", "default-id"))
+    fake_reg.get.return_value = "default-broker"  # 第二次 reg.get 返回 broker
+    req = MagicMock()
+    req.scope = {"registry": fake_reg, "session": {"active_account_kind": "sim", "active_account_id": "s1"}}
+    req.query_params = {}
+    out = _get_broker(req)
+    assert out == "default-broker"
+
+
+def test_get_broker_default_fallback():
+    """When no query/session, uses get_default."""
+    fake_reg = MagicMock()
+    fake_reg.get_default = MagicMock(return_value=("live", "default-id"))
+    fake_reg.get = MagicMock(return_value="default-broker")
+    req = MagicMock()
+    req.scope = {"registry": fake_reg, "session": {}}
+    req.query_params = {}
+    assert _get_broker(req) == "default-broker"
+
+
+def test_get_broker_no_default():
+    fake_reg = MagicMock()
+    fake_reg.get_default = MagicMock(return_value=None)
+    req = MagicMock()
+    req.scope = {"registry": fake_reg, "session": {}}
+    req.query_params = {}
+    assert _get_broker(req) is None
+
+
+# ---------------------------------------------------------------------------
 # OrderTable + PositionTable + TradePanel renderers
 # ---------------------------------------------------------------------------
 
