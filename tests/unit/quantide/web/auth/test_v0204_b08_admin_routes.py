@@ -362,3 +362,235 @@ async def test_handle_user_create_no_user_created(admin, fake_app):
     resp = await submit(req)
     location = str(resp.headers.get("location", "")) if hasattr(resp, "headers") else ""
     assert "error" in location or resp is not None
+
+
+# ---------------------------------------------------------------------------
+# handle_user_edit tests
+# ---------------------------------------------------------------------------
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_edit_not_found(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=None)
+    submit = admin.routes["admin_user_edit_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={})
+    resp = await submit(req, id=999)
+    assert "error=user_not_found" in str(resp.headers.get("location", ""))
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_edit_password_mismatch(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1))
+    admin.auth.user_repo.update = MagicMock(return_value=True)
+    submit = admin.routes["admin_user_edit_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "email": "new@x.com",
+        "role": "user",
+        "active": "on",
+        "new_password": "newpass1",
+        "confirm_password": "different",
+    })
+    resp = await submit(req, id=1)
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_edit_short_password(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1))
+    admin.auth.user_repo.update = MagicMock(return_value=True)
+    submit = admin.routes["admin_user_edit_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "email": "new@x.com",
+        "role": "user",
+        "active": "on",
+        "new_password": "short",
+        "confirm_password": "short",
+    })
+    resp = await submit(req, id=1)
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_edit_success(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1))
+    admin.auth.user_repo.update = MagicMock(return_value=True)
+    submit = admin.routes["admin_user_edit_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "email": "new@x.com",
+        "role": "admin",
+        "active": "on",
+    })
+    resp = await submit(req, id=1)
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_edit_update_fails(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1))
+    admin.auth.user_repo.update = MagicMock(return_value=False)
+    submit = admin.routes["admin_user_edit_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "email": "new@x.com",
+        "role": "user",
+        "active": "on",
+    })
+    resp = await submit(req, id=1)
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_edit_exception(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1))
+    admin.auth.user_repo.update = MagicMock(side_effect=Exception("boom"))
+    submit = admin.routes["admin_user_edit_submit"]
+    req = MagicMock()
+    req.form = AsyncMock(return_value={
+        "email": "new@x.com",
+        "role": "user",
+        "active": "on",
+    })
+    resp = await submit(req, id=1)
+
+
+# ---------------------------------------------------------------------------
+# handle_user_delete tests
+# ---------------------------------------------------------------------------
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_delete_self(admin, fake_app):
+    """When deleting self, returns cannot_delete_self error."""
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    submit = admin.routes["admin_user_delete_submit"]
+    req = MagicMock()
+    req.scope = {"user": MagicMock(id=1)}
+    resp = await submit(req, id=1)
+    assert "error=cannot_delete_self" in str(resp.headers.get("location", ""))
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_delete_success(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.delete = MagicMock(return_value=True)
+    submit = admin.routes["admin_user_delete_submit"]
+    req = MagicMock()
+    req.scope = {"user": MagicMock(id=99)}  # different id from target
+    resp = await submit(req, id=1)
+    location = str(resp.headers.get("location", "")) if hasattr(resp, "headers") else ""
+    assert "success=deleted" in location
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_delete_failure(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.delete = MagicMock(return_value=False)
+    submit = admin.routes["admin_user_delete_submit"]
+    req = MagicMock()
+    req.scope = {"user": MagicMock(id=99)}
+    resp = await submit(req, id=1)
+    location = str(resp.headers.get("location", "")) if hasattr(resp, "headers") else ""
+    assert "error=delete_failed" in location
+
+
+@_pytest.mark.asyncio
+async def test_handle_user_delete_exception(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.delete = MagicMock(side_effect=Exception("boom"))
+    submit = admin.routes["admin_user_delete_submit"]
+    req = MagicMock()
+    req.scope = {"user": MagicMock(id=99)}
+    resp = await submit(req, id=1)
+
+
+# ---------------------------------------------------------------------------
+# admin_*_form tests
+# ---------------------------------------------------------------------------
+
+
+def test_admin_users_list_none(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    fn = admin.routes["admin_users_list"]
+    req = MagicMock()
+    req.query_params = {}
+    req.scope = {"session": {}}
+    out = fn(req)
+    assert out is not None
+
+
+def test_admin_users_list_with_filter(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.search_users = MagicMock(return_value=[])
+    fn = admin.routes["admin_users_list"]
+    req = MagicMock()
+    req.query_params = {"q": "alice", "role": "user", "active": "1"}
+    req.scope = {"session": {}}
+    out = fn(req)
+    assert out is not None
+
+
+def test_admin_user_create_form(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    fn = admin.routes["admin_user_create_form"]
+    req = MagicMock()
+    req.query_params = {}
+    out = fn(req)
+    assert out is not None
+
+
+def test_admin_user_create_form_with_error(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    fn = admin.routes["admin_user_create_form"]
+    req = MagicMock()
+    req.query_params = {"error": "missing_fields"}
+    out = fn(req)
+    assert out is not None
+
+
+def test_admin_user_edit_form(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1, username="alice"))
+    fn = admin.routes["admin_user_edit_form"]
+    req = MagicMock()
+    req.query_params = {}
+    out = fn(req, id=1)
+    assert out is not None
+
+
+def test_admin_user_edit_form_not_found(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=None)
+    fn = admin.routes["admin_user_edit_form"]
+    req = MagicMock()
+    req.query_params = {}
+    out = fn(req, id=999)
+    # Currently renders redirect or empty form
+    assert out is not None
+
+
+def test_admin_user_delete_confirm(admin, fake_app):
+    admin.register_admin_routes(fake_app, "/auth/admin")
+    admin.auth.user_repo = MagicMock()
+    admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1, username="alice", role="user"))
+    fn = admin.routes["admin_user_delete_confirm"]
+    req = MagicMock()
+    out = fn(req, id=1)
+    assert out is not None
