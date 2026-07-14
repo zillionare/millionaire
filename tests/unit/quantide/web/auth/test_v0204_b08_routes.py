@@ -598,6 +598,26 @@ def test_admin_users_list_with_messages_no_msg():
     assert out is not None
 
 
+def test_admin_users_list_with_success_msg():
+    """When success query param set, wraps with message alert."""
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    auth.user_repo = MagicMock()
+    auth.user_repo.list_all = MagicMock(return_value=[])
+    auth.user_repo.count_by_role = MagicMock(return_value={"admin": 0, "manager": 0, "user": 0})
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", include_admin=True)
+    fn = routes.routes["admin_users_list"]
+    req = MagicMock()
+    req.query_params = {"success": "created"}
+    req.scope = {"session": {}}
+    out = fn(req)
+    assert out is not None
+
+
 def test_register_profile_route_admin():
     """register_profile_route is callable separately."""
     auth = MagicMock()
