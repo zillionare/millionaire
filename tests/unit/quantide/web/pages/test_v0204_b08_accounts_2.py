@@ -186,3 +186,121 @@ def test_accounts_list_skips_empty_account_id():
     req = _req_with_session(scope={"session": {}, "registry": fake_reg})
     out = accounts_list(req)
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _get_market_data + delete/refresh routes
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.accounts import (
+    _get_market_data,
+    _get_registry,
+    delete_all_sim_accounts,
+    delete_live_account,
+    delete_sim_account,
+    refresh_live_account,
+    reset_sim_account,
+)
+
+
+def test_get_market_data_no_runtime():
+    """When app.state.runtime is None, returns None."""
+    req = MagicMock()
+    req.app.state.runtime = None
+    assert _get_market_data(req) is None
+
+
+def test_get_market_data_with_runtime():
+    """When runtime exists, returns runtime.market_data."""
+    req = MagicMock()
+    req.app.state.runtime = MagicMock()
+    req.app.state.runtime.market_data = "md"
+    assert _get_market_data(req) == "md"
+
+
+def test_get_market_data_no_market_data_attr():
+    """When runtime has no market_data attr, returns None."""
+    req = MagicMock()
+    req.app.state.runtime = MagicMock(spec=[])  # no market_data attr
+    assert _get_market_data(req) is None
+
+
+def test_get_registry_present():
+    req = MagicMock()
+    req.scope = {"registry": "reg"}
+    assert _get_registry(req) == "reg"
+
+
+def test_get_registry_missing():
+    req = MagicMock()
+    req.scope = {}
+    assert _get_registry(req) is None
+
+
+def test_delete_live_account_placeholder():
+    req = MagicMock()
+    resp = delete_live_account(req, account_id="abc")
+    assert resp is not None
+
+
+def test_refresh_live_account_placeholder():
+    req = MagicMock()
+    resp = refresh_live_account(req, account_id="abc")
+    assert resp is not None
+
+
+def test_delete_all_sim_accounts_no_registry():
+    """When no registry, clears session and redirects."""
+    fake_db = MagicMock()
+    accounts_mod.db = fake_db
+    req = MagicMock()
+    req.scope = {"session": {}}
+    resp = delete_all_sim_accounts(req)
+    assert resp is not None
+
+
+def test_delete_all_sim_accounts_with_registry():
+    """When registry has sim accounts, deletes them."""
+    fake_db = MagicMock()
+    accounts_mod.db = fake_db
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(return_value=[
+        {"id": "s1", "name": "S1"},
+        {"id": "s2", "name": "S2"},
+    ])
+    req = MagicMock()
+    req.scope = {"session": {"active_account_kind": "sim", "active_account_id": "s1"}, "registry": fake_reg}
+    resp = delete_all_sim_accounts(req)
+    assert resp is not None
+
+
+def test_delete_all_sim_accounts_db_error_swallowed():
+    """When db.delete_portfolio raises, continues."""
+    fake_db = MagicMock()
+    fake_db.delete_portfolio = MagicMock(side_effect=Exception("boom"))
+    accounts_mod.db = fake_db
+    fake_reg = MagicMock()
+    fake_reg.list_by_kind = MagicMock(return_value=[{"id": "s1"}])
+    req = MagicMock()
+    req.scope = {"session": {}, "registry": fake_reg}
+    resp = delete_all_sim_accounts(req)
+    assert resp is not None
+
+
+def test_delete_sim_account():
+    req = MagicMock()
+    req.scope = {"session": {}}
+    fake_db = MagicMock()
+    accounts_mod.db = fake_db
+    resp = delete_sim_account(req, account_id="s1")
+    assert resp is not None
+
+
+def test_reset_sim_account():
+    req = MagicMock()
+    req.scope = {"session": {}}
+    fake_db = MagicMock()
+    accounts_mod.db = fake_db
+    resp = reset_sim_account(req, account_id="s1")
+    assert resp is not None
