@@ -113,3 +113,88 @@ def test_run_daily_snapshot(db):
 
 def test_run_market_snapshot(db):
     _run_market_snapshot()
+
+
+# ---------------------------------------------------------------------------
+# JobHistoryRecord + _build_* UI components
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.system.jobs import (
+    JobHistoryRecord,
+    _build_history_table,
+    _build_job_status_badge,
+    _build_jobs_table,
+    _build_status_dot,
+)
+
+
+def test_job_history_record_from_dict():
+    """JobHistoryRecord.from_dict parses dict to record."""
+    class _R(dict):
+        def get(self, k, d=None):
+            return super().get(k, d)
+    d = {
+        "job_id": "x",
+        "job_name": "X",
+        "executed_at": "2024-01-01 10:00:00",
+        "status": "success",
+        "message": "ok",
+        "duration_ms": 100,
+    }
+    rec = JobHistoryRecord.from_dict(d)
+    assert rec is not None
+    assert rec.job_id == "x"
+
+
+def test_build_job_status_badge_enabled():
+    out = _build_job_status_badge(True)
+    assert out is not None
+
+
+def test_build_job_status_badge_disabled():
+    out = _build_job_status_badge(False)
+    assert out is not None
+
+
+def test_build_status_dot_enabled():
+    out = _build_status_dot(True)
+    assert out == "🟢"
+
+
+def test_build_status_dot_disabled():
+    out = _build_status_dot(False)
+    assert out == "🔴"
+
+
+def test_build_history_table_empty():
+    out = _build_history_table([])
+    assert out is not None
+
+
+def test_build_history_table_success():
+    rec = JobHistoryRecord(
+        id="1",
+        job_id="x",
+        job_name="X",
+        executed_at=__import__("datetime").datetime(2024, 1, 1, 10, 0),
+        status="success",
+        message="ok",
+        duration_ms=100,
+    )
+    out = _build_history_table([rec])
+    assert out is not None
+
+
+def test_build_history_table_error():
+    rec = JobHistoryRecord(
+        id="1",
+        job_id="x",
+        job_name="X",
+        executed_at=__import__("datetime").datetime(2024, 1, 1, 10, 0),
+        status="error",
+        message="boom",
+        duration_ms=100,
+    )
+    out = _build_history_table([rec])
+    assert out is not None
