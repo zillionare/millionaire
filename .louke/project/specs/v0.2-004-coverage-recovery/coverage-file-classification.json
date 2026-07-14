@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-14T09:02:07.027053+00:00",
+  "generated_at": "2026-07-14T09:23:48.204692+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -12,7 +12,7 @@
     "v0.2_added_count": 35,
     "pre_v0.2_retained_count": 134,
     "v0.2_added_passing": 35,
-    "pre_v0.2_retained_passing": 112,
+    "pre_v0.2_retained_passing": 113,
     "v0.2_added_under_threshold": [],
     "pre_v0.2_retained_under_threshold": [
       {
@@ -67,7 +67,7 @@
       },
       {
         "path": "quantide/web/pages/data_stocks.py",
-        "percent_covered": 59.26,
+        "percent_covered": 64.81,
         "num_statements": 92
       },
       {
@@ -102,18 +102,13 @@
       },
       {
         "path": "quantide/web/pages/system/gateway.py",
-        "percent_covered": 53.64,
+        "percent_covered": 65.45,
         "num_statements": 180
       },
       {
         "path": "quantide/web/pages/system/jobs.py",
-        "percent_covered": 59.86,
+        "percent_covered": 68.82,
         "num_statements": 225
-      },
-      {
-        "path": "quantide/web/pages/system/runtime_monitor.py",
-        "percent_covered": 43.48,
-        "num_statements": 57
       },
       {
         "path": "quantide/web/pages/trade_lightning.py",
@@ -1529,10 +1524,10 @@
       "path": "quantide/web/pages/data_stocks.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 59.26,
+      "percent_covered": 64.81,
       "num_statements": 92,
       "num_branches": 16,
-      "covered_branches": 9,
+      "covered_branches": 11,
       "coverage_status": "measured",
       "passes_threshold": false
     },
@@ -1661,10 +1656,10 @@
       "path": "quantide/web/pages/system/gateway.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 53.64,
+      "percent_covered": 65.45,
       "num_statements": 180,
       "num_branches": 40,
-      "covered_branches": 19,
+      "covered_branches": 24,
       "coverage_status": "measured",
       "passes_threshold": false
     },
@@ -1672,7 +1667,7 @@
       "path": "quantide/web/pages/system/jobs.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 59.86,
+      "percent_covered": 68.82,
       "num_statements": 225,
       "num_branches": 54,
       "covered_branches": 29,
@@ -1705,12 +1700,12 @@
       "path": "quantide/web/pages/system/runtime_monitor.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 43.48,
+      "percent_covered": 98.55,
       "num_statements": 57,
       "num_branches": 12,
-      "covered_branches": 0,
+      "covered_branches": 11,
       "coverage_status": "measured",
-      "passes_threshold": false
+      "passes_threshold": true
     },
     {
       "path": "quantide/web/pages/system/runtime_support.py",
