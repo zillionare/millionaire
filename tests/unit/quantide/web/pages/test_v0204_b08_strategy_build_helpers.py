@@ -201,3 +201,180 @@ def test_build_metrics_payload_with_stats():
     assert "annual_return" in out
     assert "sharpe" in out
     assert "max_drawdown" in out
+
+
+# ---------------------------------------------------------------------------
+# _resolve_backtest_status + _build_trade_rows + _build_daily_positions + ...
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import (
+    _build_daily_positions,
+    _build_daily_summary,
+    _build_log_rows,
+    _build_trade_rows,
+    _resolve_backtest_status,
+)
+
+
+def test_resolve_backtest_status_no_run_no_portfolio():
+    """No run, no portfolio → ('missing', '未找到回测记录。')."""
+    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_mod, "db") as mock_db:
+        mock_mgr.get_backtest_run = MagicMock(return_value=None)
+        mock_db.get_portfolio = MagicMock(return_value=None)
+        status, err = _resolve_backtest_status("p1")
+    assert status == "missing"
+    assert "未找到" in err
+
+
+def test_resolve_backtest_status_running():
+    """When portfolio.status is True, status='running'."""
+    fake_portfolio = MagicMock()
+    fake_portfolio.status = True
+    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_mod, "db") as mock_db:
+        mock_mgr.get_backtest_run = MagicMock(return_value=None)
+        mock_db.get_portfolio = MagicMock(return_value=fake_portfolio)
+        status, err = _resolve_backtest_status("p1")
+    assert status == "running"
+    assert err == ""
+
+
+def test_resolve_backtest_status_finished():
+    """When portfolio.status is False, status='finished'."""
+    fake_portfolio = MagicMock()
+    fake_portfolio.status = False
+    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_mod, "db") as mock_db:
+        mock_mgr.get_backtest_run = MagicMock(return_value=None)
+        mock_db.get_portfolio = MagicMock(return_value=fake_portfolio)
+        status, err = _resolve_backtest_status("p1")
+    assert status == "finished"
+
+
+def test_resolve_backtest_status_run_running():
+    """When run.status='running', return running."""
+    fake_run = MagicMock()
+    fake_run.status = "running"
+    fake_run.error = None
+    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr:
+        mock_mgr.get_backtest_run = MagicMock(return_value=fake_run)
+        status, err = _resolve_backtest_status("p1")
+    assert status == "running"
+
+
+def test_resolve_backtest_status_run_unknown():
+    """When run.status is unknown, falls through to portfolio check."""
+    fake_run = MagicMock()
+    fake_run.status = "weird"
+    fake_run.error = "x"
+    fake_portfolio = MagicMock()
+    fake_portfolio.status = False
+    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_mod, "db") as mock_db:
+        mock_mgr.get_backtest_run = MagicMock(return_value=fake_run)
+        mock_db.get_portfolio = MagicMock(return_value=fake_portfolio)
+        status, err = _resolve_backtest_status("p1")
+    assert status == "finished"
+
+
+# ---------------------------------------------------------------------------
+# _build_trade_rows
+# ---------------------------------------------------------------------------
+
+
+def test_build_trade_rows_empty():
+    """When db.trades_all is empty, returns []."""
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.trades_all = MagicMock(return_value=pl.DataFrame())
+        out = _build_trade_rows("p1")
+    assert out == []
+
+
+def test_build_trade_rows_with_data():
+    """With trade rows, formats them."""
+    import datetime
+    from quantide.core.enums import OrderSide
+    fake_trades = pl.DataFrame({
+        "tm": [datetime.datetime(2024, 1, 1, 10, 0)],
+        "asset": ["000001.SZ"],
+        "side": [OrderSide.BUY],
+        "price": [10.0],
+        "shares": [100.0],
+        "amount": [1000.0],
+        "fee": [1.0],
+    })
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.trades_all = MagicMock(return_value=fake_trades)
+        out = _build_trade_rows("p1")
+    assert len(out) == 1
+    assert out[0]["asset"] == "000001.SZ"
+
+
+def test_build_trade_rows_side_int():
+    """When side is int (not enum), parsed."""
+    import datetime
+    fake_trades = pl.DataFrame({
+        "tm": [datetime.datetime(2024, 1, 1, 10, 0)],
+        "asset": ["000001.SZ"],
+        "side": [1],
+        "price": [10.0],
+        "shares": [100.0],
+        "amount": [1000.0],
+        "fee": [1.0],
+    })
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.trades_all = MagicMock(return_value=fake_trades)
+        out = _build_trade_rows("p1")
+    assert out[0]["side_value"] == 1
+    assert out[0]["side"] == "买入"
+
+
+def test_build_trade_rows_side_sell():
+    """When side=-1 (sell), formatted correctly."""
+    import datetime
+    fake_trades = pl.DataFrame({
+        "tm": [datetime.datetime(2024, 1, 1, 10, 0)],
+        "asset": ["000001.SZ"],
+        "side": [-1],
+        "price": [10.0],
+        "shares": [100.0],
+        "amount": [1000.0],
+        "fee": [1.0],
+    })
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.trades_all = MagicMock(return_value=fake_trades)
+        out = _build_trade_rows("p1")
+    assert out[0]["side"] == "卖出"
+
+
+# ---------------------------------------------------------------------------
+# _build_daily_positions + _build_daily_summary
+# ---------------------------------------------------------------------------
+
+
+def test_build_daily_positions_empty():
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.snapshot_all = MagicMock(return_value=pl.DataFrame())
+        out = _build_daily_positions("p1")
+    assert isinstance(out, list)
+
+
+def test_build_daily_summary_empty():
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.snapshot_all = MagicMock(return_value=pl.DataFrame())
+        out = _build_daily_summary("p1")
+    assert isinstance(out, list)
+
+
+# ---------------------------------------------------------------------------
+# _build_log_rows
+# ---------------------------------------------------------------------------
+
+
+def test_build_log_rows_empty():
+    with patch.object(strategy_mod, "db") as mock_db:
+        mock_db.backtest_logs = MagicMock(return_value=pl.DataFrame())
+        out = _build_log_rows("p1")
+    assert isinstance(out, list)
