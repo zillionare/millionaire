@@ -874,3 +874,43 @@ def test_load_backtest_run_config_no_default_config():
     assert cfg == {"k": "v"}
     # Exception in default_config path → None
     assert default is None
+
+
+
+# ---------------------------------------------------------------------------
+# run_grid_search async route
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import run_grid_search
+
+
+@pytest.mark.asyncio
+async def test_run_grid_search_unknown_strategy():
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={})
+        req = MagicMock()
+        req.form = AsyncMock(return_value={})
+        resp = await run_grid_search(req, name="missing")
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_run_grid_search_no_dates_returns_400():
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"x": MagicMock()})
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"start_date": "", "end_date": ""})
+        resp = await run_grid_search(req, name="x")
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_run_grid_search_bad_dates_returns_400():
+    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={"x": MagicMock()})
+        req = MagicMock()
+        req.form = AsyncMock(return_value={"start_date": "garbage", "end_date": "ok"})
+        resp = await run_grid_search(req, name="x")
+    assert resp is not None
+
