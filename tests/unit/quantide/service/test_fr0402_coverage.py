@@ -21,10 +21,21 @@ class _NoDataFeed:
 
 @pytest.fixture
 def sqlite_db(tmp_path):
-    """FR-0402: initialize a fresh file-backed SQLite database for each broker test."""
+    """FR-0402: initialize a fresh file-backed SQLite database for each broker test.
+
+    Restore the previous session-level DB connection after each test so
+    later tests in the suite aren't polluted (e.g., discovery fixtures).
+    """
+    previous_initialized = getattr(db, "_initialized", False)
+    previous_path = db.db_path if getattr(db, "_initialized", False) else None
     db.init(tmp_path / "test.db")
     yield db
     db.close()
+    if previous_initialized and previous_path:
+        db._initialized = False
+        db.init(previous_path)
+    else:
+        db._initialized = previous_initialized
 
 
 @pytest.mark.parametrize("broker_type", ["abstract", "backtest", "paper"])

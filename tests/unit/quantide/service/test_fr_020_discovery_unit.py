@@ -18,17 +18,26 @@ from quantide.service.discovery import strategy_loader
 
 @pytest.fixture(autouse=True)
 def clean_state(db):
-    """清理 strategy_info / strategy_config 表 + 内存缓存
+    """清理 strategy_info / strategy_config 表 + 内存缓存 + sys.modules 中的策略模块。
 
     表可能尚未创建(默认 db fixture 不会建)— 用 silent=True 容忍
     缺失的表,避免污染其他测试。
     """
+    import sys
+
     for table in ("strategy_info", "strategy_config"):
         try:
             db.execute(f"DELETE FROM {table}")
         except Exception:
             pass  # 表未初始化;忽略
     strategy_loader._strategies = {}
+    # Evict any dynamically-loaded strategy modules from sys.modules so the
+    # next scan_and_cache() re-imports them from a clean slate.
+    to_evict = [name for name in sys.modules
+                if name.startswith("quantide.strategies.example.")
+                or name.startswith("user_strategy_")]
+    for name in to_evict:
+        sys.modules.pop(name, None)
     yield
     for table in ("strategy_info", "strategy_config"):
         try:
@@ -36,6 +45,12 @@ def clean_state(db):
         except Exception:
             pass
     strategy_loader._strategies = {}
+    # Same eviction at teardown.
+    to_evict = [name for name in sys.modules
+                if name.startswith("quantide.strategies.example.")
+                or name.startswith("user_strategy_")]
+    for name in to_evict:
+        sys.modules.pop(name, None)
 
 
 def _write_strategy(directory: Path, filename: str, body: str) -> Path:

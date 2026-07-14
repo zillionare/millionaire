@@ -26,11 +26,28 @@ def _load_dual_ma_baseline() -> dict:
 
 @pytest.fixture(scope="function")
 def setup_db():
+    """Set up an isolated DB for each metrics test, then restore the
+    session-level DB so subsequent tests aren't polluted."""
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test_metrics.db"
+        # Capture the current DB state so we can restore it after this test.
+        original_path = db.db_path if hasattr(db, "db_path") else None
+        original_initialized = getattr(db, "_initialized", False)
         db.init(db_path)
         yield db
+        # Restore the previous DB state for subsequent tests in the suite.
         db.close()
+        try:
+            db._initialized = False
+            if original_path is not None:
+                db.init(original_path)
+            elif original_initialized:
+                # Re-initialize to whatever default path was used.
+                db._initialized = True
+        except Exception:
+            # If restoration fails, mark as uninitialized so the next
+            # test re-initializes from scratch.
+            db._initialized = False
 
 
 def test_bills(setup_db):

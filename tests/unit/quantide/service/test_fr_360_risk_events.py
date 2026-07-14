@@ -150,6 +150,7 @@ def test_fr_360_pullback_sell_emits_risk_triggered_with_drawback_reason(captured
     positions = {"000001.SZ": pos}
     strategy._open_prices["000001.SZ"] = 10.0
     strategy._monitoring.add("000001.SZ")
+    strategy._monitoring_started_at["000001.SZ"] = AC_TEST_DATE
     strategy._peak_prices["000001.SZ"] = 11.5
 
     asyncio.run(strategy.on_check(positions, AC_TEST_DATE))

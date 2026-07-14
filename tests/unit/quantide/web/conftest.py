@@ -22,6 +22,23 @@ def init_app_state_for_web_tests(monkeypatch):
     """
     from quantide.data.sqlite import db
 
+    # Ensure the DB connection is open. Other test files (service,
+    # data, etc.) re-init the DB on tmp paths and may leave it closed,
+    # which would break web tests that run later in the session.
+    try:
+        if not getattr(db, "_initialized", False):
+            db.init(":memory:")
+        else:
+            # Verify the connection is still alive.
+            try:
+                db.execute("SELECT 1")
+            except Exception:
+                # Re-init a fresh memory DB if the connection was closed.
+                db._initialized = False
+                db.init(":memory:")
+    except Exception:
+        pass
+
     # Seed the app_state row as fully initialized.
     try:
         from quantide.data.models.app_state import AppState

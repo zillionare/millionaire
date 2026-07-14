@@ -84,8 +84,8 @@ class PullbackSellStrategy(RiskStrategy):
                 self._monitoring_started_at.setdefault(asset, tm)
 
             if asset in self._monitoring:
-                started_at = self._monitoring_started_at[asset]
-                if tm - started_at > datetime.timedelta(minutes=self.config.get("n", 1)):
+                started_at = self._monitoring_started_at.get(asset)
+                if started_at is None or tm - started_at > datetime.timedelta(minutes=self.config.get("n", 1)):
                     self._monitoring.discard(asset)
                     continue
                 peak = self._peak_prices[asset]

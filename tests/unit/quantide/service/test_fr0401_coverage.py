@@ -20,19 +20,29 @@ def lifecycle_recorder() -> list[str]:
 
 def test_registry_replaces_registration_and_reassigns_default() -> None:
     """FR-0401 AC-4: registry keys brokers by kind and portfolio, with a valid default."""
+    # BrokerRegistry is a process-wide singleton. Snapshot/restore state
+    # so this test does not leak registrations into later tests.
     registry = BrokerRegistry()
-    registry._brokers.clear()
-    registry._default = None
-    first, replacement, second = object(), object(), object()
+    saved_brokers = dict(registry._brokers)
+    saved_default = registry._default
+    try:
+        registry._brokers.clear()
+        registry._default = None
+        first, replacement, second = object(), object(), object()
 
-    registry.register(BrokerKind.BACKTEST, "first", first)
-    registry.register(BrokerKind.BACKTEST, "first", replacement)
-    registry.register(BrokerKind.SIMULATION, "second", second)
-    registry.unregister(BrokerKind.BACKTEST, "first")
+        registry.register(BrokerKind.BACKTEST, "first", first)
+        registry.register(BrokerKind.BACKTEST, "first", replacement)
+        registry.register(BrokerKind.SIMULATION, "second", second)
+        registry.unregister(BrokerKind.BACKTEST, "first")
 
-    assert registry.get(BrokerKind.BACKTEST, "first") is None
-    assert registry.get(BrokerKind.SIMULATION, "second") is second
-    assert registry.get_default() == (BrokerKind.SIMULATION.value, "second")
+        assert registry.get(BrokerKind.BACKTEST, "first") is None
+        assert registry.get(BrokerKind.SIMULATION, "second") is second
+        assert registry.get_default() == (BrokerKind.SIMULATION.value, "second")
+    finally:
+        # Restore the singleton to the state we found it in.
+        registry._brokers.clear()
+        registry._brokers.update(saved_brokers)
+        registry._default = saved_default
 
 
 def test_backtest_runtime_completes_and_is_removed(monkeypatch, tmp_path) -> None:
