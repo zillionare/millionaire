@@ -183,3 +183,19 @@ def test_wrapper_set_strategy_runtime_config_falsy_cheat():
     wrapper = GatewayBrokerWrapper(fake_adapter)  # type: ignore[arg-type]
     wrapper.set_strategy_runtime_config(cheat_on_close=False)
     assert wrapper._strategy_cheat_on_close is False
+
+
+def test_wrapper_empty_history_frame_returns_empty_df():
+    """_empty_history_frame returns an empty pl.DataFrame with expected schema."""
+    import polars as pl
+    from quantide.core.runtime.gateway_broker import GatewayBrokerWrapper
+
+    fake_adapter = object()
+    wrapper = GatewayBrokerWrapper(fake_adapter)  # type: ignore[arg-type]
+    df = wrapper._empty_history_frame()
+    assert isinstance(df, pl.DataFrame)
+    assert df.is_empty()
+    # Schema should have expected columns.
+    cols = df.columns
+    for col in ("date", "asset", "open", "high", "low", "close", "volume"):
+        assert col in cols, f"missing column {col}"
