@@ -150,3 +150,127 @@ def test_dict_to_user_passthrough(repo):
 
 
 from unittest.mock import patch
+
+
+# ---------------------------------------------------------------------------
+# get_by_id + authenticate + update + delete + delete_by_username
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.auth.repository import User, UserRepository
+
+
+@pytest.fixture
+def repo(db):
+    repo = UserRepository(db=db)
+    repo.users = MagicMock()
+    return repo
+
+
+def test_get_by_id_found(repo):
+    mock_user = {"id": 1, "username": "alice", "email": "a@x.com", "active": True, "password": "h", "role": "user", "created_at": "", "last_login": ""}
+    repo.users.__getitem__ = MagicMock(return_value=mock_user)
+    out = repo.get_by_id(1)
+    assert out is not None
+
+
+def test_get_by_id_not_found(repo):
+    repo.users.__getitem__ = MagicMock(side_effect=Exception("not found"))
+    assert repo.get_by_id(999) is None
+
+
+def test_authenticate_user_not_found(repo):
+    repo.users.rows_where = MagicMock(return_value=[])
+    out = repo.authenticate("alice", "pw")
+    assert out is None
+
+
+def test_authenticate_inactive(repo):
+    repo.users.rows_where = MagicMock(return_value=[])
+    out = repo.authenticate("alice", "pw")
+    assert out is None
+
+
+def test_authenticate_bad_password(repo):
+    fake_user = MagicMock(username="alice", active=True, password="hashed", id=1, role="user", email="a@x.com")
+    repo.users.rows_where = MagicMock(return_value=[fake_user])
+    with patch.object(User, "verify_password", return_value=False):
+        out = repo.authenticate("alice", "wrong")
+    assert out is None
+
+
+def test_update_success(repo):
+    repo.users.update = MagicMock()
+    out = repo.update(1, email="new@x.com")
+    assert out is True
+
+
+def test_update_with_password_hashing(repo):
+    repo.users.update = MagicMock()
+    with patch.object(User, "is_hashed", return_value=False), \
+         patch.object(User, "get_hashed_password", return_value="hashed"):
+        out = repo.update(1, password="plaintext")
+    assert out is True
+
+
+def test_update_exception(repo):
+    repo.users.update = MagicMock(side_effect=Exception("boom"))
+    out = repo.update(1, email="a@x.com")
+    assert out is False
+
+
+def test_delete_not_found(repo):
+    repo.users.__getitem__ = MagicMock(side_effect=Exception("not found"))
+    out = repo.delete(999)
+    assert out is False
+
+
+def test_delete_last_admin_protected(repo):
+    repo.users.__getitem__ = MagicMock(return_value={"role": "admin", "id": 1, "username": "admin", "email": "a@x.com", "password": "h", "active": True, "created_at": "", "last_login": ""})
+    repo.count_by_role = MagicMock(return_value={"admin": 1, "manager": 0, "user": 0})
+    out = repo.delete(1)
+    assert out is False
+
+
+def test_delete_success(repo):
+    repo.users.__getitem__ = MagicMock(return_value={"role": "user", "id": 1, "username": "u", "email": "a@x.com", "password": "h", "active": True, "created_at": "", "last_login": ""})
+    repo.users.delete = MagicMock()
+    out = repo.delete(1)
+    assert out is True
+    repo.users.delete.assert_called_once_with(1)
+
+
+def test_delete_exception(repo):
+    repo.users.__getitem__ = MagicMock(return_value={"role": "user", "id": 1, "username": "u", "email": "a@x.com", "password": "h", "active": True, "created_at": "", "last_login": ""})
+    repo.users.delete = MagicMock(side_effect=Exception("boom"))
+    out = repo.delete(1)
+    assert out is False
+
+
+def test_delete_by_username_not_found(repo):
+    repo.users.rows_where = MagicMock(return_value=[])
+    out = repo.delete_by_username("alice")
+    assert out is False
+
+
+def test_delete_by_username_last_admin(repo):
+    repo.users.rows_where = MagicMock(return_value=[{"role": "admin", "id": 1, "username": "admin", "active": True, "password": "h", "email": "a@x.com", "created_at": "", "last_login": ""}])
+    repo.count_by_role = MagicMock(return_value={"admin": 1})
+    out = repo.delete_by_username("admin")
+    assert out is False
+
+
+def test_delete_by_username_success(repo):
+    fake_user = {"role": "user", "id": 1, "username": "alice", "active": True, "password": "h", "email": "a@x.com", "created_at": "", "last_login": ""}
+    repo.users = MagicMock()
+    repo.users.return_value = [fake_user]  # __call__ result
+    repo.users.delete = MagicMock()
+    out = repo.delete_by_username("alice")
+    assert out is True
+
+
+def test_delete_by_username_exception(repo):
+    repo.users.rows_where = MagicMock(return_value=[{"role": "user", "id": 1, "username": "alice", "active": True, "password": "h", "email": "a@x.com", "created_at": "", "last_login": ""}])
+    repo.users.delete = MagicMock(side_effect=Exception("boom"))
+    out = repo.delete_by_username("alice")
+    assert out is False
