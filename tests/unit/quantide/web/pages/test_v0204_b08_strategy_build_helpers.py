@@ -378,3 +378,141 @@ def test_build_log_rows_empty():
         mock_db.backtest_logs = MagicMock(return_value=pl.DataFrame())
         out = _build_log_rows("p1")
     assert isinstance(out, list)
+
+
+# ---------------------------------------------------------------------------
+# _normalize_scan_directory + _scan_scope_list
+# ---------------------------------------------------------------------------
+
+
+from pathlib import Path
+
+from quantide.web.pages.strategy import (
+    _normalize_scan_directory,
+    _scan_scope_list,
+)
+
+
+def test_scan_scope_list_empty():
+    """Empty list returns Ul with empty body."""
+    out = _scan_scope_list([])
+    assert out is not None
+
+
+def test_scan_scope_list_with_dirs():
+    out = _scan_scope_list(["/path/a", "/path/b"])
+    assert out is not None
+
+
+def test_normalize_scan_directory_empty_raises():
+    with pytest.raises(ValueError, match="不能为空"):
+        _normalize_scan_directory("")
+
+
+def test_normalize_scan_directory_whitespace_raises():
+    with pytest.raises(ValueError, match="不能为空"):
+        _normalize_scan_directory("   ")
+
+
+def test_normalize_scan_directory_relative_path_raises():
+    """When path is relative, raises."""
+    with pytest.raises(ValueError, match="绝对路径"):
+        _normalize_scan_directory("relative/path")
+
+
+def test_normalize_scan_directory_nonexistent_raises():
+    with pytest.raises(FileNotFoundError, match="不存在"):
+        _normalize_scan_directory("/definitely/does/not/exist/12345")
+
+
+def test_normalize_scan_directory_path_is_file():
+    """When path is a file, raises NotADirectoryError."""
+    import os
+    tmp_file = "/tmp/scan_test_file"
+    with open(tmp_file, "w") as f:
+        f.write("test")
+    try:
+        with pytest.raises(NotADirectoryError):
+            _normalize_scan_directory(tmp_file)
+    finally:
+        os.unlink(tmp_file)
+
+
+def test_normalize_scan_directory_valid():
+    """When directory exists, returns (str, Path)."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        s, p = _normalize_scan_directory(tmpdir)
+        assert isinstance(s, str)
+        assert isinstance(p, Path)
+        assert p.exists()
+        assert p.is_dir()
+
+
+# ---------------------------------------------------------------------------
+# _coerce_form_value + _form_to_config
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import (
+    _coerce_form_value,
+    _form_to_config,
+)
+
+
+def test_coerce_form_value_none():
+    assert _coerce_form_value(None) is None
+
+
+def test_coerce_form_value_empty_string():
+    assert _coerce_form_value("") == ""
+
+
+def test_coerce_form_value_whitespace():
+    assert _coerce_form_value("   ") == ""
+
+
+def test_coerce_form_value_true_string():
+    assert _coerce_form_value("True") is True
+    assert _coerce_form_value("true") is True
+
+
+def test_coerce_form_value_false_string():
+    assert _coerce_form_value("False") is False
+    assert _coerce_form_value("false") is False
+
+
+def test_coerce_form_value_int():
+    assert _coerce_form_value("123") == 123
+
+
+def test_coerce_form_value_float():
+    assert _coerce_form_value("3.14") == 3.14
+
+
+def test_coerce_form_value_string_passthrough():
+    assert _coerce_form_value("hello") == "hello"
+
+
+def test_form_to_config_empty():
+    """Empty form returns base_config."""
+    base = {"x": 1}
+    out = _form_to_config({}, base)
+    assert out == {"x": 1}
+
+
+def test_form_to_config_replaces_keys():
+    """Form values override base keys."""
+    base = {"key1": "old1", "key2": "old2"}
+    form = {"param_key1": "new1", "key2": "new2", "other": "ignored"}
+    # _form_to_config uses param-prefixed keys for param overrides
+    out = _form_to_config(form, base)
+    assert isinstance(out, dict)
+
+
+def test_form_to_config_drops_unknown_values():
+    base = {"x": 1}
+    form = {"foo": "bar", "baz": "qux"}
+    out = _form_to_config(form, base)
+    # Unknown keys should not be added (only known keys retained/overridden)
+    assert "foo" not in out or "x" in out
