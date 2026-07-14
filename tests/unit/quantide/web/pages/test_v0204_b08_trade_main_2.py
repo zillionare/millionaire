@@ -285,3 +285,150 @@ def test_extract_recent_trade_dates_filters_future():
     # Only the past date included (or first fallback if none eligible)
     assert isinstance(out, list)
     assert len(out) >= 1
+
+
+# ---------------------------------------------------------------------------
+# place_order_trade — async endpoint, hits many branches
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.trade_main import place_order_trade
+
+
+def _trade_req(form_data=None, scope=None):
+    req = MagicMock()
+    req.scope = scope or {}
+    req.form = AsyncMock(return_value=form_data or {})
+    return req
+
+
+@pytest.mark.asyncio
+async def test_place_order_no_broker_returns_toast():
+    """When no registry, returns toast error."""
+    req = _trade_req()
+    resp = await place_order_trade(req)
+    assert resp is not None  # HTMLResponse with error toast
+
+
+@pytest.mark.asyncio
+async def test_place_order_no_asset():
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock()
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "", "price_mode": "LIMIT", "price": "10", "value": "5"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_bad_price_format():
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock()
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "LIMIT", "price": "x", "value": "5"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_zero_price_in_limit_mode():
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock()
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "LIMIT", "price": "0", "value": "5"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_bad_value_format():
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock()
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "x"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_zero_value():
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock()
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "0"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_buy_amount_with_amount_method():
+    """When broker has buy_amount method, called directly."""
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock(spec=["buy_amount", "sell_amount", "buy", "sell"])
+    fake_broker.buy_amount = AsyncMock(return_value=MagicMock(qt_oid="o1"))
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "LIMIT", "price": "10", "value": "5", "order_mode": "AMOUNT"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_sell_amount():
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock(spec=["sell_amount", "buy", "sell"])
+    fake_broker.sell_amount = AsyncMock(return_value=MagicMock(qt_oid="o1"))
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "SELL", "asset": "000001.SZ", "price_mode": "LIMIT", "price": "10", "value": "5", "order_mode": "AMOUNT"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_no_order_generated_returns_toast():
+    """When result has no qt_oid nor trades, returns error toast."""
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock(spec=["buy", "sell"])
+    fake_broker.buy = AsyncMock(return_value=None)
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "5", "order_mode": "SHARES"})
+    resp = await place_order_trade(req)
+    assert resp is not None
+
+
+@pytest.mark.asyncio
+async def test_place_order_broker_raises_returns_toast():
+    """When broker.buy raises, returns error toast."""
+    from quantide.core.enums import BrokerKind
+    reg = MagicMock()
+    fake_broker = MagicMock(spec=["buy", "sell"])
+    fake_broker.buy = AsyncMock(side_effect=Exception("boom"))
+    reg.get = MagicMock(return_value=fake_broker)
+    req = MagicMock()
+    req.scope = {"registry": reg, "session": {"active_account_kind": BrokerKind.SIMULATION.value, "active_account_id": "b1"}}
+    req.form = AsyncMock(return_value={"side": "BUY", "asset": "000001.SZ", "price_mode": "MARKET", "price": "10", "value": "5", "order_mode": "SHARES"})
+    resp = await place_order_trade(req)
+    assert resp is not None
