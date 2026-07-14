@@ -147,3 +147,90 @@ def test_info_row():
 def test_info_row_with_int():
     out = InfoRow("Count", 42)
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# create_register_form error message variants
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.auth.forms import (
+    create_forgot_password_form,
+    create_register_form,
+    create_reset_password_form,
+)
+
+
+def test_register_form_username_taken():
+    out = create_register_form(error="username_taken")
+    assert out is not None
+
+
+def test_register_form_email_taken():
+    out = create_register_form(error="email_taken")
+    assert out is not None
+
+
+def test_register_form_password_mismatch():
+    out = create_register_form(error="password_mismatch")
+    assert out is not None
+
+
+def test_register_form_password_weak():
+    out = create_register_form(error="password_weak")
+    assert out is not None
+
+
+def test_register_form_invalid_email():
+    out = create_register_form(error="invalid_email")
+    assert out is not None
+
+
+def test_register_form_creation_failed():
+    out = create_register_form(error="creation_failed")
+    assert out is not None
+
+
+def test_register_form_terms_required():
+    out = create_register_form(error="terms_required")
+    assert out is not None
+
+
+def test_register_form_unknown_error():
+    out = create_register_form(error="unknown")
+    assert out is not None
+
+
+def test_forgot_form_email_not_found():
+    out = create_forgot_password_form(error="email_not_found")
+    assert out is not None
+
+
+def test_forgot_form_send_failed():
+    out = create_forgot_password_form(error="send_failed")
+    assert out is not None
+
+
+def test_forgot_form_success():
+    out = create_forgot_password_form(success="sent")
+    assert out is not None
+
+
+def test_reset_form_invalid_token():
+    out = create_reset_password_form(token="abc", error="invalid_token")
+    assert out is not None
+
+
+def test_reset_form_password_mismatch():
+    out = create_reset_password_form(token="abc", error="password_mismatch")
+    assert out is not None
+
+
+def test_reset_form_password_weak():
+    out = create_reset_password_form(token="abc", error="password_weak")
+    assert out is not None
+
+
+def test_reset_form_unknown_error():
+    out = create_reset_password_form(token="abc", error="unknown")
+    assert out is not None
