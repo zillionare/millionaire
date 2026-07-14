@@ -1,0 +1,157 @@
+"""B08-admin-routes-1: Test class methods on AdminRoutes that don't need registration."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from quantide.web.auth.admin_routes import AdminRoutes, InfoRow
+
+
+@pytest.fixture
+def admin():
+    auth = MagicMock()
+    auth.config = {}
+    auth.user_repo = MagicMock()
+    return AdminRoutes(auth)
+
+
+def _user(name="alice", email="a@x.com", role="user", active=True):
+    u = MagicMock()
+    u.username = name
+    u.email = email
+    u.role = role
+    u.active = active
+    return u
+
+
+# ---------------------------------------------------------------------------
+# _get_role_color
+# ---------------------------------------------------------------------------
+
+
+def test_get_role_color_admin(admin):
+    assert "purple" in admin._get_role_color("admin")
+
+
+def test_get_role_color_manager(admin):
+    assert "blue" in admin._get_role_color("manager")
+
+
+def test_get_role_color_user(admin):
+    assert "gray" in admin._get_role_color("user")
+
+
+def test_get_role_color_unknown_falls_back(admin):
+    out = admin._get_role_color("unknown")
+    assert "gray" in out
+
+
+# ---------------------------------------------------------------------------
+# _filter_users
+# ---------------------------------------------------------------------------
+
+
+def test_filter_users_no_filter_returns_all(admin):
+    users = [_user()]
+    out = admin._filter_users(users, "", "", "")
+    assert out == users
+
+
+def test_filter_users_by_username_search(admin):
+    users = [_user("alice"), _user("bob")]
+    out = admin._filter_users(users, "ALICE", "", "")
+    assert len(out) == 1
+    assert out[0].username == "alice"
+
+
+def test_filter_users_by_email_search(admin):
+    users = [_user("alice", "a@x.com"), _user("bob", "b@x.com")]
+    out = admin._filter_users(users, "b@x", "", "")
+    assert len(out) == 1
+
+
+def test_filter_users_by_role(admin):
+    users = [_user(role="admin"), _user(role="user")]
+    out = admin._filter_users(users, "", "user", "")
+    assert len(out) == 1
+
+
+def test_filter_users_active(admin):
+    users = [_user(active=True), _user(active=False)]
+    out = admin._filter_users(users, "", "", "active")
+    assert len(out) == 1
+
+
+def test_filter_users_inactive(admin):
+    users = [_user(active=True), _user(active=False)]
+    out = admin._filter_users(users, "", "", "inactive")
+    assert len(out) == 1
+
+
+def test_filter_users_other_status_passthrough(admin):
+    users = [_user(active=True), _user(active=False)]
+    out = admin._filter_users(users, "", "", "garbage")
+    assert len(out) == 2
+
+
+# ---------------------------------------------------------------------------
+# _create_user_list_header
+# ---------------------------------------------------------------------------
+
+
+def test_create_user_list_header(admin):
+    out = admin._create_user_list_header()
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _create_filters_section
+# ---------------------------------------------------------------------------
+
+
+def test_create_filters_section(admin):
+    out = admin._create_filters_section(search="", role_filter="", status_filter="", prefix="/auth/admin")
+    assert out is not None
+
+
+def test_create_filters_section_with_values(admin):
+    out = admin._create_filters_section(search="alice", role_filter="admin", status_filter="active", prefix="/auth/admin")
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# _create_pagination
+# ---------------------------------------------------------------------------
+
+
+def test_create_pagination_single_page_returns_none(admin):
+    """When total_pages <= 1, _create_pagination returns None."""
+    out = admin._create_pagination(current_page=1, total_pages=1, base_url="/auth/admin/users", query_params={})
+    assert out is None
+
+
+def test_create_pagination_many_pages(admin):
+    out = admin._create_pagination(current_page=3, total_pages=10, base_url="/auth/admin/users", query_params={"q": "x"})
+    assert out is not None
+
+
+def test_create_pagination_two_pages(admin):
+    out = admin._create_pagination(current_page=2, total_pages=2, base_url="/auth/admin/users", query_params={})
+    assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# InfoRow
+# ---------------------------------------------------------------------------
+
+
+def test_info_row_returns_div():
+    out = InfoRow("Label", "value")
+    assert out is not None
+
+
+def test_info_row_with_int_value():
+    out = InfoRow("Count", 42)
+    assert out is not None
