@@ -552,3 +552,36 @@ def test_admin_dashboard():
     req = MagicMock()
     out = dashboard(req)
     assert out is not None
+
+
+def test_admin_users_list_with_messages_no_msg():
+    """When no success/error query param, returns original_response."""
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    auth.user_repo = MagicMock()
+    auth.user_repo.list_all = MagicMock(return_value=[])
+    auth.user_repo.count_by_role = MagicMock(return_value={"admin": 0, "manager": 0, "user": 0})
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", include_admin=True)
+    fn = routes.routes["admin_users_list"]
+    req = MagicMock()
+    req.query_params = {}
+    req.scope = {"session": {}}
+    out = fn(req)
+    assert out is not None
+
+
+def test_register_profile_route_admin():
+    """register_profile_route is callable separately."""
+    auth = MagicMock()
+    auth.config = {}
+    auth.user_repo = MagicMock()
+    routes = AuthRoutes(auth)
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    routes._register_profile_route(rt=fake_route, prefix="/auth")
+    assert "profile_page" in routes.routes
+    assert "profile_submit" in routes.routes
+    assert "reset_password_modal" not in routes.routes
