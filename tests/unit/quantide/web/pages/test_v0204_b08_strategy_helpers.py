@@ -379,3 +379,171 @@ def test_strategy_version_no_attrs():
     class FakeStrategy:
         pass
     assert _strategy_version(FakeStrategy) == "v1.0.0"
+
+
+# ---------------------------------------------------------------------------
+# Format / parse helpers
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import (
+    _format_percent,
+    _format_number,
+    _format_date,
+    _format_range,
+    _parse_checkbox,
+    _normalize_backtest_tab,
+    _to_number,
+    _metric_value,
+    _params_to_text,
+)
+
+
+def test_format_percent_none():
+    out = _format_percent(None)
+    assert out == "--"
+
+
+def test_format_percent_zero():
+    out = _format_percent(0)
+    assert "%" in out
+
+
+def test_format_percent_positive():
+    out = _format_percent(0.1234)
+    assert "%" in out
+    assert "12.3" in out
+
+
+def test_format_percent_negative():
+    out = _format_percent(-0.05)
+    assert "%" in out
+
+
+def test_format_number_none():
+    out = _format_number(None)
+    assert out == "--"
+
+
+def test_format_number_normal():
+    out = _format_number(1234.567)
+    assert out  # returns formatted string
+
+
+def test_format_number_thousands():
+    out = _format_number(12345.6789)
+    assert "12" in out
+
+
+def test_format_date_none():
+    out = _format_date(None)
+    assert out == "--"
+
+
+def test_format_date_date():
+    import datetime as dt
+    out = _format_date(dt.date(2024, 6, 15))
+    assert "2024-06-15" in out
+
+
+def test_format_date_datetime():
+    import datetime as dt
+    out = _format_date(dt.datetime(2024, 6, 15, 12, 30))
+    assert "2024-06-15" in out
+
+
+def test_format_range_none():
+    out = _format_range(None, None)
+    assert "--" in out
+
+
+def test_format_range_dates():
+    import datetime as dt
+    out = _format_range(dt.date(2024, 1, 1), dt.date(2024, 12, 31))
+    assert "2024-01-01" in out
+    assert "2024-12-31" in out
+
+
+def test_parse_checkbox_trues():
+    assert _parse_checkbox("on") is True
+    assert _parse_checkbox("true") is True
+    assert _parse_checkbox("1") is True
+    assert _parse_checkbox("yes") is True
+
+
+def test_parse_checkbox_falses():
+    assert _parse_checkbox("off") is False
+    assert _parse_checkbox("false") is False
+    assert _parse_checkbox("0") is False
+    assert _parse_checkbox("") is False
+    assert _parse_checkbox(None) is False
+
+
+def test_normalize_backtest_tab_valid():
+    out = _normalize_backtest_tab("overview")
+    assert out == "overview"
+
+
+def test_normalize_backtest_tab_invalid():
+    out = _normalize_backtest_tab("nonexistent")
+    assert out == "overview"  # default
+
+
+def test_normalize_backtest_tab_none():
+    out = _normalize_backtest_tab(None)
+    assert out == "overview"
+
+
+def test_normalize_backtest_tab_trades():
+    out = _normalize_backtest_tab("trades")
+    assert out == "trades"
+
+
+def test_to_number_valid():
+    out = _to_number("1.5")
+    assert out == 1.5
+
+
+def test_to_number_int():
+    out = _to_number(42)
+    assert out == 42.0
+
+
+def test_to_number_invalid():
+    out = _to_number("not a number")
+    assert out is None
+
+
+def test_to_number_none():
+    out = _to_number(None)
+    assert out is None
+
+
+def test_metric_value_first_key():
+    stats = {"alpha": 0.5, "sharpe": 1.2}
+    out = _metric_value(stats, "alpha")
+    assert out == 0.5
+
+
+def test_metric_value_fallback_key():
+    stats = {"sharpe": 1.2}
+    out = _metric_value(stats, "alpha", "sharpe")
+    assert out == 1.2
+
+
+def test_metric_value_no_match():
+    stats = {"x": 1}
+    out = _metric_value(stats, "missing")
+    assert out is None
+
+
+def test_params_to_text_empty():
+    out = _params_to_text({})
+    assert out == "--"
+
+
+def test_params_to_text_with_data():
+    out = _params_to_text({"period": 14, "threshold": 0.05})
+    assert "period" in out
+    assert "14" in out
+    assert "threshold" in out
