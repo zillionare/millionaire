@@ -1025,3 +1025,71 @@ def test_coerce_order_status_unknown():
 def test_coerce_order_status_empty():
     out = _coerce_order_status("")
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# strategy_runtime helpers — _extract_symbols / _account_key
+# ---------------------------------------------------------------------------
+
+
+from quantide.service.strategy_runtime import StrategyRuntimeManager
+
+
+def _make_manager():
+    """Build manager with mocked dependencies."""
+    mgr = StrategyRuntimeManager.__new__(StrategyRuntimeManager)
+    mgr._extract_symbols = StrategyRuntimeManager._extract_symbols.__get__(mgr)
+    mgr._account_key = StrategyRuntimeManager._account_key.__get__(mgr)
+    return mgr
+
+
+def test_extract_symbols_single():
+    mgr = _make_manager()
+    assert mgr._extract_symbols({"symbol": "000001.SZ"}) == ["000001.SZ"]
+
+
+def test_extract_symbols_asset():
+    mgr = _make_manager()
+    assert mgr._extract_symbols({"asset": "000001.SZ"}) == ["000001.SZ"]
+
+
+def test_extract_symbols_security():
+    mgr = _make_manager()
+    assert mgr._extract_symbols({"security": "000001.SZ"}) == ["000001.SZ"]
+
+
+def test_extract_symbols_list():
+    mgr = _make_manager()
+    assert mgr._extract_symbols({"symbols": ["000001.SZ", "600000.SH"]}) == ["000001.SZ", "600000.SH"]
+
+
+def test_extract_symbols_assets_list():
+    mgr = _make_manager()
+    assert mgr._extract_symbols({"assets": ["A", "B"]}) == ["A", "B"]
+
+
+def test_extract_symbols_securities_list():
+    mgr = _make_manager()
+    assert mgr._extract_symbols({"securities": ["X", "Y"]}) == ["X", "Y"]
+
+
+def test_extract_symbols_empty_config():
+    mgr = _make_manager()
+    assert mgr._extract_symbols({}) == []
+
+
+def test_extract_symbols_empty_string():
+    mgr = _make_manager()
+    assert mgr._extract_symbols({"symbol": ""}) == []
+
+
+def test_extract_symbols_list_with_empty():
+    mgr = _make_manager()
+    out = mgr._extract_symbols({"symbols": ["A", "", "B"]})
+    assert "A" in out and "B" in out
+
+
+def test_account_key():
+    mgr = _make_manager()
+    assert mgr._account_key("paper", "p1") == "paper:p1"
+    assert mgr._account_key("live", "p2") == "live:p2"
