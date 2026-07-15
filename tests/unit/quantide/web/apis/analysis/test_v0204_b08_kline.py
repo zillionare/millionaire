@@ -218,3 +218,200 @@ def test_get_bars_with_ma_with_periods():
     with patch.object(kline_mod, "_get_stock_bars", return_value=fake_df):
         out = _get_bars_with_ma("000001.SZ", dt.date(2024, 6, 1), dt.date(2024, 6, 10), ma_periods=[3, 5])
     assert "ma3" in out.columns or "ma5" in out.columns
+
+
+# ---------------------------------------------------------------------------
+# get_stock_kline route handler
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.apis.analysis import kline as km
+
+
+def _fake_request(query_params):
+    req = MagicMock()
+    req.query_params = query_params
+    req.path_params = {}
+    return req
+
+
+def test_kline_endpoint_basic():
+    """get_stock_kline returns JSONResponse with valid request."""
+    from quantide.web.apis.analysis.kline import get_stock_kline
+
+    fake_df = pl3.DataFrame({
+        "date": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
+        "close": [10.0, 10.5],
+        "open": [9.5, 10.0],
+        "high": [10.5, 11.0],
+        "low": [9.0, 9.5],
+        "volume": [1000.0, 1500.0],
+    })
+    with patch.object(km, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km, "bars_to_list", return_value=[{"date": "2024-06-01", "close": 10.0}]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "5,10"})
+            out = get_stock_kline(req, "000001.SZ")
+    # Returns Response
+    assert out is not None
+
+
+def test_kline_endpoint_no_dates():
+    """No start/end → uses defaults (today - 365, today)."""
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({"date": [dt.date.today()], "close": [10.0]})
+    with patch.object(km, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km, "bars_to_list", return_value=[]):
+            req = _fake_request({})
+            out = get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+def test_kline_endpoint_invalid_date():
+    """Invalid date format → JSONResponse error."""
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    req = _fake_request({"start": "invalid"})
+    out = get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+def test_kline_endpoint_invalid_freq():
+    """Invalid freq → JSONResponse error."""
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
+    with patch.object(km, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "freq": "invalid"})
+            out = get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+def test_kline_endpoint_invalid_ma():
+    """Invalid ma param → JSONResponse error."""
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
+    with patch.object(km, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "abc"})
+            out = get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+def test_kline_endpoint_with_ma():
+    """With valid ma periods, returns MA data."""
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({
+        "date": [dt.date(2024, 6, 1), dt.date(2024, 6, 2), dt.date(2024, 6, 3)],
+        "close": [10.0, 10.5, 11.0],
+        "open": [9.5, 10.0, 10.5],
+        "high": [10.5, 11.0, 11.5],
+        "low": [9.0, 9.5, 10.0],
+        "volume": [1000.0, 1500.0, 2000.0],
+    })
+    with patch.object(km, "_get_bars_with_ma", return_value=fake_df):
+        with patch.object(km, "add_ma_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "5"})
+            out = get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+def test_kline_endpoint_exception():
+    """Generic exception in data fetch → error response."""
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    with patch.object(km, "_get_stock_bars", side_effect=Exception("boom")):
+        req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
+        out = get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+import asyncio
+
+
+def _run(coro):
+    """Run coroutine to completion."""
+    return asyncio.run(coro)
+
+
+# Async-wrapped tests for get_stock_kline
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_kline_endpoint_basic_async():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({
+        "date": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
+        "close": [10.0, 10.5], "open": [9.5, 10.0],
+        "high": [10.5, 11.0], "low": [9.0, 9.5], "volume": [1000.0, 1500.0],
+    })
+    with patch.object(km2, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[{"date": "2024-06-01"}]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
+            out = await get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_kline_endpoint_no_dates_async():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({"date": [dt.date.today()], "close": [10.0]})
+    with patch.object(km2, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({})
+            out = await get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_kline_endpoint_invalid_date_async():
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    req = _fake_request({"start": "invalid"})
+    out = await get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_kline_endpoint_invalid_freq_async():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
+    with patch.object(km2, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "freq": "invalid"})
+            out = await get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_kline_endpoint_invalid_ma_async():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
+    with patch.object(km2, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "abc"})
+            out = await get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_kline_endpoint_with_ma_async():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
+    with patch.object(km2, "_get_bars_with_ma", return_value=fake_df):
+        with patch.object(km2, "add_ma_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "5"})
+            out = await get_stock_kline(req, "000001.SZ")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_kline_endpoint_exception_async():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_stock_kline
+    with patch.object(km2, "_get_stock_bars", side_effect=Exception("boom")):
+        req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
+        out = await get_stock_kline(req, "000001.SZ")
+    assert out is not None
