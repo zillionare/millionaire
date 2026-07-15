@@ -173,3 +173,48 @@ def test_get_index_bars_empty():
     with patch.object(kline_mod, "get_index_bars_store", return_value=fake_store):
         out = _get_index_bars("000300.SH", dt.date(2024, 1, 1), dt.date(2024, 6, 30))
     assert out.is_empty()
+
+
+# ---------------------------------------------------------------------------
+# _get_bars_with_ma — test MA computation branch
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.apis.analysis.kline import _get_bars_with_ma
+
+
+def test_get_bars_with_ma_empty():
+    """When df empty, returns empty."""
+    with patch.object(kline_mod, "_get_stock_bars", return_value=pl3.DataFrame()):
+        out = _get_bars_with_ma("000001.SZ", dt.date(2024, 1, 1), dt.date(2024, 6, 30))
+    assert out.is_empty()
+
+
+def test_get_bars_with_ma_no_periods():
+    """When ma_periods None, returns raw df."""
+    fake_df = pl3.DataFrame({
+        "date": [dt.date(2024, 6, i) for i in range(1, 11)],
+        "close": [10.0 + i * 0.1 for i in range(10)],
+        "open": [9.0 + i * 0.1 for i in range(10)],
+        "high": [11.0 + i * 0.1 for i in range(10)],
+        "low": [8.5 + i * 0.1 for i in range(10)],
+        "volume": [1000.0] * 10,
+    })
+    with patch.object(kline_mod, "_get_stock_bars", return_value=fake_df):
+        out = _get_bars_with_ma("000001.SZ", dt.date(2024, 6, 1), dt.date(2024, 6, 10), ma_periods=None)
+    assert out.height == 10
+
+
+def test_get_bars_with_ma_with_periods():
+    """When ma_periods given, computes MA columns."""
+    fake_df = pl3.DataFrame({
+        "date": [dt.date(2024, 6, i) for i in range(1, 11)],
+        "close": [10.0 + i * 0.1 for i in range(10)],
+        "open": [9.0 + i * 0.1 for i in range(10)],
+        "high": [11.0 + i * 0.1 for i in range(10)],
+        "low": [8.5 + i * 0.1 for i in range(10)],
+        "volume": [1000.0] * 10,
+    })
+    with patch.object(kline_mod, "_get_stock_bars", return_value=fake_df):
+        out = _get_bars_with_ma("000001.SZ", dt.date(2024, 6, 1), dt.date(2024, 6, 10), ma_periods=[3, 5])
+    assert "ma3" in out.columns or "ma5" in out.columns
