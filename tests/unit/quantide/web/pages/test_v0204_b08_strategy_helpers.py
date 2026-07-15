@@ -1402,7 +1402,14 @@ def test_build_strategy_rows_with_class_no_portfolios():
 
 
 def test_build_strategy_rows_with_history():
-    """When portfolios exist, builds latest link cell."""
+    """[AC-NFR1101-01] Data-rich path: assert specific cell content.
+
+    Verifies that a non-empty portfolios DataFrame produces a row whose
+    cells carry the strategy name, doc text, portfolio count, and a
+    latest-link anchor pointing at the most recent portfolio. This
+    exercises the data-rich branch (portfolios.is_empty() == False)
+    rather than only the empty-DataFrame path flagged by Prism M5.
+    """
     from quantide.web.pages.strategy import _build_strategy_rows
     class FakeStrategy:
         __doc__ = "Sample strategy"
@@ -1417,6 +1424,17 @@ def test_build_strategy_rows_with_history():
         mock_db.get_portfolios_by_strategy = MagicMock(return_value=portfolios_df)
         rows = _build_strategy_rows(strategies)
     assert len(rows) == 1
+    row_html = str(rows[0])
+    # Strategy name cell
+    assert "strat1" in row_html
+    # Doc/description cell
+    assert "Sample strategy" in row_html
+    # Portfolio count cell (2 portfolios -> "2次")
+    assert "2次" in row_html
+    # Latest link: portfolios sorted by start desc -> pf2 is latest,
+    # its end date 2024-12-31 is rendered and pf2 is the href target.
+    assert 'href="/strategy/backtest/pf2"' in row_html
+    assert "2024-12-31" in row_html
 
 
 def test_build_strategy_rows_class_no_doc():
