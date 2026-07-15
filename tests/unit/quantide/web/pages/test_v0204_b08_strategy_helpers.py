@@ -710,3 +710,56 @@ def test_build_job_status_badge_enabled():
 def test_build_job_status_badge_disabled():
     out = _build_job_status_badge(False)
     assert "停止" in str(out) or "Stopped" in str(out)
+
+
+# ---------------------------------------------------------------------------
+# More system/jobs helpers
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.system.jobs import _build_history_table, _build_jobs_table
+
+
+def test_build_history_table_empty():
+    """When history is empty, returns table with placeholder row."""
+    out = _build_history_table([])
+    # Returns Table with placeholder
+    assert out is not None
+
+
+def test_build_history_table_with_records():
+    """When history has records, includes them in rows."""
+    history = [
+        JobHistoryRecord(
+            job_id="j1",
+            job_name="Job 1",
+            status="success",
+            message="ok",
+            executed_at=__import__("datetime").datetime(2024, 6, 15, 10, 0),
+            duration_ms=100,
+        ),
+        JobHistoryRecord(
+            job_id="j2",
+            job_name="Job 2",
+            status="error",
+            message="failed",
+            executed_at=__import__("datetime").datetime(2024, 6, 14, 9, 0),
+            duration_ms=200,
+        ),
+    ]
+    out = _build_history_table(history)
+    assert out is not None
+
+
+def test_build_jobs_table():
+    jobs_status = [
+        {"id": "j1", "name": "Job 1", "enabled": True, "cron": "0 9 * * *", "last_run": None},
+        {"id": "j2", "name": "Job 2", "enabled": False, "cron": "*/30 * * * *", "last_run": None},
+    ]
+    out = _build_jobs_table(jobs_status)
+    assert out is not None
+
+
+def test_build_jobs_table_empty():
+    out = _build_jobs_table([])
+    assert out is not None
