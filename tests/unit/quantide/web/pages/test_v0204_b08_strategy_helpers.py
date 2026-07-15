@@ -1199,3 +1199,41 @@ def test_pick_first_value_none_source():
 def test_pick_first_value_with_multiple_keys():
     out = _pick_first_value({"z": "z-val"}, ("missing", "z"), None)
     assert out == "z-val"
+
+
+# ---------------------------------------------------------------------------
+# data_market — _get_active_tab
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.data_market import _get_active_tab
+
+
+def test_get_active_tab_default():
+    req = MagicMock()
+    req.query_params = {}
+    assert _get_active_tab(req) == "overview"
+
+
+def test_get_active_tab_overview():
+    req = MagicMock()
+    req.query_params = {"tab": "overview"}
+    assert _get_active_tab(req) == "overview"
+
+
+def test_get_active_tab_verify():
+    req = MagicMock()
+    req.query_params = {"tab": "verify"}
+    assert _get_active_tab(req) == "verify"
+
+
+def test_get_active_tab_update():
+    req = MagicMock()
+    req.query_params = {"tab": "update"}
+    assert _get_active_tab(req) == "update"
+
+
+def test_get_active_tab_browse():
+    req = MagicMock()
+    req.query_params = {"tab": "browse"}
+    assert _get_active_tab(req) == "browse"
