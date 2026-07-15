@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -1642,3 +1642,314 @@ def test_build_strategy_rows_portfolios_no_height():
         mock_db.get_portfolios_by_strategy = MagicMock(return_value=mock_df)
         rows = _build_strategy_rows(strategies)
     assert len(rows) == 1
+
+
+# ===========================================================================
+# B09-strategy-batch-1: cover OrderSide.SELL enum branch, BrokerKind ValueError,
+# PARAMS fallback, strategy_detail redirect, run_backtest happy path
+# ===========================================================================
+
+
+from quantide.web.pages.strategy import (
+    _build_backtest_rows,
+    _build_trade_rows,
+    run_backtest,
+    strategy_detail,
+)
+from quantide.web.pages.strategy import RedirectResponse
+from quantide.core.enums import BrokerKind
+
+
+def test_build_trade_rows_side_sell_enum():
+    """[AC-NFR1101-01] When side is OrderSide.SELL enum, str(side) returns '卖出'.
+
+    Exercises the ``isinstance(side, OrderSide)`` branch at lines 486-487
+    with the SELL member, asserting both ``side_text`` and ``side_value``
+    carry the enum semantics rather than the int-coercion fallback.
+
+    Uses ``pl.Object`` dtype so polars preserves the enum member instead
+    of coercing it to its underlying int value.
+    """
+    import datetime as _dt
+    fake_trades = _pl_strat.DataFrame({
+        "tm": [_dt.datetime(2024, 1, 1, 10, 0)],
+        "asset": ["000001.SZ"],
+        "side": [OrderSide.SELL],
+        "price": [10.0],
+        "shares": [100.0],
+        "amount": [1000.0],
+        "fee": [1.0],
+    }, schema_overrides={"side": _pl_strat.Object})
+    with _patch_strat.object(_strat_mod, "db") as mock_db:
+        mock_db.trades_all = MagicMock(return_value=fake_trades)
+        out = _build_trade_rows("p1")
+    assert out[0]["side"] == "卖出"
+    assert out[0]["side_value"] == -1
+
+
+def test_build_trade_rows_side_buy_enum():
+    """[AC-NFR1101-01] When side is OrderSide.BUY enum, str(side) returns '买入'.
+
+    Pairs with the SELL test to confirm both enum members exercise the
+    isinstance branch (lines 486-487) and that ``side_value`` equals the
+    enum's integer value rather than a coerced int.
+
+    Uses ``pl.Object`` dtype so polars preserves the enum member instead
+    of coercing it to its underlying int value.
+    """
+    import datetime as _dt
+    fake_trades = _pl_strat.DataFrame({
+        "tm": [_dt.datetime(2024, 1, 1, 10, 0)],
+        "asset": ["600000.SH"],
+        "side": [OrderSide.BUY],
+        "price": [12.5],
+        "shares": [200.0],
+        "amount": [2500.0],
+        "fee": [2.5],
+    }, schema_overrides={"side": _pl_strat.Object})
+    with _patch_strat.object(_strat_mod, "db") as mock_db:
+        mock_db.trades_all = MagicMock(return_value=fake_trades)
+        out = _build_trade_rows("p1")
+    assert out[0]["side"] == "买入"
+    assert out[0]["side_value"] == 1
+
+
+def test_build_backtest_rows_invalid_kind_string_skipped():
+    """[AC-NFR1101-01] Invalid kind string triggers ValueError, row skipped.
+
+    A portfolio row whose ``kind`` is an unknown string (not a valid
+    BrokerKind value) must be skipped via the ``except ValueError: continue``
+    at line 1058 rather than raising.
+    """
+    portfolios_df = _pl_strat.DataFrame({
+        "portfolio_id": ["pf_bad"],
+        "name": ["ghost"],
+        "kind": ["not-a-real-broker"],
+        "info": [None],
+        "start": ["2024-01-01"],
+        "end": ["2024-06-30"],
+    })
+    with _patch_strat.object(_strat_mod, "db") as mock_db, \
+         _patch_strat.object(_strat_mod, "strategy_runtime_manager") as mock_mgr:
+        mock_db.portfolios_all = MagicMock(return_value=portfolios_df)
+        mock_mgr.backtest_deployment_modes = MagicMock(return_value={})
+        rows = _build_backtest_rows({})
+    assert rows == []
+
+
+def test_build_backtest_rows_params_fallback_to_strategy_cls():
+    """[AC-NFR1101-01] Empty info_params falls back to strategy_cls.PARAMS.
+
+    When ``_extract_params_from_info`` returns an empty dict (info is None)
+    and a matching ``strategy_cls`` exists in the strategies registry, the
+    code falls back to ``getattr(strategy_cls, "PARAMS", {})`` at line 1068
+    and renders those params in the params cell.
+    """
+    class FakeStrategy:
+        PARAMS = {"window": 20}
+        VERSION = "v2.1.0"
+
+    portfolios_df = _pl_strat.DataFrame({
+        "portfolio_id": ["pf1"],
+        "name": ["fake_strat"],
+        "kind": [BrokerKind.BACKTEST.value],
+        "info": [None],
+        "start": ["2024-01-01"],
+        "end": ["2024-06-30"],
+    })
+    with _patch_strat.object(_strat_mod, "db") as mock_db, \
+         _patch_strat.object(_strat_mod, "strategy_runtime_manager") as mock_mgr, \
+         _patch_strat.object(_strat_mod, "_build_metrics_payload") as mock_metrics:
+        mock_db.portfolios_all = MagicMock(return_value=portfolios_df)
+        mock_mgr.backtest_deployment_modes = MagicMock(return_value={})
+        mock_metrics.return_value = {
+            "annual_return": 0.15,
+            "sharpe": 1.2,
+            "max_drawdown": -0.08,
+            "sortino": 1.5,
+        }
+        rows = _build_backtest_rows({"fake_strat": FakeStrategy})
+    assert len(rows) == 1
+    row_html = str(rows[0])
+    assert "window=20" in row_html
+    assert "fake_strat" in row_html
+    assert "v2.1.0" in row_html
+
+
+def test_build_backtest_rows_uses_info_params_when_present():
+    """[AC-NFR1101-01] Non-empty info_params takes precedence over PARAMS.
+
+    Confirms the fallback at line 1068 only triggers when info_params is
+    empty; when the portfolio's info carries a config dict, that config
+    is rendered instead of the class-level PARAMS.
+    """
+    class FakeStrategy:
+        PARAMS = {"window": 20}
+
+    info_json = '{"config": {"window": 5}}'
+    portfolios_df = _pl_strat.DataFrame({
+        "portfolio_id": ["pf1"],
+        "name": ["fake_strat"],
+        "kind": [BrokerKind.BACKTEST.value],
+        "info": [info_json],
+        "start": ["2024-01-01"],
+        "end": ["2024-06-30"],
+    })
+    with _patch_strat.object(_strat_mod, "db") as mock_db, \
+         _patch_strat.object(_strat_mod, "strategy_runtime_manager") as mock_mgr, \
+         _patch_strat.object(_strat_mod, "_build_metrics_payload") as mock_metrics:
+        mock_db.portfolios_all = MagicMock(return_value=portfolios_df)
+        mock_mgr.backtest_deployment_modes = MagicMock(return_value={})
+        mock_metrics.return_value = {
+            "annual_return": None,
+            "sharpe": None,
+            "max_drawdown": None,
+            "sortino": None,
+        }
+        rows = _build_backtest_rows({"fake_strat": FakeStrategy})
+    assert len(rows) == 1
+    row_html = str(rows[0])
+    assert "window=5" in row_html
+    assert "window=20" not in row_html
+
+
+def test_strategy_detail_redirects_when_name_not_found():
+    """[AC-NFR1101-01] Unknown strategy name redirects to /strategy.
+
+    Covers lines 1349-1350: when ``name`` is absent from the loaded
+    strategies cache, ``strategy_detail`` short-circuits with a
+    RedirectResponse pointing at ``/strategy``.
+    """
+    req = MagicMock()
+    session = {"auth": "tester"}
+    with _patch_strat.object(_strat_mod, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={})
+        resp = strategy_detail(req, session, name="missing_strat")
+    assert isinstance(resp, RedirectResponse)
+    assert resp.headers.get("location") == "/strategy"
+
+
+def test_strategy_detail_renders_history_when_found():
+    """[AC-NFR1101-01] Known strategy renders detail page with history rows.
+
+    Covers lines 1352-1409: when the strategy exists and has portfolios,
+    the rendered HTML carries the strategy name, its docstring, the
+    default PARAMS, and a history-table link to each portfolio report.
+    """
+    class FakeStrategy:
+        __doc__ = "A sample strategy for testing."
+        PARAMS = {"window": 10}
+
+    portfolios_df = _pl_strat.DataFrame({
+        "portfolio_id": ["pf_alpha", "pf_beta"],
+        "start": ["2024-01-01", "2024-03-01"],
+        "end": ["2024-02-28", "2024-05-31"],
+    })
+    req = MagicMock()
+    session = {"auth": "tester"}
+    with _patch_strat.object(_strat_mod, "strategy_loader") as mock_loader, \
+         _patch_strat.object(_strat_mod, "db") as mock_db:
+        mock_loader.load_from_cache = MagicMock(
+            return_value={"my_strat": FakeStrategy}
+        )
+        mock_db.get_portfolios_by_strategy = MagicMock(return_value=portfolios_df)
+        html = strategy_detail(req, session, name="my_strat")
+    html_str = str(html)
+    assert "my_strat" in html_str
+    assert "A sample strategy for testing." in html_str
+    assert "window" in html_str
+    assert 'href="/strategy/backtest/pf_alpha"' in html_str
+    assert 'href="/strategy/backtest/pf_beta"' in html_str
+    assert "2024-02-28" in html_str
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_strategy_not_found_returns_error_div():
+    """[AC-NFR1101-01] Unknown strategy raises, caught, returns error Div.
+
+    Covers the exception handler at lines 1592-1599: when the named
+    strategy is missing from the cache, ``run_backtest`` raises
+    "Strategy not found", the outer ``except`` renders a Div whose body
+    mentions "回测失败".
+    """
+    form = {
+        "start_date": "2024-01-01",
+        "end_date": "2024-06-30",
+        "initial_cash": "1000000",
+        "interval": "1d",
+    }
+    req = MagicMock()
+    req.form = AsyncMock(return_value=form)
+    with _patch_strat.object(_strat_mod, "strategy_loader") as mock_loader:
+        mock_loader.load_from_cache = MagicMock(return_value={})
+        out = await run_backtest(req, name="missing")
+    out_html = str(out)
+    assert "回测失败" in out_html
+    assert "Strategy not found" in out_html
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_happy_path_redirects_to_report():
+    """[AC-NFR1101-01] Valid inputs create runtime and redirect to report.
+
+    Covers lines 1551-1590: with valid dates, a known strategy, and a
+    working event loop, ``run_backtest`` creates a backtest runtime,
+    schedules the job in the executor, and returns a Response whose
+    ``HX-Redirect`` header points at the new portfolio report.
+    """
+    class FakeStrategy:
+        __doc__ = "x"
+
+    form = {
+        "start_date": "2024-01-01",
+        "end_date": "2024-06-30",
+        "initial_cash": "500000",
+        "interval": "1d",
+        "save_logs": "1",
+    }
+    req = MagicMock()
+    req.form = AsyncMock(return_value=form)
+
+    async def _fake_get_running_loop():
+        return MagicMock()
+
+    with _patch_strat.object(_strat_mod, "strategy_loader") as mock_loader, \
+         _patch_strat.object(_strat_mod, "strategy_runtime_manager") as mock_mgr, \
+         _patch_strat.object(_strat_mod, "BacktestRunner") as mock_runner_cls, \
+         _patch_strat.object(_strat_mod.asyncio, "get_running_loop") as mock_loop_fn, \
+         _patch_strat.object(_strat_mod.asyncio, "run") as mock_run:
+        mock_loader.load_from_cache = MagicMock(
+            return_value={"my_strat": FakeStrategy}
+        )
+        mock_mgr.create_backtest_runtime = MagicMock()
+        mock_mgr.complete_backtest_runtime = MagicMock()
+        mock_runner_cls.return_value = MagicMock()
+        fake_loop = MagicMock()
+        fake_loop.run_in_executor = MagicMock()
+        mock_loop_fn.return_value = fake_loop
+        out = await run_backtest(req, name="my_strat")
+    assert out.headers.get("HX-Redirect") is not None
+    assert "/strategy/backtest/" in out.headers["HX-Redirect"]
+    mock_mgr.create_backtest_runtime.assert_called_once()
+    fake_loop.run_in_executor.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_bad_date_returns_error_div():
+    """[AC-NFR1101-01] Invalid start_date raises, caught, returns error Div.
+
+    Covers the exception handler at lines 1592-1599 for a malformed date
+    input: ``arrow.get`` raises and the outer ``except`` renders the
+    failure Div.
+    """
+    form = {
+        "start_date": "not-a-date",
+        "end_date": "2024-06-30",
+        "initial_cash": "1000000",
+        "interval": "1d",
+    }
+    req = MagicMock()
+    req.form = AsyncMock(return_value=form)
+    out = await run_backtest(req, name="any_strat")
+    out_html = str(out)
+    assert "回测失败" in out_html
