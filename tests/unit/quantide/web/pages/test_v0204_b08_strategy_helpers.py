@@ -547,3 +547,61 @@ def test_params_to_text_with_data():
     assert "period" in out
     assert "14" in out
     assert "threshold" in out
+
+
+# ---------------------------------------------------------------------------
+# trade_main helper tests
+# ---------------------------------------------------------------------------
+
+
+import pytest
+from quantide.web.pages.trade_main import (
+    _normalize_positions_tab,
+    _format_trade_metric,
+    _trade_result_has_order,
+)
+
+
+def test_normalize_positions_tab_valid():
+    assert _normalize_positions_tab("positions") == "positions"
+    assert _normalize_positions_tab("orders") == "orders"
+
+
+def test_normalize_positions_tab_invalid():
+    assert _normalize_positions_tab("unknown") == "positions"
+
+
+def test_normalize_positions_tab_none():
+    assert _normalize_positions_tab(None) == "positions"
+
+
+def test_format_trade_metric_negative():
+    out = _format_trade_metric(-0.5)
+    assert out == "-0.50"
+
+
+def test_format_trade_metric_positive():
+    out = _format_trade_metric(0.05)
+    assert out == "0.05"
+
+
+def test_format_trade_metric_none():
+    out = _format_trade_metric(None)
+    assert out == ""
+
+
+def test_trade_result_has_order_with_order():
+    """When result has qt_oid attr, returns True."""
+    res = MagicMock()
+    res.qt_oid = 42
+    assert _trade_result_has_order(res) is True
+
+
+def test_trade_result_has_order_no_order():
+    res = MagicMock()
+    res.qt_oid = None
+    assert _trade_result_has_order(res) is False
+
+
+def test_trade_result_has_order_none():
+    assert _trade_result_has_order(None) is False
