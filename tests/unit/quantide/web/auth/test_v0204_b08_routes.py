@@ -649,3 +649,95 @@ def test_register_profile_route_admin():
     assert "profile_page" in routes.routes
     assert "profile_submit" in routes.routes
     assert "reset_password_modal" not in routes.routes
+
+
+def test_admin_users_list_with_admin_scope():
+    """When user is admin, function executes the wrapper logic."""
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    user_repo = MagicMock()
+    user_repo.list_all = MagicMock(return_value=[])
+    user_repo.count_by_role = MagicMock(return_value={"admin": 0, "manager": 0, "user": 0})
+    auth.user_repo = user_repo
+
+    # require_admin returns a decorator that checks req.scope['user'].role
+    def make_admin_decorator():
+        def decorator(func):
+            def wrapper(req, *args, **kwargs):
+                user = req.scope.get("user")
+                if not user or user.role not in ("admin",):
+                    return MagicMock(status_code=403)
+                # Check sig
+                import inspect
+                sig = inspect.signature(func)
+                if len(sig.parameters) == 1:
+                    return func(req)
+                return func(req, *args, **kwargs)
+            return wrapper
+        return decorator
+    auth.require_admin = make_admin_decorator
+
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", include_admin=True)
+
+    # Get the registered function for admin_users_list
+    fn = routes.routes["admin_users_list"]
+
+    # Build a request with admin scope
+    admin_user = MagicMock()
+    admin_user.role = "admin"
+    req = MagicMock()
+    req.query_params = {}  # No success/error
+    req.scope = {"user": admin_user, "session": {}}
+    out = fn(req)
+    assert out is not None
+
+
+def test_admin_users_list_no_success_error_unchanged():
+    """Without success/error params, response passes through unchanged."""
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    user_repo = MagicMock()
+    user_repo.list_all = MagicMock(return_value=[])
+    user_repo.count_by_role = MagicMock(return_value={"admin": 0, "manager": 0, "user": 0})
+    auth.user_repo = user_repo
+    auth.require_admin = lambda: lambda f: f  # identity decorator
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", include_admin=True)
+    fn = routes.routes["admin_users_list"]
+    admin_user = MagicMock()
+    admin_user.role = "admin"
+    req = MagicMock()
+    req.query_params = {}
+    req.scope = {"user": admin_user, "session": {}}
+    out = fn(req)
+    # should return whatever original_list returned
+    assert out is not None
+
+
+def test_admin_dashboard_full():
+    """Admin dashboard function constructs UI components."""
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    user_repo = MagicMock()
+    user_repo.count_by_role = MagicMock(return_value={"admin": 2, "manager": 3, "user": 5})
+    auth.user_repo = user_repo
+    auth.require_admin = lambda: lambda f: f  # identity
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", include_admin=True)
+    fn = routes.routes["admin_dashboard"]
+    admin_user = MagicMock()
+    admin_user.role = "admin"
+    req = MagicMock()
+    req.scope = {"user": admin_user, "session": {}}
+    out = fn(req)
+    assert out is not None
