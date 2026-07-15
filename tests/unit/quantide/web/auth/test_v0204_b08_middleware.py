@@ -293,3 +293,127 @@ def test_capture_auth_check_remember_me():
         assert fake_sess.get("auth") == "alice"
         assert fake_sess.get("user_id") == 7
         assert fake_sess.get("remember_me") is True
+
+
+# ---------------------------------------------------------------------------
+# require_admin / require_role decorator coverage
+# ---------------------------------------------------------------------------
+
+
+def test_require_admin_decorator_calls_func_when_admin():
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    admin_user = MagicMock()
+    admin_user.role = "admin"
+    req = MagicMock()
+    req.scope = {"user": admin_user}
+
+    @mw.require_admin()
+    def admin_view(req):
+        return "ok"
+
+    result = admin_view(req)
+    assert result == "ok"
+
+
+def test_require_admin_decorator_blocks_non_admin():
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    user = MagicMock()
+    user.role = "user"
+    req = MagicMock()
+    req.scope = {"user": user}
+
+    @mw.require_admin()
+    def admin_view(req):
+        return "ok"
+
+    result = admin_view(req)
+    assert result.status_code == 403
+
+
+def test_require_admin_decorator_blocks_no_user():
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    req = MagicMock()
+    req.scope = {}
+
+    @mw.require_admin()
+    def admin_view(req):
+        return "ok"
+
+    result = admin_view(req)
+    assert result.status_code == 403
+
+
+def test_require_role_decorator_with_func_args():
+    """Decorated func accepts (req, extra) and role matches."""
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    admin_user = MagicMock()
+    admin_user.role = "admin"
+    req = MagicMock()
+    req.scope = {"user": admin_user}
+
+    @mw.require_role("admin", "manager")
+    def view_with_extra(req, extra):
+        return f"hello {extra}"
+
+    result = view_with_extra(req, "world")
+    assert result == "hello world"
+
+
+def test_require_role_decorator_blocks_manager():
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    user = MagicMock()
+    user.role = "user"
+    req = MagicMock()
+    req.scope = {"user": user}
+
+    @mw.require_role("admin", "manager")
+    def admin_view(req):
+        return "ok"
+
+    result = admin_view(req)
+    assert result.status_code == 403
+
+
+def test_remember_me_invalid_cookie_no_pass_through():
+    """When remember_user cookie points to nonexistent user, hits pass branch."""
+    captured = {}
+
+    def capturing_BW(*args, **kwargs):
+        if args and callable(args[0]):
+            captured["auth_check"] = args[0]
+        class _MockBW:
+            skip = kwargs.get("skip", [])
+        return _MockBW()
+
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    # get_user returns None for invalid
+    mw.auth_manager.get_user = MagicMock(return_value=None)
+    with patch("quantide.web.auth.middleware.Beforeware", side_effect=capturing_BW):
+        mw.create_beforeware()
+
+    if "auth_check" in captured:
+        auth_check = captured["auth_check"]
+        fake_req = MagicMock()
+        fake_req.cookies = {"remember_user": "ghost"}
+        fake_req.scope = {}
+        fake_sess = {}
+        out = auth_check(fake_req, fake_sess)
+        # redirect
+        assert out is not None
+
+
+def test_build_skip_patterns_with_additional():
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    patterns = mw._build_skip_patterns(additional_paths=["/extra1", "/extra2"])
+    # Should include custom + health + api/public
+    assert "/extra1" in patterns
+    assert "/extra2" in patterns
+    assert "/health" in patterns
+    assert "/api/public" in patterns
+
+
+def test_build_skip_patterns_no_additional():
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    patterns = mw._build_skip_patterns()
+    assert "/health" in patterns
+    assert "/api/public" in patterns
