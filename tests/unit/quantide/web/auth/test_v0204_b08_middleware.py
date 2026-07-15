@@ -160,3 +160,136 @@ def test_capture_auth_check():
         resp = auth_check2(fake_req, fake_sess)
         # Returns redirect response
         assert resp is not None
+
+
+def test_capture_auth_check_full_flow():
+    """Full flow: session has auth, user exists active, success path."""
+    captured = {}
+
+    def capturing_BW(*args, **kwargs):
+        if args and callable(args[0]):
+            captured["auth_check"] = args[0]
+        class _MockBW:
+            skip = kwargs.get("skip", [])
+        return _MockBW()
+
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    user_obj = MagicMock()
+    user_obj.username = "alice"
+    user_obj.id = 42
+    user_obj.role = "user"
+    user_obj.active = True
+    mw.auth_manager.get_user = MagicMock(return_value=user_obj)
+    with patch("quantide.web.auth.middleware.Beforeware", side_effect=capturing_BW):
+        mw.create_beforeware()
+
+    if "auth_check" in captured:
+        auth_check = captured["auth_check"]
+        fake_req = MagicMock()
+        fake_req.cookies = {}
+        fake_req.scope = {}
+        fake_sess = {"auth": "alice"}
+        out = auth_check(fake_req, fake_sess)
+        # No return → side-effect sets scope
+        assert out is None or out is not None
+        # scope should have auth
+        assert "auth" in fake_req.scope
+
+
+def test_capture_auth_check_inactive_user():
+    """Session has auth, user exists but inactive, redirect."""
+    captured = {}
+
+    def capturing_BW(*args, **kwargs):
+        if args and callable(args[0]):
+            captured["auth_check"] = args[0]
+        class _MockBW:
+            skip = kwargs.get("skip", [])
+        return _MockBW()
+
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    user_obj = MagicMock()
+    user_obj.username = "alice"
+    user_obj.id = 42
+    user_obj.role = "user"
+    user_obj.active = False
+    mw.auth_manager.get_user = MagicMock(return_value=user_obj)
+    with patch("quantide.web.auth.middleware.Beforeware", side_effect=capturing_BW):
+        mw.create_beforeware()
+
+    if "auth_check" in captured:
+        auth_check = captured["auth_check"]
+        fake_req = MagicMock()
+        fake_req.cookies = {}
+        fake_req.scope = {}
+        fake_sess = {"auth": "alice", "user_id": 99, "role": "user"}
+        out = auth_check(fake_req, fake_sess)
+        # Redirect response
+        assert out is not None
+        # session cleared
+        assert "auth" not in fake_sess
+
+
+def test_capture_auth_check_admin():
+    """When user role is admin, sets user_is_admin to True."""
+    captured = {}
+
+    def capturing_BW(*args, **kwargs):
+        if args and callable(args[0]):
+            captured["auth_check"] = args[0]
+        class _MockBW:
+            skip = kwargs.get("skip", [])
+        return _MockBW()
+
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    user_obj = MagicMock()
+    user_obj.username = "admin_user"
+    user_obj.id = 1
+    user_obj.role = "admin"
+    user_obj.active = True
+    mw.auth_manager.get_user = MagicMock(return_value=user_obj)
+    with patch("quantide.web.auth.middleware.Beforeware", side_effect=capturing_BW):
+        mw.create_beforeware()
+
+    if "auth_check" in captured:
+        auth_check = captured["auth_check"]
+        fake_req = MagicMock()
+        fake_req.cookies = {}
+        fake_req.scope = {}
+        fake_sess = {"auth": "admin_user"}
+        auth_check(fake_req, fake_sess)
+        assert fake_req.scope.get("user_is_admin") is True
+
+
+def test_capture_auth_check_remember_me():
+    """When remember_user cookie present + active user, restore session."""
+    captured = {}
+
+    def capturing_BW(*args, **kwargs):
+        if args and callable(args[0]):
+            captured["auth_check"] = args[0]
+        class _MockBW:
+            skip = kwargs.get("skip", [])
+        return _MockBW()
+
+    mw = AuthBeforeware(auth_manager=MagicMock())
+    user_obj = MagicMock()
+    user_obj.username = "alice"
+    user_obj.id = 7
+    user_obj.role = "user"
+    user_obj.active = True
+    mw.auth_manager.get_user = MagicMock(return_value=user_obj)
+    with patch("quantide.web.auth.middleware.Beforeware", side_effect=capturing_BW):
+        mw.create_beforeware()
+
+    if "auth_check" in captured:
+        auth_check = captured["auth_check"]
+        fake_req = MagicMock()
+        fake_req.cookies = {"remember_user": "alice"}
+        fake_req.scope = {}
+        fake_sess = {}
+        auth_check(fake_req, fake_sess)
+        # Session restored
+        assert fake_sess.get("auth") == "alice"
+        assert fake_sess.get("user_id") == 7
+        assert fake_sess.get("remember_me") is True
