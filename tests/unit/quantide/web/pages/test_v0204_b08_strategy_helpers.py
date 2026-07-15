@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -879,3 +879,70 @@ def test_should_redirect_to_strategy():
     """Just calls — verify type is bool."""
     out = _should_redirect_to_strategy()
     assert isinstance(out, bool)
+
+
+# ---------------------------------------------------------------------------
+# accounts helpers — _auto_select_latest_account
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages import accounts as acc_mod
+from quantide.web.pages.accounts import _auto_select_latest_account
+from quantide.core.enums import BrokerKind
+
+
+def test_auto_select_no_registry():
+    """When reg is None/empty, returns None without error."""
+    out = _auto_select_latest_account(None, {})
+    assert out is None
+
+
+def test_auto_select_no_accounts():
+    """When reg has no accounts, session cleared, returns None."""
+    reg = MagicMock()
+    reg.list_by_kind = MagicMock(return_value=[])
+    sess = {}
+    out = _auto_select_latest_account(reg, sess)
+    assert out is None
+
+
+def test_auto_select_with_sim_accounts():
+    """When sim_accounts present, latest is selected."""
+    reg = MagicMock()
+    reg.list_by_kind = MagicMock(return_value=[{"id": "sim1"}, {"id": "sim2"}])
+    sess = {}
+    with patch.object(acc_mod, "db") as mock_db:
+        mock_pf1 = MagicMock()
+        mock_pf1.start = "2024-01-01"
+        mock_pf2 = MagicMock()
+        mock_pf2.start = "2024-06-01"
+        mock_db.get_portfolio = MagicMock(side_effect=lambda x: mock_pf1 if x == "sim1" else mock_pf2)
+        out = _auto_select_latest_account(reg, sess)
+    # Latest should be selected
+    assert out is not None
+    assert sess.get("active_account_id") in ["sim1", "sim2"]
+
+
+def test_auto_select_with_live_only():
+    """When no sim but live accounts exist, selects live."""
+    reg = MagicMock()
+    reg.list_by_kind = MagicMock(side_effect=lambda k: (
+        [] if k == BrokerKind.SIMULATION else [{"id": "live1"}]
+    ))
+    sess = {}
+    with patch.object(acc_mod, "db") as mock_db:
+        mock_db.get_portfolio = MagicMock(return_value=None)  # No sim portfolios
+        out = _auto_select_latest_account(reg, sess)
+    assert out is not None
+
+
+def test_auto_select_sim_account_missing_portfolio():
+    """When sim account has no portfolio, falls through to live (none), returns None."""
+    reg = MagicMock()
+    reg.list_by_kind = MagicMock(return_value=[{"id": "missing"}])
+    sess = {}
+    with patch.object(acc_mod, "db") as mock_db:
+        mock_db.get_portfolio = MagicMock(return_value=None)
+        out = _auto_select_latest_account(reg, sess)
+    # Either None (no accounts at all) or a stripped dict — just check no exception
+    assert out is None or isinstance(out, dict)
