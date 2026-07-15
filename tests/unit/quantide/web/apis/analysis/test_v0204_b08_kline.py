@@ -415,3 +415,97 @@ async def test_kline_endpoint_exception_async():
         req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
         out = await get_stock_kline(req, "000001.SZ")
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# get_sector_kline / get_index_kline / compare_kline
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_sector_kline():
+    from quantide.web.apis.analysis.kline import get_sector_kline
+    req = MagicMock()
+    out = await get_sector_kline(req, "sector1")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_get_index_kline_basic():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_index_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [3000.0]})
+    with patch.object(km2, "_get_index_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
+            out = await get_index_kline(req, "000300.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_get_index_kline_no_dates():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_index_kline
+    fake_df = pl3.DataFrame({"date": [dt.date.today()], "close": [3000.0]})
+    with patch.object(km2, "_get_index_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({})
+            out = await get_index_kline(req, "000300.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_get_index_kline_invalid_date():
+    from quantide.web.apis.analysis.kline import get_index_kline
+    req = _fake_request({"start": "oops"})
+    out = await get_index_kline(req, "000300.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_get_index_kline_invalid_ma():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_index_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [3000.0]})
+    with patch.object(km2, "_get_index_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "x"})
+            out = await get_index_kline(req, "000300.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_get_index_kline_invalid_freq():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_index_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [3000.0]})
+    with patch.object(km2, "_get_index_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "freq": "yr"})
+            out = await get_index_kline(req, "000300.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_get_index_kline_with_ma():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_index_kline
+    fake_df = pl3.DataFrame({
+        "date": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
+        "close": [3000.0, 3010.0],
+    })
+    with patch.object(km2, "_get_index_bars", return_value=fake_df):
+        with patch.object(km2, "add_ma_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "5,10"})
+            out = await get_index_kline(req, "000300.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_get_index_kline_exception():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import get_index_kline
+    with patch.object(km2, "_get_index_bars", side_effect=Exception("boom")):
+        req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
+        out = await get_index_kline(req, "000300.SH")
+    assert out is not None
