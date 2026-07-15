@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fasthtml.core import to_xml
 
 from quantide.web.pages import home as home_mod
 from quantide.web.pages.home import (
@@ -280,18 +281,27 @@ def test_overview_cards_with_data():
 
 
 def test_overview_cards_cash_pct_compute():
-    """cash_pct = cash/total when total != 0."""
+    """[AC-NFR1101-01] cash_pct = cash/total when total != 0.
+
+    Verifies the rendered HTML carries the total asset value formatted
+    in 万 (wan) units: total=1000 -> 0.10万.
+    """
     out = OverviewCards(asset_overview={
         "total": 1000,
         "cash": 250,
     })
-    assert out is not None
+    html = to_xml(out)
+    assert "0.10万" in html or "0.1" in html
 
 
 def test_overview_cards_zero_total():
-    """When total is 0/falsy, cash_pct is None."""
+    """[AC-NFR1101-01] When total is 0/falsy, cash_pct is None.
+
+    Verifies the zero-total branch renders without raising and still
+    produces the 总资产 (total assets) label.
+    """
     out = OverviewCards(asset_overview={"total": 0, "cash": 0})
-    assert out is not None
+    assert "总资产" in to_xml(out)
 
 
 def test_asset_summary_default():
@@ -305,13 +315,15 @@ def test_asset_summary_with_data():
 
 
 def test_position_info_empty():
+    """[AC-NFR1101-01] Empty positions list renders the 'no positions' state."""
     out = PositionInfo(positions=[])
-    assert out is not None
+    assert "暂无持仓" in to_xml(out)
 
 
 def test_position_info_none():
+    """[AC-NFR1101-01] None positions renders the 'no positions' state."""
     out = PositionInfo(positions=None)
-    assert out is not None
+    assert "暂无持仓" in to_xml(out)
 
 
 def test_position_info_with_positions_renders_asset():

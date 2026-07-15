@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from fasthtml.core import to_xml
 
 from quantide.web.auth.admin_routes import AdminRoutes, InfoRow
 
@@ -148,13 +149,17 @@ def test_create_pagination_two_pages(admin):
 
 
 def test_info_row_returns_div():
+    """[AC-NFR1101-01] InfoRow renders label and value text."""
     out = InfoRow("Label", "value")
-    assert out is not None
+    html = to_xml(out)
+    assert "Label" in html
+    assert "value" in html
 
 
 def test_info_row_with_int_value():
+    """[AC-NFR1101-01] InfoRow renders an integer value as text."""
     out = InfoRow("Count", 42)
-    assert out is not None
+    assert "42" in to_xml(out)
 
 
 # ---------------------------------------------------------------------------
@@ -168,12 +173,15 @@ def test_create_users_table_empty(admin):
 
 
 def test_create_users_table_with_users(admin):
+    """[AC-NFR1101-01] Table with users renders each username."""
     users = [
         _user("alice", "a@x.com", "user", True),
         _user("bob", "b@x.com", "admin", False),
     ]
     out = admin._create_users_table(users=users, prefix="/auth/admin")
-    assert out is not None
+    html = to_xml(out)
+    assert "alice" in html
+    assert "bob" in html
 
 
 # ---------------------------------------------------------------------------
@@ -187,8 +195,9 @@ def test_create_user_form_no_error(admin):
 
 
 def test_create_user_form_with_error(admin):
+    """[AC-NFR1101-01] username_taken error renders the specific message."""
     out = admin._create_user_form(action="/auth/admin/users/create", error="username_taken")
-    assert out is not None
+    assert "Username already exists" in to_xml(out)
 
 
 # ---------------------------------------------------------------------------
@@ -197,13 +206,14 @@ def test_create_user_form_with_error(admin):
 
 
 def test_create_edit_user_form(admin):
+    """[AC-NFR1101-01] Edit form renders the user's username."""
     user = MagicMock()
     user.username = "alice"
     user.email = "a@x.com"
     user.role = "user"
     user.active = True
     out = admin._create_edit_user_form(user=user, action="/auth/admin/users/edit/1")
-    assert out is not None
+    assert "alice" in to_xml(out)
 
 
 def test_create_edit_user_form_error(admin):
@@ -222,11 +232,14 @@ def test_create_edit_user_form_error(admin):
 
 
 def test_create_delete_confirmation(admin):
+    """[AC-NFR1101-01] Delete confirmation renders the username."""
     user = MagicMock()
     user.username = "alice"
     user.email = "a@x.com"
     out = admin._create_delete_confirmation(user=user, prefix="/auth/admin")
-    assert out is not None
+    html = to_xml(out)
+    assert "alice" in html
+    assert "delete" in html.lower()
 
 
 # ---------------------------------------------------------------------------

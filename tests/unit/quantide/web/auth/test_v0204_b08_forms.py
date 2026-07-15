@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from fasthtml.core import to_xml
+
 from quantide.web.auth import forms as forms_mod
 from quantide.web.auth.forms import (
     InfoRow,
@@ -105,33 +107,39 @@ def test_brand_emblem():
 
 
 def test_create_message_alert_info():
+    """[AC-NFR1101-01] info alert renders the message text."""
     out = create_message_alert("hello", "info")
-    assert out is not None
+    assert "hello" in to_xml(out)
 
 
 def test_create_message_alert_error():
+    """[AC-NFR1101-01] error alert renders the message text."""
     out = create_message_alert("bad", "error")
-    assert out is not None
+    assert "bad" in to_xml(out)
 
 
 def test_create_message_alert_success():
+    """[AC-NFR1101-01] success alert renders the message text."""
     out = create_message_alert("ok", "success")
-    assert out is not None
+    assert "ok" in to_xml(out)
 
 
 def test_create_message_alert_warning():
+    """[AC-NFR1101-01] warning alert renders the message text."""
     out = create_message_alert("warn", "warning")
-    assert out is not None
+    assert "warn" in to_xml(out)
 
 
 def test_create_message_alert_default_type():
+    """[AC-NFR1101-01] default-type alert renders the message text."""
     out = create_message_alert("default")
-    assert out is not None
+    assert "default" in to_xml(out)
 
 
 def test_create_message_alert_unknown_type():
+    """[AC-NFR1101-01] unknown-type alert still renders the message text."""
     out = create_message_alert("unknown", "weird-type")
-    assert out is not None
+    assert "unknown" in to_xml(out)
 
 
 # ---------------------------------------------------------------------------
@@ -162,75 +170,91 @@ from quantide.web.auth.forms import (
 
 
 def test_register_form_username_taken():
+    """[AC-NFR1101-01] username_taken error renders the specific message."""
     out = create_register_form(error="username_taken")
-    assert out is not None
+    assert "Username already taken" in to_xml(out)
 
 
 def test_register_form_email_taken():
+    """[AC-NFR1101-01] email_taken error renders the specific message."""
     out = create_register_form(error="email_taken")
-    assert out is not None
+    assert "Email already registered" in to_xml(out)
 
 
 def test_register_form_password_mismatch():
+    """[AC-NFR1101-01] password_mismatch error renders the specific message."""
     out = create_register_form(error="password_mismatch")
-    assert out is not None
+    assert "Passwords do not match" in to_xml(out)
 
 
 def test_register_form_password_weak():
+    """[AC-NFR1101-01] password_weak error renders the specific message."""
     out = create_register_form(error="password_weak")
-    assert out is not None
+    assert "at least 8 characters" in to_xml(out)
 
 
 def test_register_form_invalid_email():
+    """[AC-NFR1101-01] invalid_email error renders the specific message."""
     out = create_register_form(error="invalid_email")
-    assert out is not None
+    assert "valid email address" in to_xml(out)
 
 
 def test_register_form_creation_failed():
+    """[AC-NFR1101-01] creation_failed error renders the specific message."""
     out = create_register_form(error="creation_failed")
-    assert out is not None
+    assert "Failed to create account" in to_xml(out)
 
 
 def test_register_form_terms_required():
+    """[AC-NFR1101-01] terms_required error renders the specific message."""
     out = create_register_form(error="terms_required")
-    assert out is not None
+    assert "Terms and Conditions" in to_xml(out)
 
 
 def test_register_form_unknown_error():
+    """[AC-NFR1101-01] unknown error renders no error alert text."""
     out = create_register_form(error="unknown")
-    assert out is not None
+    # Unknown error key has no mapping -> no specific error text rendered
+    assert "Create Account" in to_xml(out)
 
 
 def test_forgot_form_email_not_found():
+    """[AC-NFR1101-01] email_not_found error renders the specific message."""
     out = create_forgot_password_form(error="email_not_found")
-    assert out is not None
+    assert "email" in to_xml(out).lower()
 
 
 def test_forgot_form_send_failed():
+    """[AC-NFR1101-01] send_failed error renders an alert."""
     out = create_forgot_password_form(error="send_failed")
-    assert out is not None
+    assert "failed" in to_xml(out).lower() or "alert" in to_xml(out).lower()
 
 
 def test_forgot_form_success():
+    """[AC-NFR1101-01] success=sent renders a success indicator."""
     out = create_forgot_password_form(success="sent")
-    assert out is not None
+    assert "sent" in to_xml(out).lower() or "success" in to_xml(out).lower()
 
 
 def test_reset_form_invalid_token():
+    """[AC-NFR1101-01] invalid_token error renders an alert."""
     out = create_reset_password_form(token="abc", error="invalid_token")
-    assert out is not None
+    assert "token" in to_xml(out).lower() or "invalid" in to_xml(out).lower()
 
 
 def test_reset_form_password_mismatch():
+    """[AC-NFR1101-01] password_mismatch error renders the specific message."""
     out = create_reset_password_form(token="abc", error="password_mismatch")
-    assert out is not None
+    assert "Passwords do not match" in to_xml(out) or "mismatch" in to_xml(out).lower()
 
 
 def test_reset_form_password_weak():
+    """[AC-NFR1101-01] password_weak error renders the specific message."""
     out = create_reset_password_form(token="abc", error="password_weak")
-    assert out is not None
+    assert "8 characters" in to_xml(out) or "weak" in to_xml(out).lower()
 
 
 def test_reset_form_unknown_error():
+    """[AC-NFR1101-01] unknown error renders no specific error text."""
     out = create_reset_password_form(token="abc", error="unknown")
-    assert out is not None
+    assert "password" in to_xml(out).lower()
