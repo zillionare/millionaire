@@ -1362,3 +1362,82 @@ def test_trade_toast_unknown_level():
     """When level unknown, role defaults to status."""
     out = _trade_toast("msg", "unknown")
     assert "status" in str(out)
+
+
+# ---------------------------------------------------------------------------
+# strategy.py _build_strategy_rows
+# ---------------------------------------------------------------------------
+
+
+import polars as _pl_strat
+from unittest.mock import patch as _patch_strat
+
+import quantide.web.pages.strategy as _strat_mod
+
+
+def test_build_strategy_rows_empty():
+    """When strategies dict is empty, returns empty list."""
+    from quantide.web.pages.strategy import _build_strategy_rows
+    out = _build_strategy_rows({})
+    assert out == []
+
+
+def test_build_strategy_rows_with_class_no_portfolios():
+    """When no portfolios, latest_cell is Span('--')."""
+    from quantide.web.pages.strategy import _build_strategy_rows
+    class FakeStrategy:
+        __doc__ = "Sample strategy"
+
+    strategies = {"strat1": FakeStrategy}
+    with _patch_strat.object(_strat_mod, "db") as mock_db:
+        mock_df = _pl_strat.DataFrame()
+        mock_db.get_portfolios_by_strategy = MagicMock(return_value=mock_df)
+        rows = _build_strategy_rows(strategies)
+    assert len(rows) == 1
+
+
+def test_build_strategy_rows_with_history():
+    """When portfolios exist, builds latest link cell."""
+    from quantide.web.pages.strategy import _build_strategy_rows
+    class FakeStrategy:
+        __doc__ = "Sample strategy"
+
+    strategies = {"strat1": FakeStrategy}
+    portfolios_df = _pl_strat.DataFrame({
+        "portfolio_id": ["pf1", "pf2"],
+        "start": ["2024-01-01", "2024-06-01"],
+        "end": ["2024-04-30", "2024-12-31"],
+    })
+    with _patch_strat.object(_strat_mod, "db") as mock_db:
+        mock_db.get_portfolios_by_strategy = MagicMock(return_value=portfolios_df)
+        rows = _build_strategy_rows(strategies)
+    assert len(rows) == 1
+
+
+def test_build_strategy_rows_class_no_doc():
+    """When cls has no __doc__, falls back to '暂无描述'."""
+    from quantide.web.pages.strategy import _build_strategy_rows
+    class NoDocStrategy:
+        pass
+
+    strategies = {"strat1": NoDocStrategy}
+    with _patch_strat.object(_strat_mod, "db") as mock_db:
+        mock_df = _pl_strat.DataFrame()
+        mock_db.get_portfolios_by_strategy = MagicMock(return_value=mock_df)
+        rows = _build_strategy_rows(strategies)
+    assert len(rows) == 1
+
+
+def test_build_strategy_rows_portfolios_no_height():
+    """When portfolios has no .height attribute, count = 0."""
+    from quantide.web.pages.strategy import _build_strategy_rows
+    class FakeStrategy:
+        __doc__ = "x"
+
+    strategies = {"s1": FakeStrategy}
+    mock_df = MagicMock(spec=["is_empty"])  # No height attr
+    mock_df.is_empty = MagicMock(return_value=True)
+    with _patch_strat.object(_strat_mod, "db") as mock_db:
+        mock_db.get_portfolios_by_strategy = MagicMock(return_value=mock_df)
+        rows = _build_strategy_rows(strategies)
+    assert len(rows) == 1
