@@ -346,8 +346,8 @@ async def test_kline_endpoint_basic_async():
     })
     with patch.object(km2, "_get_stock_bars", return_value=fake_df):
         with patch.object(km2, "bars_to_list", return_value=[{"date": "2024-06-01"}]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
-            out = await get_stock_kline(req, "000001.SZ")
+            req = _fake_request({})
+            out = await get_stock_kline(req, "000001.SZ", start="2024-01-01", end="2024-06-30")
     assert out is not None
 
 
@@ -366,8 +366,8 @@ async def test_kline_endpoint_no_dates_async():
 @pytest.mark.asyncio
 async def test_kline_endpoint_invalid_date_async():
     from quantide.web.apis.analysis.kline import get_stock_kline
-    req = _fake_request({"start": "invalid"})
-    out = await get_stock_kline(req, "000001.SZ")
+    req = _fake_request({})
+    out = await get_stock_kline(req, "000001.SZ", start="invalid")
     assert out is not None
 
 
@@ -378,8 +378,8 @@ async def test_kline_endpoint_invalid_freq_async():
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km2, "_get_stock_bars", return_value=fake_df):
         with patch.object(km2, "bars_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "freq": "invalid"})
-            out = await get_stock_kline(req, "000001.SZ")
+            req = _fake_request({})
+            out = await get_stock_kline(req, "000001.SZ", start="2024-01-01", end="2024-06-30", freq="invalid")
     assert out is not None
 
 
@@ -390,8 +390,8 @@ async def test_kline_endpoint_invalid_ma_async():
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km2, "_get_stock_bars", return_value=fake_df):
         with patch.object(km2, "bars_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "abc"})
-            out = await get_stock_kline(req, "000001.SZ")
+            req = _fake_request({})
+            out = await get_stock_kline(req, "000001.SZ", start="2024-01-01", end="2024-06-30", ma="abc")
     assert out is not None
 
 
@@ -402,8 +402,8 @@ async def test_kline_endpoint_with_ma_async():
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km2, "_get_bars_with_ma", return_value=fake_df):
         with patch.object(km2, "add_ma_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "5"})
-            out = await get_stock_kline(req, "000001.SZ")
+            req = _fake_request({})
+            out = await get_stock_kline(req, "000001.SZ", start="2024-01-01", end="2024-06-30", ma="5")
     assert out is not None
 
 
@@ -412,8 +412,8 @@ async def test_kline_endpoint_exception_async():
     from quantide.web.apis.analysis import kline as km2
     from quantide.web.apis.analysis.kline import get_stock_kline
     with patch.object(km2, "_get_stock_bars", side_effect=Exception("boom")):
-        req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
-        out = await get_stock_kline(req, "000001.SZ")
+        req = _fake_request({})
+        out = await get_stock_kline(req, "000001.SZ", start="2024-01-01", end="2024-06-30")
     assert out is not None
 
 
@@ -437,8 +437,8 @@ async def test_get_index_kline_basic():
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [3000.0]})
     with patch.object(km2, "_get_index_bars", return_value=fake_df):
         with patch.object(km2, "bars_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
-            out = await get_index_kline(req, "000300.SH")
+            req = _fake_request({})
+            out = await get_index_kline(req, "000300.SH", start="2024-01-01", end="2024-06-30")
     assert out is not None
 
 
@@ -457,8 +457,8 @@ async def test_get_index_kline_no_dates():
 @pytest.mark.asyncio
 async def test_get_index_kline_invalid_date():
     from quantide.web.apis.analysis.kline import get_index_kline
-    req = _fake_request({"start": "oops"})
-    out = await get_index_kline(req, "000300.SH")
+    req = _fake_request({})
+    out = await get_index_kline(req, "000300.SH", start="oops")
     assert out is not None
 
 
@@ -469,8 +469,8 @@ async def test_get_index_kline_invalid_ma():
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [3000.0]})
     with patch.object(km2, "_get_index_bars", return_value=fake_df):
         with patch.object(km2, "bars_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "x"})
-            out = await get_index_kline(req, "000300.SH")
+            req = _fake_request({})
+            out = await get_index_kline(req, "000300.SH", start="2024-01-01", end="2024-06-30", ma="x")
     assert out is not None
 
 
@@ -481,8 +481,8 @@ async def test_get_index_kline_invalid_freq():
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [3000.0]})
     with patch.object(km2, "_get_index_bars", return_value=fake_df):
         with patch.object(km2, "bars_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "freq": "yr"})
-            out = await get_index_kline(req, "000300.SH")
+            req = _fake_request({})
+            out = await get_index_kline(req, "000300.SH", start="2024-01-01", end="2024-06-30", freq="yr")
     assert out is not None
 
 
@@ -496,8 +496,8 @@ async def test_get_index_kline_with_ma():
     })
     with patch.object(km2, "_get_index_bars", return_value=fake_df):
         with patch.object(km2, "add_ma_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "5,10"})
-            out = await get_index_kline(req, "000300.SH")
+            req = _fake_request({})
+            out = await get_index_kline(req, "000300.SH", start="2024-01-01", end="2024-06-30", ma="5,10")
     assert out is not None
 
 
@@ -506,8 +506,8 @@ async def test_get_index_kline_exception():
     from quantide.web.apis.analysis import kline as km2
     from quantide.web.apis.analysis.kline import get_index_kline
     with patch.object(km2, "_get_index_bars", side_effect=Exception("boom")):
-        req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
-        out = await get_index_kline(req, "000300.SH")
+        req = _fake_request({})
+        out = await get_index_kline(req, "000300.SH", start="2024-01-01", end="2024-06-30")
     assert out is not None
 
 
@@ -523,8 +523,8 @@ async def test_compare_kline_basic():
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km2, "_get_stock_bars", return_value=fake_df):
         with patch.object(km2, "bars_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
-            out = await compare_kline(req, "000001.SZ", "600000.SH")
+            req = _fake_request({})
+            out = await compare_kline(req, "000001.SZ", "600000.SH", start="2024-01-01", end="2024-06-30")
     assert out is not None
 
 
@@ -543,8 +543,8 @@ async def test_compare_kline_no_dates():
 @pytest.mark.asyncio
 async def test_compare_kline_invalid_date():
     from quantide.web.apis.analysis.kline import compare_kline
-    req = _fake_request({"start": "bad"})
-    out = await compare_kline(req, "000001.SZ", "600000.SH")
+    req = _fake_request({})
+    out = await compare_kline(req, "000001.SZ", "600000.SH", start="bad")
     assert out is not None
 
 
@@ -556,8 +556,8 @@ async def test_compare_kline_invalid_freq():
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km2, "_get_stock_bars", return_value=fake_df):
         with patch.object(km2, "bars_to_list", return_value=[]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "freq": "nope"})
-            out = await compare_kline(req, "000001.SZ", "600000.SH")
+            req = _fake_request({})
+            out = await compare_kline(req, "000001.SZ", "600000.SH", start="2024-01-01", end="2024-06-30", freq="nope")
     assert out is not None
 
 
@@ -566,6 +566,106 @@ async def test_compare_kline_exception():
     from quantide.web.apis.analysis import kline as km2
     from quantide.web.apis.analysis.kline import compare_kline
     with patch.object(km2, "_get_stock_bars", side_effect=Exception("boom")):
-        req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
-        out = await compare_kline(req, "000001.SZ", "600000.SH")
+        req = _fake_request({})
+        out = await compare_kline(req, "000001.SZ", "600000.SH", start="2024-01-01", end="2024-06-30")
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# bars_to_list / add_ma_to_list (pure helpers)
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.apis.analysis.kline import bars_to_list, add_ma_to_list
+
+
+def test_bars_to_list_empty():
+    out = bars_to_list(pl3.DataFrame())
+    assert out == []
+
+
+def test_bars_to_list_with_frame_dates():
+    """When row['frame'] is a date, formats as isoformat."""
+    df = pl3.DataFrame({
+        "frame": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
+        "open": [10.0, 10.5], "high": [10.5, 11.0],
+        "low": [9.5, 10.0], "close": [10.2, 10.8],
+        "volume": [1000.0, 1500.0], "amount": [10200.0, 16200.0],
+    })
+    out = bars_to_list(df)
+    assert len(out) == 2
+    assert out[0]["dt"] == "2024-06-01"
+    assert out[1]["dt"] == "2024-06-02"
+
+
+def test_bars_to_list_with_string_dates():
+    """When row['frame'] is string, passes through."""
+    df = pl3.DataFrame({
+        "frame": ["2024-06-01", "2024-06-02"],
+        "open": [10.0, 10.5], "high": [10.5, 11.0],
+        "low": [9.5, 10.0], "close": [10.2, 10.8],
+        "volume": [1000.0, 1500.0], "amount": [10200.0, 16200.0],
+    })
+    out = bars_to_list(df)
+    assert len(out) == 2
+    assert out[0]["dt"] == "2024-06-01"
+
+
+def test_add_ma_to_list_empty():
+    out = add_ma_to_list(pl3.DataFrame(), [5])
+    assert out == []
+
+
+def test_add_ma_to_list_with_ma():
+    """When row has ma5 column, adds to output."""
+    df = pl3.DataFrame({
+        "frame": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
+        "open": [10.0, 10.5], "high": [10.5, 11.0],
+        "low": [9.5, 10.0], "close": [10.2, 10.8],
+        "volume": [1000.0, 1500.0], "amount": [10200.0, 16200.0],
+        "ma5": [10.1, 10.3],
+    })
+    out = add_ma_to_list(df, [5])
+    assert len(out) == 2
+    assert "ma5" in out[0]
+
+
+def test_add_ma_to_list_with_ma_missing():
+    """When row does not have ma key, omits from output."""
+    df = pl3.DataFrame({
+        "frame": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
+        "open": [10.0, 10.5], "high": [10.5, 11.0],
+        "low": [9.5, 10.0], "close": [10.2, 10.8],
+        "volume": [1000.0, 1500.0], "amount": [10200.0, 16200.0],
+    })
+    out = add_ma_to_list(df, [5])
+    assert len(out) == 2
+    assert "ma5" not in out[0]
+
+
+def test_add_ma_to_list_with_ma_none():
+    """When row[ma_key] is None, omits from output."""
+    df = pl3.DataFrame({
+        "frame": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
+        "open": [10.0, 10.5], "high": [10.5, 11.0],
+        "low": [9.5, 10.0], "close": [10.2, 10.8],
+        "volume": [1000.0, 1500.0], "amount": [10200.0, 16200.0],
+        "ma5": [10.1, None],
+    })
+    out = add_ma_to_list(df, [5])
+    assert len(out) == 2
+    # First has ma5, second doesn't
+    assert "ma5" in out[0]
+    assert "ma5" not in out[1]
+
+
+def test_add_ma_to_list_with_string_frame():
+    df = pl3.DataFrame({
+        "frame": ["2024-06-01", "2024-06-02"],
+        "open": [10.0, 10.5], "high": [10.5, 11.0],
+        "low": [9.5, 10.0], "close": [10.2, 10.8],
+        "volume": [1000.0, 1500.0], "amount": [10200.0, 16200.0],
+    })
+    out = add_ma_to_list(df, [5])
+    assert len(out) == 2
+    assert out[0]["dt"] == "2024-06-01"
