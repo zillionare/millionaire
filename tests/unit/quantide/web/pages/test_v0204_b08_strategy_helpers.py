@@ -312,3 +312,70 @@ def test_params_to_text_dict_value():
     out = _params_to_text({"x": {"default": "val"}})
     assert "x=val" in out
 
+
+
+# ---------------------------------------------------------------------------
+# _extract_params_from_info / _strategy_version
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.strategy import _extract_params_from_info, _strategy_version
+
+
+def test_extract_params_from_info_none():
+    assert _extract_params_from_info(None) == {}
+    assert _extract_params_from_info("") == {}
+
+
+def test_extract_params_from_info_dict():
+    assert _extract_params_from_info({"k": "v"}) == {"k": "v"}
+
+
+def test_extract_params_from_info_str_with_config():
+    info = '{"config": {"alpha": 1, "beta": 2}}'
+    out = _extract_params_from_info(info)
+    assert out == {"alpha": 1, "beta": 2}
+
+
+def test_extract_params_from_info_str_with_payload():
+    info = '{"x": 1, "y": 2}'
+    out = _extract_params_from_info(info)
+    assert out == {"x": 1, "y": 2}
+
+
+def test_extract_params_from_info_invalid_json():
+    out = _extract_params_from_info("not json")
+    assert out == {}
+
+
+def test_extract_params_from_info_str_non_dict_payload():
+    out = _extract_params_from_info('"just a string"')
+    assert out == {}
+
+
+def test_extract_params_from_info_int():
+    """Non-dict/str returns {}."""
+    out = _extract_params_from_info(42)
+    assert out == {}
+
+
+def test_strategy_version_none():
+    assert _strategy_version(None) == "v1.0.0"
+
+
+def test_strategy_version_with_VERSION():
+    class FakeStrategy:
+        VERSION = "v2.5"
+    assert _strategy_version(FakeStrategy) == "v2.5"
+
+
+def test_strategy_version_with_dunder_version():
+    class FakeStrategy:
+        __version__ = "v3.0"
+    assert _strategy_version(FakeStrategy) == "v3.0"
+
+
+def test_strategy_version_no_attrs():
+    class FakeStrategy:
+        pass
+    assert _strategy_version(FakeStrategy) == "v1.0.0"
