@@ -1036,11 +1036,16 @@ from quantide.service.strategy_runtime import StrategyRuntimeManager
 
 
 def _make_manager():
-    """Build manager with mocked dependencies."""
-    mgr = StrategyRuntimeManager.__new__(StrategyRuntimeManager)
-    mgr._extract_symbols = StrategyRuntimeManager._extract_symbols.__get__(mgr)
-    mgr._account_key = StrategyRuntimeManager._account_key.__get__(mgr)
-    return mgr
+    """Build a real StrategyRuntimeManager instance.
+
+    StrategyRuntimeManager.__init__ only initializes in-memory dicts and a
+    reentrant lock; it does not open the DB or start workers. We instantiate
+    the real class so `_extract_symbols` and `_account_key` bind through
+    normal Python method resolution, avoiding the brittle
+    `ClassName._method.__get__(stub)` descriptor pattern flagged by Prism
+    Blocker B3.
+    """
+    return StrategyRuntimeManager()
 
 
 def test_extract_symbols_single():

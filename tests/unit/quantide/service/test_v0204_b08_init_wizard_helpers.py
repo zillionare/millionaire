@@ -6,22 +6,17 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 
-# Build a stub instance that doesn't trigger DB init
-class _StubSvc:
-    pass
-
-
-# Replicate methods directly via binding
 def _make_svc():
-    """Build stub with bound methods."""
+    """Build a real InitWizardService instance.
+
+    InitWizardService.__init__ is trivial (sets _state=None, _initialized=True)
+    and does not touch the DB, so we instantiate the real class and let
+    private methods bind naturally through normal Python method resolution.
+    This avoids the brittle `ClassName._method.__get__(stub)` descriptor
+    pattern flagged by Prism Blocker B3.
+    """
     from quantide.service.init_wizard import InitWizardService
-    svc = _StubSvc()
-    # Bind methods
-    svc._compose_gateway_url = InitWizardService._compose_gateway_url.__get__(svc)
-    svc._normalize_gateway_url = InitWizardService._normalize_gateway_url.__get__(svc)
-    svc._build_default_state = InitWizardService._build_default_state.__get__(svc)
-    svc._compute_history_start_date = InitWizardService._compute_history_start_date.__get__(svc)
-    return svc
+    return InitWizardService()
 
 
 @pytest.fixture
