@@ -763,3 +763,119 @@ def test_build_jobs_table():
 def test_build_jobs_table_empty():
     out = _build_jobs_table([])
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# web/pages/home helpers
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.home import (
+    _safe_broker_attr,
+    _normalize_positions,
+    _format_amount,
+    _format_amount_wan,
+    _format_percent,
+    _should_show_no_account_dialog,
+    _should_redirect_to_strategy,
+)
+
+
+def test_safe_broker_attr_present():
+    """When attr exists, returns value."""
+    class B:
+        cash = 100
+    assert _safe_broker_attr(B(), "cash") == 100
+
+
+def test_safe_broker_attr_missing():
+    """When attr missing, returns default."""
+    class B:
+        pass
+    assert _safe_broker_attr(B(), "missing", "fallback") == "fallback"
+
+
+def test_safe_broker_attr_none_broker():
+    """When broker is None, returns default without error."""
+    out = _safe_broker_attr(None, "anything", "default")
+    assert out == "default"
+
+
+def test_normalize_positions_empty():
+    assert _normalize_positions([]) == []
+    assert _normalize_positions(None) == []
+    assert _normalize_positions({}) == []
+
+
+def test_normalize_positions_list():
+    positions = [_ for _ in [MagicMock(), MagicMock()]]
+    out = _normalize_positions(positions)
+    assert len(out) == 2
+
+
+def test_normalize_positions_dict():
+    d = {"pos1": MagicMock(), "pos2": MagicMock()}
+    out = _normalize_positions(d)
+    assert len(out) == 2
+
+
+def test_format_amount_none():
+    assert _format_amount(None) == "--"
+
+
+def test_format_amount_zero():
+    out = _format_amount(0)
+    assert "0.00" in out
+
+
+def test_format_amount_positive():
+    out = _format_amount(1234.56)
+    assert "1,234.56" in out
+
+
+def test_format_amount_wan_none():
+    assert _format_amount_wan(None) == "--"
+
+
+def test_format_amount_wan_basic():
+    out = _format_amount_wan(10000)
+    assert "1.00" in out  # 10000 / 10000 = 1
+
+
+def test_format_amount_wan_large():
+    out = _format_amount_wan(123456789)
+    assert "12,345" in out
+
+
+def test_format_percent_none():
+    assert _format_percent(None) == "--"
+
+
+def test_format_percent_zero():
+    out = _format_percent(0)
+    assert "0.00" in out
+
+
+def test_format_percent_positive():
+    out = _format_percent(0.05)
+    assert "5.00" in out
+
+
+def test_format_percent_negative():
+    out = _format_percent(-0.05)
+    assert "5.00" in out
+
+
+def test_should_show_no_account_dialog_empty():
+    """Always returns False (per spec)."""
+    assert _should_show_no_account_dialog([]) is False
+
+
+def test_should_show_no_account_dialog_with_accounts():
+    assert _should_show_no_account_dialog([{"name": "a"}]) is False
+
+
+def test_should_redirect_to_strategy():
+    """Just calls — verify type is bool."""
+    out = _should_redirect_to_strategy()
+    assert isinstance(out, bool)
