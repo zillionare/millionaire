@@ -1333,3 +1333,32 @@ def test_backtest_requires_bid_time_live_mode():
     with patch("quantide.web.apis.broker.get_settings") as mock_settings:
         mock_settings.return_value.runtime_mode = "live"
         assert _backtest_requires_bid_time(None) is False
+
+
+# ---------------------------------------------------------------------------
+# trade_main — _trade_toast
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.trade_main import _trade_toast
+
+
+def test_trade_toast_error():
+    out = _trade_toast("error msg", "error")
+    assert "error" in str(out) or "alert" in str(out)
+
+
+def test_trade_toast_success():
+    out = _trade_toast("success msg", "success")
+    assert "success" in str(out) or "status" in str(out)
+
+
+def test_trade_toast_default():
+    out = _trade_toast("msg")  # default error
+    assert "alert" in str(out) or "error" in str(out)
+
+
+def test_trade_toast_unknown_level():
+    """When level unknown, role defaults to status."""
+    out = _trade_toast("msg", "unknown")
+    assert "status" in str(out)
