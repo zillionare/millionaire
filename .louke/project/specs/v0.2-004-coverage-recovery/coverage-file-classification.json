@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "spec_id": "v0.2-004-coverage-recovery",
-  "generated_at": "2026-07-15T02:36:14.873866+00:00",
+  "generated_at": "2026-07-15T03:15:23.523751+00:00",
   "coverage_source": "/tmp/cov-full.json",
   "thresholds": {
     "v0.2_added": 95.0,
@@ -747,10 +747,10 @@
       "path": "quantide/service/init_wizard.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 82.02,
+      "percent_covered": 86.52,
       "num_statements": 272,
       "num_branches": 84,
-      "covered_branches": 56,
+      "covered_branches": 62,
       "coverage_status": "measured",
       "passes_threshold": true
     },
@@ -1506,10 +1506,10 @@
       "path": "quantide/web/pages/strategy.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 82.5,
+      "percent_covered": 84.84,
       "num_statements": 892,
       "num_branches": 262,
-      "covered_branches": 207,
+      "covered_branches": 218,
       "coverage_status": "measured",
       "passes_threshold": true
     },
@@ -1561,10 +1561,10 @@
       "path": "quantide/web/pages/system/jobs.py",
       "origin": "pre-v0.2-existing",
       "threshold": 80.0,
-      "percent_covered": 81.0,
+      "percent_covered": 81.36,
       "num_statements": 225,
       "num_branches": 54,
-      "covered_branches": 35,
+      "covered_branches": 36,
       "coverage_status": "measured",
       "passes_threshold": true
     },

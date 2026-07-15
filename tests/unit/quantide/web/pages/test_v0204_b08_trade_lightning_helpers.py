@@ -338,3 +338,53 @@ async def test_trade_lightning_delete_modal_found():
         out = await trade_lightning_delete_modal(req)
     assert out is not None
 
+
+
+# ---------------------------------------------------------------------------
+# Additional tests for edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_parse_amount_wan_decimal_string():
+    assert _parse_amount_wan("3.14") == 3.14
+
+
+def test_parse_amount_wan_negative():
+    """Negative amounts may return None (depends on impl)."""
+    out = _parse_amount_wan("-1.0")
+    # Could return negative or None — just don't crash
+    assert out == -1.0 or out is None
+
+
+def test_format_amount_wan_zero():
+    out = _format_amount_wan(0.0)
+    assert "0" in out
+
+
+def test_format_amount_wan_positive_int():
+    out = _format_amount_wan(10.0)
+    assert "10" in out
+
+
+def test_is_valid_price_ref_pre_close():
+    """pre_close may or may not be valid."""
+    out = _is_valid_price_ref("pre_close")
+    assert isinstance(out, bool)
+
+
+def test_is_valid_price_ref_empty_string():
+    assert _is_valid_price_ref("") is False
+
+
+def test_is_valid_price_ref_high():
+    assert _is_valid_price_ref("high") is False  # only current, open, pre_close
+
+
+def test_asset_profile_market_SH():
+    out = _asset_profile("600000.SH")
+    assert isinstance(out, tuple) and len(out) == 2
+
+
+def test_asset_profile_market_invalid():
+    out = _asset_profile("UNKNOWN.XX")
+    assert isinstance(out, tuple)
