@@ -697,9 +697,52 @@ def test_admin_users_list_with_admin_scope():
 
 
 def test_admin_users_list_with_message_inserts_alert():
-    """When success is set and original is iterable with Container, inserts message."""
-    # Skip — admin routes are inline; too brittle to test the wrapper directly.
-    pass
+    """[AC-NFR1101-01] success query param inserts a success alert into the response.
+
+    Replaces the prior `pass` placeholder (flagged by Prism M2). Verifies
+    that `admin_users_list` with `success=created` query param produces a
+    response whose rendered HTML contains the success message text
+    "User created successfully!".
+    """
+    from fasthtml.core import to_xml
+    auth = MagicMock()
+    auth.config = {"allow_registration": False, "allow_password_reset": False}
+    user_repo = MagicMock()
+    user_repo.list_all = MagicMock(return_value=[])
+    user_repo.count_by_role = MagicMock(return_value={"admin": 0, "manager": 0, "user": 0})
+    auth.user_repo = user_repo
+
+    def make_admin_decorator():
+        def decorator(func):
+            def wrapper(req, *args, **kwargs):
+                user = req.scope.get("user")
+                if not user or user.role not in ("admin",):
+                    return MagicMock(status_code=403)
+                import inspect
+                sig = inspect.signature(func)
+                if len(sig.parameters) == 1:
+                    return func(req)
+                return func(req, *args, **kwargs)
+            return wrapper
+        return decorator
+    auth.require_admin = make_admin_decorator
+
+    routes = AuthRoutes(auth)
+    app = MagicMock()
+    fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
+    app.route = fake_route
+    routes.register_all(app, prefix="/auth", include_admin=True)
+
+    fn = routes.routes["admin_users_list"]
+    admin_user = MagicMock()
+    admin_user.role = "admin"
+    req = MagicMock()
+    req.query_params = {"success": "created"}
+    req.scope = {"user": admin_user, "session": {}}
+    out = fn(req)
+    # The wrapper inserts a success alert; verify the message text appears.
+    html = to_xml(out) if not isinstance(out, tuple) else "".join(to_xml(item) for item in out)
+    assert "User created successfully" in html
 
 
 def test_admin_dashboard_full():

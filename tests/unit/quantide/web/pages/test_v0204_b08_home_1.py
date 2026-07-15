@@ -314,9 +314,26 @@ def test_position_info_none():
     assert out is not None
 
 
-def test_position_info_skipped_magic_mock_complex():
-    """Skip detailed position info — complex mock required."""
-    pass
+def test_position_info_with_positions_renders_asset():
+    """[AC-NFR1101-01] PositionInfo with a position renders the asset code.
+
+    Replaces the prior `pass` placeholder (flagged by Prism M2) with a
+    real assertion: a position with asset="000001.SZ" must produce HTML
+    that contains the asset code.
+    """
+    from fasthtml.core import to_xml
+    pos = MagicMock()
+    pos.asset = "000001.SZ"
+    pos.shares = 100
+    pos.avail = 100
+    pos.cost = 950
+    pos.price = 10.0
+    pos.mv = 1000.0
+    pos.profit = 50.0
+    out = PositionInfo(positions=[pos])
+    html = to_xml(out)
+    assert "000001" in html
+    assert "100" in html
 
 
 # ---------------------------------------------------------------------------

@@ -613,13 +613,22 @@ def test_trade_result_has_order_none():
 
 
 def test_empty_history_frame():
-    """Skip — GatewayBroker not importable without live app context."""
-    pass
+    """[AC-NFR1101-02] Skipped: GatewayBroker requires live app context.
+
+    `quantide.gateway` is not importable in the unit-test environment
+    (no live gateway / app context). Replaced the prior `pass` placeholder
+    (flagged by Prism M2) with an explicit skip so the test no longer
+    inflates pass counts without exercising code.
+    """
+    pytest.skip("GatewayBroker not importable without live app context")
 
 
 def test_gateway_broker_basic():
-    """Skip — GatewayBroker not importable without live app context."""
-    pass
+    """[AC-NFR1101-02] Skipped: GatewayBroker requires live app context.
+
+    See `test_empty_history_frame` rationale.
+    """
+    pytest.skip("GatewayBroker not importable without live app context")
 
 
 # ---------------------------------------------------------------------------
