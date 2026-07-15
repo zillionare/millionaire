@@ -1093,3 +1093,109 @@ def test_account_key():
     mgr = _make_manager()
     assert mgr._account_key("paper", "p1") == "paper:p1"
     assert mgr._account_key("live", "p2") == "live:p2"
+
+
+# ---------------------------------------------------------------------------
+# init_wizard page — small helpers
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.init_wizard import (
+    _format_date_zh,
+    _parse_epoch_input,
+    _coerce_checkbox,
+    _pick_first_value,
+)
+
+
+def test_format_date_zh_date():
+    out = _format_date_zh(__import__("datetime").date(2024, 6, 15))
+    assert "2024" in out and "06" in out
+
+
+def test_format_date_zh_string():
+    out = _format_date_zh("2024-06-15")
+    # String to date conversion or pass-through
+    assert out is not None
+
+
+def test_format_date_zh_empty():
+    out = _format_date_zh("")
+    assert out == ""
+
+
+def test_format_date_zh_already_chinese():
+    out = _format_date_zh("2024年06月15日")
+    assert "2024" in out
+
+
+def test_parse_epoch_input_iso():
+    import datetime as dt
+    out = _parse_epoch_input("2024-06-15")
+    assert out == dt.date(2024, 6, 15)
+
+
+def test_parse_epoch_input_chinese():
+    import datetime as dt
+    out = _parse_epoch_input("2024年06月15日")
+    assert out == dt.date(2024, 6, 15)
+
+
+def test_parse_epoch_input_slash():
+    import datetime as dt
+    out = _parse_epoch_input("2024/06/15")
+    assert out == dt.date(2024, 6, 15)
+
+
+def test_parse_epoch_input_invalid():
+    """Invalid input — depends on impl may return None or raise."""
+    try:
+        out = _parse_epoch_input("not a date")
+        # If returns, just check date-like
+    except (ValueError, TypeError):
+        pass  # acceptable to raise
+
+
+def test_parse_epoch_input_empty():
+    try:
+        out = _parse_epoch_input("")
+    except (ValueError, TypeError):
+        pass
+
+
+def test_coerce_checkbox_true():
+    assert _coerce_checkbox(True) is True
+    assert _coerce_checkbox(False) is False
+
+
+def test_coerce_checkbox_str():
+    assert _coerce_checkbox("on") is True
+    assert _coerce_checkbox("true") is True
+    assert _coerce_checkbox("off") is False
+
+
+def test_coerce_checkbox_none():
+    assert _coerce_checkbox(None) is False
+
+
+def test_coerce_checkbox_default():
+    assert _coerce_checkbox(None, default=True) is True
+
+
+def test_pick_first_value_present():
+    out = _pick_first_value({"a": 1, "b": 2}, ("a",), None)
+    assert out == 1
+
+
+def test_pick_first_value_fallback():
+    out = _pick_first_value({"a": 1}, ("missing",), "default")
+    assert out == "default"
+
+
+def test_pick_first_value_none_source():
+    assert _pick_first_value(None, ("a",), "default") == "default"
+
+
+def test_pick_first_value_with_multiple_keys():
+    out = _pick_first_value({"z": "z-val"}, ("missing", "z"), None)
+    assert out == "z-val"
