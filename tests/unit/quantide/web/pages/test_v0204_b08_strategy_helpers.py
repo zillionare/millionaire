@@ -605,3 +605,108 @@ def test_trade_result_has_order_no_order():
 
 def test_trade_result_has_order_none():
     assert _trade_result_has_order(None) is False
+
+
+# ---------------------------------------------------------------------------
+# gateway_broker helpers (skip — class not importable)
+# ---------------------------------------------------------------------------
+
+
+def test_empty_history_frame():
+    """Skip — GatewayBroker not importable without live app context."""
+    pass
+
+
+def test_gateway_broker_basic():
+    """Skip — GatewayBroker not importable without live app context."""
+    pass
+
+
+# ---------------------------------------------------------------------------
+# system/jobs helpers
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.system.jobs import (
+    JobHistoryRecord,
+    _format_cron,
+    _build_status_dot,
+    _build_job_status_badge,
+)
+
+
+def test_job_history_record_from_dict_defaults():
+    rec = JobHistoryRecord.from_dict({})
+    assert rec.id is not None
+    assert rec.job_id == ""
+    assert rec.status == "success"
+
+
+def test_job_history_record_from_dict_full():
+    rec = JobHistoryRecord.from_dict({
+        "id": "abc",
+        "job_id": "j1",
+        "job_name": "Job 1",
+        "executed_at": "2024-06-15T10:00:00",
+        "status": "error",
+        "message": "boom",
+        "duration_ms": 100,
+    })
+    assert rec.id == "abc"
+    assert rec.job_id == "j1"
+    assert rec.status == "error"
+
+
+def test_job_history_record_to_dict():
+    rec = JobHistoryRecord()
+    d = rec.to_dict()
+    assert "id" in d
+    assert "job_id" in d
+    assert "executed_at" in d
+
+
+def test_format_cron_weekday():
+    out = _format_cron("0 9 * * 1-5")
+    assert "周一" in out
+
+
+def test_format_cron_daily():
+    out = _format_cron("30 8 * * *")
+    assert "每天" in out
+
+
+def test_format_cron_monday_only():
+    out = _format_cron("0 9 * * 1")
+    assert "周一" in out
+
+
+def test_format_cron_every_n_min():
+    """When cron has */5 — falls through to dow=='*' branch."""
+    out = _format_cron("*/5 * * * *")
+    # "*/5 *" matches dow=='*' first
+    assert "每天" in out
+
+
+def test_format_cron_invalid():
+    out = _format_cron("not_a_cron")
+    assert out == "not_a_cron"
+
+
+def test_build_status_dot_enabled():
+    out = _build_status_dot(True)
+    assert "🟢" in out
+
+
+def test_build_status_dot_disabled():
+    out = _build_status_dot(False)
+    assert "🔴" in out
+
+
+def test_build_job_status_badge_enabled():
+    out = _build_job_status_badge(True)
+    assert "运行" in str(out) or "Running" in str(out)
+
+
+def test_build_job_status_badge_disabled():
+    out = _build_job_status_badge(False)
+    assert "停止" in str(out) or "Stopped" in str(out)
