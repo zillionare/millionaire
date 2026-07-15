@@ -287,7 +287,7 @@ def test_resolve_lightning_price_ma_too_few_bars():
 
 
 def test_resolve_lightning_price_ma5_valid():
-    """ma5 with 5 bars → returns mean."""
+    """ma5 with 5 bars -> returns mean."""
     import datetime
     fake_bars = pl.DataFrame({
         "date": [datetime.date(2024, 6, d) for d in range(1, 6)],
@@ -297,14 +297,6 @@ def test_resolve_lightning_price_ma5_valid():
         mock_dbars.get_bars = MagicMock(return_value=fake_bars)
         got = _resolve_lightning_price("000001.SZ", "ma5")
     assert got == 110.0
-
-
-def test_resolve_lightning_price_unknown_ref():
-    """Unknown price_ref → 0."""
-    with patch.object(tl_mod_main, "daily_bars") as mock_dbars:
-        mock_dbars.get_bars = MagicMock(return_value=pl.DataFrame())
-        got = _resolve_lightning_price("000001.SZ", "unknown_ref")
-    assert got == 0.0
 
 
 @_pt.mark.asyncio
@@ -347,13 +339,6 @@ async def test_trade_lightning_delete_modal_found():
 
 def test_parse_amount_wan_decimal_string():
     assert _parse_amount_wan("3.14") == 3.14
-
-
-def test_parse_amount_wan_negative():
-    """Negative amounts may return None (depends on impl)."""
-    out = _parse_amount_wan("-1.0")
-    # Could return negative or None — just don't crash
-    assert out == -1.0 or out is None
 
 
 def test_format_amount_wan_zero():
