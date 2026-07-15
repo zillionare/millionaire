@@ -946,3 +946,82 @@ def test_auto_select_sim_account_missing_portfolio():
         out = _auto_select_latest_account(reg, sess)
     # Either None (no accounts at all) or a stripped dict — just check no exception
     assert out is None or isinstance(out, dict)
+
+
+# ---------------------------------------------------------------------------
+# gateway_broker._coerce_order_side / _coerce_order_status
+# ---------------------------------------------------------------------------
+
+
+from quantide.core.runtime.gateway_broker import (
+    _coerce_order_side,
+    _coerce_order_status,
+    GatewayTradeStateConsistencyError,
+)
+from quantide.core.enums import OrderSide, OrderStatus
+
+
+def test_coerce_order_side_buy():
+    assert _coerce_order_side("buy") == OrderSide.BUY
+
+
+def test_coerce_order_side_sell():
+    assert _coerce_order_side("sell") == OrderSide.SELL
+
+
+def test_coerce_order_side_uppercase():
+    assert _coerce_order_side("BUY") == OrderSide.BUY
+    assert _coerce_order_side("SELL") == OrderSide.SELL
+
+
+def test_coerce_order_side_abbrev():
+    assert _coerce_order_side("b") == OrderSide.BUY
+    assert _coerce_order_side("s") == OrderSide.SELL
+
+
+def test_coerce_order_side_int():
+    assert _coerce_order_side("1") == OrderSide.BUY
+    assert _coerce_order_side("-1") == OrderSide.SELL
+
+
+def test_coerce_order_side_unknown():
+    assert _coerce_order_side("garbage") == OrderSide.UNKNOWN
+
+
+def test_coerce_order_side_empty():
+    assert _coerce_order_side("") == OrderSide.UNKNOWN
+
+
+def test_coerce_order_status_unreported():
+    out = _coerce_order_status("unreported")
+    assert out is not None
+
+
+def test_coerce_order_status_pending():
+    out = _coerce_order_status("pending")
+    assert out is not None
+
+
+def test_coerce_order_status_reported():
+    out = _coerce_order_status("reported")
+    assert out is not None
+
+
+def test_coerce_order_status_cancelled():
+    out = _coerce_order_status("cancelled")
+    assert out is not None
+
+
+def test_coerce_order_status_canceled():
+    out = _coerce_order_status("canceled")
+    assert out is not None
+
+
+def test_coerce_order_status_unknown():
+    out = _coerce_order_status("unknown_thing")
+    assert out is not None
+
+
+def test_coerce_order_status_empty():
+    out = _coerce_order_status("")
+    assert out is not None
