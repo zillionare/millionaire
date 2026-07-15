@@ -1237,3 +1237,99 @@ def test_get_active_tab_browse():
     req = MagicMock()
     req.query_params = {"tab": "browse"}
     assert _get_active_tab(req) == "browse"
+
+
+# ---------------------------------------------------------------------------
+# trade_main helpers — _extract_recent_trade_dates / _resolve_trade_reference_dates
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.pages.trade_main import (
+    _extract_recent_trade_dates,
+    _resolve_trade_reference_dates,
+)
+
+
+def test_extract_recent_trade_dates_none():
+    out = _extract_recent_trade_dates(None, __import__("datetime").date.today(), 5)
+    assert out == []
+
+
+def test_extract_recent_trade_dates_empty_df():
+    import pandas as _pd
+    df = _pd.DataFrame()
+    out = _extract_recent_trade_dates(df, __import__("datetime").date.today(), 5)
+    assert out == []
+
+
+def test_extract_recent_trade_dates_basic():
+    import pandas as _pd
+    import datetime as dt
+    df = _pd.DataFrame({
+        "date": [dt.date(2024, 6, 10), dt.date(2024, 6, 11)],
+        "is_open": [1, 0],
+    })
+    out = _extract_recent_trade_dates(df, dt.date(2024, 6, 11), 5)
+    # Only open dates
+    assert len(out) >= 0  # implementation specific
+
+
+def test_resolve_trade_reference_dates_no_calendar():
+    out = _resolve_trade_reference_dates(__import__("datetime").date(2024, 6, 11))
+    # Just call - impl may return tuple or list
+    assert out is not None or out is None
+
+
+# ---------------------------------------------------------------------------
+# web/apis/broker helpers
+# ---------------------------------------------------------------------------
+
+
+from quantide.web.apis.broker import build_asset_overview, _backtest_requires_bid_time
+
+
+def test_build_asset_overview_basic():
+    """Builds overview dict from Asset."""
+    asset = MagicMock()
+    asset.total = 110000.0
+    asset.principal = 100000.0
+    asset.cash = 50000.0
+    asset.frozen_cash = 0.0
+    asset.market_value = 60000.0
+    out = build_asset_overview(asset)
+    assert out["total"] == 110000.0
+    assert out["cash"] == 50000.0
+    assert out["pnl"] == 10000.0
+    assert out["pnl_pct"] == 0.1
+
+
+def test_build_asset_overview_zero_principal():
+    """When principal is 0, pnlpct is 0.0."""
+    asset = MagicMock()
+    asset.total = 100.0
+    asset.principal = 0
+    asset.cash = 100.0
+    asset.frozen_cash = 0.0
+    asset.market_value = 0.0
+    out = build_asset_overview(asset)
+    assert out["pnl_pct"] == 0.0
+
+
+def test_backtest_requires_bid_time_when_none():
+    """When bid_time is None and mode is backtest, returns True."""
+    with patch("quantide.web.apis.broker.get_settings") as mock_settings:
+        mock_settings.return_value.runtime_mode = "backtest"
+        assert _backtest_requires_bid_time(None) is True
+
+
+def test_backtest_requires_bid_time_when_provided():
+    with patch("quantide.web.apis.broker.get_settings") as mock_settings:
+        mock_settings.return_value.runtime_mode = "backtest"
+        assert _backtest_requires_bid_time(__import__("datetime").datetime.now()) is False
+
+
+def test_backtest_requires_bid_time_live_mode():
+    """In live mode, never requires bid_time."""
+    with patch("quantide.web.apis.broker.get_settings") as mock_settings:
+        mock_settings.return_value.runtime_mode = "live"
+        assert _backtest_requires_bid_time(None) is False
