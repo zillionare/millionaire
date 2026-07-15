@@ -63,18 +63,36 @@ def test_format_cron_too_short_returns_raw():
 
 
 def test_run_daily_bars_sync_success(db):
+    """[AC-NFR1101-01] Success path records a success job-history entry.
+
+    Verifies that `_run_daily_bars_sync` calls `_save_job_history` with
+    job_id="daily_bars_sync" and status="success" when the underlying
+    `daily_bars.store.update()` does not raise. This replaces the prior
+    "No assertion; just exercise the path" coverage-only test flagged
+    by Prism M3.
+    """
     with patch("quantide.data.models.daily_bars.daily_bars") as mock_db:
-        mock_db.store.update = lambda: None
-        _run_daily_bars_sync()
-    # No assertion; just exercise the path.
+        mock_db.store.update = MagicMock(return_value=None)
+        with patch.object(jobs_mod, "_save_job_history") as mock_save:
+            _run_daily_bars_sync()
+    mock_save.assert_called_once()
+    saved_args = mock_save.call_args.args
+    saved_kwargs = mock_save.call_args.kwargs
+    assert saved_args[0] == "daily_bars_sync"
+    assert "success" in (saved_args[2], saved_kwargs.get("status"))
 
 
 def test_run_daily_bars_sync_exception(db):
+    """[AC-NFR1101-01] Failure path records an error job-history entry."""
     with patch("quantide.data.models.daily_bars.daily_bars") as mock_db:
-        def _boom():
-            raise RuntimeError("boom")
-        mock_db.store.update = _boom
-        _run_daily_bars_sync()
+        mock_db.store.update = MagicMock(side_effect=RuntimeError("boom"))
+        with patch.object(jobs_mod, "_save_job_history") as mock_save:
+            _run_daily_bars_sync()
+    mock_save.assert_called_once()
+    saved_args = mock_save.call_args.args
+    assert saved_args[0] == "daily_bars_sync"
+    assert "error" in saved_args[2]
+    assert "boom" in saved_args[3]
 
 
 def test_run_stock_list_sync_success(db):
@@ -108,11 +126,33 @@ def test_run_calendar_sync_exception(db):
 
 
 def test_run_daily_snapshot(db):
-    _run_daily_snapshot()
+    """[AC-NFR1101-01] Daily snapshot records a success job-history entry.
+
+    Verifies that `_run_daily_snapshot` calls `_save_job_history` with
+    job_id="daily_snapshot" and status="success". This replaces the prior
+    assertion-less coverage-only test flagged by Prism M3.
+    """
+    with patch.object(jobs_mod, "_save_job_history") as mock_save:
+        _run_daily_snapshot()
+    mock_save.assert_called_once()
+    saved_args = mock_save.call_args.args
+    assert saved_args[0] == "daily_snapshot"
+    assert saved_args[2] == "success"
 
 
 def test_run_market_snapshot(db):
-    _run_market_snapshot()
+    """[AC-NFR1101-01] Market snapshot records a success job-history entry.
+
+    Verifies that `_run_market_snapshot` calls `_save_job_history` with
+    job_id="market_snapshot" and status="success". This replaces the prior
+    assertion-less coverage-only test flagged by Prism M3.
+    """
+    with patch.object(jobs_mod, "_save_job_history") as mock_save:
+        _run_market_snapshot()
+    mock_save.assert_called_once()
+    saved_args = mock_save.call_args.args
+    assert saved_args[0] == "market_snapshot"
+    assert saved_args[2] == "success"
 
 
 # ---------------------------------------------------------------------------
