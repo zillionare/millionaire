@@ -509,3 +509,63 @@ async def test_get_index_kline_exception():
         req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
         out = await get_index_kline(req, "000300.SH")
     assert out is not None
+
+
+# ---------------------------------------------------------------------------
+# compare_kline
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_compare_kline_basic():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import compare_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
+    with patch.object(km2, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
+            out = await compare_kline(req, "000001.SZ", "600000.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_compare_kline_no_dates():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import compare_kline
+    fake_df = pl3.DataFrame({"date": [dt.date.today()], "close": [10.0]})
+    with patch.object(km2, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({})
+            out = await compare_kline(req, "000001.SZ", "600000.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_compare_kline_invalid_date():
+    from quantide.web.apis.analysis.kline import compare_kline
+    req = _fake_request({"start": "bad"})
+    out = await compare_kline(req, "000001.SZ", "600000.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_compare_kline_invalid_freq():
+    from quantide.web.apis.analysis import kline as compare_line
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import compare_kline
+    fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
+    with patch.object(km2, "_get_stock_bars", return_value=fake_df):
+        with patch.object(km2, "bars_to_list", return_value=[]):
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "freq": "nope"})
+            out = await compare_kline(req, "000001.SZ", "600000.SH")
+    assert out is not None
+
+
+@pytest.mark.asyncio
+async def test_compare_kline_exception():
+    from quantide.web.apis.analysis import kline as km2
+    from quantide.web.apis.analysis.kline import compare_kline
+    with patch.object(km2, "_get_stock_bars", side_effect=Exception("boom")):
+        req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
+        out = await compare_kline(req, "000001.SZ", "600000.SH")
+    assert out is not None
