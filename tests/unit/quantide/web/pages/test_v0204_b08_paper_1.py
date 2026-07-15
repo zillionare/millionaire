@@ -23,12 +23,14 @@ from quantide.web.pages.paper import (
 
 
 def test_get_registry_present():
+    """[AC-NFR1101-01] test_get_registry_present."""
     req = MagicMock()
     req.scope = {"registry": "reg-1"}
     assert _get_registry(req) == "reg-1"
 
 
 def test_get_registry_missing():
+    """[AC-NFR1101-01] test_get_registry_missing."""
     req = MagicMock()
     req.scope = {}
     assert _get_registry(req) is None
@@ -40,12 +42,14 @@ def test_get_registry_missing():
 
 
 def test_resolve_account_id_present():
+    """[AC-NFR1101-01] test_resolve_account_id_present."""
     req = MagicMock()
     req.query_params = {"account_id": "a1"}
     assert _resolve_account_id(req) == "a1"
 
 
 def test_resolve_account_id_missing():
+    """[AC-NFR1101-01] test_resolve_account_id_missing."""
     req = MagicMock()
     req.query_params = {}
     assert _resolve_account_id(req) is None
@@ -57,12 +61,14 @@ def test_resolve_account_id_missing():
 
 
 def test_resolve_default_paper_no_registry():
+    """[AC-NFR1101-01] test_resolve_default_paper_no_registry."""
     req = MagicMock()
     req.scope = {}
     assert _resolve_default_paper_account(req) is None
 
 
 def test_resolve_default_paper_no_sims():
+    """[AC-NFR1101-01] test_resolve_default_paper_no_sims."""
     reg = MagicMock()
     reg.list_by_kind = MagicMock(return_value=[])
     req = MagicMock()
@@ -71,6 +77,7 @@ def test_resolve_default_paper_no_sims():
 
 
 def test_resolve_default_paper_first_sim():
+    """[AC-NFR1101-01] test_resolve_default_paper_first_sim."""
     reg = MagicMock()
     reg.list_by_kind = MagicMock(return_value=[{"id": "sim-1"}, {"id": "sim-2"}])
     req = MagicMock()
@@ -84,6 +91,7 @@ def test_resolve_default_paper_first_sim():
 
 
 def test_render_empty_paper():
+    """[AC-NFR1101-01] test_render_empty_paper."""
     from quantide.web.layouts.main import MainLayout
     layout = MainLayout(title="x", user=None)
     out = _render_empty_paper(layout)
@@ -91,16 +99,19 @@ def test_render_empty_paper():
 
 
 def test_render_no_registry():
+    """[AC-NFR1101-01] test_render_no_registry."""
     out = _render_no_registry({})
     assert out is not None
 
 
 def test_render_no_registry_with_user():
+    """[AC-NFR1101-01] test_render_no_registry_with_user."""
     out = _render_no_registry({"auth": "alice"})
     assert out is not None
 
 
 def test_render_paper_picker_empty():
+    """[AC-NFR1101-01] test_render_paper_picker_empty."""
     from quantide.web.layouts.main import MainLayout
     layout = MainLayout(title="x", user=None)
     out = _render_paper_picker(layout, [])
@@ -108,6 +119,7 @@ def test_render_paper_picker_empty():
 
 
 def test_render_paper_picker_with_sims():
+    """[AC-NFR1101-01] test_render_paper_picker_with_sims."""
     from quantide.web.layouts.main import MainLayout
     layout = MainLayout(title="x", user=None)
     sims = [{"id": "s1", "name": "S1"}, {"id": "s2", "name": "S2"}]
@@ -131,7 +143,7 @@ from quantide.web.pages.paper import (
 
 
 def test_get_positions_no_registry():
-    """When no registry, returns PositionInfo with empty list."""
+    """[AC-NFR1101-01] When no registry, returns PositionInfo with empty list."""
     req = MagicMock()
     req.scope = {}
     out = get_positions(req, portfolio_id="p1")
@@ -139,7 +151,7 @@ def test_get_positions_no_registry():
 
 
 def test_get_positions_with_broker():
-    """When broker has positions, returns PositionInfo with them."""
+    """[AC-NFR1101-01] When broker has positions, returns PositionInfo with them."""
     from quantide.data.models import Position
     fake_reg = MagicMock()
     fake_broker = MagicMock()
@@ -160,7 +172,7 @@ def test_get_positions_with_broker():
 
 
 def test_get_positions_broker_no_positions_attr():
-    """When broker doesn't have positions attr, returns empty."""
+    """[AC-NFR1101-01] When broker doesn't have positions attr, returns empty."""
     fake_reg = MagicMock()
     fake_broker = MagicMock(spec=["other_attr"])
     fake_reg.get = MagicMock(return_value=fake_broker)

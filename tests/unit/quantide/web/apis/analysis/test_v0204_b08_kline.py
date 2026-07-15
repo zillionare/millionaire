@@ -18,17 +18,20 @@ from quantide.web.apis.analysis.kline import (
 
 
 def test_feature_removed_returns_410():
+    """[AC-NFR1101-01] test_feature_removed_returns_410."""
     resp = _feature_removed("gone")
     assert resp.status_code == 410
 
 
 def test_bars_to_list_empty():
+    """[AC-NFR1101-01] test_bars_to_list_empty."""
     df = pl.DataFrame()
     got = bars_to_list(df)
     assert got == []
 
 
 def test_bars_to_list_with_rows():
+    """[AC-NFR1101-01] test_bars_to_list_with_rows."""
     df = pl.DataFrame({
         "frame": [datetime.date(2024, 1, 1)],
         "open": [10.0],
@@ -45,7 +48,7 @@ def test_bars_to_list_with_rows():
 
 
 def test_bars_to_list_datetime():
-    """When frame is datetime, ISO-format."""
+    """[AC-NFR1101-01] When frame is datetime, ISO-format."""
     df = pl.DataFrame({
         "frame": [datetime.datetime(2024, 1, 1, 10, 0)],
         "open": [10.0],
@@ -60,7 +63,7 @@ def test_bars_to_list_datetime():
 
 
 def test_bars_to_list_string():
-    """When frame is already string, returned as-is."""
+    """[AC-NFR1101-01] When frame is already string, returned as-is."""
     df = pl.DataFrame({
         "frame": ["2024-01-01"],
         "open": [10.0],
@@ -75,12 +78,14 @@ def test_bars_to_list_string():
 
 
 def test_add_ma_to_list_empty():
+    """[AC-NFR1101-01] test_add_ma_to_list_empty."""
     df = pl.DataFrame()
     got = add_ma_to_list(df, [5, 10])
     assert got == []
 
 
 def test_add_ma_to_list_with_ma():
+    """[AC-NFR1101-01] test_add_ma_to_list_with_ma."""
     df = pl.DataFrame({
         "frame": [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
         "open": [10.0, 11.0],
@@ -100,7 +105,7 @@ def test_add_ma_to_list_with_ma():
 
 
 def test_add_ma_to_list_no_ma_present():
-    """When MA columns don't exist, no MA keys added."""
+    """[AC-NFR1101-01] When MA columns don't exist, no MA keys added."""
     df = pl.DataFrame({
         "frame": [datetime.date(2024, 1, 1)],
         "open": [10.0],
@@ -127,7 +132,7 @@ from quantide.web.apis.analysis.kline import _get_stock_bars, _get_index_bars
 
 
 def test_get_stock_bars_non_empty():
-    """When daily_bars.get_bars_in_range returns data, returns it."""
+    """[AC-NFR1101-01] When daily_bars.get_bars_in_range returns data, returns it."""
     fake_df = pl3.DataFrame({
         "date": [dt.date(2024, 6, 1)],
         "asset": ["000001.SZ"],
@@ -146,7 +151,7 @@ def test_get_stock_bars_non_empty():
 
 
 def test_get_stock_bars_empty_renames():
-    """When empty + freq=day, returns empty DataFrame with column schema."""
+    """[AC-NFR1101-01] When empty + freq=day, returns empty DataFrame with column schema."""
     with patch.object(kline_mod, "daily_bars") as mock_dbars:
         mock_dbars.get_bars_in_range = MagicMock(return_value=pl3.DataFrame())
         out = _get_stock_bars("000001.SZ", dt.date(2024, 1, 1), dt.date(2024, 6, 30))
@@ -155,6 +160,7 @@ def test_get_stock_bars_empty_renames():
 
 
 def test_get_index_bars_non_empty():
+    """[AC-NFR1101-01] test_get_index_bars_non_empty."""
     fake_df = pl3.DataFrame({
         "date": [dt.date(2024, 6, 1)],
         "close": [3500.0],
@@ -167,7 +173,7 @@ def test_get_index_bars_non_empty():
 
 
 def test_get_index_bars_empty():
-    """When empty, returns empty schema DataFrame."""
+    """[AC-NFR1101-01] When empty, returns empty schema DataFrame."""
     fake_store = MagicMock()
     fake_store.get = MagicMock(return_value=pl3.DataFrame())
     with patch.object(kline_mod, "get_index_bars_store", return_value=fake_store):
@@ -184,14 +190,14 @@ from quantide.web.apis.analysis.kline import _get_bars_with_ma
 
 
 def test_get_bars_with_ma_empty():
-    """When df empty, returns empty."""
+    """[AC-NFR1101-01] When df empty, returns empty."""
     with patch.object(kline_mod, "_get_stock_bars", return_value=pl3.DataFrame()):
         out = _get_bars_with_ma("000001.SZ", dt.date(2024, 1, 1), dt.date(2024, 6, 30))
     assert out.is_empty()
 
 
 def test_get_bars_with_ma_no_periods():
-    """When ma_periods None, returns raw df."""
+    """[AC-NFR1101-01] When ma_periods None, returns raw df."""
     fake_df = pl3.DataFrame({
         "date": [dt.date(2024, 6, i) for i in range(1, 11)],
         "close": [10.0 + i * 0.1 for i in range(10)],
@@ -206,7 +212,7 @@ def test_get_bars_with_ma_no_periods():
 
 
 def test_get_bars_with_ma_with_periods():
-    """When ma_periods given, computes MA columns."""
+    """[AC-NFR1101-01] When ma_periods given, computes MA columns."""
     fake_df = pl3.DataFrame({
         "date": [dt.date(2024, 6, i) for i in range(1, 11)],
         "close": [10.0 + i * 0.1 for i in range(10)],
@@ -236,7 +242,7 @@ def _fake_request(query_params):
 
 
 def test_kline_endpoint_basic():
-    """get_stock_kline returns JSONResponse with valid request."""
+    """[AC-NFR1101-01] get_stock_kline returns JSONResponse with valid request."""
     from quantide.web.apis.analysis.kline import get_stock_kline
 
     fake_df = pl3.DataFrame({
@@ -256,7 +262,7 @@ def test_kline_endpoint_basic():
 
 
 def test_kline_endpoint_no_dates():
-    """No start/end → uses defaults (today - 365, today)."""
+    """[AC-NFR1101-01] No start/end → uses defaults (today - 365, today)."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     fake_df = pl3.DataFrame({"date": [dt.date.today()], "close": [10.0]})
     with patch.object(km, "_get_stock_bars", return_value=fake_df):
@@ -267,7 +273,7 @@ def test_kline_endpoint_no_dates():
 
 
 def test_kline_endpoint_invalid_date():
-    """Invalid date format → JSONResponse error."""
+    """[AC-NFR1101-01] Invalid date format → JSONResponse error."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     req = _fake_request({"start": "invalid"})
     out = get_stock_kline(req, "000001.SZ")
@@ -275,7 +281,7 @@ def test_kline_endpoint_invalid_date():
 
 
 def test_kline_endpoint_invalid_freq():
-    """Invalid freq → JSONResponse error."""
+    """[AC-NFR1101-01] Invalid freq → JSONResponse error."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km, "_get_stock_bars", return_value=fake_df):
@@ -286,7 +292,7 @@ def test_kline_endpoint_invalid_freq():
 
 
 def test_kline_endpoint_invalid_ma():
-    """Invalid ma param → JSONResponse error."""
+    """[AC-NFR1101-01] Invalid ma param → JSONResponse error."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km, "_get_stock_bars", return_value=fake_df):
@@ -297,7 +303,7 @@ def test_kline_endpoint_invalid_ma():
 
 
 def test_kline_endpoint_with_ma():
-    """With valid ma periods, returns MA data."""
+    """[AC-NFR1101-01] With valid ma periods, returns MA data."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     fake_df = pl3.DataFrame({
         "date": [dt.date(2024, 6, 1), dt.date(2024, 6, 2), dt.date(2024, 6, 3)],
@@ -315,7 +321,7 @@ def test_kline_endpoint_with_ma():
 
 
 def test_kline_endpoint_exception():
-    """Generic exception in data fetch → error response."""
+    """[AC-NFR1101-01] Generic exception in data fetch → error response."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     with patch.object(km, "_get_stock_bars", side_effect=Exception("boom")):
         req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
@@ -580,12 +586,13 @@ from quantide.web.apis.analysis.kline import bars_to_list, add_ma_to_list
 
 
 def test_bars_to_list_empty():
+    """[AC-NFR1101-01] test_bars_to_list_empty."""
     out = bars_to_list(pl3.DataFrame())
     assert out == []
 
 
 def test_bars_to_list_with_frame_dates():
-    """When row['frame'] is a date, formats as isoformat."""
+    """[AC-NFR1101-01] When row['frame'] is a date, formats as isoformat."""
     df = pl3.DataFrame({
         "frame": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
         "open": [10.0, 10.5], "high": [10.5, 11.0],
@@ -599,7 +606,7 @@ def test_bars_to_list_with_frame_dates():
 
 
 def test_bars_to_list_with_string_dates():
-    """When row['frame'] is string, passes through."""
+    """[AC-NFR1101-01] When row['frame'] is string, passes through."""
     df = pl3.DataFrame({
         "frame": ["2024-06-01", "2024-06-02"],
         "open": [10.0, 10.5], "high": [10.5, 11.0],
@@ -612,12 +619,13 @@ def test_bars_to_list_with_string_dates():
 
 
 def test_add_ma_to_list_empty():
+    """[AC-NFR1101-01] test_add_ma_to_list_empty."""
     out = add_ma_to_list(pl3.DataFrame(), [5])
     assert out == []
 
 
 def test_add_ma_to_list_with_ma():
-    """When row has ma5 column, adds to output."""
+    """[AC-NFR1101-01] When row has ma5 column, adds to output."""
     df = pl3.DataFrame({
         "frame": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
         "open": [10.0, 10.5], "high": [10.5, 11.0],
@@ -631,7 +639,7 @@ def test_add_ma_to_list_with_ma():
 
 
 def test_add_ma_to_list_with_ma_missing():
-    """When row does not have ma key, omits from output."""
+    """[AC-NFR1101-01] When row does not have ma key, omits from output."""
     df = pl3.DataFrame({
         "frame": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
         "open": [10.0, 10.5], "high": [10.5, 11.0],
@@ -644,7 +652,7 @@ def test_add_ma_to_list_with_ma_missing():
 
 
 def test_add_ma_to_list_with_ma_none():
-    """When row[ma_key] is None, omits from output."""
+    """[AC-NFR1101-01] When row[ma_key] is None, omits from output."""
     df = pl3.DataFrame({
         "frame": [dt.date(2024, 6, 1), dt.date(2024, 6, 2)],
         "open": [10.0, 10.5], "high": [10.5, 11.0],
@@ -660,6 +668,7 @@ def test_add_ma_to_list_with_ma_none():
 
 
 def test_add_ma_to_list_with_string_frame():
+    """[AC-NFR1101-01] test_add_ma_to_list_with_string_frame."""
     df = pl3.DataFrame({
         "frame": ["2024-06-01", "2024-06-02"],
         "open": [10.0, 10.5], "high": [10.5, 11.0],

@@ -30,56 +30,65 @@ def svc():
 
 
 def test_compose_gateway_url_basic(svc):
+    """[AC-NFR1101-01] test_compose_gateway_url_basic."""
     out = svc._compose_gateway_url("localhost", 8000, "/api")
     assert "localhost" in out
     assert "8000" in out
 
 
 def test_compose_gateway_url_no_prefix(svc):
+    """[AC-NFR1101-01] test_compose_gateway_url_no_prefix."""
     out = svc._compose_gateway_url("localhost", 8000, "")
     assert "localhost" in out
 
 
 def test_compose_gateway_url_slash_prefix(svc):
+    """[AC-NFR1101-01] test_compose_gateway_url_slash_prefix."""
     out = svc._compose_gateway_url("localhost", 8000, "/")
     assert "localhost" in out
 
 
 def test_compose_gateway_url_no_leading_slash(svc):
+    """[AC-NFR1101-01] test_compose_gateway_url_no_leading_slash."""
     out = svc._compose_gateway_url("localhost", 8000, "api")
     assert "/api" in out or "localhost" in out
 
 
 def test_compose_gateway_url_with_trailing(svc):
+    """[AC-NFR1101-01] test_compose_gateway_url_with_trailing."""
     out = svc._compose_gateway_url("localhost", 8000, "/api/")
     assert "localhost" in out
 
 
 def test_normalize_gateway_url_empty(svc):
+    """[AC-NFR1101-01] test_normalize_gateway_url_empty."""
     assert svc._normalize_gateway_url("") == ""
 
 
 def test_normalize_gateway_url_slash(svc):
+    """[AC-NFR1101-01] test_normalize_gateway_url_slash."""
     assert svc._normalize_gateway_url("/") == ""
 
 
 def test_normalize_gateway_url_relative(svc):
+    """[AC-NFR1101-01] test_normalize_gateway_url_relative."""
     assert svc._normalize_gateway_url("/foo") == ""
 
 
 def test_normalize_gateway_url_full(svc):
+    """[AC-NFR1101-01] test_normalize_gateway_url_full."""
     out = svc._normalize_gateway_url("http://localhost:8000/api/")
     assert "localhost" in out
 
 
 def test_normalize_gateway_url_no_scheme(svc):
-    """No scheme/netloc/path-dot returns empty."""
+    """[AC-NFR1101-01] No scheme/netloc/path-dot returns empty."""
     out = svc._normalize_gateway_url("localhost:8000/api")
     assert out == ""
 
 
 def test_normalize_gateway_url_with_path(svc):
-    """Path without dot returns empty."""
+    """[AC-NFR1101-01] Path without dot returns empty."""
     out = svc._normalize_gateway_url("example.com:8000/api")
     assert out == ""
 
@@ -90,13 +99,14 @@ def test_normalize_gateway_url_with_path(svc):
 
 
 def test_build_default_state(svc):
+    """[AC-NFR1101-01] test_build_default_state."""
     state = svc._build_default_state()
     assert state is not None
     assert state.init_step == 0
 
 
 def test_compute_history_start_date(svc):
-    """With epoch in past, returns max(epoch, today-365*years)."""
+    """[AC-NFR1101-01] With epoch in past, returns max(epoch, today-365*years)."""
     import datetime as dt
     import quantide.service.init_wizard as iw
     with patch.object(iw.datetime, "date", wraps=dt.date) as dmock:
@@ -106,7 +116,7 @@ def test_compute_history_start_date(svc):
 
 
 def test_compute_history_start_date_min_one_year(svc):
-    """Even 0 years yields at least 1 year back."""
+    """[AC-NFR1101-01] Even 0 years yields at least 1 year back."""
     import datetime as dt
     import quantide.service.init_wizard as iw
     with patch.object(iw.datetime, "date", wraps=dt.date) as dmock:

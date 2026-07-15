@@ -30,30 +30,35 @@ from quantide.web.pages.system.jobs import (
 
 
 def test_format_cron_weekdays():
+    """[AC-NFR1101-01] test_format_cron_weekdays."""
     assert _format_cron("0 18 * * 1-5") == "每天 18:00 (周一至周五)"
 
 
 def test_format_cron_every_day():
+    """[AC-NFR1101-01] test_format_cron_every_day."""
     assert _format_cron("30 9 * * *") == "每天 9:30"
 
 
 def test_format_cron_monday():
+    """[AC-NFR1101-01] test_format_cron_monday."""
     assert _format_cron("0 10 * * 1") == "每周一 10:00"
 
 
 def test_format_cron_every_n_minutes():
     # "*/5 * * * *" - falls through to fallback; just exercise the path
+    """[AC-NFR1101-01] test_format_cron_every_n_minutes."""
     out = _format_cron("*/5 * * * *")
     assert isinstance(out, str) and out
 
 
 def test_format_cron_unsupported_returns_raw():
-    """Non-standard cron returns input unchanged."""
+    """[AC-NFR1101-01] Non-standard cron returns input unchanged."""
     raw = "0 0 * * * 2024"
     assert _format_cron(raw) == raw
 
 
 def test_format_cron_too_short_returns_raw():
+    """[AC-NFR1101-01] test_format_cron_too_short_returns_raw."""
     assert _format_cron("a b c") == "a b c"
 
 
@@ -96,6 +101,7 @@ def test_run_daily_bars_sync_exception(db):
 
 
 def test_run_stock_list_sync_success(db):
+    """[AC-NFR1101-01] test_run_stock_list_sync_success."""
     with patch("quantide.data.models.stocks.stock_list") as mock:
         mock.update = lambda: None  # async, but asyncio.run wraps it
         # We make .update return a regular value to be safe with asyncio.run
@@ -104,6 +110,7 @@ def test_run_stock_list_sync_success(db):
 
 
 def test_run_stock_list_sync_exception(db):
+    """[AC-NFR1101-01] test_run_stock_list_sync_exception."""
     with patch("quantide.data.models.stocks.stock_list") as mock:
         def _boom():
             raise Exception("sync failed")
@@ -112,12 +119,14 @@ def test_run_stock_list_sync_exception(db):
 
 
 def test_run_calendar_sync_success(db):
+    """[AC-NFR1101-01] test_run_calendar_sync_success."""
     with patch("quantide.data.models.calendar.calendar") as mock:
         mock.update = lambda: __import__("asyncio").sleep(0)
         _run_calendar_sync()
 
 
 def test_run_calendar_sync_exception(db):
+    """[AC-NFR1101-01] test_run_calendar_sync_exception."""
     with patch("quantide.data.models.calendar.calendar") as mock:
         def _boom():
             raise Exception("cal failed")
@@ -170,7 +179,7 @@ from quantide.web.pages.system.jobs import (
 
 
 def test_job_history_record_from_dict():
-    """JobHistoryRecord.from_dict parses dict to record."""
+    """[AC-NFR1101-01] JobHistoryRecord.from_dict parses dict to record."""
     class _R(dict):
         def get(self, k, d=None):
             return super().get(k, d)
@@ -188,31 +197,37 @@ def test_job_history_record_from_dict():
 
 
 def test_build_job_status_badge_enabled():
+    """[AC-NFR1101-01] test_build_job_status_badge_enabled."""
     out = _build_job_status_badge(True)
     assert out is not None
 
 
 def test_build_job_status_badge_disabled():
+    """[AC-NFR1101-01] test_build_job_status_badge_disabled."""
     out = _build_job_status_badge(False)
     assert out is not None
 
 
 def test_build_status_dot_enabled():
+    """[AC-NFR1101-01] test_build_status_dot_enabled."""
     out = _build_status_dot(True)
     assert out == "🟢"
 
 
 def test_build_status_dot_disabled():
+    """[AC-NFR1101-01] test_build_status_dot_disabled."""
     out = _build_status_dot(False)
     assert out == "🔴"
 
 
 def test_build_history_table_empty():
+    """[AC-NFR1101-01] test_build_history_table_empty."""
     out = _build_history_table([])
     assert out is not None
 
 
 def test_build_history_table_success():
+    """[AC-NFR1101-01] test_build_history_table_success."""
     rec = JobHistoryRecord(
         id="1",
         job_id="x",
@@ -227,6 +242,7 @@ def test_build_history_table_success():
 
 
 def test_build_history_table_error():
+    """[AC-NFR1101-01] test_build_history_table_error."""
     rec = JobHistoryRecord(
         id="1",
         job_id="x",
@@ -249,7 +265,7 @@ from quantide.web.pages.system.jobs import _get_job_status, _job_enabled_state
 
 
 def test_get_job_status_no_scheduler_job(db):
-    """When scheduler has no job, has_scheduler_job=False."""
+    """[AC-NFR1101-01] When scheduler has no job, has_scheduler_job=False."""
     with patch.object(jobs_mod, "scheduler") as mock_sched:
         mock_sched.scheduler.get_job = MagicMock(return_value=None)
         out = _get_job_status("x")
@@ -259,7 +275,7 @@ def test_get_job_status_no_scheduler_job(db):
 
 
 def test_get_job_status_with_scheduler_job(db):
-    """When scheduler has a job, includes next_run_time."""
+    """[AC-NFR1101-01] When scheduler has a job, includes next_run_time."""
     fake_job = MagicMock()
     fake_job.next_run_time = __import__("datetime").datetime(2024, 1, 1, 10, 0)
     with patch.object(jobs_mod, "scheduler") as mock_sched:
@@ -270,7 +286,7 @@ def test_get_job_status_with_scheduler_job(db):
 
 
 def test_get_job_status_with_history(db):
-    """When history exists, includes last_run."""
+    """[AC-NFR1101-01] When history exists, includes last_run."""
     rec = JobHistoryRecord(
         id="1",
         job_id="x",
@@ -348,11 +364,13 @@ async def test_job_detail_known(db):
 
 
 def test_build_jobs_table_empty():
+    """[AC-NFR1101-01] test_build_jobs_table_empty."""
     out = _build_jobs_table([])
     assert out is not None
 
 
 def test_build_detail_panel():
+    """[AC-NFR1101-01] test_build_detail_panel."""
     from quantide.web.pages.system.jobs import PREDEFINED_JOBS
     jid = list(PREDEFINED_JOBS.keys())[0]
     out = _build_detail_panel(jid)
@@ -360,12 +378,13 @@ def test_build_detail_panel():
 
 
 def test_build_detail_panel_unknown():
+    """[AC-NFR1101-01] test_build_detail_panel_unknown."""
     out = _build_detail_panel("unknown-job")
     assert out is not None
 
 
 def test_get_job_status_with_data(db):
-    """When history exists, return last_run."""
+    """[AC-NFR1101-01] When history exists, return last_run."""
     from quantide.web.pages.system.jobs import (
         _job_enabled_state, _get_job_history,
     )

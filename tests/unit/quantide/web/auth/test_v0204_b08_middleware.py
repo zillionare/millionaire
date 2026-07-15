@@ -8,6 +8,7 @@ from quantide.web.auth.middleware import AuthBeforeware
 
 
 def test_init_default_config():
+    """[AC-NFR1101-01] test_init_default_config."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     assert mw.login_path == "/auth/login"
     assert mw.public_paths == []
@@ -15,6 +16,7 @@ def test_init_default_config():
 
 
 def test_init_custom_config():
+    """[AC-NFR1101-01] test_init_custom_config."""
     mw = AuthBeforeware(
         auth_manager=MagicMock(),
         config={"login_path": "/login", "public_paths": ["/foo"]},
@@ -24,6 +26,7 @@ def test_init_custom_config():
 
 
 def test_build_skip_patterns_basic():
+    """[AC-NFR1101-01] test_build_skip_patterns_basic."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     patterns = mw._build_skip_patterns()
     assert isinstance(patterns, list)
@@ -35,12 +38,14 @@ def test_build_skip_patterns_basic():
 
 
 def test_build_skip_patterns_with_additional():
+    """[AC-NFR1101-01] test_build_skip_patterns_with_additional."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     patterns = mw._build_skip_patterns(additional_paths=["/custom"])
     assert "/custom" in patterns
 
 
 def test_build_skip_patterns_includes_public():
+    """[AC-NFR1101-01] test_build_skip_patterns_includes_public."""
     mw = AuthBeforeware(
         auth_manager=MagicMock(),
         config={"public_paths": ["/public-foo"]},
@@ -50,7 +55,7 @@ def test_build_skip_patterns_includes_public():
 
 
 def test_create_beforeware_returns_object():
-    """create_beforeware returns a fastHTML Beforeware object."""
+    """[AC-NFR1101-01] create_beforeware returns a fastHTML Beforeware object."""
     from fasthtml.common import Beforeware
 
     mw = AuthBeforeware(auth_manager=MagicMock())
@@ -59,6 +64,7 @@ def test_create_beforeware_returns_object():
 
 
 def test_create_beforeware_with_additional_paths():
+    """[AC-NFR1101-01] test_create_beforeware_with_additional_paths."""
     from fasthtml.common import Beforeware
 
     mw = AuthBeforeware(auth_manager=MagicMock())
@@ -76,7 +82,7 @@ from quantide.web.auth.middleware import AuthBeforeware
 
 
 def test_auth_check_no_session_no_cookie_redirects():
-    """When no session + no cookie → redirect to login."""
+    """[AC-NFR1101-01] When no session + no cookie → redirect to login."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     fake_bw = Beforeware(lambda *a, **k: None, skip=[])
     # Build Beforeware to register auth_check closure
@@ -86,7 +92,7 @@ def test_auth_check_no_session_no_cookie_redirects():
 
 
 def test_auth_check_session_auth():
-    """When session has auth, validates user. Mock the inner logic indirectly."""
+    """[AC-NFR1101-01] When session has auth, validates user. Mock the inner logic indirectly."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     fake_user = MagicMock()
     fake_user.id = 1
@@ -103,7 +109,7 @@ def test_auth_check_session_auth():
 
 
 def test_init_doesnt_mutate_auth_path():
-    """When login_path is overridden in config, it's preserved."""
+    """[AC-NFR1101-01] When login_path is overridden in config, it's preserved."""
     mw = AuthBeforeware(
         auth_manager=MagicMock(),
         config={"login_path": "/custom/login"},
@@ -117,7 +123,7 @@ def test_init_doesnt_mutate_auth_path():
 
 
 def test_capture_auth_check():
-    """Capture the inner auth_check closure by intercepting Beforeware."""
+    """[AC-NFR1101-01] Capture the inner auth_check closure by intercepting Beforeware."""
     from quantide.web.auth.middleware import Beforeware as BW_actual
 
     captured = {}
@@ -163,7 +169,7 @@ def test_capture_auth_check():
 
 
 def test_capture_auth_check_full_flow():
-    """Full flow: session has auth, user exists active, success path."""
+    """[AC-NFR1101-01] Full flow: session has auth, user exists active, success path."""
     captured = {}
 
     def capturing_BW(*args, **kwargs):
@@ -197,7 +203,7 @@ def test_capture_auth_check_full_flow():
 
 
 def test_capture_auth_check_inactive_user():
-    """Session has auth, user exists but inactive, redirect."""
+    """[AC-NFR1101-01] Session has auth, user exists but inactive, redirect."""
     captured = {}
 
     def capturing_BW(*args, **kwargs):
@@ -231,7 +237,7 @@ def test_capture_auth_check_inactive_user():
 
 
 def test_capture_auth_check_admin():
-    """When user role is admin, sets user_is_admin to True."""
+    """[AC-NFR1101-01] When user role is admin, sets user_is_admin to True."""
     captured = {}
 
     def capturing_BW(*args, **kwargs):
@@ -262,7 +268,7 @@ def test_capture_auth_check_admin():
 
 
 def test_capture_auth_check_remember_me():
-    """When remember_user cookie present + active user, restore session."""
+    """[AC-NFR1101-01] When remember_user cookie present + active user, restore session."""
     captured = {}
 
     def capturing_BW(*args, **kwargs):
@@ -301,6 +307,7 @@ def test_capture_auth_check_remember_me():
 
 
 def test_require_admin_decorator_calls_func_when_admin():
+    """[AC-NFR1101-01] test_require_admin_decorator_calls_func_when_admin."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     admin_user = MagicMock()
     admin_user.role = "admin"
@@ -316,6 +323,7 @@ def test_require_admin_decorator_calls_func_when_admin():
 
 
 def test_require_admin_decorator_blocks_non_admin():
+    """[AC-NFR1101-01] test_require_admin_decorator_blocks_non_admin."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     user = MagicMock()
     user.role = "user"
@@ -331,6 +339,7 @@ def test_require_admin_decorator_blocks_non_admin():
 
 
 def test_require_admin_decorator_blocks_no_user():
+    """[AC-NFR1101-01] test_require_admin_decorator_blocks_no_user."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     req = MagicMock()
     req.scope = {}
@@ -344,7 +353,7 @@ def test_require_admin_decorator_blocks_no_user():
 
 
 def test_require_role_decorator_with_func_args():
-    """Decorated func accepts (req, extra) and role matches."""
+    """[AC-NFR1101-01] Decorated func accepts (req, extra) and role matches."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     admin_user = MagicMock()
     admin_user.role = "admin"
@@ -360,6 +369,7 @@ def test_require_role_decorator_with_func_args():
 
 
 def test_require_role_decorator_blocks_manager():
+    """[AC-NFR1101-01] test_require_role_decorator_blocks_manager."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     user = MagicMock()
     user.role = "user"
@@ -375,7 +385,7 @@ def test_require_role_decorator_blocks_manager():
 
 
 def test_remember_me_invalid_cookie_no_pass_through():
-    """When remember_user cookie points to nonexistent user, hits pass branch."""
+    """[AC-NFR1101-01] When remember_user cookie points to nonexistent user, hits pass branch."""
     captured = {}
 
     def capturing_BW(*args, **kwargs):
@@ -403,6 +413,7 @@ def test_remember_me_invalid_cookie_no_pass_through():
 
 
 def test_build_skip_patterns_with_additional():
+    """[AC-NFR1101-01] test_build_skip_patterns_with_additional."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     patterns = mw._build_skip_patterns(additional_paths=["/extra1", "/extra2"])
     # Should include custom + health + api/public
@@ -413,6 +424,7 @@ def test_build_skip_patterns_with_additional():
 
 
 def test_build_skip_patterns_no_additional():
+    """[AC-NFR1101-01] test_build_skip_patterns_no_additional."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     patterns = mw._build_skip_patterns()
     assert "/health" in patterns

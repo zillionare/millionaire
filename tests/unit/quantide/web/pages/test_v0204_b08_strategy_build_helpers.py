@@ -15,7 +15,7 @@ from quantide.web.pages.strategy import (
 
 
 def test_build_date_axis_with_portfolio():
-    """When portfolio exists, returns list from calendar.get_frames."""
+    """[AC-NFR1101-01] When portfolio exists, returns list from calendar.get_frames."""
     fake_portfolio = MagicMock()
     fake_portfolio.start = __import__("datetime").date(2024, 1, 1)
     fake_portfolio.end = __import__("datetime").date(2024, 6, 30)
@@ -32,7 +32,7 @@ def test_build_date_axis_with_portfolio():
 
 
 def test_build_date_axis_no_portfolio_no_end():
-    """When portfolio has no end, uses start as end."""
+    """[AC-NFR1101-01] When portfolio has no end, uses start as end."""
     fake_portfolio = MagicMock()
     fake_portfolio.start = __import__("datetime").date(2024, 1, 1)
     fake_portfolio.end = None
@@ -48,7 +48,7 @@ def test_build_date_axis_no_portfolio_no_end():
 
 
 def test_build_date_axis_no_portfolio_use_assets():
-    """When no portfolio but assets exist, derives from first/last row."""
+    """[AC-NFR1101-01] When no portfolio but assets exist, derives from first/last row."""
     fake_assets = pl.DataFrame({
         "dt": [
             __import__("datetime").date(2024, 1, 1),
@@ -69,7 +69,7 @@ def test_build_date_axis_no_portfolio_use_assets():
 
 
 def test_build_date_axis_no_portfolio_no_assets():
-    """Returns empty list when no portfolio and no assets."""
+    """[AC-NFR1101-01] Returns empty list when no portfolio and no assets."""
     fake_assets = pl.DataFrame()  # empty
 
     with patch.object(strategy_mod, "db") as mock_db:
@@ -84,7 +84,7 @@ def test_build_date_axis_no_portfolio_no_assets():
 
 
 def test_build_series_payload_no_assets():
-    """When no assets, returns placeholder payload."""
+    """[AC-NFR1101-01] When no assets, returns placeholder payload."""
     with patch.object(strategy_mod, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=pl.DataFrame())
         out = _build_series_payload("p1", date_axis=["2024-01-01"])
@@ -93,7 +93,7 @@ def test_build_series_payload_no_assets():
 
 
 def test_build_series_payload_no_date_axis():
-    """When no date_axis, returns empty placeholder."""
+    """[AC-NFR1101-01] When no date_axis, returns empty placeholder."""
     fake_assets = pl.DataFrame({"dt": [__import__("datetime").date(2024, 1, 1)]})
     with patch.object(strategy_mod, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
@@ -103,7 +103,7 @@ def test_build_series_payload_no_date_axis():
 
 
 def test_build_series_payload_with_assets():
-    """With assets, populates series."""
+    """[AC-NFR1101-01] With assets, populates series."""
     fake_assets = pl.DataFrame({
         "dt": [
             __import__("datetime").date(2024, 1, 1),
@@ -128,7 +128,7 @@ from quantide.web.pages.strategy import _build_benchmark_returns
 
 
 def test_build_benchmark_returns_no_assets():
-    """When no assets, returns None."""
+    """[AC-NFR1101-01] When no assets, returns None."""
     with patch.object(strategy_mod, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=pl.DataFrame())
         out = _build_benchmark_returns("p1")
@@ -136,7 +136,7 @@ def test_build_benchmark_returns_no_assets():
 
 
 def test_build_benchmark_returns_daily_bars_exception():
-    """When daily_bars.get_bars_in_range raises, returns None."""
+    """[AC-NFR1101-01] When daily_bars.get_bars_in_range raises, returns None."""
     fake_assets = pl.DataFrame({"dt": [__import__("datetime").date(2024, 1, 1)]})
     with patch.object(strategy_mod, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
@@ -147,7 +147,7 @@ def test_build_benchmark_returns_daily_bars_exception():
 
 
 def test_build_benchmark_returns_empty_dataframe():
-    """When daily_bars returns empty df, returns None."""
+    """[AC-NFR1101-01] When daily_bars returns empty df, returns None."""
     import datetime
     fake_assets = pl.DataFrame({"dt": [datetime.date(2024, 1, 1)]})
     with patch.object(strategy_mod, "db") as mock_db:
@@ -159,7 +159,7 @@ def test_build_benchmark_returns_empty_dataframe():
 
 
 def test_build_benchmark_returns_with_data():
-    """With proper data, returns percent-change df."""
+    """[AC-NFR1101-01] With proper data, returns percent-change df."""
     import datetime
     fake_assets = pl.DataFrame({
         "dt": [
@@ -191,7 +191,7 @@ from quantide.web.pages.strategy import _build_metrics_payload, BENCHMARK_ASSET
 
 
 def test_build_metrics_payload_with_stats():
-    """Build metrics from a normal stats DataFrame."""
+    """[AC-NFR1101-01] Build metrics from a normal stats DataFrame."""
     import pandas as pd
     fake_df = pd.DataFrame({"v": [1.0]}, index=["Sharpe Ratio"])
     with patch.object(strategy_mod, "metrics") as mock_metrics, \
@@ -218,7 +218,7 @@ from quantide.web.pages.strategy import (
 
 
 def test_resolve_backtest_status_no_run_no_portfolio():
-    """No run, no portfolio → ('missing', '未找到回测记录。')."""
+    """[AC-NFR1101-01] No run, no portfolio → ('missing', '未找到回测记录。')."""
     with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
          patch.object(strategy_mod, "db") as mock_db:
         mock_mgr.get_backtest_run = MagicMock(return_value=None)
@@ -229,7 +229,7 @@ def test_resolve_backtest_status_no_run_no_portfolio():
 
 
 def test_resolve_backtest_status_running():
-    """When portfolio.status is True, status='running'."""
+    """[AC-NFR1101-01] When portfolio.status is True, status='running'."""
     fake_portfolio = MagicMock()
     fake_portfolio.status = True
     with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
@@ -242,7 +242,7 @@ def test_resolve_backtest_status_running():
 
 
 def test_resolve_backtest_status_finished():
-    """When portfolio.status is False, status='finished'."""
+    """[AC-NFR1101-01] When portfolio.status is False, status='finished'."""
     fake_portfolio = MagicMock()
     fake_portfolio.status = False
     with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
@@ -254,7 +254,7 @@ def test_resolve_backtest_status_finished():
 
 
 def test_resolve_backtest_status_run_running():
-    """When run.status='running', return running."""
+    """[AC-NFR1101-01] When run.status='running', return running."""
     fake_run = MagicMock()
     fake_run.status = "running"
     fake_run.error = None
@@ -265,7 +265,7 @@ def test_resolve_backtest_status_run_running():
 
 
 def test_resolve_backtest_status_run_unknown():
-    """When run.status is unknown, falls through to portfolio check."""
+    """[AC-NFR1101-01] When run.status is unknown, falls through to portfolio check."""
     fake_run = MagicMock()
     fake_run.status = "weird"
     fake_run.error = "x"
@@ -285,7 +285,7 @@ def test_resolve_backtest_status_run_unknown():
 
 
 def test_build_trade_rows_empty():
-    """When db.trades_all is empty, returns []."""
+    """[AC-NFR1101-01] When db.trades_all is empty, returns []."""
     with patch.object(strategy_mod, "db") as mock_db:
         mock_db.trades_all = MagicMock(return_value=pl.DataFrame())
         out = _build_trade_rows("p1")
@@ -293,7 +293,7 @@ def test_build_trade_rows_empty():
 
 
 def test_build_trade_rows_with_data():
-    """With trade rows, formats them."""
+    """[AC-NFR1101-01] With trade rows, formats them."""
     import datetime
     from quantide.core.enums import OrderSide
     fake_trades = pl.DataFrame({
@@ -313,7 +313,7 @@ def test_build_trade_rows_with_data():
 
 
 def test_build_trade_rows_side_int():
-    """When side is int (not enum), parsed."""
+    """[AC-NFR1101-01] When side is int (not enum), parsed."""
     import datetime
     fake_trades = pl.DataFrame({
         "tm": [datetime.datetime(2024, 1, 1, 10, 0)],
@@ -332,7 +332,7 @@ def test_build_trade_rows_side_int():
 
 
 def test_build_trade_rows_side_sell():
-    """When side=-1 (sell), formatted correctly."""
+    """[AC-NFR1101-01] When side=-1 (sell), formatted correctly."""
     import datetime
     fake_trades = pl.DataFrame({
         "tm": [datetime.datetime(2024, 1, 1, 10, 0)],
@@ -355,6 +355,7 @@ def test_build_trade_rows_side_sell():
 
 
 def test_build_daily_positions_empty():
+    """[AC-NFR1101-01] test_build_daily_positions_empty."""
     with patch.object(strategy_mod, "db") as mock_db:
         mock_db.snapshot_all = MagicMock(return_value=pl.DataFrame())
         out = _build_daily_positions("p1")
@@ -362,6 +363,7 @@ def test_build_daily_positions_empty():
 
 
 def test_build_daily_summary_empty():
+    """[AC-NFR1101-01] test_build_daily_summary_empty."""
     with patch.object(strategy_mod, "db") as mock_db:
         mock_db.snapshot_all = MagicMock(return_value=pl.DataFrame())
         out = _build_daily_summary("p1")
@@ -374,6 +376,7 @@ def test_build_daily_summary_empty():
 
 
 def test_build_log_rows_empty():
+    """[AC-NFR1101-01] test_build_log_rows_empty."""
     with patch.object(strategy_mod, "db") as mock_db:
         mock_db.backtest_logs = MagicMock(return_value=pl.DataFrame())
         out = _build_log_rows("p1")
@@ -394,39 +397,43 @@ from quantide.web.pages.strategy import (
 
 
 def test_scan_scope_list_empty():
-    """Empty list returns Ul with empty body."""
+    """[AC-NFR1101-01] Empty list returns Ul with empty body."""
     out = _scan_scope_list([])
     assert out is not None
 
 
 def test_scan_scope_list_with_dirs():
+    """[AC-NFR1101-01] test_scan_scope_list_with_dirs."""
     out = _scan_scope_list(["/path/a", "/path/b"])
     assert out is not None
 
 
 def test_normalize_scan_directory_empty_raises():
+    """[AC-NFR1101-01] test_normalize_scan_directory_empty_raises."""
     with pytest.raises(ValueError, match="不能为空"):
         _normalize_scan_directory("")
 
 
 def test_normalize_scan_directory_whitespace_raises():
+    """[AC-NFR1101-01] test_normalize_scan_directory_whitespace_raises."""
     with pytest.raises(ValueError, match="不能为空"):
         _normalize_scan_directory("   ")
 
 
 def test_normalize_scan_directory_relative_path_raises():
-    """When path is relative, raises."""
+    """[AC-NFR1101-01] When path is relative, raises."""
     with pytest.raises(ValueError, match="绝对路径"):
         _normalize_scan_directory("relative/path")
 
 
 def test_normalize_scan_directory_nonexistent_raises():
+    """[AC-NFR1101-01] test_normalize_scan_directory_nonexistent_raises."""
     with pytest.raises(FileNotFoundError, match="不存在"):
         _normalize_scan_directory("/definitely/does/not/exist/12345")
 
 
 def test_normalize_scan_directory_path_is_file():
-    """When path is a file, raises NotADirectoryError."""
+    """[AC-NFR1101-01] When path is a file, raises NotADirectoryError."""
     import os
     tmp_file = "/tmp/scan_test_file"
     with open(tmp_file, "w") as f:
@@ -439,7 +446,7 @@ def test_normalize_scan_directory_path_is_file():
 
 
 def test_normalize_scan_directory_valid():
-    """When directory exists, returns (str, Path)."""
+    """[AC-NFR1101-01] When directory exists, returns (str, Path)."""
     import tempfile
     with tempfile.TemporaryDirectory() as tmpdir:
         s, p = _normalize_scan_directory(tmpdir)
@@ -458,41 +465,47 @@ from quantide.web.pages.strategy import _parse_params
 
 
 def test_parse_params_empty():
+    """[AC-NFR1101-01] test_parse_params_empty."""
     assert _parse_params({}) == {}
 
 
 def test_parse_params_no_prefix():
-    """Non-prefixed keys are skipped."""
+    """[AC-NFR1101-01] Non-prefixed keys are skipped."""
     assert _parse_params({"other_key": "v"}) == {}
 
 
 def test_parse_params_bool_true():
-    """'true' → True."""
+    """[AC-NFR1101-01] 'true' → True."""
     assert _parse_params({"param_x": "true"})["x"] is True
 
 
 def test_parse_params_bool_false():
+    """[AC-NFR1101-01] test_parse_params_bool_false."""
     assert _parse_params({"param_x": "false"})["x"] is False
 
 
 def test_parse_params_int():
+    """[AC-NFR1101-01] test_parse_params_int."""
     assert _parse_params({"param_n": "42"})["n"] == 42
 
 
 def test_parse_params_float():
+    """[AC-NFR1101-01] test_parse_params_float."""
     assert _parse_params({"param_f": "3.14"})["f"] == 3.14
 
 
 def test_parse_params_string_passthrough():
+    """[AC-NFR1101-01] test_parse_params_string_passthrough."""
     assert _parse_params({"param_s": "hello"})["s"] == "hello"
 
 
 def test_parse_params_custom_prefix():
-    """Custom prefix strips correctly."""
+    """[AC-NFR1101-01] Custom prefix strips correctly."""
     assert _parse_params({"my_x": "42"}, prefix="my_")["x"] == 42
 
 
 def test_parse_params_multiple():
+    """[AC-NFR1101-01] test_parse_params_multiple."""
     out = _parse_params({
         "param_a": "1",
         "param_b": "true",
@@ -648,6 +661,7 @@ async def test_save_scan_config_generic_exception():
 
 
 def test_copy_requires_config_modal():
+    """[AC-NFR1101-01] test_copy_requires_config_modal."""
     out = _copy_requires_config_modal()
     assert out is not None
 
@@ -661,6 +675,7 @@ from quantide.web.pages.strategy import _build_backtest_sidebar_menu
 
 
 def test_build_backtest_sidebar_menu_overview_active():
+    """[AC-NFR1101-01] test_build_backtest_sidebar_menu_overview_active."""
     out = _build_backtest_sidebar_menu("p1", "overview")
     assert isinstance(out, list)
     # The backtest report item should be marked active
@@ -668,6 +683,7 @@ def test_build_backtest_sidebar_menu_overview_active():
 
 
 def test_build_backtest_sidebar_menu_no_active():
+    """[AC-NFR1101-01] test_build_backtest_sidebar_menu_no_active."""
     out = _build_backtest_sidebar_menu("p1", "unknown")
     assert isinstance(out, list)
     # When unknown tab, no children active
@@ -677,6 +693,7 @@ def test_build_backtest_sidebar_menu_no_active():
 
 
 def test_build_backtest_sidebar_menu_has_all_tabs():
+    """[AC-NFR1101-01] test_build_backtest_sidebar_menu_has_all_tabs."""
     out = _build_backtest_sidebar_menu("p1", "overview")
     # Each top-level item should have title, url
     for c in out:
@@ -702,7 +719,7 @@ from quantide.web.pages.strategy import (
 
 
 def test_backtest_modal_unknown_strategy():
-    """Returns 'Strategy not found' for unknown."""
+    """[AC-NFR1101-01] Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={})
         out = backtest_modal("missing")
@@ -710,7 +727,7 @@ def test_backtest_modal_unknown_strategy():
 
 
 def test_backtest_modal_known_strategy():
-    """When strategy found, returns modal Div with form."""
+    """[AC-NFR1101-01] When strategy found, returns modal Div with form."""
     fake_cls = MagicMock()
     fake_cls.PARAMS = {"x": 1, "y": "hello"}
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
@@ -720,7 +737,7 @@ def test_backtest_modal_known_strategy():
 
 
 def test_backtest_modal_no_params():
-    """When strategy has no PARAMS attr, treats as empty dict."""
+    """[AC-NFR1101-01] When strategy has no PARAMS attr, treats as empty dict."""
     fake_cls = MagicMock(spec=[])  # no PARAMS
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={"TestStrat": fake_cls})
@@ -729,11 +746,13 @@ def test_backtest_modal_no_params():
 
 
 def test_grid_search_modal():
+    """[AC-NFR1101-01] test_grid_search_modal."""
     out = grid_search_modal("TestStrat")
     assert out is not None
 
 
 def test_grid_search_modal_unknown():
+    """[AC-NFR1101-01] test_grid_search_modal_unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={})
         out = grid_search_modal("missing")
@@ -775,26 +794,26 @@ from quantide.web.pages.strategy import (
 
 
 def test_strat_get_runtime_no_request():
-    """When req is None, returns None."""
+    """[AC-NFR1101-01] When req is None, returns None."""
     assert _get_runtime(None) is None
 
 
 def test_strat_get_runtime_no_app():
-    """When req has no app attr, returns None."""
+    """[AC-NFR1101-01] When req has no app attr, returns None."""
     req = MagicMock()
     del req.app
     assert _get_runtime(req) is None
 
 
 def test_strat_get_runtime_runtime_set():
-    """Returns runtime from app.state.runtime."""
+    """[AC-NFR1101-01] Returns runtime from app.state.runtime."""
     req = MagicMock()
     req.app.state.runtime = "my-runtime"
     assert _get_runtime(req) == "my-runtime"
 
 
 def test_strat_get_registry_no_runtime():
-    """When no runtime, returns None."""
+    """[AC-NFR1101-01] When no runtime, returns None."""
     req = MagicMock()
     req.app = MagicMock()
     req.app.state = MagicMock()
@@ -803,7 +822,7 @@ def test_strat_get_registry_no_runtime():
 
 
 def test_strat_get_registry_with_runtime():
-    """Returns runtime.registry."""
+    """[AC-NFR1101-01] Returns runtime.registry."""
     req = MagicMock()
     req.app.state.runtime = MagicMock()
     req.app.state.runtime.registry = "my-registry"
@@ -811,12 +830,14 @@ def test_strat_get_registry_with_runtime():
 
 
 def test_strat_get_market_data_no_runtime():
+    """[AC-NFR1101-01] test_strat_get_market_data_no_runtime."""
     req = MagicMock()
     req.app.state.runtime = None
     assert _strat_get_market_data(req) is None
 
 
 def test_strat_get_market_data_with_runtime():
+    """[AC-NFR1101-01] test_strat_get_market_data_with_runtime."""
     req = MagicMock()
     req.app.state.runtime = MagicMock()
     req.app.state.runtime.market_data = "md"
@@ -837,6 +858,7 @@ from quantide.web.pages.strategy import (
 
 
 def test_paper_deploy_no_runtime():
+    """[AC-NFR1101-01] test_paper_deploy_no_runtime."""
     req = MagicMock()
     req.app.state.runtime = None
     ok, reason = _get_paper_deploy_availability(req)
@@ -845,6 +867,7 @@ def test_paper_deploy_no_runtime():
 
 
 def test_paper_deploy_no_market_data():
+    """[AC-NFR1101-01] test_paper_deploy_no_market_data."""
     req = MagicMock()
     req.app.state.runtime = MagicMock()
     req.app.state.runtime.market_data = None
@@ -854,6 +877,7 @@ def test_paper_deploy_no_market_data():
 
 
 def test_paper_deploy_available():
+    """[AC-NFR1101-01] test_paper_deploy_available."""
     req = MagicMock()
     req.app.state.runtime = MagicMock()
     req.app.state.runtime.market_data = "md"
@@ -863,6 +887,7 @@ def test_paper_deploy_available():
 
 
 def test_live_deploy_no_registry():
+    """[AC-NFR1101-01] test_live_deploy_no_registry."""
     req = MagicMock()
     req.app.state.runtime = None
     ok, reason = _get_live_deploy_availability(req)
@@ -871,6 +896,7 @@ def test_live_deploy_no_registry():
 
 
 def test_live_deploy_no_gateway():
+    """[AC-NFR1101-01] test_live_deploy_no_gateway."""
     fake_registry = MagicMock()
     fake_registry.get = MagicMock(return_value=None)
     req = MagicMock()
@@ -882,6 +908,7 @@ def test_live_deploy_no_gateway():
 
 
 def test_live_deploy_available():
+    """[AC-NFR1101-01] test_live_deploy_available."""
     fake_registry = MagicMock()
     fake_registry.get = MagicMock(return_value="gateway-broker")
     req = MagicMock()
@@ -893,6 +920,7 @@ def test_live_deploy_available():
 
 
 def test_backtest_deploy_capabilities_both():
+    """[AC-NFR1101-01] test_backtest_deploy_capabilities_both."""
     fake_registry = MagicMock()
     fake_registry.get = MagicMock(return_value="gateway-broker")
     req = MagicMock()
@@ -917,12 +945,14 @@ from quantide.web.pages.strategy import (
 
 
 def test_get_live_accounts_not_available():
+    """[AC-NFR1101-01] test_get_live_accounts_not_available."""
     req = MagicMock()
     req.app.state.runtime = None
     assert _get_live_accounts(req) == []
 
 
 def test_get_live_accounts_available():
+    """[AC-NFR1101-01] test_get_live_accounts_available."""
     fake_registry = MagicMock()
     fake_registry.get = MagicMock(return_value="gateway-broker")
     req = MagicMock()
@@ -934,32 +964,37 @@ def test_get_live_accounts_available():
 
 
 def test_render_deploy_result_success():
+    """[AC-NFR1101-01] test_render_deploy_result_success."""
     out = _render_deploy_result("成功", is_error=False)
     assert out is not None
 
 
 def test_render_deploy_result_error():
+    """[AC-NFR1101-01] test_render_deploy_result_error."""
     out = _render_deploy_result("失败", is_error=True)
     assert out is not None
 
 
 def test_render_config_table_empty():
-    """Empty config + defaults → returns None."""
+    """[AC-NFR1101-01] Empty config + defaults → returns None."""
     out = _render_config_table(config={}, default_config=None)
     assert out is None
 
 
 def test_render_config_table_only_defaults():
+    """[AC-NFR1101-01] test_render_config_table_only_defaults."""
     out = _render_config_table(config={}, default_config={"a": 1})
     assert out is not None
 
 
 def test_render_config_table_only_config():
+    """[AC-NFR1101-01] test_render_config_table_only_config."""
     out = _render_config_table(config={"a": 1}, default_config=None)
     assert out is not None
 
 
 def test_render_config_table_both():
+    """[AC-NFR1101-01] test_render_config_table_both."""
     out = _render_config_table(config={"a": 5}, default_config={"a": 1, "b": 2})
     assert out is not None
 
@@ -976,7 +1011,7 @@ from quantide.web.pages.strategy import (
 
 
 def test_build_log_meta_no_run():
-    """When no run, returns empty metadata."""
+    """[AC-NFR1101-01] When no run, returns empty metadata."""
     with patch.object(strategy_mod_alias, "strategy_runtime_manager") as mock_mgr:
         mock_mgr.get_backtest_run = MagicMock(return_value=None)
         out = _build_log_meta("p1")
@@ -986,6 +1021,7 @@ def test_build_log_meta_no_run():
 
 
 def test_build_log_meta_with_run_save_logs():
+    """[AC-NFR1101-01] test_build_log_meta_with_run_save_logs."""
     fake_run = MagicMock()
     fake_run.save_logs = True
     with patch.object(strategy_mod_alias, "strategy_runtime_manager") as mock_mgr:
@@ -995,10 +1031,12 @@ def test_build_log_meta_with_run_save_logs():
 
 
 def test_format_log_lines_empty():
+    """[AC-NFR1101-01] test_format_log_lines_empty."""
     assert _format_log_lines([]) == []
 
 
 def test_format_log_lines_with_rows():
+    """[AC-NFR1101-01] test_format_log_lines_with_rows."""
     out = _format_log_lines([
         {"dt": "2024-01-01", "level": "INFO", "source": "system", "message": "hello"},
     ])
@@ -1008,6 +1046,7 @@ def test_format_log_lines_with_rows():
 
 
 def test_format_log_lines_with_extra():
+    """[AC-NFR1101-01] test_format_log_lines_with_extra."""
     out = _format_log_lines([
         {"dt": "2024-01-01", "level": "WARN", "source": "broker", "message": "warn msg", "extra": "detail"},
     ])
@@ -1016,6 +1055,7 @@ def test_format_log_lines_with_extra():
 
 
 def test_format_log_lines_no_extra():
+    """[AC-NFR1101-01] test_format_log_lines_no_extra."""
     out = _format_log_lines([
         {"dt": "2024-01-01", "level": "INFO", "source": "x", "message": "hi"},
     ])
@@ -1028,7 +1068,7 @@ def test_format_log_lines_no_extra():
 
 
 def test_build_series_payload_with_benchmark():
-    """With multiple dates and benchmark data, fills benchmark series."""
+    """[AC-NFR1101-01] With multiple dates and benchmark data, fills benchmark series."""
     import datetime
     fake_assets = pl.DataFrame({
         "dt": [
@@ -1052,7 +1092,7 @@ def test_build_series_payload_with_benchmark():
 
 
 def test_build_series_payload_with_trades():
-    """With trades DataFrame, fills trade_count series."""
+    """[AC-NFR1101-01] With trades DataFrame, fills trade_count series."""
     import datetime
     fake_assets = pl.DataFrame({
         "dt": [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
@@ -1088,7 +1128,7 @@ from quantide.web.pages.strategy import (
 
 
 def test_build_daily_positions_with_data():
-    """With positions data, returns list of dicts."""
+    """[AC-NFR1101-01] With positions data, returns list of dicts."""
     import datetime
     fake_pos = pl.DataFrame({
         "dt": [datetime.date(2024, 1, 1)],
@@ -1107,7 +1147,7 @@ def test_build_daily_positions_with_data():
 
 
 def test_build_daily_summary_with_data():
-    """With assets data, computes daily_pnl and daily_return."""
+    """[AC-NFR1101-01] With assets data, computes daily_pnl and daily_return."""
     import datetime
     fake_assets = pl.DataFrame({
         "dt": [
@@ -1128,7 +1168,7 @@ def test_build_daily_summary_with_data():
 
 
 def test_build_daily_summary_zero_prev_total():
-    """When previous total is 0, daily_return is 0."""
+    """[AC-NFR1101-01] When previous total is 0, daily_return is 0."""
     import datetime
     fake_assets = pl.DataFrame({
         "dt": [
@@ -1146,7 +1186,7 @@ def test_build_daily_summary_zero_prev_total():
 
 
 def test_backtest_modal_unknown_strategy():
-    """Returns 'Strategy not found' for unknown."""
+    """[AC-NFR1101-01] Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={})
         out = backtest_modal("missing")
@@ -1154,7 +1194,7 @@ def test_backtest_modal_unknown_strategy():
 
 
 def test_backtest_modal_known_strategy():
-    """When strategy found, returns modal Div with form."""
+    """[AC-NFR1101-01] When strategy found, returns modal Div with form."""
     fake_cls = MagicMock()
     fake_cls.PARAMS = {"x": 1, "y": "hello"}
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
@@ -1164,7 +1204,7 @@ def test_backtest_modal_known_strategy():
 
 
 def test_backtest_modal_no_params():
-    """When strategy has no PARAMS attr, treats as empty dict."""
+    """[AC-NFR1101-01] When strategy has no PARAMS attr, treats as empty dict."""
     fake_cls = MagicMock(spec=[])  # no PARAMS
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={"TestStrat": fake_cls})
@@ -1173,11 +1213,13 @@ def test_backtest_modal_no_params():
 
 
 def test_grid_search_modal():
+    """[AC-NFR1101-01] test_grid_search_modal."""
     out = grid_search_modal("TestStrat")
     assert out is not None
 
 
 def test_grid_search_modal_unknown():
+    """[AC-NFR1101-01] test_grid_search_modal_unknown."""
     with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={})
         out = grid_search_modal("missing")
@@ -1196,48 +1238,56 @@ from quantide.web.pages.strategy import (
 
 
 def test_coerce_form_value_none():
+    """[AC-NFR1101-01] test_coerce_form_value_none."""
     assert _coerce_form_value(None) is None
 
 
 def test_coerce_form_value_empty_string():
+    """[AC-NFR1101-01] test_coerce_form_value_empty_string."""
     assert _coerce_form_value("") == ""
 
 
 def test_coerce_form_value_whitespace():
+    """[AC-NFR1101-01] test_coerce_form_value_whitespace."""
     assert _coerce_form_value("   ") == ""
 
 
 def test_coerce_form_value_true_string():
+    """[AC-NFR1101-01] test_coerce_form_value_true_string."""
     assert _coerce_form_value("True") is True
     assert _coerce_form_value("true") is True
 
 
 def test_coerce_form_value_false_string():
+    """[AC-NFR1101-01] test_coerce_form_value_false_string."""
     assert _coerce_form_value("False") is False
     assert _coerce_form_value("false") is False
 
 
 def test_coerce_form_value_int():
+    """[AC-NFR1101-01] test_coerce_form_value_int."""
     assert _coerce_form_value("123") == 123
 
 
 def test_coerce_form_value_float():
+    """[AC-NFR1101-01] test_coerce_form_value_float."""
     assert _coerce_form_value("3.14") == 3.14
 
 
 def test_coerce_form_value_string_passthrough():
+    """[AC-NFR1101-01] test_coerce_form_value_string_passthrough."""
     assert _coerce_form_value("hello") == "hello"
 
 
 def test_form_to_config_empty():
-    """Empty form returns base_config."""
+    """[AC-NFR1101-01] Empty form returns base_config."""
     base = {"x": 1}
     out = _form_to_config({}, base)
     assert out == {"x": 1}
 
 
 def test_form_to_config_replaces_with_custom_keys():
-    """Form values override base keys via custom_{key} pattern."""
+    """[AC-NFR1101-01] Form values override base keys via custom_{key} pattern."""
     base = {"x": 1, "y": 2}
     form = {"custom_x": "100", "custom_y": "200"}
     out = _form_to_config(form, base)
@@ -1246,7 +1296,7 @@ def test_form_to_config_replaces_with_custom_keys():
 
 
 def test_form_to_config_keeps_base_when_no_custom():
-    """When form lacks custom_{key}, base value is kept."""
+    """[AC-NFR1101-01] When form lacks custom_{key}, base value is kept."""
     base = {"x": "old", "y": "old"}
     form = {}
     out = _form_to_config(form, base)
@@ -1255,7 +1305,7 @@ def test_form_to_config_keeps_base_when_no_custom():
 
 
 def test_form_to_config_partial_override():
-    """When form has some custom keys, others stay."""
+    """[AC-NFR1101-01] When form has some custom keys, others stay."""
     base = {"a": 1, "b": 2, "c": 3}
     form = {"custom_a": "999"}
     out = _form_to_config(form, base)
@@ -1265,7 +1315,7 @@ def test_form_to_config_partial_override():
 
 
 def test_form_to_config_float_override():
-    """Override with float string."""
+    """[AC-NFR1101-01] Override with float string."""
     base = {"threshold": 0}
     form = {"custom_threshold": "0.5"}
     out = _form_to_config(form, base)
@@ -1281,7 +1331,7 @@ from quantide.web.pages.strategy import _load_backtest_run_config
 
 
 def test_load_backtest_run_config_no_run():
-    """When no run, returns ({}, None)."""
+    """[AC-NFR1101-01] When no run, returns ({}, None)."""
     with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr:
         mock_mgr.get_backtest_run_or_resolve = MagicMock(return_value=None)
         cfg, default = _load_backtest_run_config("p1")
@@ -1290,7 +1340,7 @@ def test_load_backtest_run_config_no_run():
 
 
 def test_load_backtest_run_config_with_run():
-    """When run exists, returns (config, default_config)."""
+    """[AC-NFR1101-01] When run exists, returns (config, default_config)."""
     fake_run = MagicMock()
     fake_run.config = {"k": "v"}
     fake_run.strategy_name = "MyStrat"
@@ -1306,7 +1356,7 @@ def test_load_backtest_run_config_with_run():
 
 
 def test_load_backtest_run_config_no_default_config():
-    """When strategy class has no default_config attr, returns (config, None)."""
+    """[AC-NFR1101-01] When strategy class has no default_config attr, returns (config, None)."""
     fake_run = MagicMock()
     fake_run.config = {"k": "v"}
     fake_run.strategy_name = "MyStrat"

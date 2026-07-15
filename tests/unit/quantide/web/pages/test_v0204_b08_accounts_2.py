@@ -10,7 +10,7 @@ from quantide.web.pages.accounts import LiveAccountCard, SimAccountCard
 
 
 def test_live_account_card_connected_active():
-    """Active live account with connection status renders."""
+    """[AC-NFR1101-01] Active live account with connection status renders."""
     out = LiveAccountCard(
         account={
             "id": "abc123def456",
@@ -24,7 +24,7 @@ def test_live_account_card_connected_active():
 
 
 def test_live_account_card_disconnected():
-    """Disconnected live account renders."""
+    """[AC-NFR1101-01] Disconnected live account renders."""
     out = LiveAccountCard(
         account={
             "id": "x",
@@ -38,13 +38,13 @@ def test_live_account_card_disconnected():
 
 
 def test_live_account_card_minimal():
-    """When account has only id, defaults used."""
+    """[AC-NFR1101-01] When account has only id, defaults used."""
     out = LiveAccountCard(account={"id": "x"}, is_active=False)
     assert out is not None
 
 
 def test_sim_account_card_profit():
-    """Sim account with profit."""
+    """[AC-NFR1101-01] Sim account with profit."""
     out = SimAccountCard(
         account={
             "id": "s1",
@@ -59,6 +59,7 @@ def test_sim_account_card_profit():
 
 
 def test_sim_account_card_loss():
+    """[AC-NFR1101-01] test_sim_account_card_loss."""
     out = SimAccountCard(
         account={
             "id": "s1",
@@ -90,7 +91,7 @@ def _req_with_session(scope=None):
 
 
 def test_accounts_index_delegates_to_list():
-    """accounts_index just calls accounts_list."""
+    """[AC-NFR1101-01] accounts_index just calls accounts_list."""
     with patch.object(accounts_mod, "accounts_list", return_value="result") as mock_list:
         req = _req_with_session()
         out = accounts_index(req)
@@ -99,14 +100,14 @@ def test_accounts_index_delegates_to_list():
 
 
 def test_accounts_list_no_registry():
-    """When no registry in scope, still renders."""
+    """[AC-NFR1101-01] When no registry in scope, still renders."""
     req = _req_with_session(scope={"session": {}})
     out = accounts_list(req)
     assert out is not None
 
 
 def test_accounts_list_with_registry_empty():
-    """When registry has no accounts."""
+    """[AC-NFR1101-01] When registry has no accounts."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(return_value=[])
     fake_reg.get = MagicMock(return_value=None)
@@ -116,7 +117,7 @@ def test_accounts_list_with_registry_empty():
 
 
 def test_accounts_list_with_sim_accounts():
-    """When registry has SIM accounts, includes them."""
+    """[AC-NFR1101-01] When registry has SIM accounts, includes them."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
         {"id": "s1", "name": "S1", "kind": "sim", "status": True}
@@ -134,7 +135,7 @@ def test_accounts_list_with_sim_accounts():
 
 
 def test_accounts_list_with_qmt_accounts():
-    """When registry has QMT accounts, includes them."""
+    """[AC-NFR1101-01] When registry has QMT accounts, includes them."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
         {"id": "q1", "name": "Q1", "kind": "qmt", "status": True}
@@ -154,7 +155,7 @@ def test_accounts_list_with_qmt_accounts():
 
 
 def test_accounts_list_with_create_sim_modal_param():
-    """When ?create_sim=1 in query_params, show_create_modal=True."""
+    """[AC-NFR1101-01] When ?create_sim=1 in query_params, show_create_modal=True."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(return_value=[])
     fake_reg.get = MagicMock(return_value=None)
@@ -165,7 +166,7 @@ def test_accounts_list_with_create_sim_modal_param():
 
 
 def test_accounts_list_qmt_no_asset():
-    """When QMT broker has no asset, total/principal default to 0."""
+    """[AC-NFR1101-01] When QMT broker has no asset, total/principal default to 0."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
         {"id": "q1", "name": "Q1", "kind": "qmt", "status": True}
@@ -178,7 +179,7 @@ def test_accounts_list_qmt_no_asset():
 
 
 def test_accounts_list_skips_empty_account_id():
-    """When account_id is '', skip."""
+    """[AC-NFR1101-01] When account_id is '', skip."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
         {"id": "", "name": "Empty", "kind": "qmt"},
@@ -207,14 +208,14 @@ from quantide.web.pages.accounts import (
 
 
 def test_get_market_data_no_runtime():
-    """When app.state.runtime is None, returns None."""
+    """[AC-NFR1101-01] When app.state.runtime is None, returns None."""
     req = MagicMock()
     req.app.state.runtime = None
     assert _get_market_data(req) is None
 
 
 def test_get_market_data_with_runtime():
-    """When runtime exists, returns runtime.market_data."""
+    """[AC-NFR1101-01] When runtime exists, returns runtime.market_data."""
     req = MagicMock()
     req.app.state.runtime = MagicMock()
     req.app.state.runtime.market_data = "md"
@@ -222,38 +223,42 @@ def test_get_market_data_with_runtime():
 
 
 def test_get_market_data_no_market_data_attr():
-    """When runtime has no market_data attr, returns None."""
+    """[AC-NFR1101-01] When runtime has no market_data attr, returns None."""
     req = MagicMock()
     req.app.state.runtime = MagicMock(spec=[])  # no market_data attr
     assert _get_market_data(req) is None
 
 
 def test_get_registry_present():
+    """[AC-NFR1101-01] test_get_registry_present."""
     req = MagicMock()
     req.scope = {"registry": "reg"}
     assert _get_registry(req) == "reg"
 
 
 def test_get_registry_missing():
+    """[AC-NFR1101-01] test_get_registry_missing."""
     req = MagicMock()
     req.scope = {}
     assert _get_registry(req) is None
 
 
 def test_delete_live_account_placeholder():
+    """[AC-NFR1101-01] test_delete_live_account_placeholder."""
     req = MagicMock()
     resp = delete_live_account(req, account_id="abc")
     assert resp is not None
 
 
 def test_refresh_live_account_placeholder():
+    """[AC-NFR1101-01] test_refresh_live_account_placeholder."""
     req = MagicMock()
     resp = refresh_live_account(req, account_id="abc")
     assert resp is not None
 
 
 def test_delete_all_sim_accounts_no_registry():
-    """When no registry, clears session and redirects."""
+    """[AC-NFR1101-01] When no registry, clears session and redirects."""
     fake_db = MagicMock()
     accounts_mod.db = fake_db
     req = MagicMock()
@@ -263,7 +268,7 @@ def test_delete_all_sim_accounts_no_registry():
 
 
 def test_delete_all_sim_accounts_with_registry():
-    """When registry has sim accounts, deletes them."""
+    """[AC-NFR1101-01] When registry has sim accounts, deletes them."""
     fake_db = MagicMock()
     accounts_mod.db = fake_db
     fake_reg = MagicMock()
@@ -278,7 +283,7 @@ def test_delete_all_sim_accounts_with_registry():
 
 
 def test_delete_all_sim_accounts_db_error_swallowed():
-    """When db.delete_portfolio raises, continues."""
+    """[AC-NFR1101-01] When db.delete_portfolio raises, continues."""
     fake_db = MagicMock()
     fake_db.delete_portfolio = MagicMock(side_effect=Exception("boom"))
     accounts_mod.db = fake_db
@@ -291,6 +296,7 @@ def test_delete_all_sim_accounts_db_error_swallowed():
 
 
 def test_delete_sim_account():
+    """[AC-NFR1101-01] test_delete_sim_account."""
     req = MagicMock()
     req.scope = {"session": {}}
     fake_db = MagicMock()
@@ -300,6 +306,7 @@ def test_delete_sim_account():
 
 
 def test_reset_sim_account():
+    """[AC-NFR1101-01] test_reset_sim_account."""
     req = MagicMock()
     req.scope = {"session": {}}
     fake_db = MagicMock()

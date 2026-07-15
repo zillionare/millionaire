@@ -16,24 +16,28 @@ from quantide.web.pages.live import (
 
 
 def test_get_registry_present():
+    """[AC-NFR1101-01] test_get_registry_present."""
     req = MagicMock()
     req.scope = {"registry": "reg-1"}
     assert _get_registry(req) == "reg-1"
 
 
 def test_get_registry_missing():
+    """[AC-NFR1101-01] test_get_registry_missing."""
     req = MagicMock()
     req.scope = {}
     assert _get_registry(req) is None
 
 
 def test_build_asset_overview_none():
+    """[AC-NFR1101-01] test_build_asset_overview_none."""
     got = _build_asset_overview(None)
     assert got["total"] == 0
     assert got["pnl"] == 0
 
 
 def test_build_asset_overview_with_asset():
+    """[AC-NFR1101-01] test_build_asset_overview_with_asset."""
     asset = MagicMock()
     asset.total = 110.0
     asset.principal = 100.0
@@ -47,6 +51,7 @@ def test_build_asset_overview_with_asset():
 
 
 def test_build_asset_overview_zero_principal():
+    """[AC-NFR1101-01] test_build_asset_overview_zero_principal."""
     asset = MagicMock()
     asset.total = 100.0
     asset.principal = 0.0
@@ -58,6 +63,7 @@ def test_build_asset_overview_zero_principal():
 
 
 def test_build_asset_overview_loss():
+    """[AC-NFR1101-01] test_build_asset_overview_loss."""
     asset = MagicMock()
     asset.total = 90.0
     asset.principal = 100.0
@@ -70,16 +76,19 @@ def test_build_asset_overview_loss():
 
 
 def test_gateway_connection_status_connected():
+    """[AC-NFR1101-01] test_gateway_connection_status_connected."""
     out = GatewayConnectionStatus(connected=True)
     assert out is not None
 
 
 def test_gateway_connection_status_disconnected():
+    """[AC-NFR1101-01] test_gateway_connection_status_disconnected."""
     out = GatewayConnectionStatus(connected=False)
     assert out is not None
 
 
 def test_create_portfolio_modal():
+    """[AC-NFR1101-01] test_create_portfolio_modal."""
     out = CreatePortfolioModal()
     assert out is not None
 
@@ -97,16 +106,19 @@ from quantide.web.pages.live import (
 
 
 def test_live_asset_summary_none():
+    """[AC-NFR1101-01] test_live_asset_summary_none."""
     out = LiveAssetSummary(asset_overview=None)
     assert out is not None
 
 
 def test_live_asset_summary_empty():
+    """[AC-NFR1101-01] test_live_asset_summary_empty."""
     out = LiveAssetSummary(asset_overview={})
     assert out is not None
 
 
 def test_live_asset_summary_with_data():
+    """[AC-NFR1101-01] test_live_asset_summary_with_data."""
     out = LiveAssetSummary(asset_overview={
         "total": 1000,
         "cash": 200,
@@ -119,11 +131,13 @@ def test_live_asset_summary_with_data():
 
 
 def test_live_position_info_empty():
+    """[AC-NFR1101-01] test_live_position_info_empty."""
     out = PositionInfo(positions=[])
     assert out is not None
 
 
 def test_live_position_info_none():
+    """[AC-NFR1101-01] test_live_position_info_none."""
     out = PositionInfo(positions=None)
     assert out is not None
 
@@ -150,6 +164,7 @@ def test_live_position_info_with_positions():
 
 
 def test_live_position_info_with_portfolio_id():
+    """[AC-NFR1101-01] test_live_position_info_with_portfolio_id."""
     pos1 = MagicMock()
     pos1.asset = "000001.SZ"
     pos1.shares = 100
@@ -163,6 +178,7 @@ def test_live_position_info_with_portfolio_id():
 
 
 def test_live_trade_panel():
+    """[AC-NFR1101-01] test_live_trade_panel."""
     out = TradePanel(portfolio_id="p1")
     assert out is not None
 
@@ -188,16 +204,19 @@ from quantide.web.pages.live import PortfolioList
 
 
 def test_portfolio_list_empty():
+    """[AC-NFR1101-01] test_portfolio_list_empty."""
     out = PortfolioList(portfolios=[], gateway_connected=False)
     assert out is not None
 
 
 def test_portfolio_list_none():
+    """[AC-NFR1101-01] test_portfolio_list_none."""
     out = PortfolioList(portfolios=None, gateway_connected=False)
     assert out is not None
 
 
 def test_portfolio_list_with_one():
+    """[AC-NFR1101-01] test_portfolio_list_with_one."""
     out = PortfolioList(portfolios=[{
         "portfolio_id": "abc123def",
         "name": "MyPortfolio",
@@ -210,11 +229,13 @@ def test_portfolio_list_with_one():
 
 
 def test_portfolio_list_disconnected():
+    """[AC-NFR1101-01] test_portfolio_list_disconnected."""
     out = PortfolioList(portfolios=[{"portfolio_id": "p1"}], gateway_connected=False)
     assert out is not None
 
 
 def test_portfolio_list_with_status_false():
+    """[AC-NFR1101-01] test_portfolio_list_with_status_false."""
     out = PortfolioList(portfolios=[{
         "portfolio_id": "p1",
         "name": "Stopped",
@@ -224,6 +245,7 @@ def test_portfolio_list_with_status_false():
 
 
 def test_portfolio_list_with_negative_pnl():
+    """[AC-NFR1101-01] test_portfolio_list_with_negative_pnl."""
     out = PortfolioList(portfolios=[{
         "portfolio_id": "p1",
         "name": "Loss",
@@ -233,6 +255,7 @@ def test_portfolio_list_with_negative_pnl():
 
 
 def test_portfolio_list_multiple():
+    """[AC-NFR1101-01] test_portfolio_list_multiple."""
     out = PortfolioList(portfolios=[
         {"portfolio_id": "p1", "name": "A", "principal": 100, "total": 110, "pnl_pct": 0.1},
         {"portfolio_id": "p2", "name": "B", "principal": 200, "total": 220, "pnl_pct": 0.1},
@@ -254,7 +277,7 @@ from quantide.web.pages.live import (
 
 
 def test_live_list_no_registry():
-    """No registry → empty portfolios list."""
+    """[AC-NFR1101-01] No registry → empty portfolios list."""
     req = MagicMock()
     req.scope = {}
     out = live_list(req, session={})
@@ -262,6 +285,7 @@ def test_live_list_no_registry():
 
 
 def test_live_list_with_qmt_portfolios():
+    """[AC-NFR1101-01] test_live_list_with_qmt_portfolios."""
     from quantide.core.enums import BrokerKind
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
@@ -278,6 +302,7 @@ def test_live_list_with_qmt_portfolios():
 
 
 def test_live_list_broker_no_asset():
+    """[AC-NFR1101-01] test_live_list_broker_no_asset."""
     from quantide.core.enums import BrokerKind
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
@@ -293,11 +318,13 @@ def test_live_list_broker_no_asset():
 
 
 def test_show_create_modal():
+    """[AC-NFR1101-01] test_show_create_modal."""
     out = show_create_modal()
     assert out is not None
 
 
 def test_portfolio_detail_no_registry():
+    """[AC-NFR1101-01] test_portfolio_detail_no_registry."""
     req = MagicMock()
     req.scope = {}
     out = portfolio_detail(req, session={}, portfolio_id="q1")

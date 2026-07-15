@@ -20,34 +20,37 @@ from quantide.web.auth.forms import (
 
 
 def test_login_error_message_missing_fields_returns_none():
-    """missing_fields has no specific mapping, returns None."""
+    """[AC-FR1501-05] missing_fields has no specific mapping, returns None."""
     msg = _login_error_message("missing_fields")
     assert msg is None
 
 
 def test_login_error_message_invalid():
-    """Invalid mapping is for the 'invalid' key."""
+    """[AC-FR1501-05] Invalid mapping is for the 'invalid' key."""
     msg = _login_error_message("invalid")
     assert "账号或密码" in msg
 
 
 def test_login_error_message_inactive():
+    """[AC-FR1501-05] test_login_error_message_inactive."""
     msg = _login_error_message("inactive")
     assert "停用" in msg
 
 
 def test_login_error_message_system():
+    """[AC-FR1501-05] test_login_error_message_system."""
     msg = _login_error_message("system")
     assert "系统" in msg
 
 
 def test_login_error_message_unknown_returns_none():
-    """Unknown error key returns None (caller falls back)."""
+    """[AC-FR1501-05] Unknown error key returns None (caller falls back)."""
     msg = _login_error_message("unknown_error")
     assert msg is None
 
 
 def test_login_error_message_none_returns_none():
+    """[AC-FR1501-05] test_login_error_message_none_returns_none."""
     msg = _login_error_message(None)
     assert msg is None
 
@@ -58,6 +61,7 @@ def test_login_error_message_none_returns_none():
 
 
 def test_login_field_basic():
+    """[AC-FR1501-05] test_login_field_basic."""
     out = _login_field(
         label_cn="用户名",
         label_en="Username",
@@ -69,6 +73,7 @@ def test_login_field_basic():
 
 
 def test_login_field_password_type():
+    """[AC-FR1501-05] test_login_field_password_type."""
     out = _login_field(
         label_cn="密码",
         label_en="Password",
@@ -81,6 +86,7 @@ def test_login_field_password_type():
 
 
 def test_login_field_with_placeholder():
+    """[AC-FR1501-05] test_login_field_with_placeholder."""
     out = _login_field(
         label_cn="U",
         label_en="U",
@@ -97,6 +103,7 @@ def test_login_field_with_placeholder():
 
 
 def test_brand_emblem():
+    """[AC-FR1501-05] test_brand_emblem."""
     out = _brand_emblem()
     assert out is not None
 
@@ -148,11 +155,13 @@ def test_create_message_alert_unknown_type():
 
 
 def test_info_row():
+    """[AC-FR1501-05] test_info_row."""
     out = InfoRow("Label", "Value")
     assert out is not None
 
 
 def test_info_row_with_int():
+    """[AC-FR1501-05] test_info_row_with_int."""
     out = InfoRow("Count", 42)
     assert out is not None
 

@@ -28,18 +28,22 @@ from quantide.web.pages.trade_main import (
 
 
 def test_format_trade_metric_none():
+    """[AC-NFR1101-01] test_format_trade_metric_none."""
     assert _format_trade_metric(None) == ""
 
 
 def test_format_trade_metric_zero():
+    """[AC-NFR1101-01] test_format_trade_metric_zero."""
     assert _format_trade_metric(0.0) == "0.00"
 
 
 def test_format_trade_metric_positive():
+    """[AC-NFR1101-01] test_format_trade_metric_positive."""
     assert _format_trade_metric(10.5) == "10.50"
 
 
 def test_format_trade_metric_negative():
+    """[AC-NFR1101-01] test_format_trade_metric_negative."""
     assert _format_trade_metric(-3.14) == "-3.14"
 
 
@@ -49,34 +53,40 @@ def test_format_trade_metric_negative():
 
 
 def test_normalize_positions_tab_valid_positions():
+    """[AC-NFR1101-01] test_normalize_positions_tab_valid_positions."""
     assert _normalize_positions_tab("positions") == "positions"
 
 
 def test_normalize_positions_tab_valid_orders():
+    """[AC-NFR1101-01] test_normalize_positions_tab_valid_orders."""
     assert _normalize_positions_tab("orders") == "orders"
 
 
 def test_normalize_positions_tab_invalid_falls_back():
+    """[AC-NFR1101-01] test_normalize_positions_tab_invalid_falls_back."""
     result = _normalize_positions_tab("garbage")
     assert result == "positions"  # default
 
 
 def test_normalize_positions_tab_empty_falls_back():
+    """[AC-NFR1101-01] test_normalize_positions_tab_empty_falls_back."""
     result = _normalize_positions_tab("")
     assert result == "positions"
 
 
 def test_normalize_positions_tab_none_falls_back():
+    """[AC-NFR1101-01] test_normalize_positions_tab_none_falls_back."""
     result = _normalize_positions_tab(None)
     assert result == "positions"
 
 
 def test_normalize_positions_tab_uppercase():
+    """[AC-NFR1101-01] test_normalize_positions_tab_uppercase."""
     assert _normalize_positions_tab("ORDERS") == "orders"
 
 
 def test_normalize_positions_tab_dict_returns_str():
-    """Non-string values are coerced to str."""
+    """[AC-NFR1101-01] Non-string values are coerced to str."""
     class _FakeDict(dict):
         def __bool__(self):
             return True
@@ -90,10 +100,12 @@ def test_normalize_positions_tab_dict_returns_str():
 
 
 def test_trade_result_has_order_none():
+    """[AC-NFR1101-01] test_trade_result_has_order_none."""
     assert _trade_result_has_order(None) is False
 
 
 def test_trade_result_has_order_with_qt_oid():
+    """[AC-NFR1101-01] test_trade_result_has_order_with_qt_oid."""
     class _R:
         qt_oid = "o1"
         trades = []
@@ -101,6 +113,7 @@ def test_trade_result_has_order_with_qt_oid():
 
 
 def test_trade_result_has_order_with_trades():
+    """[AC-NFR1101-01] test_trade_result_has_order_with_trades."""
     class _R:
         qt_oid = None
         trades = [{"price": 10, "shares": 100}]
@@ -108,6 +121,7 @@ def test_trade_result_has_order_with_trades():
 
 
 def test_trade_result_has_order_empty():
+    """[AC-NFR1101-01] test_trade_result_has_order_empty."""
     class _R:
         qt_oid = None
         trades = []
@@ -115,7 +129,7 @@ def test_trade_result_has_order_empty():
 
 
 def test_trade_result_has_order_no_attributes():
-    """Object missing both attrs returns False."""
+    """[AC-NFR1101-01] Object missing both attrs returns False."""
     class _R:
         pass
     assert _trade_result_has_order(_R()) is False
@@ -127,7 +141,7 @@ def test_trade_result_has_order_no_attributes():
 
 
 def test_maybe_start_live_quote_disabled():
-    """When live_quote.is_running=False and settings disable, no-op."""
+    """[AC-NFR1101-01] When live_quote.is_running=False and settings disable, no-op."""
     fake_settings = MagicMock()
     fake_settings.gateway_enabled = False
     fake_settings.livequote_mode = "none"
@@ -140,7 +154,7 @@ def test_maybe_start_live_quote_disabled():
 
 
 def test_maybe_start_live_quote_already_running():
-    """When live_quote.is_running=True, no-op."""
+    """[AC-NFR1101-01] When live_quote.is_running=True, no-op."""
     fake_settings = MagicMock()
     fake_settings.gateway_enabled = True
     fake_settings.livequote_mode = "tushare"
@@ -153,7 +167,7 @@ def test_maybe_start_live_quote_already_running():
 
 
 def test_maybe_start_live_quote_starts():
-    """When live_quote.is_running=False and gateway enabled, calls start."""
+    """[AC-NFR1101-01] When live_quote.is_running=False and gateway enabled, calls start."""
     fake_settings = MagicMock()
     fake_settings.gateway_enabled = True
     fake_settings.livequote_mode = ""
@@ -166,7 +180,7 @@ def test_maybe_start_live_quote_starts():
 
 
 def test_maybe_start_live_quote_swallows_exception():
-    """When live_quote.start() raises, the exception is swallowed."""
+    """[AC-NFR1101-01] When live_quote.start() raises, the exception is swallowed."""
     fake_settings = MagicMock()
     fake_settings.gateway_enabled = True
     fake_settings.livequote_mode = ""
@@ -184,10 +198,12 @@ def test_maybe_start_live_quote_swallows_exception():
 
 
 def test_resolve_live_current_price_empty_asset():
+    """[AC-NFR1101-01] test_resolve_live_current_price_empty_asset."""
     assert _resolve_live_current_price("") == 0.0
 
 
 def test_resolve_live_current_price_uses_quote():
+    """[AC-NFR1101-01] test_resolve_live_current_price_uses_quote."""
     fake_settings = MagicMock(gateway_enabled=True, livequote_mode="", livequote_enabled=True)
     with patch.object(tm, "get_settings", return_value=fake_settings), \
          patch.object(tm, "live_quote") as mock_lq:
@@ -198,6 +214,7 @@ def test_resolve_live_current_price_uses_quote():
 
 
 def test_resolve_live_current_price_no_quote_returns_zero():
+    """[AC-NFR1101-01] test_resolve_live_current_price_no_quote_returns_zero."""
     fake_settings = MagicMock(gateway_enabled=True, livequote_mode="", livequote_enabled=True)
     with patch.object(tm, "get_settings", return_value=fake_settings), \
          patch.object(tm, "live_quote") as mock_lq:
@@ -208,7 +225,7 @@ def test_resolve_live_current_price_no_quote_returns_zero():
 
 
 def test_resolve_live_current_price_falls_back_to_lastPrice():
-    """If price=0 in quote, lastPrice is used."""
+    """[AC-NFR1101-01] If price=0 in quote, lastPrice is used."""
     fake_settings = MagicMock(gateway_enabled=True, livequote_mode="", livequote_enabled=True)
     with patch.object(tm, "get_settings", return_value=fake_settings), \
          patch.object(tm, "live_quote") as mock_lq:
@@ -219,6 +236,7 @@ def test_resolve_live_current_price_falls_back_to_lastPrice():
 
 
 def test_resolve_live_current_price_all_zero_returns_zero():
+    """[AC-NFR1101-01] test_resolve_live_current_price_all_zero_returns_zero."""
     fake_settings = MagicMock(gateway_enabled=True, livequote_mode="", livequote_enabled=True)
     with patch.object(tm, "get_settings", return_value=fake_settings), \
          patch.object(tm, "live_quote") as mock_lq:
@@ -234,6 +252,7 @@ def test_resolve_live_current_price_all_zero_returns_zero():
 
 
 def test_build_live_quote_payload_visible():
+    """[AC-NFR1101-01] test_build_live_quote_payload_visible."""
     with patch.object(tm, "_resolve_live_current_price", return_value=10.5):
         got = _build_live_quote_payload("000001.SZ")
     assert got["asset"] == "000001.SZ"
@@ -242,6 +261,7 @@ def test_build_live_quote_payload_visible():
 
 
 def test_build_live_quote_payload_hidden_when_zero():
+    """[AC-NFR1101-01] test_build_live_quote_payload_hidden_when_zero."""
     with patch.object(tm, "_resolve_live_current_price", return_value=0.0), \
          patch.object(tm, "_resolve_trade_reference_close", return_value=0.0):
         got = _build_live_quote_payload("000001.SZ")
@@ -254,17 +274,19 @@ def test_build_live_quote_payload_hidden_when_zero():
 
 
 def test_extract_recent_trade_dates_none_frame():
+    """[AC-NFR1101-01] test_extract_recent_trade_dates_none_frame."""
     assert _extract_recent_trade_dates(None, datetime.date(2024, 1, 1), 5) == []
 
 
 def test_extract_recent_trade_dates_empty_frame():
+    """[AC-NFR1101-01] test_extract_recent_trade_dates_empty_frame."""
     import pandas as pd
     df = pd.DataFrame()
     assert _extract_recent_trade_dates(df, datetime.date(2024, 1, 1), 5) == []
 
 
 def test_extract_recent_trade_dates_filters_closed():
-    """Closed dates (is_open=False) are excluded."""
+    """[AC-NFR1101-01] Closed dates (is_open=False) are excluded."""
     import pandas as pd
     df = pd.DataFrame([
         {"date": datetime.date(2024, 1, 1), "is_open": 0},
@@ -275,7 +297,7 @@ def test_extract_recent_trade_dates_filters_closed():
 
 
 def test_extract_recent_trade_dates_filters_future():
-    """Dates > end are excluded."""
+    """[AC-NFR1101-01] Dates > end are excluded."""
     import pandas as pd
     df = pd.DataFrame([
         {"date": datetime.date(2024, 1, 1), "is_open": 1},
@@ -514,7 +536,7 @@ from quantide.web.pages.trade_main import (
 
 
 def test_resolve_live_current_price_quote_returns_zero_on_invalid_types():
-    """When quote has non-numeric price, returns 0.0."""
+    """[AC-NFR1101-01] When quote has non-numeric price, returns 0.0."""
     fake_settings = MagicMock(gateway_enabled=True, livequote_mode="", livequote_enabled=True)
     with patch.object(tm, "get_settings", return_value=fake_settings), \
          patch.object(tm, "live_quote") as mock_lq:
@@ -525,6 +547,7 @@ def test_resolve_live_current_price_quote_returns_zero_on_invalid_types():
 
 
 def test_resolve_live_current_price_falls_back_to_close():
+    """[AC-NFR1101-01] test_resolve_live_current_price_falls_back_to_close."""
     fake_settings = MagicMock(gateway_enabled=True, livequote_mode="", livequote_enabled=True)
     with patch.object(tm, "get_settings", return_value=fake_settings), \
          patch.object(tm, "live_quote") as mock_lq:
@@ -535,11 +558,13 @@ def test_resolve_live_current_price_falls_back_to_close():
 
 
 def test_resolve_trade_reference_close_returns_zero_on_empty():
+    """[AC-NFR1101-01] test_resolve_trade_reference_close_returns_zero_on_empty."""
     with patch.object(tm, "_load_trade_reference_bars", return_value=pl.DataFrame()):
         got = _resolve_trade_reference_close("000001.SZ")
     assert got == 0.0
 
 def test_maybe_start_live_quote_already_running():
+    """[AC-NFR1101-01] test_maybe_start_live_quote_already_running."""
     fake_settings = MagicMock(gateway_enabled=True, livequote_mode="tushare", livequote_enabled=True)
     with patch.object(tm, "get_settings", return_value=fake_settings), \
          patch.object(tm, "live_quote") as mock_lq:
@@ -549,6 +574,7 @@ def test_maybe_start_live_quote_already_running():
 
 
 def test_maybe_start_live_quote_starts_when_settings_allow():
+    """[AC-NFR1101-01] test_maybe_start_live_quote_starts_when_settings_allow."""
     fake_settings = MagicMock(gateway_enabled=True, livequote_mode="tushare", livequote_enabled=True)
     with patch.object(tm, "get_settings", return_value=fake_settings), \
          patch.object(tm, "live_quote") as mock_lq:
@@ -566,7 +592,7 @@ from quantide.web.pages.trade_main import trade_main_page
 
 
 def test_trade_main_page_no_registry():
-    """When no registry in scope → NoAccountView."""
+    """[AC-NFR1101-01] When no registry in scope → NoAccountView."""
     req = MagicMock()
     req.scope = {"session": {}}
     req.query_params = {}
@@ -576,7 +602,7 @@ def test_trade_main_page_no_registry():
 
 
 def test_trade_main_page_no_accounts():
-    """When registry has no accounts → NoAccountView."""
+    """[AC-NFR1101-01] When registry has no accounts → NoAccountView."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(return_value=[])
     req = MagicMock()
@@ -588,7 +614,7 @@ def test_trade_main_page_no_accounts():
 
 
 def test_trade_main_page_no_active_account():
-    """When accounts exist but no active → SelectAccountView."""
+    """[AC-NFR1101-01] When accounts exist but no active → SelectAccountView."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
         {"id": "s1", "name": "S1", "kind": "sim"}
@@ -604,7 +630,7 @@ def test_trade_main_page_no_active_account():
 
 
 def test_trade_main_page_default_tab():
-    """Default tab is 'positions'."""
+    """[AC-NFR1101-01] Default tab is 'positions'."""
     req = MagicMock()
     req.scope = {"session": {}}
     req.query_params = {}
@@ -626,13 +652,14 @@ from quantide.web.pages.trade_main import (
 
 
 def test_get_all_accounts_empty():
-    """No accounts in registry → empty list."""
+    """[AC-NFR1101-01] No accounts in registry → empty list."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(return_value=[])
     assert _get_all_accounts(fake_reg) == []
 
 
 def test_get_all_accounts_qmt_only():
+    """[AC-NFR1101-01] test_get_all_accounts_qmt_only."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
         {"id": "q1", "name": "MyBroker", "status": True}
@@ -644,6 +671,7 @@ def test_get_all_accounts_qmt_only():
 
 
 def test_get_all_accounts_sim_only():
+    """[AC-NFR1101-01] test_get_all_accounts_sim_only."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
         {"id": "s1", "name": "S1", "status": False}
@@ -654,6 +682,7 @@ def test_get_all_accounts_sim_only():
 
 
 def test_get_all_accounts_both():
+    """[AC-NFR1101-01] test_get_all_accounts_both."""
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
         {"id": "q1", "name": "Q1", "status": True},
@@ -665,14 +694,14 @@ def test_get_all_accounts_both():
 
 
 def test_get_active_account_no_kind_no_default():
-    """No kind/id and no default → returns None."""
+    """[AC-NFR1101-01] No kind/id and no default → returns None."""
     fake_reg = MagicMock()
     fake_reg.get_default = MagicMock(return_value=None)
     assert _get_active_account(fake_reg, {}) is None
 
 
 def test_get_active_account_uses_default():
-    """No kind/id but default exists → returns default."""
+    """[AC-NFR1101-01] No kind/id but default exists → returns default."""
     fake_reg = MagicMock()
     fake_reg.get_default = MagicMock(return_value=(BrokerKind.QMT.value, "default-id"))
     fake_broker = MagicMock()
@@ -685,6 +714,7 @@ def test_get_active_account_uses_default():
 
 
 def test_get_active_account_with_explicit():
+    """[AC-NFR1101-01] test_get_active_account_with_explicit."""
     fake_reg = MagicMock()
     fake_broker = MagicMock()
     fake_broker.portfolio_name = "MyBroker"
@@ -699,7 +729,7 @@ def test_get_active_account_with_explicit():
 
 
 def test_get_active_account_no_broker():
-    """When broker not found, returns None."""
+    """[AC-NFR1101-01] When broker not found, returns None."""
     fake_reg = MagicMock()
     fake_reg.get = MagicMock(return_value=None)
     out = _get_active_account(fake_reg, {
@@ -710,7 +740,7 @@ def test_get_active_account_no_broker():
 
 
 def test_get_active_account_sim_label():
-    """SIM account gets 仿真 label."""
+    """[AC-NFR1101-01] SIM account gets 仿真 label."""
     fake_reg = MagicMock()
     fake_broker = MagicMock()
     fake_broker.portfolio_name = "Sim"
@@ -729,7 +759,7 @@ def test_get_active_account_sim_label():
 
 
 def test_trade_main_page_with_active_account_sim():
-    """When registry has sim account + active session, renders broker view."""
+    """[AC-NFR1101-01] When registry has sim account + active session, renders broker view."""
     from quantide.core.enums import BrokerKind
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
@@ -750,7 +780,7 @@ def test_trade_main_page_with_active_account_sim():
 
 
 def test_trade_main_page_with_active_account_qmt():
-    """When registry has QMT account + active session, renders."""
+    """[AC-NFR1101-01] When registry has QMT account + active session, renders."""
     from quantide.core.enums import BrokerKind
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
@@ -770,7 +800,7 @@ def test_trade_main_page_with_active_account_qmt():
 
 
 def test_trade_main_page_with_active_account_total_assets():
-    """Broker has total_assets attr (sim)."""
+    """[AC-NFR1101-01] Broker has total_assets attr (sim)."""
     from quantide.core.enums import BrokerKind
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [
@@ -788,7 +818,7 @@ def test_trade_main_page_with_active_account_total_assets():
 
 
 def test_trade_main_page_broker_with_no_attrs():
-    """Broker lacks both asset and total_assets."""
+    """[AC-NFR1101-01] Broker lacks both asset and total_assets."""
     from quantide.core.enums import BrokerKind
     fake_reg = MagicMock()
     fake_reg.list_by_kind = MagicMock(side_effect=lambda kind: [

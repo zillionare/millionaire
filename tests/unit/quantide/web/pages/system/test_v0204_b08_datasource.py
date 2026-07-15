@@ -25,21 +25,25 @@ from quantide.web.pages.system.datasource import (
 
 
 def test_build_status_badge_ok():
+    """[AC-NFR1101-01] test_build_status_badge_ok."""
     out = _build_status_badge("ok")
     assert out is not None
 
 
 def test_build_status_badge_partial():
+    """[AC-NFR1101-01] test_build_status_badge_partial."""
     out = _build_status_badge("partial")
     assert out is not None
 
 
 def test_build_status_badge_missing():
+    """[AC-NFR1101-01] test_build_status_badge_missing."""
     out = _build_status_badge("missing")
     assert out is not None
 
 
 def test_build_status_badge_unknown():
+    """[AC-NFR1101-01] test_build_status_badge_unknown."""
     out = _build_status_badge("garbage")
     assert out is not None
 
@@ -50,16 +54,19 @@ def test_build_status_badge_unknown():
 
 
 def test_build_flash_success():
+    """[AC-NFR1101-01] test_build_flash_success."""
     out = _build_flash("All good", "success")
     assert out is not None
 
 
 def test_build_flash_error():
+    """[AC-NFR1101-01] test_build_flash_error."""
     out = _build_flash("Boom", "error")
     assert out is not None
 
 
 def test_build_flash_info():
+    """[AC-NFR1101-01] test_build_flash_info."""
     out = _build_flash("Note", "info")
     assert out is not None
 
@@ -70,11 +77,13 @@ def test_build_flash_info():
 
 
 def test_build_data_status_card_empty():
+    """[AC-NFR1101-01] test_build_data_status_card_empty."""
     out = _build_data_status_card({})
     assert out is not None
 
 
 def test_build_data_status_card_full():
+    """[AC-NFR1101-01] test_build_data_status_card_full."""
     out = _build_data_status_card({
         "daily_bars": {"status": "ok", "message": "ok", "count": 100},
         "stock_list": {"status": "ok", "message": "ok", "count": 5000},
@@ -89,11 +98,13 @@ def test_build_data_status_card_full():
 
 
 def test_build_sync_history_card_empty():
+    """[AC-NFR1101-01] test_build_sync_history_card_empty."""
     out = _build_sync_history_card([])
     assert out is not None
 
 
 def test_build_sync_history_card_with_records():
+    """[AC-NFR1101-01] test_build_sync_history_card_with_records."""
     out = _build_sync_history_card([
         {"job_id": "x", "executed_at": "2024-01-01", "status": "success", "message": "ok"},
     ])
@@ -106,6 +117,7 @@ def test_build_sync_history_card_with_records():
 
 
 def test_build_config_card_full():
+    """[AC-NFR1101-01] test_build_config_card_full."""
     out = _build_config_card({
         "data_source": "tushare",
         "tushare_token": "abc",
@@ -116,6 +128,7 @@ def test_build_config_card_full():
 
 
 def test_build_config_card_missing_keys():
+    """[AC-NFR1101-01] test_build_config_card_missing_keys."""
     out = _build_config_card({})
     assert out is not None
 
@@ -130,7 +143,7 @@ from quantide.web.pages.system.datasource import _load_datasource_config
 
 
 def test_load_datasource_config_with_seeded_state(db):
-    """With seeded app_state, returns its values."""
+    """[AC-NFR1101-01] With seeded app_state, returns its values."""
     out = _load_datasource_config()
     assert "data_source" in out
     assert "epoch" in out
@@ -138,7 +151,7 @@ def test_load_datasource_config_with_seeded_state(db):
 
 
 def test_load_datasource_config_db_exception_falls_back(db):
-    """When db raises, falls back to settings."""
+    """[AC-NFR1101-01] When db raises, falls back to settings."""
     ds_mod.db["app_state"].get = MagicMock(side_effect=Exception("boom"))
     out = _load_datasource_config()
     assert "data_source" in out
@@ -203,12 +216,14 @@ async def test_ds_sync_data():
 
 
 def test_ds_build_flash():
+    """[AC-NFR1101-01] test_ds_build_flash."""
     from quantide.web.pages.system.datasource import _build_flash
     out = _build_flash("test message", "success")
     assert out is not None
 
 
 def test_ds_build_data_status_card_empty():
+    """[AC-NFR1101-01] test_ds_build_data_status_card_empty."""
     from quantide.web.pages.system.datasource import _build_data_status_card
     out = _build_data_status_card({})
     assert out is not None

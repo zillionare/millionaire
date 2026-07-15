@@ -28,24 +28,28 @@ from quantide.web.pages.home import (
 
 
 def test_safe_broker_attr_simple():
+    """[AC-NFR1101-01] test_safe_broker_attr_simple."""
     class _B:
         x = 5
     assert _safe_broker_attr(_B(), "x") == 5
 
 
 def test_safe_broker_attr_missing_returns_default():
+    """[AC-NFR1101-01] test_safe_broker_attr_missing_returns_default."""
     class _B:
         pass
     assert _safe_broker_attr(_B(), "missing", 42) == 42
 
 
 def test_safe_broker_attr_missing_no_default():
+    """[AC-NFR1101-01] test_safe_broker_attr_missing_no_default."""
     class _B:
         pass
     assert _safe_broker_attr(_B(), "missing") is None
 
 
 def test_safe_broker_attr_exception_returns_default():
+    """[AC-NFR1101-01] test_safe_broker_attr_exception_returns_default."""
     class _B:
         @property
         def broken(self):
@@ -54,6 +58,7 @@ def test_safe_broker_attr_exception_returns_default():
 
 
 def test_safe_broker_attr_none():
+    """[AC-NFR1101-01] test_safe_broker_attr_none."""
     assert _safe_broker_attr(None, "anything", "default") == "default"
 
 
@@ -63,25 +68,30 @@ def test_safe_broker_attr_none():
 
 
 def test_normalize_positions_none():
+    """[AC-NFR1101-01] test_normalize_positions_none."""
     assert _normalize_positions(None) == []
 
 
 def test_normalize_positions_empty():
+    """[AC-NFR1101-01] test_normalize_positions_empty."""
     assert _normalize_positions([]) == []
 
 
 def test_normalize_positions_list():
+    """[AC-NFR1101-01] test_normalize_positions_list."""
     pos = [1, 2, 3]
     assert _normalize_positions(pos) == [1, 2, 3]
 
 
 def test_normalize_positions_dict_takes_values():
+    """[AC-NFR1101-01] test_normalize_positions_dict_takes_values."""
     pos = {"a": 1, "b": 2}
     got = _normalize_positions(pos)
     assert sorted(got) == [1, 2]
 
 
 def test_normalize_positions_tuple():
+    """[AC-NFR1101-01] test_normalize_positions_tuple."""
     assert _normalize_positions((1, 2)) == [1, 2]
 
 
@@ -91,7 +101,7 @@ def test_normalize_positions_tuple():
 
 
 def test_build_broker_asset_overview_with_asset():
-    """When broker has .asset attribute, use build_asset_overview."""
+    """[AC-NFR1101-01] When broker has .asset attribute, use build_asset_overview."""
     fake_asset = MagicMock()
     fake_asset.total = 100.0
     fake_asset.principal = 80.0
@@ -107,13 +117,14 @@ def test_build_broker_asset_overview_with_asset():
 
 
 def test_build_broker_asset_overview_no_asset_no_total():
+    """[AC-NFR1101-01] test_build_broker_asset_overview_no_asset_no_total."""
     broker = MagicMock(spec=[])  # no asset, no total_assets
     got = _build_broker_asset_overview(broker)
     assert got is None
 
 
 def test_build_broker_asset_overview_only_total():
-    """When broker has total_assets but no asset, build dict manually."""
+    """[AC-NFR1101-01] When broker has total_assets but no asset, build dict manually."""
     broker = MagicMock(spec=["total_assets", "cash", "principal"])
     broker.total_assets = 100.0
     broker.cash = 20.0
@@ -127,6 +138,7 @@ def test_build_broker_asset_overview_only_total():
 
 
 def test_build_broker_asset_overview_zero_principal():
+    """[AC-NFR1101-01] test_build_broker_asset_overview_zero_principal."""
     broker = MagicMock(spec=["total_assets", "cash", "principal"])
     broker.total_assets = 100.0
     broker.cash = 20.0
@@ -141,43 +153,53 @@ def test_build_broker_asset_overview_zero_principal():
 
 
 def test_format_amount_none():
+    """[AC-NFR1101-01] test_format_amount_none."""
     assert _format_amount(None) == "--"
 
 
 def test_format_amount_zero():
+    """[AC-NFR1101-01] test_format_amount_zero."""
     assert _format_amount(0) == "0.00"
 
 
 def test_format_amount_positive():
+    """[AC-NFR1101-01] test_format_amount_positive."""
     assert _format_amount(123.456) == "123.46"
 
 
 def test_format_amount_negative():
+    """[AC-NFR1101-01] test_format_amount_negative."""
     assert _format_amount(-100) == "-100.00"
 
 
 def test_format_amount_wan_none():
+    """[AC-NFR1101-01] test_format_amount_wan_none."""
     assert _format_amount_wan(None) == "--"
 
 
 def test_format_amount_wan_small():
+    """[AC-NFR1101-01] test_format_amount_wan_small."""
     assert _format_amount_wan(5000) == "0.50"
 
 
 def test_format_amount_wan_large():
+    """[AC-NFR1101-01] test_format_amount_wan_large."""
     out = _format_amount_wan(20000)
     assert out == "2.00"
 
 
 def test_format_percent_none():
+    """[AC-NFR1101-01] test_format_percent_none."""
     assert _format_percent(None) == "--"
 
 
 def test_format_percent_zero():
+    """[AC-NFR1101-01] test_format_percent_zero."""
     assert _format_percent(0) == "0.00%"
 
 
 def test_format_percent_positive():
+    """[AC-NFR1101-01] test_format_percent_positive."""
     assert _format_percent(0.123) == "12.30%"
 
 
@@ -187,16 +209,19 @@ def test_format_percent_positive():
 
 
 def test_position_tag_strong_positive():
+    """[AC-NFR1101-01] test_position_tag_strong_positive."""
     color, label = _position_tag(0.10)
     assert "green" in color.lower() or "green" in label.lower() or "🟢" in label or "涨" in label
 
 
 def test_position_tag_strong_negative():
+    """[AC-NFR1101-01] test_position_tag_strong_negative."""
     color, label = _position_tag(-0.10)
     assert "red" in color.lower() or "red" in label.lower() or "🔴" in label or "跌" in label
 
 
 def test_position_tag_zero():
+    """[AC-NFR1101-01] test_position_tag_zero."""
     color, label = _position_tag(0)
     assert isinstance(color, str) and isinstance(label, str)
 
@@ -207,14 +232,17 @@ def test_position_tag_zero():
 
 
 def test_should_show_no_account_dialog_empty():
+    """[AC-NFR1101-01] test_should_show_no_account_dialog_empty."""
     assert _should_show_no_account_dialog([]) is False
 
 
 def test_should_show_no_account_dialog_one():
+    """[AC-NFR1101-01] test_should_show_no_account_dialog_one."""
     assert _should_show_no_account_dialog([{"id": "a"}]) is False
 
 
 def test_should_show_no_account_dialog_many():
+    """[AC-NFR1101-01] test_should_show_no_account_dialog_many."""
     assert _should_show_no_account_dialog([{"id": "a"}, {"id": "b"}]) is False
 
 
@@ -224,6 +252,7 @@ def test_should_show_no_account_dialog_many():
 
 
 def test_should_redirect_to_strategy():
+    """[AC-NFR1101-01] test_should_redirect_to_strategy."""
     out = _should_redirect_to_strategy()
     assert isinstance(out, bool)
 
@@ -234,12 +263,14 @@ def test_should_redirect_to_strategy():
 
 
 def test_auto_select_account_no_reg():
+    """[AC-NFR1101-01] test_auto_select_account_no_reg."""
     session = {}
     out = _auto_select_account(None, session)
     assert out is None
 
 
 def test_auto_select_account_no_accounts():
+    """[AC-NFR1101-01] test_auto_select_account_no_accounts."""
     reg = MagicMock()
     reg.list_by_kind = MagicMock(return_value=[])
     session = {}
@@ -260,16 +291,19 @@ from quantide.web.pages.home import (
 
 
 def test_overview_cards_none_input():
+    """[AC-NFR1101-01] test_overview_cards_none_input."""
     out = OverviewCards(asset_overview=None)
     assert out is not None
 
 
 def test_overview_cards_empty_dict():
+    """[AC-NFR1101-01] test_overview_cards_empty_dict."""
     out = OverviewCards(asset_overview={})
     assert out is not None
 
 
 def test_overview_cards_with_data():
+    """[AC-NFR1101-01] test_overview_cards_with_data."""
     out = OverviewCards(asset_overview={
         "total": 1000000,
         "market_value": 800000,
@@ -305,11 +339,13 @@ def test_overview_cards_zero_total():
 
 
 def test_asset_summary_default():
+    """[AC-NFR1101-01] test_asset_summary_default."""
     out = AssetSummary()
     assert out is not None
 
 
 def test_asset_summary_with_data():
+    """[AC-NFR1101-01] test_asset_summary_with_data."""
     out = AssetSummary(asset_overview={"total": 100})
     assert out is not None
 
@@ -357,14 +393,14 @@ from quantide.web.pages.home import _get_broker
 
 
 def test_get_broker_no_registry():
-    """When no registry in scope, returns None."""
+    """[AC-NFR1101-01] When no registry in scope, returns None."""
     req = MagicMock()
     req.scope = {}
     assert _get_broker(req) is None
 
 
 def test_get_broker_query_params():
-    """When kind+id in query_params, returns reg.get."""
+    """[AC-NFR1101-01] When kind+id in query_params, returns reg.get."""
     fake_reg = MagicMock()
     fake_reg.get = MagicMock(return_value="query-broker")
     req = MagicMock()
@@ -374,7 +410,7 @@ def test_get_broker_query_params():
 
 
 def test_get_broker_session_active():
-    """When session has active account, returns from reg."""
+    """[AC-NFR1101-01] When session has active account, returns from reg."""
     fake_reg = MagicMock()
     fake_reg.get = MagicMock(return_value="session-broker")
     req = MagicMock()
@@ -384,7 +420,7 @@ def test_get_broker_session_active():
 
 
 def test_get_broker_session_active_no_broker():
-    """When session active but broker not found, falls through to default."""
+    """[AC-NFR1101-01] When session active but broker not found, falls through to default."""
     fake_reg = MagicMock()
     fake_reg.get = MagicMock(return_value=None)  # session lookup returns None
     fake_reg.get_default = MagicMock(return_value=("live", "default-id"))
@@ -397,7 +433,7 @@ def test_get_broker_session_active_no_broker():
 
 
 def test_get_broker_default_fallback():
-    """When no query/session, uses get_default."""
+    """[AC-NFR1101-01] When no query/session, uses get_default."""
     fake_reg = MagicMock()
     fake_reg.get_default = MagicMock(return_value=("live", "default-id"))
     fake_reg.get = MagicMock(return_value="default-broker")
@@ -408,6 +444,7 @@ def test_get_broker_default_fallback():
 
 
 def test_get_broker_no_default():
+    """[AC-NFR1101-01] test_get_broker_no_default."""
     fake_reg = MagicMock()
     fake_reg.get_default = MagicMock(return_value=None)
     req = MagicMock()
@@ -429,16 +466,19 @@ from quantide.web.pages.home import (
 
 
 def test_order_table_empty():
+    """[AC-NFR1101-01] test_order_table_empty."""
     out = OrderTable(orders=[])
     assert out is not None
 
 
 def test_order_table_none():
+    """[AC-NFR1101-01] test_order_table_none."""
     out = OrderTable(orders=None)
     assert out is not None
 
 
 def test_order_table_with_orders():
+    """[AC-NFR1101-01] test_order_table_with_orders."""
     from quantide.core.enums import OrderStatus
     out = OrderTable(orders=[
         {"tm": "2024-01-01", "asset": "000001.SZ", "side": 1, "status": int(OrderStatus.REPORTED), "price": 10, "shares": 100, "filled": 100},
@@ -447,16 +487,19 @@ def test_order_table_with_orders():
 
 
 def test_position_table_none():
+    """[AC-NFR1101-01] test_position_table_none."""
     out = PositionTable(positions=None)
     assert out is not None
 
 
 def test_position_table_empty():
+    """[AC-NFR1101-01] test_position_table_empty."""
     out = PositionTable(positions=[])
     assert out is not None
 
 
 def test_position_table_with_positions():
+    """[AC-NFR1101-01] test_position_table_with_positions."""
     pos1 = MagicMock()
     pos1.asset = "000001.SZ"
     pos1.shares = 100.0
@@ -470,5 +513,6 @@ def test_position_table_with_positions():
 
 
 def test_trade_panel():
+    """[AC-NFR1101-01] test_trade_panel."""
     out = TradePanel()
     assert out is not None

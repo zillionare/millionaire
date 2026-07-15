@@ -13,52 +13,59 @@ from quantide.web.pages.data_market import (
 
 
 def test_get_active_tab_default():
-    """Default tab is 'overview' when no tab in query_params."""
+    """[AC-NFR1101-01] Default tab is 'overview' when no tab in query_params."""
     req = MagicMock()
     req.query_params = {}
     assert _get_active_tab(req) == "overview"
 
 
 def test_get_active_tab_explicit():
+    """[AC-NFR1101-01] test_get_active_tab_explicit."""
     req = MagicMock()
     req.query_params = {"tab": "verify"}
     assert _get_active_tab(req) == "verify"
 
 
 def test_get_active_tab_browse():
+    """[AC-NFR1101-01] test_get_active_tab_browse."""
     req = MagicMock()
     req.query_params = {"tab": "browse"}
     assert _get_active_tab(req) == "browse"
 
 
 def test_get_active_tab_update():
+    """[AC-NFR1101-01] test_get_active_tab_update."""
     req = MagicMock()
     req.query_params = {"tab": "update"}
     assert _get_active_tab(req) == "update"
 
 
 def test_tab_nav_overview():
+    """[AC-NFR1101-01] test_tab_nav_overview."""
     out = _TabNav("overview")
     assert out is not None
 
 
 def test_tab_nav_verify():
+    """[AC-NFR1101-01] test_tab_nav_verify."""
     out = _TabNav("verify")
     assert out is not None
 
 
 def test_tab_nav_update():
+    """[AC-NFR1101-01] test_tab_nav_update."""
     out = _TabNav("update")
     assert out is not None
 
 
 def test_tab_nav_browse():
+    """[AC-NFR1101-01] test_tab_nav_browse."""
     out = _TabNav("browse")
     assert out is not None
 
 
 def test_tab_nav_unknown():
-    """Unknown tab still renders."""
+    """[AC-NFR1101-01] Unknown tab still renders."""
     out = _TabNav("garbage")
     assert out is not None
 
@@ -114,7 +121,7 @@ from quantide.web.pages import data_market as dm_mod
 
 
 def test_browse_tab_no_asset():
-    """No asset → placeholder text."""
+    """[AC-NFR1101-01] No asset → placeholder text."""
     req = MagicMock()
     req.query_params = {}
     out = _BrowseTab(req)
@@ -122,7 +129,7 @@ def test_browse_tab_no_asset():
 
 
 def test_browse_tab_with_asset_exception():
-    """When daily_bars raises, returns error message."""
+    """[AC-NFR1101-01] When daily_bars raises, returns error message."""
     with patch.object(dm_mod, "daily_bars") as mock_dbars:
         mock_dbars.get_bars_in_range = MagicMock(side_effect=Exception("boom"))
         req = MagicMock()
@@ -132,7 +139,7 @@ def test_browse_tab_with_asset_exception():
 
 
 def test_browse_tab_with_data():
-    """With data, renders table."""
+    """[AC-NFR1101-01] With data, renders table."""
     fake_df = pl2_bm.DataFrame({
         "date": ["2024-06-30"],
         "asset": ["000001.SZ"],

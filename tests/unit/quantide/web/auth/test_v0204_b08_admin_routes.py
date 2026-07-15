@@ -33,18 +33,22 @@ def _user(name="alice", email="a@x.com", role="user", active=True):
 
 
 def test_get_role_color_admin(admin):
+    """[AC-FR1501-04] test_get_role_color_admin."""
     assert "purple" in admin._get_role_color("admin")
 
 
 def test_get_role_color_manager(admin):
+    """[AC-FR1501-04] test_get_role_color_manager."""
     assert "blue" in admin._get_role_color("manager")
 
 
 def test_get_role_color_user(admin):
+    """[AC-FR1501-04] test_get_role_color_user."""
     assert "gray" in admin._get_role_color("user")
 
 
 def test_get_role_color_unknown_falls_back(admin):
+    """[AC-FR1501-04] test_get_role_color_unknown_falls_back."""
     out = admin._get_role_color("unknown")
     assert "gray" in out
 
@@ -55,12 +59,14 @@ def test_get_role_color_unknown_falls_back(admin):
 
 
 def test_filter_users_no_filter_returns_all(admin):
+    """[AC-FR1501-04] test_filter_users_no_filter_returns_all."""
     users = [_user()]
     out = admin._filter_users(users, "", "", "")
     assert out == users
 
 
 def test_filter_users_by_username_search(admin):
+    """[AC-FR1501-04] test_filter_users_by_username_search."""
     users = [_user("alice"), _user("bob")]
     out = admin._filter_users(users, "ALICE", "", "")
     assert len(out) == 1
@@ -68,30 +74,35 @@ def test_filter_users_by_username_search(admin):
 
 
 def test_filter_users_by_email_search(admin):
+    """[AC-FR1501-04] test_filter_users_by_email_search."""
     users = [_user("alice", "a@x.com"), _user("bob", "b@x.com")]
     out = admin._filter_users(users, "b@x", "", "")
     assert len(out) == 1
 
 
 def test_filter_users_by_role(admin):
+    """[AC-FR1501-04] test_filter_users_by_role."""
     users = [_user(role="admin"), _user(role="user")]
     out = admin._filter_users(users, "", "user", "")
     assert len(out) == 1
 
 
 def test_filter_users_active(admin):
+    """[AC-FR1501-04] test_filter_users_active."""
     users = [_user(active=True), _user(active=False)]
     out = admin._filter_users(users, "", "", "active")
     assert len(out) == 1
 
 
 def test_filter_users_inactive(admin):
+    """[AC-FR1501-04] test_filter_users_inactive."""
     users = [_user(active=True), _user(active=False)]
     out = admin._filter_users(users, "", "", "inactive")
     assert len(out) == 1
 
 
 def test_filter_users_other_status_passthrough(admin):
+    """[AC-FR1501-04] test_filter_users_other_status_passthrough."""
     users = [_user(active=True), _user(active=False)]
     out = admin._filter_users(users, "", "", "garbage")
     assert len(out) == 2
@@ -103,6 +114,7 @@ def test_filter_users_other_status_passthrough(admin):
 
 
 def test_create_user_list_header(admin):
+    """[AC-FR1501-04] test_create_user_list_header."""
     out = admin._create_user_list_header()
     assert out is not None
 
@@ -113,11 +125,13 @@ def test_create_user_list_header(admin):
 
 
 def test_create_filters_section(admin):
+    """[AC-FR1501-04] test_create_filters_section."""
     out = admin._create_filters_section(search="", role_filter="", status_filter="", prefix="/auth/admin")
     assert out is not None
 
 
 def test_create_filters_section_with_values(admin):
+    """[AC-FR1501-04] test_create_filters_section_with_values."""
     out = admin._create_filters_section(search="alice", role_filter="admin", status_filter="active", prefix="/auth/admin")
     assert out is not None
 
@@ -128,17 +142,19 @@ def test_create_filters_section_with_values(admin):
 
 
 def test_create_pagination_single_page_returns_none(admin):
-    """When total_pages <= 1, _create_pagination returns None."""
+    """[AC-FR1501-04] When total_pages <= 1, _create_pagination returns None."""
     out = admin._create_pagination(current_page=1, total_pages=1, base_url="/auth/admin/users", query_params={})
     assert out is None
 
 
 def test_create_pagination_many_pages(admin):
+    """[AC-FR1501-04] test_create_pagination_many_pages."""
     out = admin._create_pagination(current_page=3, total_pages=10, base_url="/auth/admin/users", query_params={"q": "x"})
     assert out is not None
 
 
 def test_create_pagination_two_pages(admin):
+    """[AC-FR1501-04] test_create_pagination_two_pages."""
     out = admin._create_pagination(current_page=2, total_pages=2, base_url="/auth/admin/users", query_params={})
     assert out is not None
 
@@ -168,6 +184,7 @@ def test_info_row_with_int_value():
 
 
 def test_create_users_table_empty(admin):
+    """[AC-FR1501-04] test_create_users_table_empty."""
     out = admin._create_users_table(users=[], prefix="/auth/admin")
     assert out is not None
 
@@ -190,6 +207,7 @@ def test_create_users_table_with_users(admin):
 
 
 def test_create_user_form_no_error(admin):
+    """[AC-FR1501-04] test_create_user_form_no_error."""
     out = admin._create_user_form(action="/auth/admin/users/create")
     assert out is not None
 
@@ -217,6 +235,7 @@ def test_create_edit_user_form(admin):
 
 
 def test_create_edit_user_form_error(admin):
+    """[AC-FR1501-04] test_create_edit_user_form_error."""
     user = MagicMock()
     user.username = "alice"
     user.email = "a@x.com"
@@ -260,6 +279,7 @@ def fake_app():
 
 
 def test_register_admin_routes_returns_dict(admin, fake_app):
+    """[AC-FR1501-04] test_register_admin_routes_returns_dict."""
     out = admin.register_admin_routes(fake_app, "/auth/admin")
     assert isinstance(out, dict)
     # Routes should be stored
@@ -537,6 +557,7 @@ async def test_handle_user_delete_exception(admin, fake_app):
 
 
 def test_admin_users_list_none(admin, fake_app):
+    """[AC-FR1501-04] test_admin_users_list_none."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     fn = admin.routes["admin_users_list"]
     req = MagicMock()
@@ -547,6 +568,7 @@ def test_admin_users_list_none(admin, fake_app):
 
 
 def test_admin_users_list_with_filter(admin, fake_app):
+    """[AC-FR1501-04] test_admin_users_list_with_filter."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     admin.auth.user_repo = MagicMock()
     admin.auth.user_repo.search_users = MagicMock(return_value=[])
@@ -559,6 +581,7 @@ def test_admin_users_list_with_filter(admin, fake_app):
 
 
 def test_admin_user_create_form(admin, fake_app):
+    """[AC-FR1501-04] test_admin_user_create_form."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     fn = admin.routes["admin_user_create_form"]
     req = MagicMock()
@@ -568,6 +591,7 @@ def test_admin_user_create_form(admin, fake_app):
 
 
 def test_admin_user_create_form_with_error(admin, fake_app):
+    """[AC-FR1501-04] test_admin_user_create_form_with_error."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     fn = admin.routes["admin_user_create_form"]
     req = MagicMock()
@@ -577,6 +601,7 @@ def test_admin_user_create_form_with_error(admin, fake_app):
 
 
 def test_admin_user_edit_form(admin, fake_app):
+    """[AC-FR1501-04] test_admin_user_edit_form."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     admin.auth.user_repo = MagicMock()
     admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1, username="alice"))
@@ -588,6 +613,7 @@ def test_admin_user_edit_form(admin, fake_app):
 
 
 def test_admin_user_edit_form_not_found(admin, fake_app):
+    """[AC-FR1501-04] test_admin_user_edit_form_not_found."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     admin.auth.user_repo = MagicMock()
     admin.auth.user_repo.get_by_id = MagicMock(return_value=None)
@@ -600,6 +626,7 @@ def test_admin_user_edit_form_not_found(admin, fake_app):
 
 
 def test_admin_user_delete_confirm(admin, fake_app):
+    """[AC-FR1501-04] test_admin_user_delete_confirm."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     admin.auth.user_repo = MagicMock()
     admin.auth.user_repo.get_by_id = MagicMock(return_value=MagicMock(id=1, username="alice", role="user"))
@@ -615,6 +642,7 @@ def test_admin_user_delete_confirm(admin, fake_app):
 
 
 def test_admin_users_list_paginated(admin, fake_app):
+    """[AC-FR1501-04] test_admin_users_list_paginated."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     admin.auth.user_repo = MagicMock()
     admin.auth.user_repo.list_all = MagicMock(return_value=[
@@ -630,6 +658,7 @@ def test_admin_users_list_paginated(admin, fake_app):
 
 
 def test_admin_users_list_with_search_filter(admin, fake_app):
+    """[AC-FR1501-04] test_admin_users_list_with_search_filter."""
     admin.register_admin_routes(fake_app, "/auth/admin")
     admin.auth.user_repo = MagicMock()
     admin.auth.user_repo.list_all = MagicMock(return_value=[

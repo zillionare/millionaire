@@ -23,12 +23,13 @@ def routes(auth_manager):
 
 
 def test_init(routes, auth_manager):
+    """[AC-NFR1101-01] test_init."""
     assert routes.auth is auth_manager
     assert routes.routes == {}
 
 
 def test_register_all_minimal(routes):
-    """Test register_all with a mock app that doesn't actually register routes."""
+    """[AC-NFR1101-01] Test register_all with a mock app that doesn't actually register routes."""
     app = MagicMock()
     # rt returns a decorator
     rt = MagicMock()
@@ -48,7 +49,7 @@ def test_register_all_minimal(routes):
 
 
 def test_register_login_routes_populates(routes):
-    """When _register_login_routes is called, self.routes gains keys."""
+    """[AC-NFR1101-01] When _register_login_routes is called, self.routes gains keys."""
     fake_rt = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     routes._register_login_routes(rt=fake_rt, prefix="/auth")
     assert "login_page" in routes.routes
@@ -56,13 +57,14 @@ def test_register_login_routes_populates(routes):
 
 
 def test_register_logout_route(routes):
+    """[AC-NFR1101-01] test_register_logout_route."""
     fake_rt = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     routes._register_logout_route(rt=fake_rt, prefix="/auth")
     assert "logout" in routes.routes
 
 
 def test_register_registration_routes_disabled(routes):
-    """When allow_registration=False, no routes registered."""
+    """[AC-NFR1101-01] When allow_registration=False, no routes registered."""
     fake_rt = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     routes._register_registration_routes(rt=fake_rt, prefix="/auth")
     # No new entries since disabled
@@ -70,7 +72,7 @@ def test_register_registration_routes_disabled(routes):
 
 
 def test_register_registration_routes_enabled(routes):
-    """When allow_registration=True, register route registered."""
+    """[AC-NFR1101-01] When allow_registration=True, register route registered."""
     routes.auth.config = {"allow_registration": True}
     fake_rt = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     routes._register_registration_routes(rt=fake_rt, prefix="/auth")
@@ -79,12 +81,14 @@ def test_register_registration_routes_enabled(routes):
 
 
 def test_register_password_reset_routes_disabled(routes):
+    """[AC-NFR1101-01] test_register_password_reset_routes_disabled."""
     fake_rt = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     routes._register_password_reset_routes(rt=fake_rt, prefix="/auth")
     assert all("forgot" not in k for k in routes.routes.keys())
 
 
 def test_register_password_reset_routes_enabled(routes):
+    """[AC-NFR1101-01] test_register_password_reset_routes_enabled."""
     routes.auth.config = {"allow_password_reset": True}
     fake_rt = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     routes._register_password_reset_routes(rt=fake_rt, prefix="/auth")
@@ -93,6 +97,7 @@ def test_register_password_reset_routes_enabled(routes):
 
 
 def test_register_profile_route(routes):
+    """[AC-NFR1101-01] test_register_profile_route."""
     fake_rt = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     routes._register_profile_route(rt=fake_rt, prefix="/auth")
     assert "profile_page" in routes.routes
@@ -169,7 +174,7 @@ async def test_login_submit_invalid_with_redirect():
 
 
 def test_login_page_renders():
-    """login_page returns Title + form based on query_params."""
+    """[AC-NFR1101-01] login_page returns Title + form based on query_params."""
     auth = MagicMock()
     auth.config = {}
     routes = AuthRoutes(auth)
@@ -183,6 +188,7 @@ def test_login_page_renders():
 
 
 def test_login_page_with_redirect_to():
+    """[AC-NFR1101-01] test_login_page_with_redirect_to."""
     auth = MagicMock()
     auth.config = {}
     routes = AuthRoutes(auth)
@@ -196,7 +202,7 @@ def test_login_page_with_redirect_to():
 
 
 def test_logout_route():
-    """logout clears session and redirects to login."""
+    """[AC-NFR1101-01] logout clears session and redirects to login."""
     auth = MagicMock()
     auth.config = {}
     routes = AuthRoutes(auth)
@@ -214,6 +220,7 @@ def test_logout_route():
 
 
 def test_register_page_no_error():
+    """[AC-NFR1101-01] test_register_page_no_error."""
     auth = MagicMock()
     auth.config = {"allow_registration": True}
     routes = AuthRoutes(auth)
@@ -227,6 +234,7 @@ def test_register_page_no_error():
 
 
 def test_register_page_with_error():
+    """[AC-NFR1101-01] test_register_page_with_error."""
     auth = MagicMock()
     auth.config = {"allow_registration": True}
     routes = AuthRoutes(auth)
@@ -380,6 +388,7 @@ async def test_register_submit_raises_returns_error():
 
 
 def test_forgot_page_no_msg():
+    """[AC-NFR1101-01] test_forgot_page_no_msg."""
     auth = MagicMock()
     auth.config = {"allow_password_reset": True}
     routes = AuthRoutes(auth)
@@ -393,6 +402,7 @@ def test_forgot_page_no_msg():
 
 
 def test_forgot_page_with_error_success():
+    """[AC-NFR1101-01] test_forgot_page_with_error_success."""
     auth = MagicMock()
     auth.config = {"allow_password_reset": True}
     routes = AuthRoutes(auth)
@@ -425,6 +435,7 @@ async def test_forgot_submit():
 
 
 def test_profile_page():
+    """[AC-NFR1101-01] test_profile_page."""
     auth = MagicMock()
     auth.config = {}
     routes = AuthRoutes(auth)
@@ -439,6 +450,7 @@ def test_profile_page():
 
 
 def test_profile_page_with_success_error():
+    """[AC-NFR1101-01] test_profile_page_with_success_error."""
     auth = MagicMock()
     auth.config = {}
     routes = AuthRoutes(auth)
@@ -509,7 +521,7 @@ async def test_profile_submit_update_raises():
 
 
 def test_register_all_minimal_no_admin():
-    """register_all without admin option."""
+    """[AC-NFR1101-01] register_all without admin option."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": False}
     auth.user_repo = MagicMock()
@@ -524,7 +536,7 @@ def test_register_all_minimal_no_admin():
 
 
 def test_register_all_with_custom_login():
-    """When allow_custom_login=True, skip login routes."""
+    """[AC-NFR1101-01] When allow_custom_login=True, skip login routes."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": False}
     auth.user_repo = MagicMock()
@@ -538,6 +550,7 @@ def test_register_all_with_custom_login():
 
 
 def test_register_all_with_allow_registration():
+    """[AC-NFR1101-01] test_register_all_with_allow_registration."""
     auth = MagicMock()
     auth.config = {"allow_registration": True, "allow_password_reset": False}
     auth.user_repo = MagicMock()
@@ -550,6 +563,7 @@ def test_register_all_with_allow_registration():
 
 
 def test_register_all_with_password_reset():
+    """[AC-NFR1101-01] test_register_all_with_password_reset."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": True}
     auth.user_repo = MagicMock()
@@ -562,7 +576,7 @@ def test_register_all_with_password_reset():
 
 
 def test_admin_dashboard():
-    """admin_dashboard renders user statistics."""
+    """[AC-NFR1101-01] admin_dashboard renders user statistics."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": False}
     auth.user_repo = MagicMock()
@@ -579,7 +593,7 @@ def test_admin_dashboard():
 
 
 def test_admin_users_list_with_messages_no_msg():
-    """When no success/error query param, returns original_response."""
+    """[AC-NFR1101-01] When no success/error query param, returns original_response."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": False}
     auth.user_repo = MagicMock()
@@ -599,7 +613,7 @@ def test_admin_users_list_with_messages_no_msg():
 
 
 def test_admin_users_list_with_success_msg():
-    """When success query param set, wraps with message alert."""
+    """[AC-NFR1101-01] When success query param set, wraps with message alert."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": False}
     auth.user_repo = MagicMock()
@@ -619,7 +633,7 @@ def test_admin_users_list_with_success_msg():
 
 
 def test_admin_users_list_with_error_msg():
-    """When error query param set, wraps with error alert."""
+    """[AC-NFR1101-01] When error query param set, wraps with error alert."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": False}
     auth.user_repo = MagicMock()
@@ -639,7 +653,7 @@ def test_admin_users_list_with_error_msg():
 
 
 def test_register_profile_route_admin():
-    """register_profile_route is callable separately."""
+    """[AC-NFR1101-01] register_profile_route is callable separately."""
     auth = MagicMock()
     auth.config = {}
     auth.user_repo = MagicMock()
@@ -652,7 +666,7 @@ def test_register_profile_route_admin():
 
 
 def test_admin_users_list_with_admin_scope():
-    """When user is admin, function executes the wrapper logic."""
+    """[AC-NFR1101-01] When user is admin, function executes the wrapper logic."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": False}
     user_repo = MagicMock()
@@ -746,7 +760,7 @@ def test_admin_users_list_with_message_inserts_alert():
 
 
 def test_admin_dashboard_full():
-    """Admin dashboard function constructs UI components."""
+    """[AC-NFR1101-01] Admin dashboard function constructs UI components."""
     auth = MagicMock()
     auth.config = {"allow_registration": False, "allow_password_reset": False}
     user_repo = MagicMock()
@@ -823,6 +837,7 @@ async def test_login_submit_wrong_password():
 
 
 def test_logout():
+    """[AC-NFR1101-01] test_logout."""
     routes = _build_routes_with_full_config()
     sess = {"auth": "alice", "user_id": 1}
     routes.routes["logout"](sess)
@@ -892,6 +907,7 @@ async def test_register_submit_success():
 
 
 def test_forgot_password_page():
+    """[AC-NFR1101-01] test_forgot_password_page."""
     routes = _build_routes_with_full_config(allow_password_reset=True)
     fn = routes.routes["forgot_password"]
     req = MagicMock()
@@ -911,6 +927,7 @@ async def test_forgot_submit():
 
 
 def test_profile_page():
+    """[AC-NFR1101-01] test_profile_page."""
     routes = _build_routes_with_full_config()
     fn = routes.routes["profile_page"]
     user = MagicMock()
@@ -922,7 +939,7 @@ def test_profile_page():
 
 
 def test_reset_password_modal_with_error():
-    """reset_password_modal is a closure in _register_profile_route; capture it."""
+    """[AC-NFR1101-01] reset_password_modal is a closure in _register_profile_route; capture it."""
     from quantide.web.auth.routes import AuthRoutes as _AR2
     auth = MagicMock()
     auth.config = {}
