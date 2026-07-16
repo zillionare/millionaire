@@ -16,11 +16,9 @@ import tempfile
 from pathlib import Path
 
 import polars as pl
-import pytest
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide
 from quantide.data.models.entities import (
-    Asset,
     Order,
     Portfolio,
     Trade,
@@ -79,30 +77,47 @@ def test_init_tables_adds_missing_column_to_existing_table():
     Uses a fresh temp DB so we can control table state. We create the 'trades'
     table manually with only the pk column, then re-run init so the missing-col
     branch (line 151) executes.
+
+    `_db` is a process-wide singleton shared with the session-scoped `db`
+    fixture; repointing it at a temp dir that is deleted on exit would corrupt
+    the singleton for every later test, so we snapshot and restore its state.
     """
-    with tempfile.TemporaryDirectory() as tmp:
-        db_path = Path(tmp) / "test.db"
-        # First init creates all tables properly
-        _db._initialized = False
-        _db.init(db_path)
-        # Drop and recreate trades with only tid column to simulate a partial table
-        conn = sqlite3.connect(str(db_path))
-        conn.execute("DROP TABLE trades")
-        conn.execute("CREATE TABLE trades (tid TEXT PRIMARY KEY)")
-        conn.commit()
-        cols_before = {row[1] for row in conn.execute("PRAGMA table_info(trades)").fetchall()}
-        conn.close()
-        assert "tm" not in cols_before
+    saved_path = _db.db_path
+    saved_initialized = _db._initialized
+    saved_thread_local = _db._thread_local
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "test.db"
+            # First init creates all tables properly
+            _db._initialized = False
+            _db.init(db_path)
+            # Drop and recreate trades with only tid column to simulate a partial table
+            conn = sqlite3.connect(str(db_path))
+            conn.execute("DROP TABLE trades")
+            conn.execute("CREATE TABLE trades (tid TEXT PRIMARY KEY)")
+            conn.commit()
+            cols_before = {
+                row[1] for row in conn.execute("PRAGMA table_info(trades)").fetchall()
+            }
+            conn.close()
+            assert "tm" not in cols_before
 
-        # Re-run init; is_initialized_for returns False (path same but we reset _initialized),
-        # so _init_tables runs again and hits line 151 (t.add_column) for missing cols.
-        _db._initialized = False
-        _db.init(db_path)
+            # Re-run init; is_initialized_for returns False (path same but we
+            # reset _initialized), so _init_tables runs again and hits line 151
+            # (t.add_column) for missing cols.
+            _db._initialized = False
+            _db.init(db_path)
 
-        conn = sqlite3.connect(str(db_path))
-        cols_after = {row[1] for row in conn.execute("PRAGMA table_info(trades)").fetchall()}
-        conn.close()
-        assert "tm" in cols_after
+            conn = sqlite3.connect(str(db_path))
+            cols_after = {
+                row[1] for row in conn.execute("PRAGMA table_info(trades)").fetchall()
+            }
+            conn.close()
+            assert "tm" in cols_after
+    finally:
+        _db.db_path = saved_path
+        _db._initialized = saved_initialized
+        _db._thread_local = saved_thread_local
 
 
 # ---------------------------------------------------------------------------
@@ -161,15 +176,15 @@ def test_get_trades_without_date_routes_to_trades_all(db):
 
 def test_query_trades_by_date_converts_datetime_to_date(db):
     """[AC-NFR1101-01] query_trades_by_date converts datetime dt to date (562-563), casts tm (577)."""
-    # Use a unique date to avoid interference from session-scoped db
+    # Use a unique date to avoid interference from the session-scoped db.
     unique_date = dt.date(2024, 5, 20)
     _seed_portfolio(db, "pf-dtc")
     _seed_order(db, "pf-dtc", "q-dtc")
     trade = _make_trade("pf-dtc", "t-dtc", "q-dtc")
-    trade.tm = dt.datetime(2024, 5, 20, 10, 30)
+    trade.tm = dt.datetime.combine(unique_date, dt.time(10, 30))
     db.insert_trades([trade])
     # Pass a datetime instead of a date; line 562-563 should convert it
-    result = db.query_trades_by_date(dt.datetime(2024, 5, 20, 12, 0))
+    result = db.query_trades_by_date(dt.datetime.combine(unique_date, dt.time(12, 0)))
     assert result.height == 1
     # Verify the cast (line 577) - tm column should be Datetime
     assert result.schema["tm"] == pl.Datetime
