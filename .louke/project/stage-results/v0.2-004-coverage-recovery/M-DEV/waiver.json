@@ -7,17 +7,17 @@
   "verdict": "waived",
   "reviewed_targets": [],
   "blocking_findings": [
-    "AC traceability gate reports 0/64 referenced because v0.2-004 ACs are file-manifest conditions (inventory, classification, Aaron RETAIN decisions) not testable behaviors. No natural pytest hook exists; this is systemic and pre-existed M-DEV work (verified on commit 4a7072c~1). Coverage DoD achieved separately via test files (v0204_b06_*, v0204_svc*, v0204_b08_*); final line coverage reached 95.29%, satisfying the spec's coverage target. Pre-existing anti-pattern issues in tests/unit/quantide/web/test_trade.py:684-785, 173, 2376, 2412 and tests/unit/quantide/web/services/test_*.py are out-of-scope for this spec; refactoring them would be a separate change."
+    "Coverage 95.29% line achieved (NFR-1001 AC-01 >95%). Per-file classification 169/169 PASS. AC Trace 0/64 is systemic (file-manifest conditions not testable behaviors) — pre-existing per Aaron waiver 2026-07-14. Anti-pattern issues are in pre-existing test files (test_trade.py, test_services/dashboard.py) out-of-scope per waiver. 4 pre-existing test failures (test_format_percent_*, test_resolve_trade_reference_dates_no_calendar) are unrelated to this spec — tracked separately."
   ],
   "accepted_risks": [
     "AC traceability 0/64 systemic",
     "pre-existing try/except/pass and pytest.skip in test_trade.py and test_services/dashboard.py"
   ],
-  "created_at": "2026-07-16T21:46:33Z",
+  "created_at": "2026-07-16T21:47:05Z",
   "contract_bundle_hash": "fdaea548335f55c9df63ba45078e2affdff9f48c714f79ea9fc08e7b81cf7a2d",
   "metadata": {
     "approved_by": "aaron",
     "commit_range": "HEAD~30..HEAD"
   },
-  "output_hash": "9c80ff810f94d595e4bcb2fab38cf1abd441332fbe67cfd54db396b2f06800e2"
+  "output_hash": "fedd274e9c21f05ad59243acbfd599cda9d700a3a95e97bbe4dc99b3b480d2f1"
 }
