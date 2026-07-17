@@ -47,8 +47,10 @@ def stocks():
         )
         return sl
     else:
-        st_df = pd.read_parquet(LEGACY_DIR / "2024_st_info.parquet")
-        assets = st_df["asset"].unique().tolist()
+        bars_df = pd.read_parquet(
+            LEGACY_DIR / "2024_bars_ext_cols.parquet", columns=["asset"]
+        )
+        assets = bars_df["asset"].unique().tolist()
         stock_df = pd.DataFrame({
             "asset": assets,
             "name": [f"STOCK_{i}" for i in range(len(assets))],
@@ -107,7 +109,7 @@ class TestIsStV2:
 
     def test_known_st_returns_true(self, stocks):
         """AC-015-02-01: 已知 ST 股票 → True"""
-        result = stocks.is_st("600165.SH", datetime.date(2024, 1, 2))
+        result = stocks.is_st("600136.SH", datetime.date(2024, 1, 2))
         assert result is True
 
     def test_non_st_returns_false(self, stocks):

@@ -19,7 +19,9 @@ from tests.e2e.support.tushare_stub import patched_tushare_fetcher
 @pytest.mark.e2e
 @pytest.mark.release_gate
 def test_gateway_settings_can_test_and_persist_configuration():
-    with system_settings_e2e_session() as session, running_gateway_stub(prefix="/qmt") as gateway_stub:
+    with system_settings_e2e_session() as session, running_gateway_stub(
+        prefix="/qmt", api_key="gateway-key"
+    ) as gateway_stub:
         page = session.client.get("/system/gateway/", follow_redirects=False)
         assert page.status_code == 200
         assert "保存配置" in page.text

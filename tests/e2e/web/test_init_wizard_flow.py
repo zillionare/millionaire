@@ -16,6 +16,7 @@ from quantide.config.dev_stubs import (
 from quantide.service.init_wizard import init_wizard
 from tests.e2e.support.gateway_stub import running_gateway_stub
 from tests.e2e.support.init_wizard_session import init_wizard_e2e_session
+from tests.e2e.support.tushare_stub import patched_tushare_fetcher
 
 
 def _next_step(client, step: int, current_step: int, **form_data):
@@ -66,7 +67,9 @@ def _advance_to_gateway_step(client, market_home) -> None:
 @pytest.mark.release_gate
 def test_init_wizard_happy_path_uses_gateway_ping(
 ):
-    with init_wizard_e2e_session() as session, running_gateway_stub(prefix="/qmt") as gateway_stub:
+    with init_wizard_e2e_session() as session, running_gateway_stub(
+        prefix="/qmt", api_key="gateway-key"
+    ) as gateway_stub, patched_tushare_fetcher():
         _advance_to_gateway_step(session.client, session.market_home)
 
         response = session.client.post(
@@ -81,7 +84,7 @@ def test_init_wizard_happy_path_uses_gateway_ping(
         )
         assert response.status_code == 200
         assert "连通性测试正确" in response.text
-        assert f"{gateway_stub.prefix}/ping" in response.text
+        assert f"{gateway_stub.prefix}/api/ping" in response.text
 
         response = _next_step(
             session.client,

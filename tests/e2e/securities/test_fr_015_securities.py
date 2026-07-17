@@ -21,7 +21,7 @@ from quantide.data.models.stocks import StockList
 
 # Real tushare fixtures (preferred); fall back to 2024 fixtures if missing
 REAL_DIR = Path(__file__).resolve().parents[2] / "assets" / "real"
-LEGACY_DIR = Path(__file__).resolve().parents[3] / "assets"
+LEGACY_DIR = Path(__file__).resolve().parents[2] / "assets"
 
 
 @pytest.fixture(scope="module")
@@ -46,8 +46,10 @@ def stocks():
         return sl
     else:
         # Fallback:2024 fixture + synthetic stock_list
-        st_df = pd.read_parquet(LEGACY_DIR / "2024_st_info.parquet")
-        assets = st_df["asset"].unique().tolist()
+        bars_df = pd.read_parquet(
+            LEGACY_DIR / "2024_bars_ext_cols.parquet", columns=["asset"]
+        )
+        assets = bars_df["asset"].unique().tolist()
         stock_df = pd.DataFrame(
             {
                 "asset": assets,
@@ -81,17 +83,17 @@ class TestStocksListed:
 
     def test_exclude_st_true_filters_st(self, stocks):
         """exclude_st=True → 结果不含 ST"""
-        # 使用真实数据中的日期与 ST 资产(2024-01-02 / ST宁科 600165.SH)
+        # 使用 fixture 中 2024-01-02 明确标记为 ST 的资产。
         with_st = stocks.stocks_listed(datetime.date(2024, 1, 2), exclude_st=False)
         without_st = stocks.stocks_listed(datetime.date(2024, 1, 2), exclude_st=True)
         assert len(without_st) <= len(with_st)
-        assert "600165.SH" not in without_st
-        assert "600165.SH" in with_st
+        assert "600136.SH" not in without_st
+        assert "600136.SH" in with_st
 
     def test_exclude_st_false_includes_st(self, stocks):
         """exclude_st=False → 结果含 ST"""
         with_st = stocks.stocks_listed(datetime.date(2024, 1, 2), exclude_st=False)
-        assert "600165.SH" in with_st
+        assert "600136.SH" in with_st
 
     def test_date_before_market_open_returns_empty(self, stocks):
         """市场未开张的远古日期 → 返回空列表(不抛异常)"""
@@ -107,7 +109,7 @@ class TestIsSt:
 
     def test_known_st_returns_true(self, stocks):
         """已知 ST 资产 → True"""
-        assert stocks.is_st("600165.SH", datetime.date(2024, 1, 2)) is True
+        assert stocks.is_st("600136.SH", datetime.date(2024, 1, 2)) is True
 
     def test_unknown_st_returns_false(self, stocks):
         """非 ST 资产 → False"""
@@ -157,8 +159,8 @@ class TestModeAgnostic:
 
     def test_idempotent_calls(self, stocks):
         """多次调用结果一致(无模式依赖的隐式状态)"""
-        r1 = stocks.is_st("600165.SH", datetime.date(2024, 1, 2))
-        r2 = stocks.is_st("600165.SH", datetime.date(2024, 1, 2))
+        r1 = stocks.is_st("600136.SH", datetime.date(2024, 1, 2))
+        r2 = stocks.is_st("600136.SH", datetime.date(2024, 1, 2))
         assert r1 == r2
 
     def test_stocks_listed_deterministic(self, stocks):

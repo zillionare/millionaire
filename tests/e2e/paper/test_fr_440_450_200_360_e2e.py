@@ -220,6 +220,7 @@ async def test_fr_360_risk_triggered_event_on_pullback(paper_broker):
     strategy = PullbackSellStrategy(host_broker, {"m": 5.0, "k": 5.0})
     strategy._open_prices[TEST_ASSET] = 10.0
     strategy._monitoring.add(TEST_ASSET)
+    strategy._monitoring_started_at[TEST_ASSET] = paper_broker._clock
     strategy._peak_prices[TEST_ASSET] = 11.5
     await strategy.on_check(positions, paper_broker._clock)
     _wait_dispatch()
