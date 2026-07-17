@@ -10,7 +10,7 @@ import polars as pl
 import pytest
 
 from quantide.core.domain import QuoteSnapshot
-from quantide.core.enums import BrokerKind, FrameType, OrderSide
+from quantide.core.enums import BrokerKind, OrderSide
 from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.data.models.calendar import calendar as calendar_model
 from quantide.data.sqlite import db
@@ -18,7 +18,6 @@ from quantide.service.metrics import metrics
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
 from quantide.strategies.example.dual_ma import DualMAStrategy
-
 
 ASSETS_ROOT = Path(__file__).resolve().parents[2] / "assets"
 BASELINE_PATH = ASSETS_ROOT / "baselines" / "dual_ma_2024.backtest.json"
@@ -123,13 +122,7 @@ async def _replay_session_day(
         }
     )
 
-    on_bar_task = asyncio.create_task(
-        strategy.on_bar(
-            session_open,
-            {SYMBOL: _quote_payload(row)},
-            FrameType.DAY,
-        )
-    )
+    on_bar_task = asyncio.create_task(strategy.on_bar(session_open))
     await asyncio.sleep(0.05)
     broker._on_quote_update({SYMBOL: _quote_payload(row)})
     await on_bar_task

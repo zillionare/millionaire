@@ -352,13 +352,7 @@ async def _replay_paper_session_day(
             }
         }
     )
-    on_bar_task = asyncio.create_task(
-        strategy.on_bar(
-            session_open,
-            {SYMBOL: _quote_payload(row)},
-            FrameType.DAY,
-        )
-    )
+    on_bar_task = asyncio.create_task(strategy.on_bar(session_open))
     await asyncio.sleep(0.05)
     broker._on_quote_update({SYMBOL: _quote_payload(row)})
     await on_bar_task
@@ -497,11 +491,7 @@ async def _run_live_mode(
                 "down_limit": float(row["down_limit"]),
             }
             wrapper.set_clock(session_open)
-            await strategy.on_bar(
-                session_open,
-                {SYMBOL: _quote_payload(row)},
-                FrameType.DAY,
-            )
+            await strategy.on_bar(session_open)
             asset = adapter.query_assets()
             positions = adapter.query_positions()
             shares = int(

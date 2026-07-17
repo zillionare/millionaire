@@ -79,12 +79,16 @@ class QuoteThresholdStrategy(BaseStrategy):
     async def init(self):
         pass
 
-    async def on_bar(self, tm, quote, frame_type):
-        if frame_type != FrameType.DAY:
+    async def on_bar(self, tm) -> None:
+        # SC-04: ``on_bar`` only receives the bar timestamp. Frame is observed
+        # via ``self.interval`` and the latest quote is read from the broker.
+        if self.interval != FrameType.DAY.value:
             return
 
-        price = (quote.get("000001.SZ") or {}).get("lastPrice")
-        if price is None:
+        try:
+            hist = self.broker.get_history("000001.SZ", 1, tm, "1d")
+            price = float(hist["close"].to_list()[-1])
+        except Exception:
             return
         if price > 11 and "000001.SZ" not in self.broker.positions:
             await self.broker.buy_amount("000001.SZ", 100000, price=0, order_time=tm)

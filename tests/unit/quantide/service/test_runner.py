@@ -21,7 +21,7 @@ class SimpleStrategy(BaseStrategy):
         pass
     async def on_day_close(self, tm):
         pass
-    async def on_bar(self, tm, quote, frame_type):
+    async def on_bar(self, tm):
         pass
 
 
@@ -120,12 +120,21 @@ async def test_run_daily():
         # Verify arguments
         # Day 1
         open_tm1 = datetime.datetime(2024, 1, 1, 9, 30)
-        bar_tm1 = datetime.datetime(2024, 1, 1, 9, 30)
         close_tm1 = datetime.datetime(2024, 1, 1, 15, 30)
 
         strategy.on_day_open.assert_any_call(open_tm1)
-        strategy.on_bar.assert_any_call(bar_tm1, {}, FrameType.DAY)
         strategy.on_day_close.assert_any_call(close_tm1)
+        # SC-04: bar callback receives only the bar timestamp.
+        bar_args = strategy.on_bar.call_args_list[0]
+        assert len(bar_args.args) == 1
+        assert bar_args.args[0] == datetime.datetime(2024, 1, 1, 9, 30)
+
+        # SC-04: runner must set strategy.interval to the frame_type value.
+        assert strategy.interval == FrameType.DAY.value
+        # SC-04: runner must set _current_time before each bar callback;
+        # the last assignment is the close of the last bar.
+        last_close_tm = datetime.datetime(2024, 1, 2, 15, 30)
+        assert strategy._current_time == last_close_tm
 
 
 def test_get_bar_quote_for_daily_backtest_uses_previous_completed_bar(monkeypatch):
@@ -203,18 +212,40 @@ async def test_run_minute():
         runner = BacktestRunner(clock=mock_clock)
         await runner.run(MockStrategyCls, {}, start_date, end_date, frame_type=FrameType.MIN1)
 
+        # SC-04: minute-frame runner must set interval/value/clock hooks.
+        assert strategy.interval == FrameType.MIN1.value
+        # Verify arguments
+        open_tm = datetime.datetime(2024, 1, 1, 9, 30)
+        close_tm = datetime.datetime(2024, 1, 1, 15, 30)
+        # Day-close runs at 15:30, so _current_time is the close of the day.
+        assert strategy._current_time == close_tm
+
         # Verify calls
         # 1 day -> 1 open, 2 bars, 1 close
         assert strategy.on_day_open.call_count == 1
         assert strategy.on_bar.call_count == 2
         assert strategy.on_day_close.call_count == 1
 
-        # Verify arguments
-        open_tm = datetime.datetime(2024, 1, 1, 9, 30)
-        close_tm = datetime.datetime(2024, 1, 1, 15, 30)
-
         strategy.on_day_open.assert_called_once_with(open_tm)
         strategy.on_day_close.assert_called_once_with(close_tm)
 
-        strategy.on_bar.assert_any_call(tm1, {}, FrameType.MIN1)
-        strategy.on_bar.assert_any_call(tm2, {}, FrameType.MIN1)
+        # SC-04: bar callback receives only the bar timestamp.
+        for expected in (tm1, tm2):
+            match = next(
+                (c for c in strategy.on_bar.call_args_list if c.args == (expected,)),
+                None,
+            )
+            assert match is not None, (
+                f"on_bar should be called with ({expected},), got "
+                f"{[c.args for c in strategy.on_bar.call_args_list]}"
+            )
+
+
+def test_base_strategy_on_bar_has_only_tm_parameter() -> None:
+    """SC-04 contract: ``BaseStrategy.on_bar`` must accept only ``tm``."""
+    from inspect import signature
+
+    sig = signature(BaseStrategy.on_bar)
+    assert list(sig.parameters) == ["self", "tm"], (
+        f"on_bar signature must be (self, tm); got {list(sig.parameters)}"
+    )

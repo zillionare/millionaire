@@ -13,11 +13,11 @@ from quantide.config.paths import get_backtest_log_path, get_strategy_runtime_st
 from quantide.config.settings import get_cheat_on_close_time
 from quantide.core.enums import BrokerKind, FrameType
 from quantide.core.runtime import RuntimeContext
+from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.data.sqlite import db
 from quantide.service.discovery import strategy_loader
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
-from quantide.core.runtime.registration import register_port_backed_broker
 
 
 @dataclass
@@ -848,8 +848,12 @@ class StrategyRuntimeManager:
                 now = datetime.datetime.now()
                 if hasattr(runtime.broker, "set_clock"):
                     runtime.broker.set_clock(now)
-                quotes = self._build_quotes(runtime.symbols, market_data)
-                await strategy.on_bar(now, quotes, frame)
+                # SC-04: prime broker cache with the latest snapshot before the
+                # callback. ``on_bar`` is the canonical single-argument form;
+                # the strategy pulls its data through ``get_bars``/``get_history``.
+                self._build_quotes(runtime.symbols, market_data)
+                strategy._current_time = now
+                await strategy.on_bar(now)
                 runtime.updated_at = datetime.datetime.now()
                 await asyncio.sleep(2)
             if runtime.status in {"running", "stopping"}:

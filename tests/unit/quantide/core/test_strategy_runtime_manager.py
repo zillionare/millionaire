@@ -337,8 +337,10 @@ def test_create_backtest_runtime_persists_cheat_metadata(tmp_path: Path):
 
 
 def test_resolve_backtest_run_restores_cheat_from_persisted_specs(tmp_path: Path):
-    """#49 followup: 重启后 _resolve_backtest_run 必须从持久化 specs 恢复 cheat 字段,
-    而不是用策略 PARAMS class attr + 当前 settings.cheat_on_close_time 推断.
+    """#49 followup: restart-time _resolve_backtest_run must restore cheat fields.
+
+    The runtime must read from the persisted specs, not from the strategy class
+    attribute or the current settings.cheat_on_close_time.
     """
     manager = StrategyRuntimeManager()
     manager._state_file = lambda: tmp_path / "strategy_runtimes.json"
@@ -390,13 +392,12 @@ def test_resolve_backtest_run_restores_cheat_from_persisted_specs(tmp_path: Path
 
 
 def test_strategy_loop_live_wires_broker_config_and_uses_real_time(monkeypatch):
-    """#46 / #45 integration: live runtime 必须先调 _apply_live_broker_config,
-    on_bar 用 datetime.now() (real time), 不是 9:30/14:57 控制时钟.
+    """#46 / #45 integration: live runtime must invoke _apply_live_broker_config.
 
-    反驳 #46 review 的部分观点: paper/live bar trigger time 应是 real time,
-    只有 backtest runner 才有 9:30 vs 14:57 选择.
+    on_bar uses datetime.now() (real time), not the 9:30/14:57 control clock.
+    Only the backtest runner has the 9:30 vs 14:57 choice. The rebuttal against
+    part of the #46 review: paper/live bar trigger time is real time.
     """
-    import asyncio
     from quantide.core.enums import FrameType
     from quantide.service import strategy_runtime as _rt_mod
 
@@ -413,8 +414,8 @@ def test_strategy_loop_live_wires_broker_config_and_uses_real_time(monkeypatch):
         async def on_start(self, tm):
             self._on_start_tm = tm
 
-        async def on_bar(self, tm, quotes, frame_type):
-            self.on_bar_calls.append((tm, frame_type))
+        async def on_bar(self, tm) -> None:
+            self.on_bar_calls.append((tm, self.interval))
             self.broker._spy_stop = True
             raise RuntimeError("stop loop")
 
@@ -458,7 +459,7 @@ def test_strategy_loop_live_wires_broker_config_and_uses_real_time(monkeypatch):
     async def _noop_sleep():
         pass
 
-    strategy_holder: dict[str, Any] = {}
+    strategy_holder: dict = {}
 
     original_strategy_cls = _DemoStrategy
     wrapped_cls = type(
@@ -494,8 +495,10 @@ def test_strategy_loop_live_wires_broker_config_and_uses_real_time(monkeypatch):
     assert len(strategy_instance.on_bar_calls) == 1, (
         f"应触发一次 on_bar, got {len(strategy_instance.on_bar_calls)} calls"
     )
-    bar_tm, frame = strategy_instance.on_bar_calls[0]
-    assert frame == FrameType.DAY
+    bar_tm, frame_value = strategy_instance.on_bar_calls[0]
+    # SC-04: ``on_bar`` only receives ``tm``; the frame is exposed via
+    # ``strategy.interval`` (see ``strategy_runtime``'s live loop).
+    assert frame_value == FrameType.DAY.value
     delta = abs((bar_tm - _rt_mod.datetime.datetime.now()).total_seconds())
     assert delta < 5, (
         f"live loop 的 bar_tm 应是 real time (now), 偏差 {delta:.1f}s"

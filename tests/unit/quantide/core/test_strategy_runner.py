@@ -1,6 +1,5 @@
 import datetime
 import json
-from typing import Any
 from unittest import mock
 
 import pytest
@@ -21,29 +20,20 @@ class MockAnnotatedStrategy(BaseStrategy):
     async def on_day_open(self, tm: datetime.datetime):
         self.log(f"Day Open at {tm}", tm=tm)
 
-    async def on_bar(
-        self, tm: datetime.datetime, quote: dict[str, Any], frame_type: FrameType
-    ):
+    async def on_bar(self, tm: datetime.datetime) -> None:
         asset = "000001.SZ"
-        # Since BacktestRunner now supports universe, we can expect asset in quote if we configured it
-        # or we can check if we can get data.
-
-        # Even if asset not in quote, we can try to buy if we assume price.
-        # But for this test, we want to verify logs which happen inside the block.
-        # So we expect asset in quote.
-
-        current_price = 10.0
-        if asset in quote:
-            current_price = quote[asset]["lastPrice"]
+        # Pull-based strategy: read current price from the broker history.
+        try:
+            hist = self.broker.get_history(asset, 1, tm, "1d")
+            current_price = float(hist["close"].to_list()[-1])
+        except Exception:
+            current_price = 10.0
 
         # 记录日志，期望看到的时间是回测时间
-        # Note: If we use self.logger.info, it will use system time if not patched.
-        # But we changed implementation to use log() method or explicit patching in log method.
-        # To test the new mechanism, we should use self.log()
         self.log(f"Checking bar at {tm}: Price={current_price}")
 
         # 记录指标
-        self.record("price", current_price, extra={"source": "quote"})
+        self.record("price", current_price, extra={"source": "broker"})
         self.record("ma5", current_price * 1.01)
 
         # 模拟买入条件

@@ -24,13 +24,12 @@ from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
 from quantide.service.sim_broker import PaperBroker
 from quantide.strategies.example.dual_ma import DualMAStrategy
-
 from tests.e2e.fixtures.minimal_assets import (
     ASSETS_ROOT_LOCAL,
     TEST_ASSET,
     TEST_DATE,
-    TEST_UP_LIMIT,
     TEST_DOWN_LIMIT,
+    TEST_UP_LIMIT,
 )
 
 
@@ -64,14 +63,11 @@ async def _publish_quote(broker, asset, price, volume=10000):
 @pytest.mark.e2e_paper
 async def test_fr_115_dual_ma_strategy_runs_in_paper(paper_broker):
     """AC-FR-115: DualMAStrategy 在 paper broker 中能跑 on_day_open + on_bar + on_day_close (无异常)."""
-    from quantide.core.enums import FrameType
     strategy = DualMAStrategy(paper_broker, {"fast": 5, "slow": 20})
     # on_day_open 不应抛
     await strategy.on_day_open(paper_broker._clock)
-    # on_bar 不应抛 (tm, quote, frame_type)
-    await strategy.on_bar(
-        paper_broker._clock, quote={TEST_ASSET: 10.0}, frame_type=FrameType.DAY
-    )
+    # SC-04: on_bar 仅接 tm; 行情通过 get_bars/get_history 拉取.
+    await strategy.on_bar(paper_broker._clock)
     # on_day_close 不应抛
     await strategy.on_day_close(paper_broker._clock)
 

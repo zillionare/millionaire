@@ -1,9 +1,7 @@
 """Importable strategy fixture for spawned GridSearch worker tests."""
 
 import datetime
-from typing import Any
 
-from quantide.core.enums import FrameType
 from quantide.core.strategy import BaseStrategy
 
 
@@ -34,14 +32,12 @@ class GridSearchRecordingStrategy(BaseStrategy):
     async def on_bar(
         self,
         tm: datetime.datetime,
-        quote: dict[str, Any],
-        frame_type: FrameType,
     ) -> None:
         """Accept runner bar callbacks without placing orders.
 
         Inputs:
-            tm is the bar time, quote is the current price mapping, and frame_type is
-            the backtest bar interval.
+            tm is the bar time. The strategy pulls data through
+            ``get_bars``/``get_history`` rather than receiving a quote.
 
         Returns:
             None.

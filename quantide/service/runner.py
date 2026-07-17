@@ -7,10 +7,10 @@ from loguru import logger
 
 from quantide.config.settings import get_cheat_on_close_time
 from quantide.core.enums import FrameType
+from quantide.core.errors import RiskStrategyNotBacktestable
 from quantide.core.ports import ClockPort
 from quantide.core.runtime.clock_bridge import BacktestClockAdapter
 from quantide.core.strategy import BaseStrategy, RiskStrategy
-from quantide.core.errors import RiskStrategyNotBacktestable
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
@@ -295,6 +295,9 @@ class BacktestRunner:
         try:
             cheat = self._resolve_cheat_on_close(strategy_cls, config)
             cheat_tm = self._resolve_cheat_on_close_time(cheat)
+            # SC-04: announce the bar interval on the strategy before the loop
+            # so consumers can observe the active frame via ``strategy.interval``.
+            strategy.interval = frame_type.value
             for tm in frames:
                 if isinstance(tm, datetime.datetime):
                     current_date = tm.date()
@@ -311,14 +314,19 @@ class BacktestRunner:
                 self._clock.set_now(bar_tm)
                 broker.set_clock(bar_tm)
                 strategy._current_time = bar_tm
-                quote = self._get_bar_quote(
+                # SC-04: ``on_bar`` only receives the bar timestamp. Strategies
+                # pull data themselves via ``get_bars``/``get_history``. We still
+                # compute the pre-callback quote so daily backtests can prime
+                # the broker's quote cache through the legacy hook, but the
+                # callback signature is the single-argument canonical form.
+                self._get_bar_quote(
                     broker,
                     current_date,
                     bar_tm,
                     config,
                     frame_type,
                 )
-                await strategy.on_bar(bar_tm, quote, frame_type)
+                await strategy.on_bar(bar_tm)
 
             # Close the last day
             if last_trade_day is not None:

@@ -15,11 +15,12 @@ not covered by the existing tests:
 from __future__ import annotations
 
 import datetime
+from types import SimpleNamespace
 
 import pytest
 
+import quantide.service.init_wizard as init_wizard_module
 from quantide.data.models.app_state import AppState
-from quantide.data.sqlite import db
 from quantide.service.init_wizard import InitWizardService, init_wizard
 
 
@@ -143,8 +144,6 @@ def test_compute_history_start_date_defaults_to_zero():
 def test_compute_history_start_date_zero_years_uses_one_floor():
     """years=0 with the floor=1 means it should compute roughly today-1y."""
     service = InitWizardService()
-    today = datetime.date.today()
-    expected_min = today - datetime.timedelta(days=365)
     actual = service._compute_history_start_date(
         epoch=datetime.date(2010, 1, 1), years=0
     )
@@ -233,16 +232,29 @@ def test_save_runtime_config_with_no_prefix_defaults_to_slash(db):
 
 
 def test_save_admin_password_happy_path(db, monkeypatch):
-    """save_admin_password should not raise on a fresh state."""
+    """save_admin_password updates the admin without using persistent auth state."""
+    updated = {}
+
+    class FakeRepo:
+        def get_by_username(self, username):
+            assert username == "admin"
+            return SimpleNamespace(id=7, username="admin")
+
+        def update(self, user_id, **values):
+            updated.update(user_id=user_id, **values)
+            return True
+
+    fake_auth = SimpleNamespace(user_repo=FakeRepo())
+    monkeypatch.setattr(
+        init_wizard_module.AuthManager,
+        "get_instance",
+        staticmethod(lambda: fake_auth),
+    )
     service = InitWizardService()
     service.save_state(AppState(id=1, init_step=0))
-    # Without monkeypatching auth manager, this may try to write a password file.
-    # If it raises PermissionError, that's expected in test env — we only assert
-    # no crash in the state path.
-    try:
-        service.save_admin_password("test-password-1234")
-    except (PermissionError, FileNotFoundError, OSError):
-        pass  # filesystem limitations are acceptable
+    service.save_admin_password("test-password-1234")
+
+    assert updated == {"user_id": 7, "password": "test-password-1234"}
 
 
 # ---------------------------------------------------------------------------
@@ -299,8 +311,10 @@ def test_update_step_updates_state(db):
 
 
 def test_update_step_raises_for_invalid_step(db):
-    """Calling update_step with negative step should not raise — or at least
-    it should propagate any validation up."""
+    """Allow persistence or propagate validation for boundary step zero.
+
+    The test records the current permissive behavior without hiding failures.
+    """
     service = InitWizardService()
     service.save_state(AppState(id=1, init_step=0))
     service.update_step(0)
