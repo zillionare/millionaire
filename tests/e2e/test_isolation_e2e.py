@@ -1,75 +1,111 @@
-"""NFR-0020 AC-2: pytest rerun yields identical totals (deterministic test order).
+"""Offline E2E journey for deterministic execution in two distinct orders."""
 
-E2E contract (M-E2E Stage 2, v0.2-003-coverage):
-
-* Running the same unit-test subset twice (with the test runner's
-  preferred ordering) must yield identical ``passed / failed / errors``
-  totals. This proves the suite is not order-dependent and reproduces
-  AC-NFR-0020-2 at the e2e boundary.
-
-If ``pytest-randomly`` (or ``pytest-random-order``) is installed in the
-active environment, we additionally exercise the ``--random-order`` flag;
-otherwise we fall back to comparing two default-order runs.
-"""
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
-TARGET_DIR = "tests/unit/quantide/core/domain/"
+TARGET_DIR = Path("tests/unit/quantide/core/domain")
 
 
-def _parse_passing_total(stdout: str) -> int:
-    """Extract the integer `N` from a `N passed in M.MMs` summary line."""
-    match = re.search(r"(\d+)\s+passed", stdout)
-    if match is None:
-        raise AssertionError(f"no 'N passed' summary in output:\n{stdout}")
+def _collect_node_ids() -> list[str]:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            str(TARGET_DIR),
+            "--collect-only",
+            "-q",
+            "--no-header",
+            "-p",
+            "no:cacheprovider",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    node_ids = [
+        line.strip()
+        for line in result.stdout.splitlines()
+        if line.startswith("tests/") and "::" in line
+    ]
+    assert len(node_ids) >= 2
+    return node_ids
+
+
+def _run(node_ids: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            *node_ids,
+            "-q",
+            "--no-header",
+            "-p",
+            "no:cacheprovider",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _passed(output: str) -> int:
+    match = re.search(r"(\d+)\s+passed", output)
+    assert match is not None, output
     return int(match.group(1))
 
 
-def _supports_random_order() -> bool:
-    try:
-        import pytest_randomly  # noqa: F401
-    except ImportError:
-        return False
-    return True
+def test_two_distinct_explicit_orders_have_identical_green_totals() -> None:
+    """AC-NFR1201-02: forward and reverse node order both finish green with equal totals."""
+    node_ids = sorted(_collect_node_ids())
+    reverse_ids = list(reversed(node_ids))
+    assert node_ids != reverse_ids
+
+    forward = _run(node_ids)
+    reverse = _run(reverse_ids)
+
+    assert forward.returncode == 0, forward.stdout + forward.stderr
+    assert reverse.returncode == 0, reverse.stdout + reverse.stderr
+    assert _passed(forward.stdout) == _passed(reverse.stdout) == len(node_ids)
 
 
-def test_random_order_yields_identical_totals(tmp_path: Path) -> None:
-    """AC-FR0104-04 / AC-NFR0020-02: same tests, different order -> identical totals."""
-    if not Path(TARGET_DIR).exists():
-        pytest.skip(f"target dir not found: {TARGET_DIR} — see issue #217 (NFR-0020)")
-
-    use_random = _supports_random_order()
-    args = [
-        sys.executable,
-        "-m",
-        "pytest",
-        TARGET_DIR,
-        "-q",
-        "-p",
-        "no:cacheprovider",
-        "--no-header",
-    ]
-    if use_random:
-        args += ["--random-order"]
-
-    r1 = subprocess.run(args, capture_output=True, text=True, check=False, cwd=".")
-    r2 = subprocess.run(args, capture_output=True, text=True, check=False, cwd=".")
-
-    if r1.returncode != 0 or r2.returncode != 0:
-        pytest.skip(
-            f"pytest run failed: r1={r1.returncode} r2={r2.returncode} "
-            f"(random={use_random}); skipping determinism check — see issue #217 (NFR-0020)"
-        )
-
-    total1 = _parse_passing_total(r1.stdout)
-    total2 = _parse_passing_total(r2.stdout)
-    assert total1 == total2, (
-        f"totals differ between two runs: {total1} vs {total2} (random={use_random})"
+def test_grid_search_worker_lines_are_merged_into_same_run_coverage(
+    tmp_path: Path,
+) -> None:
+    """AC-NFR1201-03: real ProcessPool worker lines appear in pytest-cov JSON."""
+    report = tmp_path / "grid-search-coverage.json"
+    environment = os.environ.copy()
+    environment["COVERAGE_PROCESS_START"] = "pyproject.toml"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/unit/quantide/service/test_grid_search.py",
+            "--cov=quantide",
+            f"--cov-report=json:{report}",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
     )
-    assert total1 > 0, "no tests collected in target dir"
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    coverage = json.loads(report.read_text(encoding="utf-8"))
+    executed = set(
+        coverage["files"]["quantide/service/grid_search.py"]["executed_lines"]
+    )
+    assert {31, 35, 41, 43, 56, 86}.issubset(executed)
