@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "stage": "M-DEV",
+  "kind": "gate-result",
+  "role": "Keeper",
+  "verdict": "fail",
+  "reviewed_targets": ["tests"],
+  "blocking_findings": [
+    "overall coverage 88.15% (14127/15659 lines) < 95% threshold required by NFR-1001 AC-1: need +1070 more covered lines or -1070 fewer total statements to reach 95%"
+  ],
+  "accepted_risks": [
+    "AC traceability 0/64 systemic — waived by Aaron (waiver.json 2026-07-14)",
+    "Pre-existing anti-patterns in test_trade.py and test_services/dashboard.py — waived by Aaron (waiver.json 2026-07-14)",
+    "4 pre-existing test failures (test_format_percent_invalid, test_format_percent_decimal, test_format_percent_string_number, test_resolve_trade_reference_dates_no_calendar) — pre-existing, not introduced by this spec"
+  ],
+  "created_at": "2026-07-15T08:31:00Z",
+  "contract_bundle_hash": "fdaea548335f55c9df63ba45078e2affdff9f48c714f79ea9fc08e7b81cf7a2d",
+  "metadata": {
+    "commit_range": "HEAD~7..HEAD",
+    "tests_roots": ["tests"]
+  },
+  "output_hash": "90263a1702a0ae5145196e201d2986ec36d6b71049269dc7c146d67d0cea43ee"
+}

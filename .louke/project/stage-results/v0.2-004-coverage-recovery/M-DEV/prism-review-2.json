@@ -1,0 +1,106 @@
+{
+  "schema": "loukepilot/stage-review/v1",
+  "stage": "M-DEV",
+  "spec_id": "v0.2-004-coverage-recovery",
+  "source_command": "review",
+  "commit_range": "dacce22..7d86711",
+  "verdict": "PASS",
+  "blockers_resolved": ["B1", "B2", "B3"],
+  "blockers_remaining": [],
+  "issues_resolved": ["M2", "M3", "M5"],
+  "issues_improved": ["M1"],
+  "issues_not_addressed": ["M4"],
+  "new_findings": [
+    {
+      "id": "N1",
+      "severity": "LOW",
+      "title": "Two pytest.skip() calls lack GitHub issue links",
+      "file": "tests/unit/quantide/web/pages/test_v0204_b08_strategy_helpers.py",
+      "lines": [712, 720],
+      "problem": "test_empty_history_frame and test_gateway_broker_basic were converted from `pass` placeholders to `pytest.skip()` calls. The skip rationale is well-documented in the docstrings, but neither includes a GitHub issue link as required by test-plan anti-pattern #2. This is a minor formality gap — the skip is legitimate and the rationale is clear.",
+      "fix": "Add a GitHub issue reference to the skip message, e.g., `pytest.skip('GatewayBroker not importable without live app context (see #XXX)')`"
+    }
+  ],
+  "evidence": {
+    "B1_ac_anchors": {
+      "status": "RESOLVED",
+      "count": 880,
+      "breakdown": {
+        "AC-NFR1101-01": 802,
+        "AC-FR1501-06": 31,
+        "AC-FR1501-04": 30,
+        "AC-FR1501-05": 12,
+        "AC-NFR1101-02": 3,
+        "AC-FR1601-02": 2
+      },
+      "self_check": "tests/unit/quantide/_test_b1_ac_anchors.py PASSED",
+      "files_covered": 20
+    },
+    "B2_duplicates": {
+      "status": "RESOLVED",
+      "self_check": "tests/unit/quantide/_test_no_duplicate_functions.py PASSED",
+      "note": "test_resolve_lightning_price_unknown_ref duplicate removed from trade_lightning_helpers.py"
+    },
+    "B3_descriptor_binding": {
+      "status": "RESOLVED",
+      "self_check": "tests/unit/quantide/_test_no_descriptor_get_binding.py PASSED",
+      "files_fixed": [
+        "tests/unit/quantide/service/test_v0204_b08_init_wizard_helpers.py — _StubSvc removed, uses InitWizardService() directly",
+        "tests/unit/quantide/web/pages/test_v0204_b08_strategy_helpers.py — _make_manager() uses StrategyRuntimeManager() instead of __new__ + __get__"
+      ]
+    },
+    "M1_weak_assertions": {
+      "status": "IMPROVED",
+      "strengthened_count": 27,
+      "details": "~27 assertions changed from `assert out is not None` to `assert specific_content in to_xml(out)`. Forms error messages, InfoRow labels/values, PositionInfo content, and message alert text all now carry behavioral assertions. Some renderer-only tests still use `assert out is not None` for complex HTML trees, which is acceptable for component renderers."
+    },
+    "M2_pass_placeholders": {
+      "status": "RESOLVED",
+      "replaced_count": 7,
+      "details": {
+        "strategy_helpers.py:616-622": "Two pass tests → pytest.skip() with rationale docstrings",
+        "home_1.py:318-319": "pass → real test with to_xml + asset code assertion",
+        "live_1.py:131-132": "pass → real test with to_xml + asset code assertion",
+        "live_1.py:153-154": "pass → pytest.raises(TypeError) boundary test",
+        "routes.py:702": "pass → full test with 'User created successfully' in html assertion"
+      }
+    },
+    "M3_jobs_helpers_assertions": {
+      "status": "RESOLVED",
+      "details": "test_run_daily_bars_sync_success, test_run_daily_bars_sync_exception, test_run_daily_snapshot, test_run_market_snapshot all now assert _save_job_history calls with specific job_id, status, and error message arguments"
+    },
+    "M4_db_fixture": {
+      "status": "NOT_ADDRESSED",
+      "severity": "LOW",
+      "note": "Original finding was LOW severity and non-blocking. Devon did not address this in the fix commits. The db fixture dependency remains implicit."
+    },
+    "M5_build_strategy_rows": {
+      "status": "RESOLVED",
+      "details": "test_build_strategy_rows_with_history now uses a real polars DataFrame with 2 portfolios and asserts specific cell content: strategy name, doc text, portfolio count ('2次'), href target, and date. Exercises the data-rich path (portfolios.is_empty() == False) rather than only the empty DataFrame path."
+    }
+  },
+  "anti_pattern_hits": {
+    "changing_assertions_to_fit_impl": false,
+    "skip_without_issue_link": [
+      "tests/unit/quantide/web/pages/test_v0204_b08_strategy_helpers.py:712 (test_empty_history_frame)",
+      "tests/unit/quantide/web/pages/test_v0204_b08_strategy_helpers.py:720 (test_gateway_broker_basic)"
+    ],
+    "assertion_degradation": false,
+    "try_except_pass": false,
+    "over_mocking": false,
+    "ground_truth_from_impl": false,
+    "hardcoded_expected_values": false,
+    "trivial_pass": false
+  },
+  "self_check_tests": {
+    "_test_b1_ac_anchors": "PASSED",
+    "_test_no_duplicate_functions": "PASSED",
+    "_test_no_descriptor_get_binding": "PASSED"
+  },
+  "security_quick_scan": {
+    "hits": [],
+    "verdict": "no hit"
+  },
+  "reviewer": "Prism",
+  "reviewed_at": "2026-07-15T14:45:00Z"
+}

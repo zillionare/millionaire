@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "stage": "M-DEV",
+  "kind": "review-result",
+  "role": "Prism",
+  "verdict": "pass",
+  "reviewed_targets": [
+    ".louke/project/specs/v0.2-004-coverage-recovery/coverage-file-classification.json"
+  ],
+  "blocking_findings": [],
+  "accepted_risks": [],
+  "created_at": "2026-07-16T21:45:20Z",
+  "contract_bundle_hash": "fdaea548335f55c9df63ba45078e2affdff9f48c714f79ea9fc08e7b81cf7a2d",
+  "metadata": {
+    "commit_range": "HEAD~30..HEAD",
+    "source_command": "review",
+    "diff": "HEAD~30..HEAD"
+  },
+  "output_hash": "195ff0f029fd5e1447d105cba1ca9e156d9624507cdc0b929f0eba0952bde337"
+}

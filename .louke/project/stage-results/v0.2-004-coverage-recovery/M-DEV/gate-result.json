@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "stage": "M-DEV",
+  "kind": "gate-result",
+  "role": "Keeper",
+  "verdict": "fail",
+  "reviewed_targets": [
+    "tests/"
+  ],
+  "blocking_findings": [
+    "archer ci-scan failed (spec=v0.2-004-coverage-recovery, tests=['tests/'])",
+    "anti-pattern scan failed"
+  ],
+  "accepted_risks": [],
+  "created_at": "2026-07-16T21:46:51Z",
+  "contract_bundle_hash": "fdaea548335f55c9df63ba45078e2affdff9f48c714f79ea9fc08e7b81cf7a2d",
+  "metadata": {
+    "commit_range": "HEAD~30..HEAD",
+    "tests_roots": [
+      "tests/"
+    ]
+  },
+  "output_hash": "d709d68c65c12a94d7523797a43cf317614449e1c8c0c263f85da654ad54dc73"
+}

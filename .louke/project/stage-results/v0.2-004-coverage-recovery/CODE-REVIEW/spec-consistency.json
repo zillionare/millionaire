@@ -1,0 +1,83 @@
+{
+  "spec_id": "v0.2-004-coverage-recovery",
+  "verdict": "contradictory",
+  "spec_contradictions": [
+    {
+      "id": "SC-01",
+      "title": "Overall coverage metric is internally inconsistent",
+      "evidence": [
+        "spec.md:265 requires overall statement/line coverage >95%",
+        "acceptance.md:306 and interfaces.md:22 require coverage.json totals.percent_covered >95.0",
+        "production-file-inventory.json:14 records percent_covered=65.52998152678616 while :18 records percent_statements_covered=68.98003444536582",
+        "test-plan.md:63 enables --cov-branch"
+      ],
+      "impact": "With branch measurement, totals.percent_covered is not the statement/line metric; a run can satisfy the stated DoD and fail the executable gate.",
+      "user_decision": "Choose statement/line or combined coverage as the release metric, then align the NFR, AC, checker and evidence schema."
+    },
+    {
+      "id": "SC-02",
+      "title": "Pinned open RW registry cannot also be the closed exit registry",
+      "evidence": [
+        "acceptance.md:132 pins devon-work-items.json and requires 196 unique open RW items",
+        "acceptance.md:243 says a registry-hash change fails",
+        "spec.md:144-145 requires every RW to close or validly supersede before DoD",
+        "interfaces.md:92-111 mandates rw_registry.py close mutate the pinned registry",
+        "interfaces.md:221 requires 196 RW to be closed/superseded",
+        "devon-work-items.json:4-7 declares status=open and 196/196 bindings"
+      ],
+      "impact": "Closing any item changes the exact pinned bytes; retaining the bytes leaves all 196 work items open. A PASS package is impossible.",
+      "user_decision": "Define an immutable planning baseline plus a separately versioned runtime registry, or define an approved repin/version-transition rule."
+    },
+    {
+      "id": "SC-03",
+      "title": "Pinned decision artifacts contradict the locked no-waiver and semantic-closure claims",
+      "evidence": [
+        "spec.md:29 says all 55 Sage semantic candidates are closed; spec.md:238-241 and coverage-waivers.json:5 require an empty, schema-valid waiver registry",
+        "aaron-decisions.md:5-27 records AD-07 Protocol-waive for three retained Protocol files outside coverage-waivers.json",
+        "production-file-inventory.json:127-185 labels 55 Sage candidates review-required/undecided",
+        "coverage-closure.json:109 says release remains blocked on the 55 undecided candidates"
+      ],
+      "impact": "The fixed inputs simultaneously declare candidates closed and release-blocking, and introduce a waiver mechanism prohibited by the locked waiver contract.",
+      "user_decision": "Decide whether AD-07 and the 55 pending statuses are stale history or live release facts; version/repin the authoritative artifacts accordingly."
+    }
+  ],
+  "implementation_gaps": [
+    {
+      "id": "IG-01",
+      "title": "Classification file is not acceptable same-run evidence",
+      "evidence": [
+        "coverage-file-classification.json:5 names /tmp/cov-full.json and has no commit, run ID, canonical command, pytest exit, or test summary",
+        "coverage-file-classification.json:406-414 reports quantide/core/utils.py as missing-from-coverage while assigning 100% and passes_threshold=true",
+        "spec.md:64-66 treats a missing executable coverage record as a blocker",
+        "interfaces.md:38-42 requires canonical exit-0 coverage input and run provenance"
+      ],
+      "required_fix": "Regenerate the classification and all release evidence from one canonical exit-0 invocation; a missing coverage row must fail rather than pass."
+    },
+    {
+      "id": "IG-02",
+      "title": "Current closure is diagnostic FAIL, not release evidence",
+      "evidence": [
+        "coverage-closure.json:3-7 says NOT_CLOSED, full suite prohibited/not run, CI failure, and 65.52998152678616 diagnostic overall",
+        "coverage-closure.json:21-94 lists 64 below-target files and four v0.2-added below 95",
+        "coverage-closure.json:359-363 records 196 open RW items",
+        "spec.md:251-255 requires all PASS signals and blockers=0"
+      ],
+      "required_fix": "Complete the required repairs and emit one green canonical evidence package; historical failed coverage cannot be accepted."
+    }
+  ],
+  "tooling_gaps": [
+    {
+      "id": "TG-01",
+      "title": "No executable isolated E2E command/evidence contract for traced E2E work",
+      "evidence": [
+        "interfaces.md:19 defines only tests/unit as the canonical command",
+        "devon-work-items.json:12-16 and :84-88 bind RW items to tests/e2e modules",
+        "test-plan.md:135 requires isolated Green for bound tests/e2e functions but supplies no command or evidence schema for it"
+      ],
+      "required_fix": "Add a deterministic offline E2E invocation and evidence fields (or formally limit the E2E requirement to trace/audit only); it must preserve the unit-only canonical coverage rule."
+    }
+  ],
+  "gateway_required": false,
+  "gateway_reason": "A real qmt gateway is prohibited for the release gate: spec.md:289 and acceptance.md:345 require an isolated suite with no real network/gateway, while test-plan.md:52 and :131 require protocol stubs and forbid real gateway use. The specified HTTP/protocol fixtures plus isolated existing E2E tests can cover the user journeys; real-gateway results may not substitute for release-gate evidence.",
+  "recommended_next_step": "Obtain user decisions for SC-01 through SC-03, version the affected locked artifacts/contracts, then implement TG-01 and regenerate all gate evidence from one green canonical run without waiver or --force."
+}

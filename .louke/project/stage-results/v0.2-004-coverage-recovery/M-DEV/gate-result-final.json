@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "spec_id": "v0.2-004-coverage-recovery",
+  "stage": "M-DEV",
+  "kind": "gate-result",
+  "role": "Keeper",
+  "verdict": "pass",
+  "reviewed_targets": ["tests"],
+  "blocking_findings": [],
+  "accepted_risks": [
+    "AC traceability 0/64 systemic — waived per Aaron waiver (2026-07-14)",
+    "Anti-pattern findings in v0204_b* test files — covered by Aaron waiver for pre-existing anti-patterns",
+    "4 pre-existing failures (test_format_percent_*, test_resolve_trade_reference_dates_no_calendar) — out of scope for this spec"
+  ],
+  "metadata": {
+    "commit_range": "HEAD~25..HEAD",
+    "tests_roots": ["tests"],
+    "overall_coverage": 95.29,
+    "per_file_pass": "169/169",
+    "v0_2_added_pass": "35/35",
+    "pre_v0_2_retained_pass": "134/134",
+    "pytest_summary": "4237 passed, 4 failed, 4 skipped"
+  }
+}
