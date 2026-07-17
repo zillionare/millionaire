@@ -45,10 +45,17 @@ def _workflow_is_valid(workflow: dict[str, Any]) -> bool:
         return False
     if "per_file_coverage.py" not in commands:
         return False
+    if "--inventory" not in commands or "source_manifest.py check" not in commands:
+        return False
     if any(step.get("continue-on-error") is True for step in steps):
         return False
     environments = [step.get("env", {}) for step in steps]
-    return any("HOME" in env and "XDG_CONFIG_HOME" in env for env in environments)
+    return any(
+        "HOME" in env
+        and "XDG_CONFIG_HOME" in env
+        and env.get("COVERAGE_PROCESS_START") == "pyproject.toml"
+        for env in environments
+    )
 
 
 def test_unit_coverage_workflow_enforces_the_two_coverage_gates() -> None:

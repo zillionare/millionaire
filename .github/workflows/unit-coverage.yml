@@ -28,7 +28,8 @@ jobs:
           HOME: ${{ runner.temp }}/quantide-home
           XDG_CONFIG_HOME: ${{ runner.temp }}/quantide-config
           QUANTIDE_DATA_HOME: ${{ runner.temp }}/quantide-data
-        # Enforces 95% overall coverage and the 80% per-file checker below.
+          COVERAGE_PROCESS_START: pyproject.toml
+        # Enforces the early 95% guard; the strict classified gate runs below.
         # --timeout=60 caps each test at 60 seconds.
         run: >-
           poetry run pytest tests/unit --cov=quantide --cov-fail-under=95 --timeout=60 -o faulthandler_timeout=90
@@ -38,7 +39,18 @@ jobs:
         env:
           HOME: ${{ runner.temp }}/quantide-home
           XDG_CONFIG_HOME: ${{ runner.temp }}/quantide-config
-        run: poetry run python tests/unit/_checkers/per_file_coverage.py coverage.json
+        run: >-
+          poetry run python tests/unit/_checkers/per_file_coverage.py coverage.json
+          .louke/project/specs/v0.2-004-coverage-recovery/coverage-waivers.json
+          --inventory .louke/project/specs/v0.2-004-coverage-recovery/recovery/production-file-inventory.json
+          --report per-file-coverage.json
+      - name: Check source manifest
+        run: >-
+          poetry run python tests/unit/_checkers/source_manifest.py check
+          --source quantide
+          --inventory .louke/project/specs/v0.2-004-coverage-recovery/recovery/production-file-inventory.json
+          --coverage coverage.json
+          --report source-manifest.json
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -46,5 +58,7 @@ jobs:
           name: unit-coverage-report
           path: |
             coverage.json
+            per-file-coverage.json
+            source-manifest.json
             htmlcov/
           retention-days: 30

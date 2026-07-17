@@ -61,3 +61,12 @@ def test_coverage_configuration_enables_branch_coverage() -> None:
     configuration = load_pyproject()
 
     assert configuration["tool"]["coverage"]["run"]["branch"] is True
+
+
+def test_coverage_configuration_tracks_multiprocessing_subprocesses() -> None:
+    """AC-NFR1201-03: subprocess workers emit parallel data using the shared config."""
+    run = load_pyproject()["tool"]["coverage"]["run"]
+
+    assert run["parallel"] is True
+    assert run["concurrency"] == ["multiprocessing"]
+    assert run["patch"] == ["subprocess"]
