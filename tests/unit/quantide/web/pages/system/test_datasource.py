@@ -1,5 +1,7 @@
 """系统设置 - 数据源页面测试"""
 
+from unittest.mock import MagicMock, PropertyMock, patch
+
 from starlette.testclient import TestClient
 
 import pytest
@@ -63,9 +65,14 @@ class TestDatasourceSync:
 
         monkeypatch.setattr(trade_calendar, "update", lambda: None)
         monkeypatch.setattr(stock_list, "update", lambda: None)
-        monkeypatch.setattr(daily_bars.store, "update", lambda: None)
 
-        resp = client.get("/system/datasource/sync", follow_redirects=True)
+        with patch.object(
+            type(daily_bars),
+            "store",
+            new_callable=PropertyMock,
+            return_value=MagicMock(),
+        ):
+            resp = client.get("/system/datasource/sync", follow_redirects=True)
         assert resp.status_code == 200
         # 应该显示同步结果
         assert "同步" in resp.text

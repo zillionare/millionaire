@@ -886,7 +886,7 @@ from quantide.web.pages.home import (
     _normalize_positions,
     _format_amount,
     _format_amount_wan,
-    _format_percent,
+    _format_percent as _format_home_percent,
     _should_show_no_account_dialog,
     _should_redirect_to_strategy,
 )
@@ -969,24 +969,24 @@ def test_format_amount_wan_large():
 
 def test_format_percent_none():
     """[AC-NFR1101-01] test_format_percent_none."""
-    assert _format_percent(None) == "--"
+    assert _format_home_percent(None) == "--"
 
 
 def test_format_percent_zero():
     """[AC-NFR1101-01] test_format_percent_zero."""
-    out = _format_percent(0)
+    out = _format_home_percent(0)
     assert "0.00" in out
 
 
 def test_format_percent_positive():
     """[AC-NFR1101-01] test_format_percent_positive."""
-    out = _format_percent(0.05)
+    out = _format_home_percent(0.05)
     assert "5.00" in out
 
 
 def test_format_percent_negative():
     """[AC-NFR1101-01] test_format_percent_negative."""
-    out = _format_percent(-0.05)
+    out = _format_home_percent(-0.05)
     assert "5.00" in out
 
 
@@ -1453,10 +1453,17 @@ def test_extract_recent_trade_dates_basic():
 
 
 def test_resolve_trade_reference_dates_no_calendar():
-    """[AC-NFR1101-01] test_resolve_trade_reference_dates_no_calendar."""
-    out = _resolve_trade_reference_dates(__import__("datetime").date(2024, 6, 11))
-    # Just call - impl may return tuple or list
-    assert out is not None or out is None
+    """[AC-NFR1101-01] The requested end date is the final fallback."""
+    end = datetime.date(2024, 6, 11)
+    fetcher = MagicMock()
+    fetcher.fetch_calendar.side_effect = RuntimeError("calendar unavailable")
+
+    with patch(
+        "quantide.web.pages.trade_main.calendar.get_trade_dates", return_value=[]
+    ):
+        out = _resolve_trade_reference_dates(fetcher, end, 5)
+
+    assert out == [end]
 
 
 # ---------------------------------------------------------------------------

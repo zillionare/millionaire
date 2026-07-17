@@ -53,7 +53,10 @@ def test_run_task_with_no_portfolio_id_in_result():
 
     fake_runner.run = _async_run
 
-    with patch("quantide.service.grid_search.BacktestRunner", lambda: fake_runner):
+    with (
+        patch("quantide.service.grid_search.BacktestRunner", lambda: fake_runner),
+        patch("quantide.service.grid_search.init_data"),
+    ):
         result = _run_task(
             strategy_cls=_SimpleBase,
             config={},
