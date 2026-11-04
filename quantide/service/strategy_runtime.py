@@ -13,7 +13,7 @@ from quantide.core.enums import BrokerKind, FrameType
 from quantide.core.market_time import market_now
 from quantide.core.runtime import RuntimeContext
 from quantide.core.runtime.registration import register_port_backed_broker
-from quantide.core.strategy import Strategy
+from quantide.core.strategy import BaseStrategy, Strategy
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
@@ -35,6 +35,13 @@ from quantide.service.strategy_tracking import TrackingStore, tracking_store
 
 if TYPE_CHECKING:
     from quantide.service.strategy_session import StrategySession
+
+
+def _independent_strategy(strategy_cls: type[Strategy]) -> type[BaseStrategy]:
+    """Only independent strategies have the on-bar lifecycle used by a runtime."""
+    if isinstance(strategy_cls, type) and not issubclass(strategy_cls, BaseStrategy):
+        raise ValueError("风控策略不能作为独立策略运行")
+    return strategy_cls
 
 
 def _runtime_row_block(
@@ -191,6 +198,8 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
         if interval not in {"1d", "30m"}:
             raise ValueError(f"不支持的策略周期: {interval!r}")
         strategy_cls = strategy_loader.load_from_cache().get(strategy_name)
+        if strategy_cls is not None:
+            strategy_cls = _independent_strategy(strategy_cls)
         config = dict(config or {})
         if "risk_programs" in config:
             from quantide.service.risk_programs import normalize_risk_programs
@@ -726,6 +735,7 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
         strategy_cls = strategy_loader.load_from_cache().get(runtime.strategy_name)
         if strategy_cls is None:
             raise RuntimeError(f"策略不存在: {runtime.strategy_name}")
+        strategy_cls = _independent_strategy(strategy_cls)
         if interval in {"1d", "30m"} or isinstance(strategy_cls, type):
             self.validate_runtime_interval(
                 {"interval": interval, "config": runtime.config}, strategy_cls
