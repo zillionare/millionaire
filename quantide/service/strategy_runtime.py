@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import threading
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from loguru import logger
 
@@ -13,7 +13,7 @@ from quantide.core.enums import BrokerKind, FrameType
 from quantide.core.market_time import market_now
 from quantide.core.runtime import RuntimeContext
 from quantide.core.runtime.registration import register_port_backed_broker
-from quantide.core.strategy import BaseStrategy, Strategy
+from quantide.core.strategy import BaseStrategy, RiskStrategy, Strategy
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
@@ -39,9 +39,11 @@ if TYPE_CHECKING:
 
 def _independent_strategy(strategy_cls: type[Strategy]) -> type[BaseStrategy]:
     """Only independent strategies have the on-bar lifecycle used by a runtime."""
-    if isinstance(strategy_cls, type) and not issubclass(strategy_cls, BaseStrategy):
+    if isinstance(strategy_cls, type) and issubclass(strategy_cls, RiskStrategy):
         raise ValueError("风控策略不能作为独立策略运行")
-    return strategy_cls
+    # Discovery admits independent BaseStrategy classes and risk classes;
+    # callable test/extension factories are also supported at this boundary.
+    return cast(type[BaseStrategy], strategy_cls)
 
 
 def _runtime_row_block(

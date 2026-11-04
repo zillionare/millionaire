@@ -72,6 +72,10 @@ class AuthBeforeware:
             req.scope["user_is_admin"] = user.role == "admin"
             return None
 
+        # FastHTML injects the signed session by parameter name only when the
+        # runtime annotation is absent; retain the static type without changing injection.
+        auth_check.__annotations__.pop("sess", None)
+
         # Return configured Beforeware
         return Beforeware(auth_check, skip=skip_patterns)
 
