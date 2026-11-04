@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fasthtml.common import Div, Span, Table, Tbody, Td, Th, Thead, Tr
+from fasthtml.common import FT, Div, Span, Table, Tbody, Td, Th, Thead, Tr
 from monsterui.all import H2, Button
 
 from quantide.service.strategy_runtime import strategy_runtime_manager
@@ -13,7 +13,7 @@ from quantide.service.strategy_runtime import strategy_runtime_manager
 POLL_TRIGGER = "every 5s [document.visibilityState === 'visible' && document.hasFocus()]"
 
 
-def _runtime_status_chip(status: str):
+def _runtime_status_chip(status: str) -> FT:
     """构建运行时状态标签。"""
     if status == "running":
         cls = "px-2 py-0.5 rounded text-xs bg-green-100 text-green-700"
@@ -26,7 +26,7 @@ def _runtime_status_chip(status: str):
     return Span(status, cls=cls)
 
 
-def _risk_severity_chip(severity: str):
+def _risk_severity_chip(severity: str) -> FT:
     """构建风险级别标签。"""
     if severity == "critical":
         cls = "px-2 py-0.5 rounded text-xs bg-red-100 text-red-700"

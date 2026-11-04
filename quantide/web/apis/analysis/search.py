@@ -22,7 +22,7 @@ async def search_stocks(
     q: str = "",
     type: str = "stock",
     limit: int = 10,
-):
+) -> JSONResponse:
     """搜索个股。
 
     Args:
