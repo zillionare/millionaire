@@ -3,9 +3,12 @@
 # Legacy calendar API documentation contains intentionally empty Returns sections.
 # ruff: noqa: D205,D414
 
+from __future__ import annotations
+
 import datetime
 import itertools
 from pathlib import Path
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -15,7 +18,6 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from arrow import Arrow
 from loguru import logger
-from numpy import ndarray
 
 from quantide.config.settings import get_epoch, get_timezone
 from quantide.core.atomic_files import atomic_path
@@ -35,9 +37,11 @@ def _calendar_fetch_start() -> datetime.date:
 Frame = datetime.datetime | datetime.date
 
 
-def _calendar_frames_by_count(self, end, n, frame_type):
+def _calendar_frames_by_count(
+    self: Calendar, end: Frame, n: int, frame_type: FrameType
+) -> list[Frame]:
     """Slice completed daily, weekly or monthly frames."""
-    end_date = end if isinstance(end, datetime.date) else end.date()
+    end_date = end.date() if isinstance(end, datetime.datetime) else end
     if frame_type == FrameType.DAY:
         arr = self.day_frames
     elif frame_type == FrameType.WEEK:
@@ -45,12 +49,14 @@ def _calendar_frames_by_count(self, end, n, frame_type):
     else:
         arr = self.month_frames
 
-    le = pc.less_equal(arr, end_date)
+    if arr is None:
+        raise ValueError("交易日历未初始化，请先调用 load()")
+    le = pc.less_equal(arr, pa.scalar(end_date))
     pos = int(pc.sum(pc.cast(le, pa.int32())).as_py())
     start = max(0, pos - n)
     sliced = arr.slice(start, pos - start).to_pylist()
 
-    return sliced
+    return cast(list[Frame], sliced)
 
 
 @singleton
@@ -98,12 +104,14 @@ class Calendar(CalendarFrameOperations):
         if self._data is None or len(self._data) == 0:
             return get_epoch()
         dates = self._data.column("date")
-        return dates[0].as_py()
+        return cast(datetime.date, dates[0].as_py())
 
     @property
     def end(self) -> datetime.date:
+        if self._data is None:
+            raise ValueError("交易日历未初始化，请先调用 load()")
         dates = self._data.column("date")
-        return dates[-1].as_py()
+        return cast(datetime.date, dates[-1].as_py())
 
     def last_trade_date(self) -> datetime.date:
         """获取最近一个交易日.
@@ -142,7 +150,7 @@ class Calendar(CalendarFrameOperations):
         with atomic_path(self.path) as temporary:
             calendar_data.to_parquet(temporary)
 
-    def load(self, path: str | Path) -> "Calendar":
+    def load(self, path: str | Path) -> Calendar:
         """加载日历数据，并构建日/周/月帧。
 
         如果指定文件不存在，则从服务器获取并保存。
@@ -178,7 +186,9 @@ class Calendar(CalendarFrameOperations):
         self.save(df)
         self.day_frames, self.week_frames, self.month_frames = self._build_frames_arrow(self._data)
 
-    def _build_frames_arrow(self, table: pa.Table):
+    def _build_frames_arrow(
+        self, table: pa.Table
+    ) -> tuple[pa.Array[Any], pa.Array[Any], pa.Array[Any]]:
         """构建交易日、周、月帧"""
         # 1) 只保留交易日
         is_open = pc.equal(table.column("is_open"), 1)  # type: ignore
@@ -186,7 +196,7 @@ class Calendar(CalendarFrameOperations):
         day_frames = ft.column("date").combine_chunks()  # pa.ChunkedArray(date32)
 
         # 2) 转成 DatetimeIndex，仅分组用（不会补齐自然日）
-        idx = pd.to_datetime(day_frames.to_pylist())
+        idx = pd.to_datetime(cast(list[datetime.date], day_frames.to_pylist()))
 
         # 3) 每周最后交易日：按 (year, week) 分组后取最大日期
         iso = idx.isocalendar()  # 返回 DataFrame，含 year/week/day
@@ -194,7 +204,9 @@ class Calendar(CalendarFrameOperations):
         week_last = (
             pd.Series(1, index=idx).groupby(week_key).apply(lambda x: x.index.max()).sort_values()
         )
-        week_frames = pa.array([d.date() for d in week_last.tolist()], type=pa.date32())
+        week_frames = pa.array(
+            [cast(pd.Timestamp, d).date() for d in week_last.tolist()], type=pa.date32()
+        )
 
         # 4) 每月最后交易日：按月分组后取最大日期
         month_last = (
@@ -203,7 +215,9 @@ class Calendar(CalendarFrameOperations):
             .apply(lambda x: x.index.max())
             .sort_values()
         )
-        month_frames = pa.array([d.date() for d in month_last.tolist()], type=pa.date32())
+        month_frames = pa.array(
+            [cast(pd.Timestamp, d).date() for d in month_last.tolist()], type=pa.date32()
+        )
 
         return day_frames, week_frames, month_frames
 
@@ -314,15 +328,15 @@ class Calendar(CalendarFrameOperations):
         if arr is None:
             raise ValueError("day_frames 未初始化，请先调用 load()")
 
-        le = pc.less_equal(arr, start)
+        le = pc.less_equal(arr, pa.scalar(start))
         cnt = int(pc.sum(pc.cast(le, pa.int32())).as_py())
         base_idx = max(0, cnt - 1)
 
         if offset == 0:
-            return arr[base_idx].as_py()
+            return cast(datetime.date, arr[base_idx].as_py())
 
         new_idx = max(0, min(len(arr) - 1, base_idx + offset))
-        return arr[new_idx].as_py()
+        return cast(datetime.date, arr[new_idx].as_py())
 
     def week_shift(self, start: datetime.date, offset: int) -> datetime.date:
         """对指定日期按周线帧进行前后移位操作
@@ -333,15 +347,15 @@ class Calendar(CalendarFrameOperations):
         if arr is None:
             raise ValueError("week_frames 未初始化，请先调用 load()")
 
-        le = pc.less_equal(arr, start)
+        le = pc.less_equal(arr, pa.scalar(start))
         cnt = int(pc.sum(pc.cast(le, pa.int32())).as_py())
         base_idx = max(0, cnt - 1)
 
         if offset == 0:
-            return arr[base_idx].as_py()
+            return cast(datetime.date, arr[base_idx].as_py())
 
         new_idx = max(0, min(len(arr) - 1, base_idx + offset))
-        return arr[new_idx].as_py()
+        return cast(datetime.date, arr[new_idx].as_py())
 
     def month_shift(self, start: datetime.date, offset: int) -> datetime.date:
         """求`start`所在的月移位后的frame
@@ -352,17 +366,17 @@ class Calendar(CalendarFrameOperations):
         if arr is None:
             raise ValueError("month_frames 未初始化，请先调用 load()")
 
-        le = pc.less_equal(arr, start)
+        le = pc.less_equal(arr, pa.scalar(start))
         cnt = int(pc.sum(pc.cast(le, pa.int32())).as_py())
         base_idx = max(0, cnt - 1)
 
         if offset == 0:
-            return arr[base_idx].as_py()
+            return cast(datetime.date, arr[base_idx].as_py())
 
         new_idx = max(0, min(len(arr) - 1, base_idx + offset))
-        return arr[new_idx].as_py()
+        return cast(datetime.date, arr[new_idx].as_py())
 
-    def get_ticks(self, frame_type: FrameType) -> list | ndarray:
+    def get_ticks(self, frame_type: FrameType) -> list[int] | pa.Array[Any] | None:
         """取月线、周线、日线及各分钟线对应的frame
 
         对分钟线，返回值仅包含时间，不包含日期（均为整数表示）
@@ -394,7 +408,7 @@ class Calendar(CalendarFrameOperations):
 
     def shift(
         self,
-        moment: Frame,
+        moment: Frame | Arrow,
         n: int,
         frame_type: FrameType,
     ) -> Frame:
@@ -426,6 +440,8 @@ class Calendar(CalendarFrameOperations):
         Returns:
 
         """
+        if isinstance(moment, Arrow):
+            moment = moment.datetime
         if frame_type == FrameType.DAY:
             return self.day_shift(moment, n)
 
@@ -440,6 +456,8 @@ class Calendar(CalendarFrameOperations):
             FrameType.MIN30,
             FrameType.MIN60,
         ]:
+            if not isinstance(moment, datetime.datetime):
+                raise TypeError("分钟周期需要 datetime 时间")
             tm = moment.hour * 60 + moment.minute
 
             new_tick_pos = self.ticks[frame_type].index(tm) + n
@@ -460,9 +478,11 @@ class Calendar(CalendarFrameOperations):
         else:  # pragma: no cover
             raise ValueError(f"{frame_type} is not supported.")
 
-    def _floor_idx(self, arr, x) -> int:
+    def _floor_idx(self, arr: pa.Array[Any] | pa.ChunkedArray[Any] | None, x: datetime.date) -> int:
+        if arr is None:
+            raise ValueError("交易日历未初始化，请先调用 load()")
         arr = arr.combine_chunks() if hasattr(arr, "combine_chunks") else arr
-        le = pc.less_equal(arr, x)
+        le = pc.less_equal(arr, pa.scalar(x))
         cnt = int(pc.sum(pc.cast(le, pa.int32())).as_py())
         return max(0, min(len(arr) - 1, cnt - 1))
 
@@ -541,7 +561,7 @@ class Calendar(CalendarFrameOperations):
         self,
         start: datetime.date | datetime.datetime | Arrow,
         end: datetime.date | datetime.datetime | Arrow,
-        frame_type,
+        frame_type: FrameType,
     ) -> int:
         """计算start与end之间有多少个周期为frame_type的frames
 
@@ -564,9 +584,15 @@ class Calendar(CalendarFrameOperations):
         if frame_type == FrameType.DAY:
             return self.count_day_frames(start, end)
         elif frame_type == FrameType.WEEK:
-            return self.count_week_frames(start, end)
+            return self.count_week_frames(
+                start.date() if isinstance(start, (Arrow, datetime.datetime)) else start,
+                end.date() if isinstance(end, (Arrow, datetime.datetime)) else end,
+            )
         elif frame_type == FrameType.MONTH:
-            return self.count_month_frames(start, end)
+            return self.count_month_frames(
+                start.date() if isinstance(start, (Arrow, datetime.datetime)) else start,
+                end.date() if isinstance(end, (Arrow, datetime.datetime)) else end,
+            )
         elif frame_type in [
             FrameType.MIN1,
             FrameType.MIN5,
@@ -574,6 +600,10 @@ class Calendar(CalendarFrameOperations):
             FrameType.MIN30,
             FrameType.MIN60,
         ]:
+            if not isinstance(start, (Arrow, datetime.datetime)) or not isinstance(
+                end, (Arrow, datetime.datetime)
+            ):
+                raise TypeError("分钟周期需要 datetime 时间")
             tm_start = start.hour * 60 + start.minute
             tm_end = end.hour * 60 + end.minute
             days = self.count_day_frames(start.date(), end.date()) - 1
@@ -587,7 +617,7 @@ class Calendar(CalendarFrameOperations):
         else:  # pragma: no cover
             raise ValueError(f"{frame_type} is not supported yet")
 
-    def is_trade_day(self, dt: Frame) -> bool:
+    def is_trade_day(self, dt: Frame | Arrow) -> bool:
         """判断`dt`是否为交易日
 
         Examples:
@@ -600,10 +630,12 @@ class Calendar(CalendarFrameOperations):
         Returns:
             [description]
         """
-        moment = dt.date() if isinstance(dt, datetime.datetime) else dt
+        moment = dt.date() if isinstance(dt, (Arrow, datetime.datetime)) else dt
+        if self.day_frames is None:
+            raise ValueError("交易日历未初始化，请先调用 load()")
         return self.day_frames.index(moment).as_py() >= 0
 
-    def is_open_time(self, tm: datetime.datetime | Arrow = None) -> bool:
+    def is_open_time(self, tm: datetime.datetime | Arrow | None = None) -> bool:
         """判断`tm`指定的时间是否处在交易时间段。
 
         交易时间段是指集合竞价时间段之外的开盘时间
@@ -628,7 +660,7 @@ class Calendar(CalendarFrameOperations):
         tick = tm.hour * 60 + tm.minute
         return tick in self.ticks[FrameType.MIN1]
 
-    def is_opening_call_auction_time(self, tm: datetime.datetime = None) -> bool:
+    def is_opening_call_auction_time(self, tm: datetime.datetime | None = None) -> bool:
         """判断`tm`指定的时间是否为开盘集合竞价时间
 
         Args:
@@ -646,7 +678,7 @@ class Calendar(CalendarFrameOperations):
         minutes = tm.hour * 60 + tm.minute
         return 9 * 60 + 15 < minutes <= 9 * 60 + 25
 
-    def is_closing_call_auction_time(self, tm: datetime.datetime = None) -> bool:
+    def is_closing_call_auction_time(self, tm: datetime.datetime | None = None) -> bool:
         """判断`tm`指定的时间是否为收盘集合竞价时间
 
         Fixme:
@@ -717,6 +749,8 @@ class Calendar(CalendarFrameOperations):
             FrameType.MIN30,
             FrameType.MIN60,
         }:
+            if not isinstance(end, datetime.datetime):
+                raise TypeError("分钟周期需要 datetime 时间")
             n_days = n // len(self.ticks[frame_type]) + 2
             ticks = self.ticks[frame_type] * n_days
 
@@ -725,18 +759,20 @@ class Calendar(CalendarFrameOperations):
                 n_days,
                 FrameType.DAY,
             )
-            days = np.array(np.repeat(days, len(self.ticks[frame_type])), dtype="datetime64[ms]")
+            repeated_days = np.repeat(
+                np.asarray(days, dtype="datetime64[ms]"), len(self.ticks[frame_type])
+            )
 
             np_timedeltas = [np.timedelta64(t, "m") for t in ticks]
 
-            buckets = days + np_timedeltas
+            buckets = repeated_days + np_timedeltas
 
             # a[i-] < v <= a[i]
-            pos = buckets.searchsorted(np.datetime64(end)) + 1
+            pos = int(buckets.searchsorted(np.datetime64(end))) + 1
             result = buckets[max(0, pos - n + 1) : pos + 1]
 
             if end.tzinfo is None:
-                return result.tolist()
+                return cast(list[Frame], result.tolist())
 
             # 回补时区信息
             return [x.astype(datetime.datetime).replace(tzinfo=end.tzinfo) for x in result]
@@ -750,7 +786,7 @@ class Calendar(CalendarFrameOperations):
         minute: int = 0,
         second: int = 0,
         microsecond: int = 0,
-        tzinfo="Asia/Shanghai",
+        tzinfo: str | datetime.tzinfo = "Asia/Shanghai",
     ) -> datetime.datetime:
         """用`date`指定的日期与`hour`, `minute`, `second`等参数一起合成新的时间
 
@@ -816,18 +852,20 @@ class Calendar(CalendarFrameOperations):
             raise ValueError(f"开始日期 {start} 不能大于结束日期 {end}")
 
         table = self._data
+        if table is None:
+            raise ValueError("交易日历未初始化，请先调用 load()")
         date_col = table.column("date")
         is_open_col = table.column("is_open")
-        start_mask = pc.greater_equal(date_col, start)
-        end_mask = pc.less_equal(date_col, end)
-        open_mask = pc.equal(is_open_col, 1)
+        start_mask = pc.greater_equal(date_col, pa.scalar(start))
+        end_mask = pc.less_equal(date_col, pa.scalar(end))
+        open_mask = pc.equal(is_open_col, pa.scalar(1))
 
         combined_mask = pc.and_(pc.and_(start_mask, end_mask), open_mask)
 
         filtered_table = table.filter(combined_mask)
 
         filtered_dates = filtered_table.column("date")
-        return [date.as_py() for date in filtered_dates]
+        return [cast(datetime.date, date.as_py()) for date in filtered_dates]
 
     def count_trading_days(self, start: datetime.date, end: datetime.date) -> int:
         """[start, end] 区间内的交易日数(含起止)。
