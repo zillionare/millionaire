@@ -73,6 +73,19 @@ def test_initialized_app_without_admin_rejects_default_credentials_until_wizard_
 
         init_wizard.save_admin_password("StrongPass!123")
 
+        page = client.get("/auth/login")
+        assert 'name="password"' in page.text
+        assert 'name="username"' not in page.text
+        wrong_password = client.post(
+            "/auth/login", data={"password": "wrong"}, follow_redirects=False,
+        )
+        assert wrong_password.headers["location"].startswith("/auth/login?error=invalid")
+        password_only = client.post(
+            "/auth/login", data={"password": "StrongPass!123"}, follow_redirects=False,
+        )
+        assert password_only.headers["location"] == "/"
+        assert client.get("/system/network/", follow_redirects=False).status_code == 200
+
         accepted = client.post(
             "/auth/login",
             data={"username": "admin", "password": "StrongPass!123"},

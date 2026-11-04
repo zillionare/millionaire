@@ -87,13 +87,14 @@ def _row_to_dict(row: dict[str, Any]) -> dict[str, Any]:
 class _RunningTask:
     """内存中的运行中任务。"""
 
-    def __init__(self, spec: OptimizationSpec):
+    def __init__(self, spec: OptimizationSpec) -> None:
         self.spec = spec
         self.optimizer = ParamOptimizer(spec)
         self.done = 0
         self.total = 0
         self.results: list[dict[str, Any]] = []
         self.error = ""
+        self.thread: threading.Thread | None = None
 
 
 _RUNNING: dict[str, _RunningTask] = {}

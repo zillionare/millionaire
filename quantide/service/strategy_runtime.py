@@ -744,7 +744,9 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
                 spec["status"] = runtime.status
                 self._save_specs()
 
-    async def _strategy_loop(self, runtime: StrategyRuntime, interval: str, market_data: Any):
+    async def _strategy_loop(
+        self, runtime: StrategyRuntime, interval: str, market_data: Any
+    ) -> None:
         try:
             session = self._prepare_session(runtime, interval)
         except Exception as exc:

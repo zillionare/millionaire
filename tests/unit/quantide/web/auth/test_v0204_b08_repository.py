@@ -14,11 +14,6 @@ def db():
     return MagicMock()
 
 
-@pytest.fixture
-def repo(db):
-    return UserRepository(db=db)
-
-
 def test_count_by_role_empty(repo):
     """[AC-FR1501-06] When no users, returns zeros."""
     repo.users = MagicMock()

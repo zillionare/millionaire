@@ -3,6 +3,9 @@
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+)
 from monsterui.all import *
 
 from quantide.config.features import (

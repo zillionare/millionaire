@@ -3,9 +3,21 @@
 from pathlib import Path as FilePath
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Li,
+    P,
+    Path,
+    Ul,
+)
 from fasthtml.svg import Path as SvgPath
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Button,
+    Input,
+)
 
 from quantide.service.discovery import strategy_loader
 from quantide.web.pages.strategy_routes import (

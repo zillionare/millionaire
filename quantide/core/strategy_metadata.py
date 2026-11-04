@@ -17,6 +17,6 @@ class StrategyMetadata:
     default_config: dict[str, Any] = field(default_factory=dict)
 
 
-def metadata_annotations():
+def metadata_annotations() -> dict[str, Any]:
     """Share fields with the mutable persistence DTO without dataclass inheritance."""
     return {item.name: item.type for item in fields(StrategyMetadata)}

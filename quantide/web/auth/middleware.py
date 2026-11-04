@@ -3,6 +3,9 @@ import inspect
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Response,
+)
 
 
 class AuthBeforeware:

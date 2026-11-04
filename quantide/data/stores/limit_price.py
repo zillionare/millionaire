@@ -18,7 +18,7 @@ from quantide.data.stores.base import ParquetStorage
 class LimitPriceStore(ParquetStorage):
     """涨跌停限价存储。"""
 
-    def __init__(self, path: str | Path, calendar: Calendar):
+    def __init__(self, path: str | Path, calendar: Calendar) -> None:
         """初始化涨跌停存储。
 
         Args:

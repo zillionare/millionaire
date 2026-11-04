@@ -74,7 +74,7 @@ class ParquetStorage(PartitionOperations):
         partition_levels: tuple[Literal["year", "month", "day"], ...] | None = None,
         id_cols: list[str] | None = None,
         date_as_date: bool = False,
-    ):
+    ) -> None:
         """初始化ParquetStorage
 
         Args:
@@ -183,7 +183,7 @@ class ParquetStorage(PartitionOperations):
         counts = lazy.group_by("date").agg(pl.len().alias("n")).collect()
         return {day: int(count) for day, count in counts.iter_rows()}
 
-    def default_error_handler(self, errors: list[list]):
+    def default_error_handler(self, errors: list[list]) -> None:
         """默认错误处理函数
 
         将抓取错误写入 failed_tasks 表，便于后续重试。
@@ -200,7 +200,7 @@ class ParquetStorage(PartitionOperations):
         else:
             return self._store_path.parent / f"{self.store_name}-dates.pq"
 
-    def _update_dates(self, new_dates: pl.Series):
+    def _update_dates(self, new_dates: pl.Series) -> None:
         """从文件中加载日期或更新日期范围
 
         Args:
@@ -248,7 +248,7 @@ class ParquetStorage(PartitionOperations):
         except (OSError, ValueError, KeyError, pl.exceptions.PolarsError):
             return False
 
-    def _collect_dates(self):
+    def _collect_dates(self) -> None:
         """Rebuild stale or damaged derived indexes from the durable Parquet data."""
         signature = self._storage_signature()
         if self._cached_dates(signature):

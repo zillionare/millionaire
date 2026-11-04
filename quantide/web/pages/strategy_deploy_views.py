@@ -4,7 +4,28 @@ from typing import Any
 
 import fasthtml.common as fh
 from fasthtml.common import *
+from fasthtml.common import (
+    Code,
+    Div,
+    P,
+    Response,
+    Span,
+    Thead,
+    Tr,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H4,
+    Button,
+    Details,
+    Form,
+    Input,
+    Summary,
+    Table,
+    Tbody,
+    Td,
+    Th,
+)
 
 from quantide.data.sqlite import db
 from quantide.service.backtest_logs import (

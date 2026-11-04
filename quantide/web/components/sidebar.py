@@ -1,6 +1,10 @@
 """Sidebar 组件。"""
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Aside,
+    Nav,
+)
 from fasthtml.svg import Path as SvgPath
 from monsterui.all import *
 

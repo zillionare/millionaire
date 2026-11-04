@@ -4,8 +4,23 @@ import uuid
 from datetime import datetime
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    P,
+    Script,
+    Span,
+)
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H1,
+    H2,
+    H3,
+    Button,
+    Form,
+    UkIcon,
+)
 from starlette.responses import RedirectResponse
 
 from quantide.config.features import supports_live_trading

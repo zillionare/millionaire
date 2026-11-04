@@ -17,7 +17,7 @@ class DualMAStrategy(BaseStrategy):
         self.symbol = self.config.get("symbol", "000001.SZ")
         self.invest_amount = float(self.config.get("invest", 100000))
 
-    async def init(self):
+    async def init(self) -> None:
         self.log(
             "DualMAStrategy Initialized: "
             f"{self.symbol}"
@@ -27,7 +27,7 @@ class DualMAStrategy(BaseStrategy):
             f"{self.slow_window}"
         )
 
-    async def on_day_open(self, tm: datetime.datetime):
+    async def on_day_open(self, tm: datetime.datetime) -> None:
         """开盘回调。"""
         pass
 

@@ -276,7 +276,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
             self._slippage = float(slippage)
         self._save_fee_config()
 
-    def _on_limit_update(self, data: dict):
+    def _on_limit_update(self, data: dict) -> None:
         """涨跌停更新回调。
 
         SimBroker 通过 MarketDataHub 获取实时涨跌停数据。
@@ -416,7 +416,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
         clock = getattr(self, "_clock_port", None)
         return clock.now() if clock is not None else market_now()
 
-    def _validate_data_consistency(self):
+    def _validate_data_consistency(self) -> None:
         """校验数据一致性。
 
         检查数据库中的 portfolio, asset, position 记录是否一致。
@@ -507,7 +507,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
             if pos.shares > pos.avail:
                 pos.avail = pos.shares
 
-    def _init_or_sync_state(self):
+    def _init_or_sync_state(self) -> None:
         """初始化或同步账户状态。
 
         如果在数据库中找不到对应的 portfolio，则创建新的。

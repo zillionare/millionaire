@@ -14,7 +14,7 @@ from quantide.core.ports.broker import ExecutionResult
 
 
 class Strategy(ABC):
-    def __init__(self, broker: BrokerPort, config: dict[str, Any]):
+    def __init__(self, broker: BrokerPort, config: dict[str, Any]) -> None:
         self.broker = broker
         self.config = config
         logger_kwargs = {"strategy": self.__class__.__name__}
@@ -121,7 +121,7 @@ class Strategy(ABC):
         value: float,
         dt: datetime.datetime | None = None,
         extra: dict | None = None,
-    ):
+    ) -> None:
         if dt is None:
             dt = self._current_time
         self.broker.record(key, value, dt, extra)

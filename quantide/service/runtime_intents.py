@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -14,9 +15,19 @@ from quantide.service.runtime_proxies import (
     StrategyBrokerProxy,
 )
 
+if TYPE_CHECKING:
+    from quantide.service.runtime_models import StrategyRuntime
+    from quantide.service.strategy_tracking import TrackingStore
+
 
 class RuntimeIntentExecution:
     """Claim, submit and reconcile durable next-open intents."""
+
+    if TYPE_CHECKING:
+        @property
+        def tracking_store(self) -> TrackingStore: ...
+
+        def get_runtime(self, runtime_id: str) -> StrategyRuntime | None: ...
 
     async def process_next_open_30m_intents(
         self, runtime_id: str, completed_bar: datetime.datetime
@@ -77,11 +88,13 @@ class RuntimeIntentExecution:
         )
         return await self._submit_intent_rows(broker, rows, current)
 
-    async def _submit_intent_rows(self, broker, rows, current) -> int:
+    async def _submit_intent_rows(
+        self, broker: Any, rows: list[dict[str, Any]], current: datetime.datetime
+    ) -> int:
         """Keep uncertain outcomes in processing for broker reconciliation on the next drain."""
         submitted = 0
-        for row in rows:
-            row = self.tracking_store.claim_next_open_intent(row["intent_id"])
+        for pending in rows:
+            row = self.tracking_store.claim_next_open_intent(pending["intent_id"])
             if row is None:
                 continue
             try:
@@ -99,7 +112,9 @@ class RuntimeIntentExecution:
         return submitted
 
     @staticmethod
-    async def _submit_claimed_intent(broker, row, current) -> None:
+    async def _submit_claimed_intent(
+        broker: Any, row: dict[str, Any], current: datetime.datetime
+    ) -> None:
         kwargs = dict(row.get("kwargs") or {})
         target = row.get("target_bar")
         target_time = datetime.datetime.fromisoformat(target) if target else current

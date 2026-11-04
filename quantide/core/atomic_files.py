@@ -4,13 +4,15 @@ import contextlib
 import json
 import os
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 from filelock import FileLock
 
 
 @contextlib.contextmanager
-def atomic_path(destination: str | Path):
+def atomic_path(destination: str | Path) -> Iterator[Path]:
     """Yield a temporary path; publish only after the writer succeeds."""
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -32,7 +34,7 @@ def atomic_path(destination: str | Path):
         temporary.unlink(missing_ok=True)
 
 
-def write_json(destination: str | Path, payload) -> None:
+def write_json(destination: str | Path, payload: Any) -> None:
     """Validate and atomically publish JSON, preserving the previous file on failure."""
     encoded = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
     destination = Path(destination)
@@ -48,7 +50,7 @@ def write_json(destination: str | Path, payload) -> None:
             temporary.write_text(encoded, encoding="utf-8")
 
 
-def write_parquet(frame, destination: str | Path, **kwargs) -> None:
+def write_parquet(frame: Any, destination: str | Path, **kwargs: Any) -> None:
     """Publish a completed Parquet file; readers never see a truncated file."""
     kwargs.pop("mkdir", None)
     with atomic_path(destination) as temporary:

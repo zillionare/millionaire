@@ -27,7 +27,7 @@ class MinuteBarsStore(BarStore):
     读取时需通过 DailyBars 关联复权因子与涨跌停，或由调用方自行处理。
     """
 
-    def __init__(self, path: str | Path, calendar: Calendar):
+    def __init__(self, path: str | Path, calendar: Calendar) -> None:
         super().__init__("MinuteBars", path, calendar, "asset")
 
     def get(

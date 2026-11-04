@@ -23,7 +23,7 @@ _STATUS_ALIASES = {
 }
 
 
-def coerce_order_status(value):
+def coerce_order_status(value: object) -> OrderStatus:
     """Read enums, integer codes, enum names/prefixes, and documented aliases."""
     if isinstance(value, OrderStatus):
         return value

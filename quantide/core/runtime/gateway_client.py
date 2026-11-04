@@ -53,7 +53,7 @@ class GatewayClient:
         username: str,
         password: str,
         timeout: float = 10.0,
-    ):
+    ) -> None:
         """初始化客户端.
 
         Args:

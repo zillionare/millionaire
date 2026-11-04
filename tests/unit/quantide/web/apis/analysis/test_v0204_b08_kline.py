@@ -24,7 +24,7 @@ def test_feature_removed_returns_410():
     assert resp.status_code == 410
 
 
-def test_bars_to_list_empty():
+def test_bars_to_list_empty_original_27():
     """[AC-NFR1101-01] test_bars_to_list_empty."""
     df = pl.DataFrame()
     got = bars_to_list(df)
@@ -78,14 +78,14 @@ def test_bars_to_list_string():
     assert got[0]["dt"] == "2024-01-01"
 
 
-def test_add_ma_to_list_empty():
+def test_add_ma_to_list_empty_original_81():
     """[AC-NFR1101-01] test_add_ma_to_list_empty."""
     df = pl.DataFrame()
     got = add_ma_to_list(df, [5, 10])
     assert got == []
 
 
-def test_add_ma_to_list_with_ma():
+def test_add_ma_to_list_with_ma_original_88():
     """[AC-NFR1101-01] test_add_ma_to_list_with_ma."""
     df = pl.DataFrame({
         "frame": [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],

@@ -3,12 +3,34 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any
+from _thread import RLock
+from typing import Any, Protocol
 
-from quantide.service.runtime_models import StrategyRuntime
+from quantide.service.runtime_models import BacktestRun, StrategyRuntime
 
 
-def _unblock_account_strategies(account_runtime_id, self):
+class _RiskHost(Protocol):
+    _lock: RLock
+    _account_runtimes: dict[str, StrategyRuntime]
+    _strategy_runtimes: dict[str, StrategyRuntime]
+    _backtest_runtimes: dict[str, BacktestRun]
+    _runtime_specs: dict[str, dict[str, Any]]
+    _blocked_accounts: dict[str, dict[str, Any]]
+    _blocked_strategies: dict[str, dict[str, Any]]
+    _risk_events: list[dict[str, Any]]
+
+    def _account_key(self, mode: str, portfolio_id: str) -> str: ...
+    def _account_key_for_runtime(self, runtime: StrategyRuntime) -> str: ...
+    def _apply_runtime_block(self, runtime: StrategyRuntime, reason: str) -> None: ...
+    def _save_specs(self) -> None: ...
+    def _runtime_to_row(self, runtime: StrategyRuntime) -> dict[str, Any]: ...
+    def list_runtime_rows(self) -> list[dict[str, Any]]: ...
+    def _record_risk_event(
+        self, *, scope: str, target_id: str, title: str, message: str, severity: str, blocked: bool
+    ) -> None: ...
+
+
+def _unblock_account_strategies(account_runtime_id: str, self: _RiskHost) -> None:
     """Unblock account strategies."""
     for item in self._strategy_runtimes.values():
         if (
@@ -24,7 +46,9 @@ def _unblock_account_strategies(account_runtime_id, self):
 class RuntimeRiskControls:
     """Runtime risk blocks, events and status views."""
 
-    def block_account(self, account_runtime_id: str, reason: str = "手动账户封锁") -> None:
+    def block_account(
+        self: _RiskHost, account_runtime_id: str, reason: str = "手动账户封锁"
+    ) -> None:
         with self._lock:
             runtime = self._account_runtimes.get(account_runtime_id)
             account_key = runtime.runtime_id if runtime is not None else account_runtime_id
@@ -52,7 +76,7 @@ class RuntimeRiskControls:
                 blocked=True,
             )
 
-    def unblock_account(self, account_runtime_id: str) -> None:
+    def unblock_account(self: _RiskHost, account_runtime_id: str) -> None:
         with self._lock:
             block = self._blocked_accounts.pop(account_runtime_id, None)
             if block is None:
@@ -81,7 +105,7 @@ class RuntimeRiskControls:
                 blocked=False,
             )
 
-    def block_strategy(self, runtime_id: str, reason: str = "手动策略封锁") -> None:
+    def block_strategy(self: _RiskHost, runtime_id: str, reason: str = "手动策略封锁") -> None:
         with self._lock:
             payload = {
                 "target_id": runtime_id,
@@ -107,7 +131,7 @@ class RuntimeRiskControls:
                 blocked=True,
             )
 
-    def unblock_strategy(self, runtime_id: str) -> None:
+    def unblock_strategy(self: _RiskHost, runtime_id: str) -> None:
         with self._lock:
             block = self._blocked_strategies.pop(runtime_id, None)
             if block is None:
@@ -134,7 +158,7 @@ class RuntimeRiskControls:
             )
 
     def record_system_event(
-        self,
+        self: _RiskHost,
         *,
         title: str,
         message: str,
@@ -163,20 +187,20 @@ class RuntimeRiskControls:
             blocked=blocked,
         )
 
-    def list_risk_events(self, limit: int = 20) -> list[dict[str, Any]]:
+    def list_risk_events(self: _RiskHost, limit: int = 20) -> list[dict[str, Any]]:
         with self._lock:
             return [dict(item) for item in self._risk_events[:limit]]
 
-    def risk_summary(self) -> dict[str, int]:
+    def risk_summary(self: _RiskHost) -> dict[str, int]:
         with self._lock:
             return {
                 "blocked_accounts": len(self._blocked_accounts),
                 "blocked_strategies": len(self._blocked_strategies),
-                "open_events": sum(1 for item in self._risk_events if item.get("blocked")),
+                "open_events": sum(bool(item.get("blocked")) for item in self._risk_events),
                 "event_count": len(self._risk_events),
             }
 
-    def runtime_summary(self) -> dict[str, int]:
+    def runtime_summary(self: _RiskHost) -> dict[str, int]:
         """汇总当前运行时状态。"""
         summary = {
             "total": 0,
@@ -194,28 +218,28 @@ class RuntimeRiskControls:
                 summary["idle"] += 1
         return summary
 
-    def list_runtime_rows(self) -> list[dict[str, Any]]:
+    def list_runtime_rows(self: _RiskHost) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         with self._lock:
             for item in self._account_runtimes.values():
                 rows.append(self._runtime_to_row(item))
-            for item in self._backtest_runtimes.values():
+            for backtest in self._backtest_runtimes.values():
                 rows.append(
                     {
-                        "runtime_id": item.runtime_id,
+                        "runtime_id": backtest.runtime_id,
                         "mode": "backtest",
-                        "portfolio_id": item.portfolio_id,
-                        "strategy_name": item.strategy_name,
+                        "portfolio_id": backtest.portfolio_id,
+                        "strategy_name": backtest.strategy_name,
                         "strategy_id": "",
-                        "status": item.status,
-                        "principal": item.initial_cash,
+                        "status": backtest.status,
+                        "principal": backtest.initial_cash,
                         "cash": 0.0,
                         "market_value": 0.0,
                         "total": 0.0,
                         "positions": 0,
                         "orders": 0,
-                        "updated_at": item.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
-                        "error": item.error,
+                        "updated_at": backtest.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        "error": backtest.error,
                     }
                 )
             for item in self._strategy_runtimes.values():
@@ -223,7 +247,7 @@ class RuntimeRiskControls:
         rows.sort(key=lambda x: (x["mode"], x["portfolio_id"], x["strategy_id"]))
         return rows
 
-    def get_runtime(self, runtime_id: str) -> StrategyRuntime | None:
+    def get_runtime(self: _RiskHost, runtime_id: str) -> StrategyRuntime | None:
         """按 runtime_id 获取运行时实例。"""
         with self._lock:
             return self._strategy_runtimes.get(runtime_id)

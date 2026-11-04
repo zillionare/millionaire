@@ -10,7 +10,7 @@ from quantide.config.paths import get_app_db_path
 class AuthDatabase:
     """Database manager owned by auth system"""
 
-    def __init__(self, db_path: str | Path | None = None):
+    def __init__(self, db_path: str | Path | None = None) -> None:
         if db_path is None:
             db_path = get_app_db_path()
         if str(db_path) != ":memory:":
@@ -43,6 +43,6 @@ class AuthDatabase:
         """Get database instance for app to add tables"""
         return self.db
 
-    def close(self):
+    def close(self) -> None:
         """Release the authentication database's own connection and file handle."""
         self.db.close()

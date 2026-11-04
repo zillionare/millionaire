@@ -362,7 +362,7 @@ def _terminate_workers(executor: Any) -> None:
 class ParamOptimizer:
     """参数优化执行器（多进程 + 可中断）。"""
 
-    def __init__(self, spec: OptimizationSpec):
+    def __init__(self, spec: OptimizationSpec) -> None:
         self.spec = spec
         self._cancel = threading.Event()
 

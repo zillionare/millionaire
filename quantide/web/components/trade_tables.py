@@ -1,7 +1,22 @@
 """Position and order tables shared by trading views."""
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    Thead,
+    Tr,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Button,
+    Table,
+    Tbody,
+    Td,
+    Th,
+    UkIcon,
+)
 
 from quantide.core.enums import OrderSide, OrderStatus
 from quantide.data.models import Order, Position

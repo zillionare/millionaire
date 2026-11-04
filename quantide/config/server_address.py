@@ -14,11 +14,13 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8130
 
 
-def validate_address(host, port):
+def validate_address(host: object, port: str | int | float | None) -> tuple[str, int]:
     """Accept explicit IP listeners and a usable TCP port."""
     try:
         text = str(host).strip()
         address = str(ipaddress.ip_address("127.0.0.1" if text == "localhost" else text))
+        if port is None:
+            raise ValueError("invalid port")
         number = int(port)
         if not 1 <= number <= 65535:
             raise ValueError("invalid port")
@@ -27,7 +29,7 @@ def validate_address(host, port):
     return address, number
 
 
-def saved_address(config_dir=None):
+def saved_address(config_dir: str | Path | None = None) -> tuple[str, int]:
     """Read only the listener fields without creating or modifying a profile."""
     directory = Path(config_dir) if config_dir is not None else get_app_config_dir()
     database = directory / "quantide.db"
@@ -43,7 +45,7 @@ def saved_address(config_dir=None):
     return DEFAULT_HOST, DEFAULT_PORT
 
 
-def effective_address(host=None, port=None):
+def effective_address(host: str | None = None, port: int | str | None = None) -> tuple[str, int]:
     """Use explicit arguments, environment, then persisted settings, in that order."""
     saved_host, saved_port = saved_address()
     selected_host = host if host is not None else os.getenv("QUANTIDE_HOST") or saved_host
@@ -52,13 +54,13 @@ def effective_address(host=None, port=None):
     return str(selected_host).strip(), validated_port
 
 
-def local_url(config_dir=None):
+def local_url(config_dir: str | Path | None = None) -> str:
     """Use loopback for the foreground controller, including wildcard listeners."""
     _, port = saved_address(config_dir)
     return f"http://127.0.0.1:{port}"
 
 
-def publish_port(port):
+def publish_port(port: int | str) -> None:
     """Publish only the listening port when the native service provides a public path."""
     path = os.getenv("QUANTIDE_PUBLIC_WEB_PORT", "").strip()
     if not path:
@@ -69,7 +71,7 @@ def publish_port(port):
         temporary.chmod(0o644)
 
 
-def controller_url():
+def controller_url() -> str:
     """Let non-privileged desktop controls read the service's non-secret port."""
     public = os.getenv("QUANTIDE_PUBLIC_WEB_PORT", "").strip()
     if not public and sys.platform.startswith("linux"):

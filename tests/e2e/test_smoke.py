@@ -17,10 +17,10 @@ def test_login_redirects_into_strategy_workspace(anonymous_initialized_client):
 
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 303
-    assert response.headers["location"] == "/strategy/"
+    assert response.headers["location"] == "/auth/login"
 
     login_page = auth.open_login()
-    login_page.require("登录", "username", "password")
+    login_page.require("登录", "password")
 
     login = auth.login("admin", "admin123")
     assert login.status_code == 303

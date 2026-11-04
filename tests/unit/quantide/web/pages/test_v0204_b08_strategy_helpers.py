@@ -63,7 +63,7 @@ def test_normalize_backtest_tab_overview_default():
     assert _normalize_backtest_tab(None) == "overview"
 
 
-def test_normalize_backtest_tab_valid():
+def test_normalize_backtest_tab_valid_original_66():
     """[AC-NFR1101-01] test_normalize_backtest_tab_valid."""
     assert _normalize_backtest_tab("positions") == "positions"
 
@@ -112,7 +112,7 @@ def test_normalize_stats_strips_special_chars():
 # ---------------------------------------------------------------------------
 
 
-def test_to_number_none():
+def test_to_number_none_original_115():
     """[AC-NFR1101-01] test_to_number_none."""
     assert _to_number(None) is None
 
@@ -182,7 +182,7 @@ def test_metric_value_unparseable_returns_none():
 # ---------------------------------------------------------------------------
 
 
-def test_format_date_none():
+def test_format_date_none_original_185():
     """[AC-NFR1101-01] test_format_date_none."""
     assert _format_date(None) == "--"
 
@@ -243,7 +243,7 @@ def test_format_percent_invalid():
     assert _format_percent("not-a-number") == "--"
 
 
-def test_format_percent_none():
+def test_format_percent_none_original_246():
     """[AC-NFR1101-01] test_format_percent_none."""
     assert _format_percent(None) == "--"
 
@@ -253,7 +253,7 @@ def test_format_percent_decimal():
     assert _format_percent(0.5) == "50.0%"
 
 
-def test_format_percent_zero():
+def test_format_percent_zero_original_256():
     """[AC-NFR1101-01] test_format_percent_zero."""
     assert _format_percent(0) == "0.0%"
 
@@ -268,17 +268,17 @@ def test_format_percent_string_number():
 # ---------------------------------------------------------------------------
 
 
-def test_format_number_invalid():
+def test_format_number_invalid_original_271():
     """[AC-NFR1101-01] test_format_number_invalid."""
     assert _format_number("x") == "--"
 
 
-def test_format_number_none():
+def test_format_number_none_original_276():
     """[AC-NFR1101-01] test_format_number_none."""
     assert _format_number(None) == "--"
 
 
-def test_format_number_decimal():
+def test_format_number_decimal_original_281():
     """[AC-NFR1101-01] test_format_number_decimal."""
     assert _format_number(3.14) == "3.14"
 
@@ -293,19 +293,19 @@ def test_format_number_string():
 # ---------------------------------------------------------------------------
 
 
-def test_params_to_text_empty():
+def test_params_to_text_empty_original_296():
     """[AC-NFR1101-01] test_params_to_text_empty."""
     assert _params_to_text({}) == "--"
 
 
-def test_params_to_text_simple():
+def test_params_to_text_simple_original_301():
     """[AC-NFR1101-01] test_params_to_text_simple."""
     out = _params_to_text({"x": 1, "y": "abc"})
     assert "x=1" in out
     assert "y=abc" in out
 
 
-def test_params_to_text_dict_value():
+def test_params_to_text_dict_value_original_308():
     """[AC-NFR1101-01] Dict values are unwrapped to .get('default')."""
     out = _params_to_text({"x": {"default": "val1"}})
     assert "x=val1" in out
@@ -331,7 +331,7 @@ def test_format_number_invalid():
     assert _format_number("not-a-number") == "--"
 
 
-def test_format_number_none():
+def test_format_number_none_original_334():
     """[AC-NFR1101-01] test_format_number_none."""
     assert _format_number(None) == "--"
 
@@ -351,7 +351,7 @@ def test_format_number_string_int():
     assert _format_number("10") == "10.00"
 
 
-def test_params_to_text_empty():
+def test_params_to_text_empty_original_354():
     """[AC-NFR1101-01] test_params_to_text_empty."""
     assert _params_to_text({}) == "--"
 
@@ -465,26 +465,26 @@ from quantide.web.pages.strategy import (
 )
 
 
-def test_format_percent_none():
+def test_format_percent_none_original_468():
     """[AC-NFR1101-01] test_format_percent_none."""
     out = _format_percent(None)
     assert out == "--"
 
 
-def test_format_percent_zero():
+def test_format_percent_zero_original_474():
     """[AC-NFR1101-01] test_format_percent_zero."""
     out = _format_percent(0)
     assert "%" in out
 
 
-def test_format_percent_positive():
+def test_format_percent_positive_original_480():
     """[AC-NFR1101-01] test_format_percent_positive."""
     out = _format_percent(0.1234)
     assert "%" in out
     assert "12.3" in out
 
 
-def test_format_percent_negative():
+def test_format_percent_negative_original_487():
     """[AC-NFR1101-01] test_format_percent_negative."""
     out = _format_percent(-0.05)
     assert "%" in out

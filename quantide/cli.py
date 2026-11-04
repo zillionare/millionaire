@@ -22,7 +22,7 @@ def _open_browser(url: str) -> None:
     webbrowser.open(url)
 
 
-def _run_web(args):
+def _run_web(args: argparse.Namespace) -> int:
     from quantide.config.server_address import effective_address, publish_port
 
     host, port = effective_address(args.host, args.port)

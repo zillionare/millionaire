@@ -77,7 +77,7 @@ T = TypeVar("T")
 
 @singleton
 class SQLiteDB:
-    def __init__(self):
+    def __init__(self) -> None:
         # 每个线程都有自己的数据库连接
         self._thread_local = threading.local()
         self._lock = threading.RLock()
@@ -92,7 +92,7 @@ class SQLiteDB:
         )
         return self._initialized and self.db_path == next_path and next_path != ":memory:"
 
-    def init(self, db_path: str | Path):
+    def init(self, db_path: str | Path) -> None:
         next_path = (
             ":memory:" if str(db_path) == ":memory:" else str(external_runtime_path(db_path))
         )
@@ -218,7 +218,7 @@ class SQLiteDB:
             self._connections.clear()
             self._close_thread_connection()
 
-    def _init_tables(self, db: su.Database):
+    def _init_tables(self, db: su.Database) -> None:
         """Initialize declared tables, adding compatible columns and indexes in place."""
         self._drop_obsolete_market_tables(db)
         db.execute(portfolio_ledger.SNAPSHOT_SCHEMA)

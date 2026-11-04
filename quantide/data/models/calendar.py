@@ -60,7 +60,7 @@ class Calendar(CalendarFrameOperations):
     提供交易日历以及相关计算，比如计算[start, end]之间有多少个交易周期，偏移等。
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._path: Path | None = None
         self._data: pa.Table | None = None
         self.minute_level_frames = [

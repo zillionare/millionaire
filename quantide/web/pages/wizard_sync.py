@@ -25,7 +25,7 @@ def start_wizard_sync(start_date):
         task.add_done_callback(_background_tasks.discard)
 
 
-async def stop_wizard_sync():
+async def stop_wizard_sync() -> None:
     """Cancel downloads and wait for their worker before closing storage."""
     tasks = tuple(_background_tasks)
     for task in tasks:
@@ -56,7 +56,7 @@ async def _wait_for_pipeline(task_id):
     await wait_for_sync(task_id, _apply_task_progress, data_sync_service)
 
 
-async def _run_data_sync(start_date: datetime.date | None = None):
+async def _run_data_sync(start_date: datetime.date | None = None) -> None:
     """Use the same stages, failures and checkpoints as daily maintenance."""
     wizard_state._sync_status.update(is_running=True, completed=False, error=None)
     _set_download_error(None)

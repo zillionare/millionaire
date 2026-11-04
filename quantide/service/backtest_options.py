@@ -1,7 +1,8 @@
 """Named configuration for backtest accounting and execution behavior."""
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields, replace
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,9 @@ class BacktestOptions:
     allow_same_bar_repurchase: bool = True
 
     @classmethod
-    def resolve(cls, positional, configured, overrides):
+    def resolve(
+        cls, positional: Sequence[Any], configured: Self | None, overrides: Mapping[str, Any]
+    ) -> Self:
         """Preserve legacy positional/keyword calls while supporting named configuration."""
         names = [field.name for field in fields(cls)]
         if len(positional) > len(names):

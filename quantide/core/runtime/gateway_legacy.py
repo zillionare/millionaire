@@ -39,7 +39,7 @@ class GatewayBrokerWrapper(BarViewFacade, OrderConvenience, AbstractBroker):
         self,
         adapter: BrokerPort,
         portfolio_id: str = "gateway",
-    ):
+    ) -> None:
         super().__init__(portfolio_id=portfolio_id, kind=BrokerKind.QMT)
         self._adapter = adapter
         self._portfolio_id = portfolio_id
@@ -286,11 +286,11 @@ class GatewayBrokerWrapper(BarViewFacade, OrderConvenience, AbstractBroker):
     def get_prices(self, assets):
         return quote_prices(assets, market_data_hub.get_quote)
 
-    async def cancel_order(self, qt_oid: str):
+    async def cancel_order(self, qt_oid: str) -> None:
         """撤销指定订单."""
         await self._adapter.cancel(qt_oid)
 
-    async def cancel_all_orders(self, side: OrderSide | None = None):
+    async def cancel_all_orders(self, side: OrderSide | None = None) -> None:
         """撤销全部未完成订单."""
         await self._adapter.cancel_all(side=side)
 

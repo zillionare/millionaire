@@ -10,12 +10,26 @@ import urllib.request
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Mapping,
+    P,
+    Span,
+)
 from fasthtml.common import Input as _Input
 
 # Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
 from fasthtml.common import Label as _Label
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H2,
+    H3,
+    Button,
+    Form,
+    Input,
+    UkIcon,
+)
 
 from quantide.config.dev_stubs import dev_stubs_enabled
 from quantide.config.features import supports_live_trading

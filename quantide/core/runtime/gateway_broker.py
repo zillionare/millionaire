@@ -38,7 +38,7 @@ from quantide.service.market_data_hub import market_data_hub
 class GatewayBrokerAdapter(OrderConvenience, BrokerPort):
     """基于 qmt-gateway REST 的交易适配器."""
 
-    def __init__(self, client: GatewayClient):
+    def __init__(self, client: GatewayClient) -> None:
         """初始化适配器.
 
         Args:

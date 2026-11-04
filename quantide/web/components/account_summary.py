@@ -1,6 +1,9 @@
 """Account total cards shared by the dashboard and live account page."""
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+)
 from monsterui.all import *
 
 

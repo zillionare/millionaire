@@ -1,10 +1,12 @@
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import A, Div, Li, Nav, P, Span, Thead, Tr, Ul
 
 # Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import H2, H3, Button, Table, Tbody, Td, Th
 from starlette.responses import RedirectResponse
 
 from quantide.config.branding import get_branding

@@ -12,9 +12,24 @@ import urllib.error
 import urllib.request
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    P,
+    Span,
+)
 from fasthtml.common import to_xml as _to_xml
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H2,
+    H3,
+    H4,
+    Button,
+    Form,
+    Input,
+    UkIcon,
+)
 from starlette.responses import (
     HTMLResponse,
     JSONResponse,

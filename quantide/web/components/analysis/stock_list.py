@@ -1,12 +1,16 @@
 """股票列表组件"""
 
-from fasthtml.common import *
+from typing import Any
+
+from fasthtml.common import FT, Button, Div, P
 
 
 class StockList:
     """股票列表组件"""
 
-    def __init__(self, stocks: list[dict] = None, selected_symbol: str = None):
+    def __init__(
+        self, stocks: list[dict[str, Any]] | None = None, selected_symbol: str | None = None
+    ) -> None:
         self.stocks = stocks or []
         self.selected_symbol = selected_symbol
 

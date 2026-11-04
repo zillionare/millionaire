@@ -94,7 +94,7 @@ def _install_launchd(system=False, user=None):
         temporary.chmod(0o644)
 
 
-def _install_systemd():
+def _install_systemd() -> None:
     destination = Path("/etc/systemd/system") / f"{SERVICE_NAME}.service"
     executable = str(Path(sys.executable).resolve()).replace('"', '\\"')
     content = (
@@ -119,7 +119,7 @@ def _install_systemd():
     _run(["systemctl", "enable", SERVICE_NAME])
 
 
-def _install_windows():
+def _install_windows() -> None:
     root = external_runtime_path(install_root())
     directory = external_runtime_path(
         os.environ.get("MILLIONAIRE_SERVICE_HOME", "").strip()

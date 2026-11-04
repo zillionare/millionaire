@@ -17,7 +17,7 @@ from quantide.data.fetchers.registry import get_data_fetcher
 class StockList:
     """管理证券列表、更新和查询"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._path: str | Path = ""
         self._data = pl.DataFrame()
         self._last_update_time: datetime.datetime | None = None

@@ -33,7 +33,7 @@ class SystemClockAdapter(ClockPort):
 class BacktestClockAdapter(ClockPort):
     """回测时钟适配器."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化回测时钟."""
         self._now: datetime.datetime | None = None
 

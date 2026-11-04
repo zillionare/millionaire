@@ -1,6 +1,9 @@
 """Opt-in official Tushare realtime snapshots at minute frequency."""
 
+import datetime
 import threading
+from collections.abc import Callable, Iterable
+from typing import Protocol
 
 from loguru import logger
 
@@ -14,12 +17,32 @@ from quantide.service.scheduled_jobs import remove_owned_jobs
 JOB_ID = "tushare_realtime_quotes"
 
 
+class _QuoteFetcher(Protocol):
+    def fetch_quote_snapshot(
+        self, symbols: Iterable[str], now: datetime.datetime | None = None
+    ) -> dict[str, dict[str, float | datetime.datetime]]: ...
+
+
+class _SubscribedSymbols(Protocol):
+    def subscribed_symbols(self) -> list[str]: ...
+
+
+class _TradeCalendar(Protocol):
+    def is_trade_day(self, dt: datetime.datetime) -> bool: ...
+
+
 class TusharePublisher:
     """Share the existing quote bus and preserve strict publisher shutdown ownership."""
 
     source_name = "tushare"
 
-    def __init__(self, fetcher=None, market_data=None, calendar=None, clock=None):
+    def __init__(
+        self,
+        fetcher: _QuoteFetcher | None = None,
+        market_data: _SubscribedSymbols | None = None,
+        calendar: _TradeCalendar | None = None,
+        clock: Callable[[], datetime.datetime] | None = None,
+    ) -> None:
         self._cancel = threading.Event()
         self._fetcher = fetcher or TushareRealtimeFetcher(cancel=self._cancel)
         self._market_data = market_data
@@ -28,7 +51,7 @@ class TusharePublisher:
         self._lock = threading.RLock()
         self._scheduled = False
 
-    def start(self):
+    def start(self) -> None:
         with self._lock:
             if self._scheduled:
                 return
@@ -44,11 +67,11 @@ class TusharePublisher:
             )
             self._scheduled = True
 
-    def stop(self):
+    def stop(self) -> None:
         self._cancel.set()
         remove_owned_jobs(self, scheduler, (JOB_ID,))
 
-    def publish_once(self):
+    def publish_once(self) -> int:
         from quantide.data.models.calendar import calendar
         from quantide.service.market_data_hub import market_data_hub
 

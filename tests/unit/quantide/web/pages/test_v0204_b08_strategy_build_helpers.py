@@ -730,7 +730,7 @@ from quantide.web.pages.strategy import (
 )
 
 
-def test_backtest_modal_unknown_strategy():
+def test_backtest_modal_unknown_strategy_original_733():
     """[AC-NFR1101-01] Returns 'Strategy not found' for unknown."""
     with patch.object(strategy_backtest_views, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={})
@@ -738,7 +738,7 @@ def test_backtest_modal_unknown_strategy():
     assert out == "Strategy not found"
 
 
-def test_backtest_modal_known_strategy():
+def test_backtest_modal_known_strategy_original_741():
     """[AC-NFR1101-01] When strategy found, returns modal Div with form."""
     fake_cls = MagicMock()
     fake_cls.PARAMS = {"x": 1, "y": "hello"}
@@ -748,7 +748,7 @@ def test_backtest_modal_known_strategy():
     assert out is not None
 
 
-def test_backtest_modal_no_params():
+def test_backtest_modal_no_params_original_751():
     """[AC-NFR1101-01] When strategy has no PARAMS attr, treats as empty dict."""
     fake_cls = MagicMock(spec=[])  # no PARAMS
     with patch.object(strategy_backtest_views, "strategy_loader") as mock_loader:

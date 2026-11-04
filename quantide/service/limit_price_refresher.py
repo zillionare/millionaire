@@ -68,7 +68,7 @@ class LimitPriceRefresher:
     # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
-    def stop(self):
+    def stop(self) -> None:
         """Remove this service's registrations before a subsequent lifespan."""
         remove_owned_jobs(self, scheduler, ("limit_price_refresh_0900", "limit_price_refresh_0920"))
 

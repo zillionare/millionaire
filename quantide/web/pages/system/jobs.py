@@ -12,8 +12,26 @@ from dataclasses import dataclass, field
 
 from apscheduler.triggers.cron import CronTrigger
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    P,
+    RedirectResponse,
+    Span,
+    Thead,
+    Tr,
+)
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    H4,
+    Button,
+    Table,
+    Tbody,
+    Td,
+    Th,
+)
 
 from quantide.core.scheduler import scheduler
 from quantide.data.sqlite import db
@@ -114,7 +132,7 @@ class JobHistoryRecord:
         }
 
 
-def _init_job_history_table():
+def _init_job_history_table() -> None:
     """初始化任务历史记录表"""
     if "job_history" not in db.table_names():
         db["job_history"].create(
@@ -132,7 +150,7 @@ def _init_job_history_table():
         logger.info("Created job_history table")
 
 
-def _init_job_settings_table():
+def _init_job_settings_table() -> None:
     """初始化任务配置表"""
     if JOB_SETTINGS_TABLE not in db.table_names():
         db[JOB_SETTINGS_TABLE].create(
@@ -172,7 +190,7 @@ def _save_job_history(
     status: str,
     message: str = "",
     duration_ms: int = 0,
-):
+) -> None:
     """保存任务执行记录"""
     record = JobHistoryRecord(
         job_id=job_id,
@@ -213,7 +231,7 @@ def _get_all_job_history(limit: int = 20) -> list[JobHistoryRecord]:
 # ========== 任务执行函数 ==========
 
 
-def _run_daily_bars_sync():
+def _run_daily_bars_sync() -> None:
     """日线数据同步任务"""
     from quantide.service.maintenance import maintain_data
 
@@ -225,7 +243,7 @@ def _run_daily_bars_sync():
         _save_job_history("daily_bars_sync", "每日数据维护", "error", str(exc))
 
 
-def _run_stock_list_sync():
+def _run_stock_list_sync() -> None:
     """股票列表同步任务"""
     from quantide.data.models.stocks import stock_list
 
@@ -238,7 +256,7 @@ def _run_stock_list_sync():
         _save_job_history("stock_list_sync", "股票列表同步", "error", str(e))
 
 
-def _run_calendar_sync():
+def _run_calendar_sync() -> None:
     """交易日历同步任务"""
     from quantide.data.models.calendar import calendar as trade_calendar
 
@@ -259,14 +277,14 @@ def _run_snapshot(job_id, label, operation):
         _save_job_history(job_id, label, "error", str(exc))
 
 
-def _run_daily_snapshot():
+def _run_daily_snapshot() -> None:
     """日终快照任务。"""
     from quantide.service.maintenance import snapshot_accounts
 
     _run_snapshot("daily_snapshot", "日终快照", snapshot_accounts)
 
 
-def _run_market_snapshot():
+def _run_market_snapshot() -> None:
     """行情快照任务。"""
     from quantide.service.maintenance import snapshot_market
 
@@ -287,7 +305,7 @@ JOB_FUNCTIONS = {
 _job_enabled_state: dict[str, bool] = {}
 
 
-def _init_scheduler_jobs():
+def _init_scheduler_jobs() -> None:
     """初始化调度器任务"""
     _init_job_history_table()
     _job_enabled_state.update(_load_persisted_job_enabled_state())
@@ -337,7 +355,7 @@ def _init_scheduler_jobs():
         )
 
 
-def _toggle_job(job_id: str, enabled: bool):
+def _toggle_job(job_id: str, enabled: bool) -> None:
     """启用/禁用任务"""
     _job_enabled_state[job_id] = enabled
     _save_job_enabled_state(job_id, enabled)
@@ -350,7 +368,7 @@ def _toggle_job(job_id: str, enabled: bool):
             scheduler.scheduler.pause_job(job_id)
 
 
-def _run_job_now(job_id: str):
+def _run_job_now(job_id: str) -> None:
     """立即执行任务"""
     func = JOB_FUNCTIONS.get(job_id)
     if func:

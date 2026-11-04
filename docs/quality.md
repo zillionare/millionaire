@@ -43,12 +43,12 @@ Poetry 与 PEP 735 分组保持一致；`poetry.lock`、`uv.lock` 一并提交�
 python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e '.[ml30m]' --group quality --group test
+python -m pip install -e '.[ml30m]' --group dev --group quality --group test
 python -m pre_commit install
 ```
 
 Windows 激活命令为 `.venv\Scripts\Activate.ps1`。
-Poetry 用户可用 `poetry install --with quality,test --without doc`。
+Poetry 用户可用 `poetry install --with dev,quality,test --without doc`。
 
 ```bash
 # 与 CI 完全相同；非零退出码即不通过
@@ -59,7 +59,9 @@ python -m unittest discover -s tests/quality -v
 ```
 
 提交前保持项目虚拟环境已激活，pre-commit 的本地检查使用该环境中的 Python。
-原有 Ruff 自动格式化和 MyPy hook 保留。生产质量 hook 不运行测试，允许
+Ruff 自动格式化和 MyPy hook 保留。MyPy 使用项目虚拟环境内固定的 1.20.2 版本，
+检查整个 `quantide`，不要求 `tests`、`scripts` 的函数具备类型声明。
+生产质量 hook 不运行测试，允许
 Red-Green-Refactor 中先提交失败的测试；生产代码提交仍须满足结构预算。
 
 结果默认保存在系统临时产物目录的 `quality/quality.json`，包括工具版本、完整文件数、源码和

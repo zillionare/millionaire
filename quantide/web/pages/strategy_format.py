@@ -5,7 +5,17 @@ from typing import Any
 
 import fasthtml.common as fh
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Script,
+    Span,
+    Style,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Td,
+)
 
 from quantide.core.strategy_config import stored_strategy_config
 from quantide.web.components.modal import ModalBackdrop, ModalViewport

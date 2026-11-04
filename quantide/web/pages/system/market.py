@@ -4,11 +4,26 @@ import asyncio
 import datetime
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    P,
+    Span,
+    Tr,
+)
 
 # Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
 from fasthtml.common import Label as _Label
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H2,
+    Button,
+    Form,
+    Input,
+    Td,
+    UkIcon,
+)
 
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.stocks import stock_list

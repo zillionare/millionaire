@@ -7,11 +7,11 @@ from quantide.core.singleton import singleton
 
 @singleton
 class BrokerRegistry:
-    def __init__(self):
+    def __init__(self) -> None:
         self._brokers: dict[str, Any] = {}
         self._default: tuple[str, str] | None = None
 
-    def register(self, kind: BrokerKind | str, portfolio_id: str, broker: Any):
+    def register(self, kind: BrokerKind | str, portfolio_id: str, broker: Any) -> None:
         if isinstance(kind, BrokerKind):
             kind = kind.value
 
@@ -20,7 +20,7 @@ class BrokerRegistry:
         if self._default is None:
             self._default = (kind, portfolio_id)
 
-    def unregister(self, kind: BrokerKind | str, portfolio_id: str):
+    def unregister(self, kind: BrokerKind | str, portfolio_id: str) -> None:
         if isinstance(kind, BrokerKind):
             kind = kind.value
         key = f"{kind}:{portfolio_id}"
@@ -41,10 +41,10 @@ class BrokerRegistry:
         key = f"{kind}:{portfolio_id}"
         return self._brokers.get(key)
 
-    def list(self) -> list[dict]:
+    def list(self) -> list[dict[str, str]]:
         return [{"kind": k.split(":")[0], "id": k.split(":")[1]} for k in self._brokers.keys()]
 
-    def list_by_kind(self, kind: BrokerKind | str) -> builtins.list[dict]:
+    def list_by_kind(self, kind: BrokerKind | str) -> builtins.list[dict[str, Any]]:
         if isinstance(kind, BrokerKind):
             kind = kind.value
         result = []

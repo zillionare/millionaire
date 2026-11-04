@@ -22,7 +22,7 @@ class IndexBarsStore(BarStore):
     字段：symbol, date, open, high, low, close, volume, amount
     """
 
-    def __init__(self, path: str | Path, calendar: Calendar):
+    def __init__(self, path: str | Path, calendar: Calendar) -> None:
         """初始化指数行情存储
 
         Args:

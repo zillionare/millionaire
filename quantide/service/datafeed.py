@@ -7,14 +7,13 @@
 from __future__ import annotations
 
 import datetime
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import polars as pl
 from loguru import logger
 
 from quantide.core.bar_schema import bar_schema
 from quantide.core.enums import FrameType
-from quantide.core.ports import MarketDataPort
 from quantide.core.ports.data_fetcher import STANDARD_BAR_COLUMNS
 
 if TYPE_CHECKING:
@@ -22,6 +21,16 @@ if TYPE_CHECKING:
 
 
 Frame = datetime.date | datetime.datetime
+
+
+class LiveBarsSource(Protocol):
+    """Live quote capabilities used by the bar feed."""
+
+    @property
+    def is_running(self) -> bool: ...
+    def get_daily_bar(self, symbol: str) -> dict[str, Any] | None: ...
+    def get_price_limits(self, symbol: str) -> tuple[float, float]: ...
+    def get_quote(self, symbol: str) -> dict[str, Any] | None: ...
 
 
 class BarsFeed(Protocol):
@@ -82,6 +91,10 @@ class BarsFeed(Protocol):
         """
         ...
 
+    def get_trade_price_limits(self, asset: str, date: datetime.date) -> tuple[float, float]:
+        """获取指定交易日的历史涨跌停价格。"""
+        ...
+
     def get_current_price(self, asset: str) -> float | None:
         """获取指定资产的最新价格（仅实盘）
 
@@ -136,10 +149,10 @@ class BarsFeedImpl:
     def __init__(
         self,
         daily_bars: DailyBars | None = None,
-        market_data: MarketDataPort | None = None,
+        market_data: LiveBarsSource | None = None,
         *,
-        live_quote: MarketDataPort | None = None,
-    ):
+        live_quote: LiveBarsSource | None = None,
+    ) -> None:
         """初始化 BarsFeedImpl
 
         Args:
@@ -208,12 +221,15 @@ class BarsFeedImpl:
             start_dt = self._to_datetime(start)
             end_dt = self._to_datetime(end) if end else None
 
-            df = self._daily_bars.get_bars_in_range(
-                assets=[asset],
-                start=start_dt,
-                end=end_dt,
-                adjust=adjust,
-                eager_mode=True,
+            df = cast(
+                pl.DataFrame,
+                self._daily_bars.get_bars_in_range(
+                    assets=[asset],
+                    start=start_dt,
+                    end=end_dt,
+                    adjust=adjust,
+                    eager_mode=True,
+                ),
             )
 
             if not df.is_empty():
@@ -307,6 +323,12 @@ class BarsFeedImpl:
 
         return 0.0, 0.0
 
+    def get_trade_price_limits(self, asset: str, date: datetime.date) -> tuple[float, float]:
+        """Return historical price limits for the requested trading date."""
+        if self._daily_bars is None:
+            return 0.0, 0.0
+        return self._daily_bars.get_trade_price_limits(asset, date)
+
     def get_current_price(self, asset: str) -> float | None:
         """获取最新价格（仅实盘）"""
         if self._market_data is None:
@@ -316,7 +338,7 @@ class BarsFeedImpl:
         if quote is None:
             return None
 
-        return quote.get("price")
+        return cast(float | None, quote.get("price"))
 
     def get_price_for_match(self, asset: str, tm: datetime.datetime) -> pl.DataFrame | None:
         """获取用于撮合的行情数据"""

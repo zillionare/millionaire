@@ -89,7 +89,7 @@ class BacktestSnapshots:
         else:
             self._fill_positions_and_assets(fill_dates, latest_pos, latest_asset)
 
-    def _fill_assets_only(self, fill_dates: list[datetime.date], last_asset: Asset):
+    def _fill_assets_only(self, fill_dates: list[datetime.date], last_asset: Asset) -> None:
         """无持仓时，仅同步资产日期"""
         assets_to_insert = [
             Asset(
@@ -107,7 +107,7 @@ class BacktestSnapshots:
 
     def _fill_positions_and_assets(
         self, fill_dates: list[datetime.date], latest_pos: pl.DataFrame, last_asset: Asset
-    ):
+    ) -> None:
         """有持仓时，计算行情变动及复权折算
 
         在复权发生时，按现金折算持仓价值，更新资产记录。
@@ -219,7 +219,7 @@ class BacktestSnapshots:
 
     def _batch_update_history(
         self, fill_df: pl.DataFrame, daily_stats: pl.DataFrame, last_asset: Asset
-    ):
+    ) -> None:
         """执行数据库批量更新"""
         # 批量写入持仓记录。每个日期必须写成完整快照，否则已清仓的标的
         # 会残留在当天记录中，并在下一次 fill_history_gap 时被当成持仓。

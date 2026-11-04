@@ -4,7 +4,18 @@ import calendar as cal_lib
 import datetime
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Thead,
+    Tr,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H4,
+    Table,
+    Tbody,
+    Th,
+)
 
 from quantide.data.models.calendar import calendar
 from quantide.web.application import fast_app

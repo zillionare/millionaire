@@ -1,5 +1,6 @@
 """Persisted source choices and legacy configurations select one publisher."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -50,3 +51,12 @@ def test_disabling_extension_preserves_other_source_but_enabling_selects_it(prof
     assert realtime_source() == "extension"
     extensions.configure_quote_provider(False)
     assert realtime_source() == "none"
+
+
+@pytest.mark.parametrize("source", [None, [], {}, 42, "unknown"])
+def test_invalid_persisted_realtime_source_is_rejected(profile, source):
+    path = profile / "config" / "realtime-source.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"source": source}), encoding="utf-8")
+    with pytest.raises(ValueError, match="未知实时行情配置"):
+        realtime_source()

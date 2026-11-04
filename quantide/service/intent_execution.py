@@ -1,7 +1,11 @@
 """Reconcile durable next-open orders before allowing a retry."""
 
+from typing import Any
 
-def reconcile_processing_intents(runtime_id, broker, store) -> None:
+from quantide.service.strategy_tracking import TrackingStore
+
+
+def reconcile_processing_intents(runtime_id: str, broker: Any, store: TrackingStore) -> None:
     """Resolve accepted orders; retry only with an idempotent broker contract."""
     rows = store.list_next_open_intents(runtime_id=runtime_id, status="processing")
     if not rows:

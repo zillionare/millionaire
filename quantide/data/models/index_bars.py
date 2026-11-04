@@ -16,6 +16,6 @@ class IndexBars:
     字段定义: symbol, date, open, high, low, close, volume, amount
     """
 
-    SCHEMA: dict[str, pl.DataType] = bar_schema(
+    SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = bar_schema(
         time_column="date", time_type=pl.Date, asset_column="sector_id", extended=False
     )

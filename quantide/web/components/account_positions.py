@@ -1,7 +1,17 @@
 """Shared position quantities, valuation and profit display for account pages."""
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Tr,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Button,
+    Td,
+    UkIcon,
+)
 
 from quantide.data.models import Position
 from quantide.web.components.asset_label import resolve_asset_name

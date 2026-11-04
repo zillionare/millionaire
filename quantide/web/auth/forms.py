@@ -1,4 +1,5 @@
 # auth/forms.py
+import fasthtml.common as fh
 from fasthtml.common import *
 from monsterui.all import *
 
@@ -7,7 +8,7 @@ from quantide.config.branding import get_branding
 
 def _login_error_message(error):
     messages = {
-        "invalid": "账号或密码错误，请重新输入。",
+        "invalid": "密码错误，请重新输入。",
         "inactive": "当前账号已停用，请联系管理员。",
         "system": "系统暂时不可用，请稍后再试。",
     }
@@ -16,18 +17,19 @@ def _login_error_message(error):
 
 def _login_field(label_cn, label_en, field_id, name, placeholder, field_type="text"):
     return Div(
-        Label(
+        fh.Label(
             f"{label_cn}/{label_en}",
             fr=field_id,
             cls="qt-login-label",
         ),
-        Input(
+        fh.Input(
             id=field_id,
             name=name,
             type=field_type,
             placeholder=placeholder,
             required=True,
-            autofocus=field_id == "username",
+            autofocus=field_id == "password",
+            autocomplete="current-password" if field_type == "password" else "username",
             cls="qt-login-input",
         ),
         cls="qt-login-field",
@@ -35,17 +37,7 @@ def _login_field(label_cn, label_en, field_id, name, placeholder, field_type="te
 
 
 def _brand_emblem():
-    branding = get_branding()
-    return Div(
-        Div(
-            Span(branding.product_name[:1], cls="qt-emblem-char qt-emblem-char-top"),
-            Span(branding.product_name[-1], cls="qt-emblem-char qt-emblem-char-bottom"),
-            cls="qt-emblem-text",
-        ),
-        Div(cls="qt-emblem-eye-top"),
-        Div(cls="qt-emblem-eye-bottom"),
-        cls="qt-emblem-yinyang",
-    )
+    return Div(Img(src="/static/logo.png", alt="Quantide"), cls="qt-emblem")
 
 
 def create_login_form(error=None, action="/auth/login", redirect_to="/"):
@@ -54,33 +46,31 @@ def create_login_form(error=None, action="/auth/login", redirect_to="/"):
     branding = get_branding()
 
     return Div(
-        Link(rel="stylesheet", href="/static/login.css"),
+        Link(rel="stylesheet", href="/static/login.css?v=3"),
         Div(
             Div(
                 Div(
                     Div(
-                        Div(branding.product_name, cls="qt-brand-logo-text"),
-                        Div(cls="qt-brand-divider"),
-                        Div("开启财富之门", cls="qt-brand-tagline"),
+                        Div("QUANTIDE / QUANTITATIVE INVESTING", cls="qt-brand-tagline"),
                         cls="qt-brand-mark",
                     ),
-                    Div("量化软件 · 策略 · 交易", cls="qt-brand-slogan"),
+                    Div(Span("投资如山岳般古老，"), Span("但工具常新"), cls="qt-brand-slogan"),
                     Div(
-                        Div(branding.company_name),
-                        Div(
-                            f"商务洽谈: {branding.support_email}",
-                            cls="qt-brand-contact",
-                        ),
+                        Div(branding.product_name),
                         cls="qt-brand-footer",
                     ),
                     cls="qt-login-brand",
                 ),
                 Div(
-                    H2(f"{branding.product_name} 智能交易", cls="qt-login-title"),
+                    Div("WELCOME BACK", cls="qt-login-eyebrow"),
+                    H2("欢迎回来", cls="qt-login-title"),
+                    P(
+                        f"登录 {branding.product_name}，继续您的量化之旅。",
+                        cls="qt-login-description",
+                    ),
                     Form(
                         Input(type="hidden", name="redirect_to", value=redirect_to),
                         Alert(error_message, cls="qt-login-error") if error_message else None,
-                        _login_field("账号", "Account", "username", "username", "请输入账户"),
                         _login_field(
                             "密码",
                             "Password",
@@ -89,8 +79,8 @@ def create_login_form(error=None, action="/auth/login", redirect_to="/"):
                             "请输入密码",
                             field_type="password",
                         ),
-                        Label(
-                            Input(type="checkbox", name="remember_me", value="on"),
+                        fh.Label(
+                            fh.Input(type="checkbox", name="remember_me", value="on"),
                             Span("记住我/Remember me"),
                             cls="qt-login-remember",
                         ),

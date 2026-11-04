@@ -6,6 +6,7 @@ import datetime
 import json
 import sqlite3
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -100,7 +101,7 @@ class TrackingStore:
         self.ensure_schema()
 
     @contextmanager
-    def _connect(self):
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         """Own both the transaction and connection; SQLite's context alone stays open."""
         connection = sqlite3.connect(self.path, timeout=10)
         try:

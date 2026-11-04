@@ -1,11 +1,16 @@
 """Observe one durable pipeline task, isolated from other jobs' event messages."""
 
 import asyncio
+from collections.abc import Callable
 
+from quantide.data.models.sync_task import DataSyncTask
 from quantide.service.background import run_blocking
+from quantide.service.data_sync import DataSyncService
 
 
-async def wait_for_sync(task_id, on_progress, service):
+async def wait_for_sync(
+    task_id: str, on_progress: Callable[[DataSyncTask | None], None], service: DataSyncService
+) -> None:
     worker = asyncio.create_task(run_blocking(service.run, task_id))
     try:
         while not worker.done():

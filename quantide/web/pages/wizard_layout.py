@@ -3,7 +3,16 @@
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Hr,
+    Link,
+)
 from monsterui.all import *
+from monsterui.all import (
+    Form,
+    Input,
+)
 
 from quantide.config.branding import get_branding
 from quantide.config.dev_stubs import (

@@ -7,8 +7,23 @@ from typing import Any
 import fasthtml.common as fh
 import polars as pl
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Span,
+    Thead,
+    Tr,
+)
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    Button,
+    Form,
+    Input,
+    Table,
+    Tbody,
+    Td,
+    Th,
+)
 
 from quantide.data.models.daily_bars import daily_bars
 from quantide.service.discovery import strategy_loader

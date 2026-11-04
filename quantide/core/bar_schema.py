@@ -10,9 +10,14 @@ STANDARD_INDEX_WEIGHT_COLUMNS = ["date", "index_code", "con_code", "weight"]
 STANDARD_STOCK_LIST_COLUMNS = ["asset", "name", "pinyin", "list_date", "delist_date"]
 
 
-def bar_schema(*, time_column="date", time_type=pl.Date, asset_column="asset", extended=True):
+def bar_schema(
+    *, time_column: str = "date", time_type: pl.DataType | type[pl.DataType] = pl.Date,
+    asset_column: str = "asset", extended: bool = True,
+) -> dict[str, pl.DataType | type[pl.DataType]]:
     """Produce a fresh schema for stock, index and strategy-feed frames."""
-    schema = {time_column: time_type, asset_column: pl.Utf8}
+    schema: dict[str, pl.DataType | type[pl.DataType]] = {
+        time_column: time_type, asset_column: pl.Utf8,
+    }
     schema.update(dict.fromkeys(OHLCV_COLUMNS, pl.Float64))
     if extended:
         schema.update(

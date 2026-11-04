@@ -56,7 +56,8 @@ from __future__ import annotations
 
 import datetime
 import threading
-from typing import Any
+from collections.abc import AsyncIterator
+from typing import Any, cast
 
 from loguru import logger
 
@@ -334,11 +335,11 @@ class MarketDataHub:
             snapshot = self._snapshots.get(str(symbol))
         return float(snapshot.price) if snapshot and snapshot.price else 0.0
 
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[MarketEvent]:
         """行情事件流（异步迭代）。"""
         import asyncio
 
-        queue: asyncio.Queue = asyncio.Queue()
+        queue: asyncio.Queue[object] = asyncio.Queue()
         self._stream_queue = queue
         self._stream_loop = asyncio.get_running_loop()
         try:
@@ -346,7 +347,7 @@ class MarketDataHub:
                 event = await queue.get()
                 if event is _STREAM_STOP:
                     return
-                yield event
+                yield cast(MarketEvent, event)
         finally:
             self._stream_queue = None
             self._stream_loop = None

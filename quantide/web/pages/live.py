@@ -3,10 +3,24 @@
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    Span,
+    Tr,
+)
 
 # Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Button,
+    Form,
+    Input,
+    Td,
+    UkIcon,
+)
 
 from quantide.core.enums import BrokerKind
 from quantide.data.models import Asset, Position

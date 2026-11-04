@@ -32,6 +32,20 @@ from quantide.web.pages.data_market import (
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
+async def test_verify_runs_the_data_check_and_displays_result():
+    result = {"assets": 1, "missing": 0, "invalid": 0, "examples": []}
+    with patch("quantide.service.data_verification.verify_daily_history", return_value=result) as check:
+        response = await dm_mod.do_verify(
+            {"start_year": "2024", "end_year": "2024", "assets": "000001.sz"}
+        )
+    check.assert_called_once_with(
+        datetime.date(2024, 1, 1), datetime.date(2024, 12, 31), ["000001.SZ"]
+    )
+    assert "已校验 1 个标的" in str(response)
+    assert "校验未完成" not in str(response)
+
+
 def test_overview_tab_size_in_gb_branch():
     """size_bytes > 1GB -> 'GB' formatting branch."""
     with patch.object(dm_mod, "daily_bars") as mock_bars, \

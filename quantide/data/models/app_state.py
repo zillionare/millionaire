@@ -15,7 +15,7 @@ from quantide.core.init_wizard_steps import WIZARD_FINAL_STEP
 from quantide.data.models.base import Entity
 
 
-def _normalize_state_dates(self):
+def _normalize_state_dates(self) -> None:
     """Restore persisted dates and initialization timestamps."""
     if isinstance(self.init_started_at, str):
         self.init_started_at = datetime.datetime.fromisoformat(self.init_started_at)
@@ -173,7 +173,7 @@ class AppState(Entity):
     updated_at: datetime.datetime = field(default_factory=datetime.datetime.now)
     """记录更新时间"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         _normalize_state_dates(self)
         if not isinstance(self.app_port, int):
             try:

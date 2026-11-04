@@ -47,11 +47,11 @@ class BaostockBudget:
         if state.get("used", 0) >= self.limit:
             raise BaostockThrottledError(f"BaoStock 今日请求预算已用尽（上限 {self.limit}）")
 
-    def check(self):
+    def check(self) -> None:
         with self._locked():
             self._require_available(self._load())
 
-    def consume(self):
+    def consume(self) -> None:
         with self._locked():
             state = self._load()
             self._require_available(state)

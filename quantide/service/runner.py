@@ -75,7 +75,7 @@ class _BacktestNextOpenBrokerProxy:
 class BacktestRunner:
     """回测运行器，负责管理回测的生命周期和时间循环。"""
 
-    def __init__(self, clock: ClockPort | None = None):
+    def __init__(self, clock: ClockPort | None = None) -> None:
         """初始化回测运行器.
 
         Args:
@@ -84,7 +84,7 @@ class BacktestRunner:
         self._clock = clock or BacktestClockAdapter()
         self._stop_event = threading.Event()
 
-    def stop(self):
+    def stop(self) -> None:
         """Request interruption at the next replay boundary."""
         self._stop_event.set()
 

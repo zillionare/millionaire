@@ -23,7 +23,9 @@ repos:
     language: system
     files: ^(quantide/.*\.py|scripts/.*\.py|pyproject\.toml|\.flake8|\.pre-commit-config\.yaml)$
     pass_filenames: false
-- repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v2.1.0
-  hooks:
   - id: mypy
+    name: mypy (quantide)
+    entry: python -m mypy
+    language: system
+    files: ^(quantide/.*\.py|pyproject\.toml|\.pre-commit-config\.yaml)$
+    pass_filenames: false

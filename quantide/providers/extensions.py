@@ -5,12 +5,20 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, cast
 
 from quantide.config.paths import ensure_app_config_dir
 from quantide.core.atomic_files import write_json
 from quantide.core.enums import Topics
 from quantide.core.message import msg_hub
+
+
+class QuotePublisher(Protocol):
+    """Lifecycle expected from a user-supplied quote publisher."""
+
+    def start(self) -> None: ...
+
+    def stop(self) -> None: ...
 
 
 def extension_directory() -> Path:
@@ -28,7 +36,7 @@ def quote_provider_enabled() -> bool:
     payload = json.loads(config.read_text(encoding="utf-8"))
     if type(payload.get("enabled")) is not bool:
         raise ValueError("quote-provider.json requires a boolean enabled field")
-    return payload["enabled"]
+    return cast(bool, payload["enabled"])
 
 
 def configure_quote_provider(enabled: bool) -> None:
@@ -45,7 +53,9 @@ def configure_quote_provider(enabled: bool) -> None:
         configure_realtime_source("none")
 
 
-def publish_quotes(quotes: dict[str, dict[str, Any]], limits: dict | None = None) -> None:
+def publish_quotes(
+    quotes: dict[str, dict[str, Any]], limits: dict[str, Any] | None = None
+) -> None:
     """Publish normalized snapshots to the same hub used by paper matching and charts."""
     if not isinstance(quotes, dict):
         raise TypeError("quotes must map exchange-qualified symbols to snapshot dictionaries")
@@ -55,7 +65,7 @@ def publish_quotes(quotes: dict[str, dict[str, Any]], limits: dict | None = None
         msg_hub.publish(Topics.STOCK_LIMIT.value, limits)
 
 
-def load_quote_provider():
+def load_quote_provider() -> QuotePublisher | None:
     """Load create_publisher(publish=..., subscribed_symbols=...) from trusted user code."""
     if not quote_provider_enabled():
         return None
@@ -73,7 +83,7 @@ def load_quote_provider():
     for method in ("start", "stop"):
         if not callable(getattr(publisher, method, None)):
             raise TypeError(f"Quote provider must implement {method}()")
-    return publisher
+    return cast(QuotePublisher, publisher)
 
 
 def manage_quote_provider(action: str) -> int:

@@ -4,24 +4,32 @@ from __future__ import annotations
 
 import datetime
 import json
-from typing import Any
+from typing import Any, cast
 
 from quantide.core.enums import FrameType
 from quantide.core.order_execution import BROKER_ORDER_METHODS
-from quantide.core.ports.broker import ExecutionResult
+from quantide.core.ports.broker import BrokerPort, ExecutionResult
 from quantide.data.models.calendar import calendar
-from quantide.service.strategy_tracking import tracking_store
+from quantide.service.strategy_tracking import TrackingStore, tracking_store
 
 
 class StrategyBrokerProxy:
-    def __init__(self, broker: Any, strategy_id: str):
+    def __init__(self, broker: BrokerPort, strategy_id: str) -> None:
         self._broker = broker
         self._strategy_id = strategy_id
 
-    def __getattr__(self, item):
+    def __getattr__(self, item: str) -> Any:
         return getattr(self._broker, item)
 
-    async def buy(self, asset, shares, price=0, order_time=None, timeout=0.5, **kwargs):
+    async def buy(
+        self,
+        asset: str,
+        shares: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
         kwargs.update(
             asset=asset,
             shares=shares,
@@ -34,7 +42,15 @@ class StrategyBrokerProxy:
             **kwargs,
         )
 
-    async def sell(self, asset, shares, price=0, order_time=None, timeout=0.5, **kwargs):
+    async def sell(
+        self,
+        asset: str,
+        shares: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
         kwargs.update(
             asset=asset,
             shares=shares,
@@ -47,7 +63,15 @@ class StrategyBrokerProxy:
             **kwargs,
         )
 
-    async def buy_percent(self, asset, percent, price=0, order_time=None, timeout=0.5, **kwargs):
+    async def buy_percent(
+        self,
+        asset: str,
+        percent: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
         kwargs.update(
             asset=asset,
             percent=percent,
@@ -60,7 +84,15 @@ class StrategyBrokerProxy:
             **kwargs,
         )
 
-    async def sell_percent(self, asset, percent, price=0, order_time=None, timeout=0.5, **kwargs):
+    async def sell_percent(
+        self,
+        asset: str,
+        percent: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
         kwargs.update(
             asset=asset,
             percent=percent,
@@ -73,7 +105,15 @@ class StrategyBrokerProxy:
             **kwargs,
         )
 
-    async def buy_amount(self, asset, amount, price=0, order_time=None, timeout=0.5, **kwargs):
+    async def buy_amount(
+        self,
+        asset: str,
+        amount: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
         kwargs.update(
             asset=asset,
             amount=amount,
@@ -86,7 +126,15 @@ class StrategyBrokerProxy:
             **kwargs,
         )
 
-    async def sell_amount(self, asset, amount, price=0, order_time=None, timeout=0.5, **kwargs):
+    async def sell_amount(
+        self,
+        asset: str,
+        amount: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
         kwargs.update(
             asset=asset,
             amount=amount,
@@ -100,8 +148,14 @@ class StrategyBrokerProxy:
         )
 
     async def trade_target_pct(
-        self, asset, target_pct, price=0, order_time=None, timeout=0.5, **kwargs
-    ):
+        self,
+        asset: str,
+        target_pct: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
         kwargs.update(
             asset=asset,
             target_pct=target_pct,
@@ -126,7 +180,7 @@ class NextOpenBrokerProxy:
         portfolio_id: str,
         strategy_id: str,
         signal_date: datetime.date,
-        store=None,
+        store: TrackingStore | None = None,
     ) -> None:
         self._broker = broker
         self._store = store or tracking_store
@@ -144,7 +198,9 @@ class NextOpenBrokerProxy:
         except Exception:
             return self._signal_date + datetime.timedelta(days=1)
 
-    def _enqueue(self, method: str, args: tuple[Any, ...], kwargs: dict[str, Any]):
+    def _enqueue(
+        self, method: str, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> ExecutionResult:
         key_payload = {
             "method": method,
             "args": list(args),
@@ -171,8 +227,10 @@ class NextOpenBrokerProxy:
     def __getattribute__(self, item: str) -> Any:
         if item in object.__getattribute__(self, "_ORDER_METHODS"):
 
-            async def queued(*args, **kwargs):
-                return object.__getattribute__(self, "_enqueue")(item, args, kwargs)
+            async def queued(*args: Any, **kwargs: Any) -> ExecutionResult:
+                return cast(
+                    ExecutionResult, object.__getattribute__(self, "_enqueue")(item, args, kwargs)
+                )
 
             return queued
         return object.__getattribute__(self, item)
@@ -191,7 +249,7 @@ class NextOpenBarBrokerProxy:
         portfolio_id: str,
         strategy_id: str,
         signal_bar: datetime.datetime,
-        store=None,
+        store: TrackingStore | None = None,
     ) -> None:
         self._broker = broker
         self._store = store or tracking_store
@@ -216,7 +274,9 @@ class NextOpenBarBrokerProxy:
         # the first afternoon bar, whose executable next-open is 13:00.
         return (next_completed - datetime.timedelta(minutes=30)).replace(tzinfo=None)
 
-    def _enqueue(self, method: str, args: tuple[Any, ...], kwargs: dict[str, Any]):
+    def _enqueue(
+        self, method: str, args: tuple[Any, ...], kwargs: dict[str, Any]
+    ) -> ExecutionResult:
         target_bar = self._target_bar()
         key_payload = {
             "interval": "30m",
@@ -246,8 +306,10 @@ class NextOpenBarBrokerProxy:
     def __getattribute__(self, item: str) -> Any:
         if item in object.__getattribute__(self, "_ORDER_METHODS"):
 
-            async def queued(*args, **kwargs):
-                return object.__getattribute__(self, "_enqueue")(item, args, kwargs)
+            async def queued(*args: Any, **kwargs: Any) -> ExecutionResult:
+                return cast(
+                    ExecutionResult, object.__getattribute__(self, "_enqueue")(item, args, kwargs)
+                )
 
             return queued
         return object.__getattribute__(self, item)

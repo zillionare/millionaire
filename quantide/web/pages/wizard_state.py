@@ -1,6 +1,9 @@
 """Wizard state."""
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Request,
+)
 from loguru import logger
 from monsterui.all import *
 
@@ -65,7 +68,7 @@ def _update_sync_status(
     message: str | None = None,
     completed: bool = False,
     error: str | None = None,
-):
+) -> None:
     """更新同步状态"""
     _sync_status["progress"] = progress
     _sync_status["stage"] = stage

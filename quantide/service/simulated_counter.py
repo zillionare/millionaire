@@ -9,7 +9,9 @@ import datetime
 import json
 import sqlite3
 import threading
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from quantide.config.output_paths import external_runtime_path
 
@@ -17,7 +19,10 @@ from quantide.config.output_paths import external_runtime_path
 class SimulatedCounter:
     """A small long-only A-share counter with T+1 and idempotent client IDs."""
 
-    def __init__(self, path: str | Path, principal=10000.0, commission=0.0, stamp_tax=0.0):
+    def __init__(
+        self, path: str | Path, principal: float = 10000.0, commission: float = 0.0,
+        stamp_tax: float = 0.0,
+    ) -> None:
         if str(path) != ":memory:":
             path = external_runtime_path(path)
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -28,7 +33,7 @@ class SimulatedCounter:
             "CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, data TEXT)"
         )
         row = self._connection.execute("SELECT data FROM state WHERE id=1").fetchone()
-        self.state = (
+        self.state: dict[str, Any] = (
             json.loads(row[0])
             if row
             else {
@@ -46,18 +51,18 @@ class SimulatedCounter:
         )
         self._save()
 
-    def close(self):
+    def close(self) -> None:
         """Release the counter's own database, independently of the application DB."""
         self._connection.close()
 
-    def _save(self):
+    def _save(self) -> None:
         with self._connection:
             self._connection.execute(
                 "INSERT OR REPLACE INTO state VALUES (1, ?)",
                 (json.dumps(self.state, allow_nan=False),),
             )
 
-    def _mutate(self, operation):
+    def _mutate[T](self, operation: Callable[[], T]) -> T:
         with self._lock:
             before = copy.deepcopy(self.state)
             try:
@@ -68,10 +73,10 @@ class SimulatedCounter:
                 self.state = before
                 raise
 
-    def submit(self, request):
+    def submit(self, request: dict[str, Any]) -> dict[str, Any]:
         """Accept once per client ID; a repeated request returns the original order."""
 
-        def accept():
+        def accept() -> dict[str, Any]:
             identity = str(request["client_order_id"])
             if not identity:
                 raise ValueError("client_order_id is required")
@@ -88,7 +93,7 @@ class SimulatedCounter:
 
         return self._mutate(accept)
 
-    def _validate_order(self, request):
+    def _validate_order(self, request: dict[str, Any]) -> None:
         shares = float(request["shares"])
         if shares <= 0 or request["side"] not in {"buy", "sell"}:
             raise ValueError("Invalid quantity or side")
@@ -99,10 +104,10 @@ class SimulatedCounter:
             if shares > position.get("avail", 0):
                 raise ValueError("Insufficient available position (T+1)")
 
-    def quote(self, payload):
+    def quote(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Advance replay time and match outstanding orders against actual quotes."""
 
-        def update():
+        def update() -> dict[str, Any]:
             day = datetime.datetime.fromisoformat(payload["time"]).date().isoformat()
             if self.state["day"] and day < self.state["day"]:
                 raise ValueError("Simulation clock cannot move backwards")
@@ -118,7 +123,7 @@ class SimulatedCounter:
         return self._mutate(update)
 
     @staticmethod
-    def _executable(request, quote):
+    def _executable(request: dict[str, Any], quote: dict[str, Any]) -> bool:
         price = float(quote.get("price", 0))
         if price <= 0:
             return False
@@ -127,7 +132,7 @@ class SimulatedCounter:
             return (not limit or price <= limit) and price < quote.get("up_limit", float("inf"))
         return (not limit or price >= limit) and price > quote.get("down_limit", 0)
 
-    def _match(self, order):
+    def _match(self, order: dict[str, Any]) -> None:
         if order["status"] not in {"open", "partial"}:
             return
         request = order["request"]
@@ -141,7 +146,7 @@ class SimulatedCounter:
         if "available_shares" in quote:
             quote["available_shares"] -= shares
 
-    def _fill(self, order, shares, price):
+    def _fill(self, order: dict[str, Any], shares: float, price: float) -> None:
         request = order["request"]
         amount = shares * price
         fee = amount * self.state["commission"]
@@ -165,7 +170,9 @@ class SimulatedCounter:
             }
         )
 
-    def _update_account(self, request, shares, price, fee):
+    def _update_account(
+        self, request: dict[str, Any], shares: float, price: float, fee: float
+    ) -> None:
         symbol = request["asset"]
         amount = shares * price
         if request["side"] == "buy":
@@ -189,10 +196,10 @@ class SimulatedCounter:
             if not position["shares"]:
                 del self.state["positions"][symbol]
 
-    def cancel(self, identity):
+    def cancel(self, identity: str) -> dict[str, Any]:
         """Cancel only the unfilled remainder, retaining immutable fill history."""
 
-        def update():
+        def update() -> dict[str, Any]:
             order = self.state["orders"][identity]
             if order["status"] != "filled":
                 order["status"] = "cancelled"
@@ -200,7 +207,7 @@ class SimulatedCounter:
 
         return self._mutate(update)
 
-    def snapshot(self):
+    def snapshot(self) -> dict[str, Any]:
         """Return a consistent account and reconciliation view."""
         with self._lock:
             state = copy.deepcopy(self.state)

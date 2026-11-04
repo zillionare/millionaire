@@ -1,9 +1,16 @@
 """Convert optimizer form values without mixing them with result rendering."""
 
+from collections.abc import Callable, Collection, Iterable, Mapping
 from typing import Any
 
 
-def _supply_parameter_grid_defaults(base_config, default_params, key, param_grid, values):
+def _supply_parameter_grid_defaults(
+    base_config: dict[str, Any],
+    default_params: Mapping[str, Any],
+    key: str,
+    param_grid: dict[str, list[Any]],
+    values: list[Any],
+) -> None:
     """Supply parameter grid defaults."""
     if not values:
         base_config[key] = default_params.get(key)
@@ -48,7 +55,9 @@ def _parse_string_list(text: str) -> list[str]:
     return items
 
 
-def optimization_parameters(strategy_params, default_params, form):
+def optimization_parameters(
+    strategy_params: Iterable[str], default_params: Mapping[str, Any], form: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, list[Any]]]:
     """Split grid parameters from fixed scalars and list-valued strategy settings."""
     param_grid: dict[str, list[Any]] = {}
     base_config: dict[str, Any] = {}
@@ -74,7 +83,9 @@ def optimization_parameters(strategy_params, default_params, form):
     return base_config, param_grid
 
 
-def form_number(form, key, default, converter):
+def form_number[Number: (int, float)](
+    form: Mapping[str, Any], key: str, default: Number, converter: Callable[[Any], Number]
+) -> Number:
     """Use the established default when a numeric form value cannot be parsed."""
     try:
         return converter(form.get(key) or default)
@@ -82,6 +93,6 @@ def form_number(form, key, default, converter):
         return default
 
 
-def form_choice(form, key, choices, default):
+def form_choice(form: Mapping[str, Any], key: str, choices: Collection[str], default: str) -> str:
     value = str(form.get(key) or default)
     return value if value in choices else default

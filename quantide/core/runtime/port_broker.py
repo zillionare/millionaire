@@ -20,7 +20,7 @@ class PortBackedBroker:
         portfolio_name: str = "",
         status: bool = True,
         is_connected: bool | None = None,
-    ):
+    ) -> None:
         self._port = port
         self._portfolio_id = portfolio_id
         self._kind = kind if isinstance(kind, BrokerKind) else BrokerKind(kind)

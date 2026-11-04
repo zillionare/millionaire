@@ -5,7 +5,26 @@ from typing import Any
 import arrow
 import fasthtml.common as fh
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    P,
+    Script,
+    Span,
+    Tr,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    H4,
+    Button,
+    Details,
+    Form,
+    Input,
+    Summary,
+    Td,
+    UkIcon,
+)
 
 from quantide.config.features import (
     supports_live_trading,

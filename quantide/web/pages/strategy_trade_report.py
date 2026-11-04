@@ -4,7 +4,17 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    P,
+    Span,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Button,
+)
 
 from quantide.service.trade_pairs import build_trade_pairs
 from quantide.web.components.analysis.trade_kline import (

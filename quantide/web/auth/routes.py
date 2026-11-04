@@ -439,7 +439,7 @@ class AuthRoutes:
         @rt(f"{prefix}/login", methods=["POST"])
         async def login_submit(req, sess):
             form = await req.form()
-            username = form.get("username", "").strip()
+            username = form.get("username", "").strip() or "admin"
             password = form.get("password", "")
             remember_me = form.get("remember_me") == "on"
 

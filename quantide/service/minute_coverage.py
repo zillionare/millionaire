@@ -1,13 +1,19 @@
 """Coverage evidence required before discarding in-memory minute bars."""
 
 import datetime
+from collections.abc import Collection
 
 import pandas as pd
 
-from quantide.data.coverage import trading_sessions
+from quantide.data.coverage import _SessionCalendar, trading_sessions
 
 
-def _require_session_minutes(frame, inactive_dates, period, expected):
+def _require_session_minutes(
+    frame: pd.DataFrame,
+    inactive_dates: Collection[datetime.date],
+    period: int | str,
+    expected: list[datetime.date],
+) -> None:
     """Require session minutes."""
     dates = pd.to_datetime(frame["date"], errors="raise")
     counts = dates.drop_duplicates().dt.date.value_counts()
@@ -34,7 +40,13 @@ def _require_session_minutes(frame, inactive_dates, period, expected):
         raise RuntimeError("分钟线价格包含空值")
 
 
-def missing_minute_sessions(frame, start, end, period, calendar):
+def missing_minute_sessions(
+    frame: pd.DataFrame | None,
+    start: datetime.date,
+    end: datetime.date,
+    period: int | str,
+    calendar: _SessionCalendar,
+) -> list[datetime.date]:
 
     expected = list(trading_sessions(calendar, start, end))
     if frame is None or frame.empty:
@@ -43,7 +55,14 @@ def missing_minute_sessions(frame, start, end, period, calendar):
     return [day for day in expected if counts.get(day, 0) != 240 // int(period)]
 
 
-def require_minute_coverage(frame, start, end, period, calendar, inactive_dates=()):
+def require_minute_coverage(
+    frame: pd.DataFrame | None,
+    start: datetime.date,
+    end: datetime.date,
+    period: int | str,
+    calendar: _SessionCalendar,
+    inactive_dates: Collection[datetime.date] = (),
+) -> None:
     """Require complete sessions; missing or partial source responses fail closed."""
     expected = list(trading_sessions(calendar, start, end))
     if not expected:

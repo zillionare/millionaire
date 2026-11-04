@@ -1,7 +1,10 @@
 """Official Tushare snapshots normalized into the existing quote contract."""
 
+import datetime
 import math
 import threading
+from collections.abc import Iterable
+from typing import Any, cast
 
 import pandas as pd
 import tushare as ts
@@ -10,7 +13,7 @@ from quantide.config.settings import get_tushare_token
 from quantide.core.market_time import market_now
 
 
-def _timestamp(value, now):
+def _timestamp(value: Any, now: datetime.datetime) -> datetime.datetime | None:
     text = str(value or "").strip()
     if len(text) == 8 and text.count(":") == 2:
         return None
@@ -24,7 +27,9 @@ def _timestamp(value, now):
         return None
 
 
-def normalized_snapshot(row, limits, now):
+def normalized_snapshot(
+    row: dict[str, Any], limits: dict[str, Any], now: datetime.datetime
+) -> dict[str, float | datetime.datetime] | None:
     """Reject stale or incomplete records rather than publish invented prices or limits."""
     stamp = _timestamp(row.get("trade_time"), now)
     if stamp is None or stamp.date() != now.date():
@@ -57,7 +62,7 @@ def normalized_snapshot(row, limits, now):
     }
 
 
-def compatible_snapshot(row):
+def compatible_snapshot(row: dict[str, Any]) -> bool:
     """Confirm useful prices and a dated timestamp before offering automatic setup."""
     try:
         values = [float(row[name]) for name in ("open", "high", "low", "close", "pre_close")]
@@ -71,17 +76,19 @@ def compatible_snapshot(row):
 class TushareRealtimeFetcher:
     """Fetch subscribed A-share snapshots and exact same-day price limits."""
 
-    def __init__(self, client=None, cancel=None):
+    def __init__(self, client: Any = None, cancel: threading.Event | None = None) -> None:
         self.client = client or ts.pro_api(token=get_tushare_token(), timeout=5)
-        self._day = None
-        self._limits = {}
+        self._day: datetime.date | None = None
+        self._limits: dict[str, dict[str, Any]] = {}
         self._cancel = cancel or threading.Event()
 
-    def fetch_quote_snapshot(self, symbols, now=None):
+    def fetch_quote_snapshot(
+        self, symbols: Iterable[str], now: datetime.datetime | None = None
+    ) -> dict[str, dict[str, float | datetime.datetime]]:
         now = now or market_now()
         if not self._load_limits(now):
             return {}
-        result = {}
+        result: dict[str, dict[str, float | datetime.datetime]] = {}
         symbols = list(dict.fromkeys(symbols))
         for index in range(0, len(symbols), 500):
             if self._cancel.is_set():
@@ -93,7 +100,7 @@ class TushareRealtimeFetcher:
             result.update(self._normalized_rows(frame, now))
         return {asset: row for asset, row in result.items() if asset in symbols}
 
-    def _load_limits(self, now):
+    def _load_limits(self, now: datetime.datetime) -> bool:
         if self._day == now.date():
             return True
         self._limits = {}
@@ -110,12 +117,16 @@ class TushareRealtimeFetcher:
         self._day = now.date()
         return True
 
-    def _normalized_rows(self, frame, now):
+    def _normalized_rows(
+        self, frame: pd.DataFrame | None, now: datetime.datetime
+    ) -> dict[str, dict[str, float | datetime.datetime]]:
         if frame is None:
             return {}
-        result = {}
+        result: dict[str, dict[str, float | datetime.datetime]] = {}
         for row in frame.to_dict("records"):
-            quote = normalized_snapshot(row, self._limits.get(row["ts_code"], {}), now)
+            quote = normalized_snapshot(
+                cast(dict[str, Any], row), self._limits.get(row["ts_code"], {}), now
+            )
             if quote is not None:
                 result[row["ts_code"]] = quote
         return result

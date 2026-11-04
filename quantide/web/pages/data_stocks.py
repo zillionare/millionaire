@@ -174,7 +174,7 @@ async def index(req):
 # ========== SSE 更新逻辑 ==========
 
 
-async def _run_stocks_sync():
+async def _run_stocks_sync() -> None:
     global _sync_status
     _sync_status["is_running"] = True
     _sync_status["completed"] = False

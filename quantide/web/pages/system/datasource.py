@@ -10,12 +10,27 @@ import datetime
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    Option,
+    P,
+    Span,
+)
 
 # Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
 from fasthtml.common import Label as _Label
 from fasthtml.common import Select as _Select
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H2,
+    H3,
+    Button,
+    Form,
+    Input,
+    UkIcon,
+)
 
 from quantide.config.settings import get_settings
 from quantide.data.models.app_state import AppState

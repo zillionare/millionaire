@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from quantide.core.ports import DataFetcherPort
+from quantide.core.ports import HistoricalDataFetcherPort
 
 
 class DataFetcherRegistry:
     """按名称注册和解析标准数据源适配器."""
 
-    def __init__(self):
-        self._fetchers: dict[str, DataFetcherPort] = {}
+    def __init__(self) -> None:
+        self._fetchers: dict[str, HistoricalDataFetcherPort] = {}
         self._default_name: str | None = None
 
     @property
@@ -22,7 +22,7 @@ class DataFetcherRegistry:
     def register(
         self,
         name: str,
-        fetcher: DataFetcherPort,
+        fetcher: HistoricalDataFetcherPort,
         make_default: bool = False,
     ) -> None:
         normalized_name = str(name or "").strip()
@@ -32,7 +32,7 @@ class DataFetcherRegistry:
         if make_default or self._default_name is None:
             self._default_name = normalized_name
 
-    def get(self, name: str | None = None) -> DataFetcherPort:
+    def get(self, name: str | None = None) -> HistoricalDataFetcherPort:
         target = str(name or self._default_name or "").strip()
         if not target:
             raise KeyError("default data fetcher not configured")
@@ -66,7 +66,7 @@ def register_builtin_fetchers(
     return registry
 
 
-def get_data_fetcher(name: str | None = None) -> DataFetcherPort:
+def get_data_fetcher(name: str | None = None) -> HistoricalDataFetcherPort:
     from quantide.config.settings import get_data_source
 
     registry = register_builtin_fetchers()

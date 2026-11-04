@@ -89,12 +89,12 @@ class AuthManager:
         self.user_repo = UserRepository(database)
         self._closed = False
 
-    def close(self):
+    def close(self) -> None:
         """Release auth storage after the ASGI owner has drained requests."""
         self.auth_db.close()
         self._closed = True
 
-    def reopen(self):
+    def reopen(self) -> None:
         """Support a fresh app lifespan or factory after a previous clean shutdown."""
         if self._closed:
             self.rebind_database(self.auth_db.db_path)

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Callable, Iterable
-from typing import Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -45,7 +45,40 @@ from quantide.core.bar_schema import (
 #: 标准分钟线字段（``date`` 为 datetime64[ms]，含时分）
 
 #: 错误记录格式：[func_name, identifier, message]
-ErrorRecord = list[list]
+ErrorRecord = list[list[str | datetime.date]]
+
+
+@runtime_checkable
+class HistoricalDataFetcherPort(Protocol):
+    """Historical data capabilities required by the source registry."""
+
+    def fetch_calendar(self, epoch: datetime.date) -> pd.DataFrame: ...
+    def fetch_stock_list(self) -> pd.DataFrame | None: ...
+    def fetch_adjust_factor(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_bars(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_limit_price(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_st_info(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_bars_ext(
+        self, dates: Iterable[datetime.date] | datetime.date,
+        phase_callback: Callable[[str], None] | None = None,
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_daily_basic(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_index_bars(
+        self, index_codes: Iterable[str] | str, start_date: datetime.date, end_date: datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_index_weights(
+        self, index_codes: Iterable[str] | str, snapshot_dates: Iterable[datetime.date]
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
 
 
 class DataFetcherPort(Protocol):
@@ -205,7 +238,7 @@ class DataFetcherPort(Protocol):
         """
         ...
 
-    def fetch_quote_snapshot(self, symbols: Iterable[str] | str) -> dict[str, dict]:
+    def fetch_quote_snapshot(self, symbols: Iterable[str] | str) -> dict[str, dict[str, Any]]:
         """获取实时行情快照。
 
         Returns:

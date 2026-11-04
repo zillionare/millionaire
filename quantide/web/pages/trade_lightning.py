@@ -9,7 +9,17 @@ import re
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Span,
+    ft_hx,
+    to_xml,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Button,
+)
 from starlette.responses import HTMLResponse
 
 from quantide.config.features import supports_live_trading

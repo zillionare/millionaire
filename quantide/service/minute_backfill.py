@@ -3,18 +3,34 @@
 from __future__ import annotations
 
 import datetime
+import threading
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, Any, Protocol
 
+import pandas as pd
 from loguru import logger
 
 from quantide.core.enums import FrameType
 from quantide.core.market_time import market_now
 from quantide.data.fetchers.capabilities import SOURCE_CAPABILITIES, require_source_asset
 
+if TYPE_CHECKING:
+    from quantide.data.fetchers.multi import BaostockMinuteAdapter
+
 MINUTE_HISTORY_START = datetime.date(2020, 1, 2)
 MINUTE_HISTORY_READY_TIME = datetime.time(17, 30)
 
 
-def _minute_history_end(end_date, now=None):
+class _BackfillParams(Protocol):
+    start_date: datetime.date
+    end_date: datetime.date
+    minute_frequency: str
+    minute_assets: list[str]
+
+
+def _minute_history_end(
+    end_date: datetime.date, now: datetime.datetime | None = None
+) -> datetime.date | None:
     """Return the last closed session eligible for historical download."""
     from quantide.data.models.calendar import calendar
 
@@ -30,7 +46,7 @@ def _minute_history_end(end_date, now=None):
         return None
 
 
-def resolve_minute_assets(explicit):
+def resolve_minute_assets(explicit: Iterable[str] | None) -> list[str]:
     """Default to supported Shanghai/Shenzhen assets; explicitly reject other markets."""
     from quantide.data.models.stocks import stock_list
 
@@ -47,19 +63,21 @@ def resolve_minute_assets(explicit):
     return assets
 
 
-def _asset_lifespans():
+def _asset_lifespans() -> dict[str, dict[str, Any]]:
     from quantide.data.models.stocks import stock_list
 
     return {str(row["asset"]): row for row in stock_list.data.to_dicts()}
 
 
-def _date_value(value):
+def _date_value(value: Any) -> datetime.date | None:
     if isinstance(value, datetime.datetime):
         return value.date()
     return value if isinstance(value, datetime.date) else None
 
 
-def asset_interval(metadata, start, end):
+def asset_interval(
+    metadata: dict[str, Any], start: datetime.date, end: datetime.date
+) -> tuple[datetime.date, datetime.date]:
     """Clip a source request to the security's documented listing lifetime."""
     return (
         max(start, _date_value(metadata.get("list_date")) or start),
@@ -67,7 +85,13 @@ def asset_interval(metadata, start, end):
     )
 
 
-def pending_ranges(assets, last_dates, start, end, coverage=None):
+def pending_ranges(
+    assets: Iterable[str],
+    last_dates: dict[str, datetime.date],
+    start: datetime.date,
+    end: datetime.date,
+    coverage: dict[str, datetime.date | None] | None = None,
+) -> list[tuple[str, datetime.date, datetime.date]]:
     """Build incremental ranges per security, retaining older in-memory coverage."""
     from quantide.data.models.calendar import calendar
 
@@ -89,7 +113,14 @@ def pending_ranges(assets, last_dates, start, end, coverage=None):
     return pending
 
 
-def _inactive_session_evidence(adapter, asset, frame, start, end, period):
+def _inactive_session_evidence(
+    adapter: BaostockMinuteAdapter,
+    asset: str,
+    frame: pd.DataFrame,
+    start: datetime.date,
+    end: datetime.date,
+    period: str,
+) -> set[datetime.date]:
     """Resolve missing sessions only from explicit source suspension status."""
     from quantide.data.models.calendar import calendar
     from quantide.service.minute_coverage import missing_minute_sessions
@@ -103,7 +134,12 @@ def _inactive_session_evidence(adapter, asset, frame, start, end, period):
 class MinuteBackfill:
     """Commit and evict one verified asset interval at a time."""
 
-    def __init__(self, params, cancel, publish):
+    def __init__(
+        self,
+        params: _BackfillParams,
+        cancel: threading.Event,
+        publish: Callable[[dict[str, Any]], None],
+    ) -> None:
         from quantide.data import get_minute_bars_store
 
         self.params = params
@@ -115,7 +151,7 @@ class MinuteBackfill:
         if self.period not in {"5", "15", "30", "60"}:
             raise ValueError("BaoStock 分钟周期仅支持 5/15/30/60")
 
-    def run(self):
+    def run(self) -> None:
         """Close the source on all exits and fail the task for any incomplete asset."""
         from quantide.data.fetchers.baostock_minute import BaostockMinuteFetcher
         from quantide.data.fetchers.multi import BaostockMinuteAdapter
@@ -150,7 +186,9 @@ class MinuteBackfill:
         if failures:
             raise RuntimeError(f"分钟回补有 {failures} 只标的失败，未覆盖的内存数据予以保留")
 
-    def _commit_asset(self, adapter, asset, start, end):
+    def _commit_asset(
+        self, adapter: BaostockMinuteAdapter, asset: str, start: datetime.date, end: datetime.date
+    ) -> bool:
         from quantide.data.fetchers.baostock_minute import BaostockThrottledError
         from quantide.data.models.calendar import calendar
         from quantide.service.data_sync import _to_minute_bars_frame
@@ -180,7 +218,7 @@ class MinuteBackfill:
         minute_bar_aggregator.clear_between(start, end, assets=[asset])
         return True
 
-    def _progress(self, index, total):
+    def _progress(self, index: int, total: int) -> None:
         if index % 50 == 0 or index == total:
             self.publish(
                 {

@@ -16,7 +16,7 @@ class AdapterSpec:
 class AdapterRegistry:
     """按能力注册和解析适配器."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化注册表."""
         self._items: dict[str, dict[str, Any]] = {}
 

@@ -1,7 +1,16 @@
 """历史委托页面"""
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Tr,
+)
 from monsterui.all import *
+from monsterui.all import (
+    Table,
+    Tbody,
+    Td,
+)
 from starlette.responses import HTMLResponse
 
 from quantide.data.sqlite import db

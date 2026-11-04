@@ -1,7 +1,21 @@
 """历史持仓页面"""
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    P,
+    Thead,
+    Tr,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H1,
+    Form,
+    Table,
+    Tbody,
+    Td,
+    Th,
+)
 from starlette.responses import HTMLResponse
 
 from quantide.core.enums import BrokerKind

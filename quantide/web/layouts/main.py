@@ -359,7 +359,7 @@ def _is_htmx_request(req: object | None) -> bool:
 class MainLayout(BaseLayout):
     """主页面布局，包含 header 和 sidebar。"""
 
-    def __init__(self, title: str | None = None, user: str | None = None):
+    def __init__(self, title: str | None = None, user: str | None = None) -> None:
         branding = get_branding()
         resolved_title = title or f"{branding.product_name} 系统"
         super().__init__(page_title=resolved_title)
@@ -372,7 +372,7 @@ class MainLayout(BaseLayout):
         self.sidebar_menu: list[dict] | None = None
         self._sidebar_active_url: str = "/"
 
-    def set_sidebar_active(self, url: str):
+    def set_sidebar_active(self, url: str) -> None:
         """设置当前高亮的 sidebar 菜单项。"""
         self._sidebar_active_url = url
 

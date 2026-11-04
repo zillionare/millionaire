@@ -160,7 +160,9 @@ def unavailable_risk_program_ids(
     return result
 
 
-def _normalize_risk_item(item, index, available, seen):
+def _normalize_risk_item(
+    item: Any, index: int, available: dict[str, dict[str, Any]], seen: set[str]
+) -> tuple[int, int, dict[str, Any]]:
     if isinstance(item, str):
         item = {"id": item, "params": {}}
     if not isinstance(item, dict):
@@ -290,7 +292,11 @@ def build_live_risk_strategies(
     """Instantiate explicitly selected live adapters or declared host overlays."""
     if RISK_PROGRAMS_KEY not in config:
         adapter = _declared_live_adapter(strategy_cls, frame_type)
-        if adapter is None or not _legacy_live_enabled(strategy_cls, config):
+        if (
+            adapter is None
+            or adapter.live_strategy_factory is None
+            or not _legacy_live_enabled(strategy_cls, config)
+        ):
             return []
         return [adapter.live_strategy_factory(broker, dict(config))]
     selected = normalize_risk_programs(

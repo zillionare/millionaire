@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -52,9 +52,11 @@ class BaostockMinuteAdapter:
     def __init__(self, fetcher: Any) -> None:
         self._fetcher = fetcher
 
-    def fetch_trading_status(self, asset, start, end):
+    def fetch_trading_status(
+        self, asset: str, start: datetime.date, end: datetime.date
+    ) -> pd.DataFrame:
         """Expose daily suspension evidence without inventing bars for missing sessions."""
-        return self._fetcher.fetch_trading_status(asset, start, end)
+        return cast(pd.DataFrame, self._fetcher.fetch_trading_status(asset, start, end))
 
     def fetch_minute_bars(
         self,

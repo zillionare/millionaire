@@ -1,9 +1,11 @@
 """运行时模式装配."""
 
+from __future__ import annotations
+
 import os
 import threading
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from quantide.config.features import supports_live_trading
 from quantide.config.settings import get_settings
@@ -14,12 +16,16 @@ from quantide.core.runtime.adapter_registry import AdapterRegistry
 from quantide.core.runtime.clock_bridge import SystemClockAdapter
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.gateway_client import GatewayClient
+from quantide.core.runtime.port_broker import PortBackedBroker
 from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.core.scheduler import scheduler
 from quantide.data import db
 from quantide.service.market_data_hub import market_data_hub
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
+
+if TYPE_CHECKING:
+    from quantide.providers.tencent_publisher import TencentPublisher
 
 RuntimeMode = Literal["live", "paper", "backtest"]
 
@@ -47,7 +53,7 @@ class RuntimeContext:
         portfolio_name: str = "",
         status: bool = True,
         is_connected: bool | None = None,
-    ):
+    ) -> PortBackedBroker:
         """将正式 broker port 注册到运行时。"""
         return register_port_backed_broker(
             registry=self.registry,
@@ -65,7 +71,7 @@ class RuntimeContext:
 class RuntimeBootstrap:
     """运行时装配器."""
 
-    def __init__(self, mode: RuntimeMode | None = None, clock: ClockPort | None = None):
+    def __init__(self, mode: RuntimeMode | None = None, clock: ClockPort | None = None) -> None:
         """初始化装配器.
 
         Args:
@@ -166,7 +172,7 @@ class RuntimeBootstrap:
         adapters.register("quote_publisher", name, publisher)
 
     @staticmethod
-    def _create_tencent_publisher():
+    def _create_tencent_publisher() -> TencentPublisher:
         from quantide.providers.tencent_publisher import TencentPublisher
 
         raw_symbols = os.environ.get("QUANTIDE_QUOTE_SYMBOLS", "")

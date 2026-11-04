@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import polars as pl
@@ -13,7 +14,10 @@ from quantide.core.atomic_files import write_parquet
 from quantide.data.store_lock import locked_store
 
 
-def _partition_key_bounds(level, value, start, end, year):
+def _partition_key_bounds(
+    level: str, value: str, start: datetime.date | None, end: datetime.date | None,
+    year: int | None,
+) -> tuple[Any, Any, Any]:
     """Compare years, months or days without duplicating range semantics."""
     if level == "partition_key_year":
         return int(value), start.year if start else None, end.year if end else None
@@ -35,7 +39,18 @@ def _partition_key_bounds(level, value, start, end, year):
 class PartitionOperations:
     """PartitionOperations implementation."""
 
-    def _candidate_partition_files(self, start, end) -> list[str]:
+    if TYPE_CHECKING:
+        _store_path: Path
+        _partition_levels: tuple[str, ...]
+        _partition_by: str | None
+        _id_cols: list[str]
+        _compression: str
+
+        def _scan_store(self, keep_partition_col: bool = False) -> pl.LazyFrame | None: ...
+
+    def _candidate_partition_files(
+        self, start: datetime.date | None, end: datetime.date | None
+    ) -> list[str]:
         """Visit only partition directories intersecting the requested date bounds."""
         if not self._store_path.exists():
             return []
@@ -43,7 +58,10 @@ class PartitionOperations:
             return sorted(str(path) for path in self._store_path.rglob("*.parquet"))
         return list(self._walk_partition_files(self._store_path, 0, None, start, end))
 
-    def _walk_partition_files(self, path, depth, year, start, end):
+    def _walk_partition_files(
+        self, path: Path, depth: int, year: int | None,
+        start: datetime.date | None, end: datetime.date | None,
+    ) -> Iterator[str]:
         if depth == len(self._partition_levels):
             yield from (str(file) for file in sorted(path.rglob("*.parquet")))
             return
@@ -64,7 +82,10 @@ class PartitionOperations:
                     next_year = None
             yield from self._walk_partition_files(child, depth + 1, next_year, start, end)
 
-    def _level_overlaps(self, level, value, start, end, year=None) -> bool:
+    def _level_overlaps(
+        self, level: str, value: str, start: datetime.date | None,
+        end: datetime.date | None, year: int | None = None,
+    ) -> bool:
         """Keep unknown partitions; prune only when their parsed bounds prove exclusion."""
         try:
             key, lower, upper = _partition_key_bounds(level, value, start, end, year)
@@ -96,6 +117,7 @@ class PartitionOperations:
         lf = self._scan_store(keep_partition_col=True)
         if lf is None:
             return None
+        assert self._partition_by is not None, "Partition column must be configured"
 
         filters = []
         if start is not None:
@@ -156,7 +178,11 @@ class PartitionOperations:
 
         多级分区时目录形如 ``partition_key_year=2024/partition_key_month=03``。
         """
-        levels = self._partition_levels or (self._partition_by,)
+        if self._partition_levels:
+            levels = self._partition_levels
+        else:
+            assert self._partition_by is not None, "Partition column must be configured"
+            levels = (self._partition_by,)
         lf = self._ensure_partition_col(lf)
         keys = lf.select([pl.col(level) for level in levels]).unique().collect().rows()
         groups: list[tuple[tuple[str, ...], pl.LazyFrame]] = []
@@ -169,7 +195,11 @@ class PartitionOperations:
 
     def _partition_path(self, key: tuple[str, ...]) -> Path:
         """分区键元组对应的目录。"""
-        levels = self._partition_levels or (self._partition_by,)
+        if self._partition_levels:
+            levels = self._partition_levels
+        else:
+            assert self._partition_by is not None, "Partition column must be configured"
+            levels = (self._partition_by,)
         path = self._store_path
         for level, value in zip(levels, key, strict=True):
             path = path / f"{level}={self._format_partition_value(level, value)}"
@@ -193,7 +223,7 @@ class PartitionOperations:
             return None
         return pl.scan_parquet([str(f) for f in files], hive_partitioning=True)
 
-    def _save_as_partition(self, lf: pl.LazyFrame | pd.DataFrame):
+    def _save_as_partition(self, lf: pl.LazyFrame | pd.DataFrame) -> None:
         if isinstance(lf, pd.DataFrame):
             lf = pl.from_pandas(lf).lazy()
         elif isinstance(lf, pl.DataFrame):

@@ -5,6 +5,10 @@ from typing import Any
 
 import fasthtml.common as fh
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Span,
+)
 from monsterui.all import *
 
 from quantide.service.strategy_runtime import strategy_runtime_manager

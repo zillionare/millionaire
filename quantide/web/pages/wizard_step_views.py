@@ -4,9 +4,20 @@ import datetime
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Option,
+    P,
+    Script,
+    Span,
+)
 from fasthtml.common import Input as _Input
 from fasthtml.common import Label as _Label
 from monsterui.all import *
+from monsterui.all import (
+    Input,
+    Select,
+)
 
 from quantide.config.dev_stubs import (
     dev_stubs_enabled,

@@ -3,7 +3,17 @@
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    P,
+    Pre,
+    Span,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Button,
+)
 
 from quantide.service.backtest_logs import (
     list_backtest_logs,

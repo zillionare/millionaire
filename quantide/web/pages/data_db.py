@@ -4,6 +4,11 @@ import math
 
 import fasthtml.common as fh
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    Span,
+)
 from loguru import logger
 from monsterui.all import *
 

@@ -54,7 +54,7 @@ class InitWizardService:
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         if self._initialized:
             return
         self._state: AppState | None = None
@@ -117,7 +117,7 @@ class InitWizardService:
         by_years = datetime.date.today() - datetime.timedelta(days=365 * years)
         return max(epoch, by_years)
 
-    def _ensure_db(self):
+    def _ensure_db(self) -> None:
         """确保数据库已初始化"""
         if not db._initialized:
             raise RuntimeError("数据库未初始化，请先调用 db.init()")

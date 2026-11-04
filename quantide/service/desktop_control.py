@@ -52,7 +52,7 @@ def create_controller():
     tk.Label(window, textvariable=status, wraplength=410).pack(pady=18)
 
     def action(command):
-        def work():
+        def work() -> None:
             with action_lock:
                 try:
                     if sys.platform == "win32" and not ctypes.windll.shell32.IsUserAnAdmin():

@@ -3,7 +3,15 @@
 import datetime
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Span,
+)
 from monsterui.all import *
+from monsterui.all import (
+    Button,
+    Input,
+)
 
 
 def _get_active_account(req) -> tuple[str, str] | None:

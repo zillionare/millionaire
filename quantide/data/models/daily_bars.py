@@ -6,7 +6,7 @@ from loguru import logger
 
 from quantide.config.settings import get_timezone
 from quantide.core.enums import FrameType
-from quantide.core.ports import DataFetcherPort
+from quantide.core.ports import HistoricalDataFetcherPort
 from quantide.core.singleton import singleton
 from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.helper import hfq_adjustment, qfq_adjustment
@@ -22,7 +22,7 @@ class DailyBars(ParquetStorage):
     .store 属性返回 self，保持向后兼容。
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # 占位初始化；connect() 会用真实路径重新初始化 ParquetStorage
         ParquetStorage.__init__(
             self,
@@ -32,7 +32,7 @@ class DailyBars(ParquetStorage):
             fetch_data_func=None,
         )
         self._calendar: Calendar | None = None
-        self._data_fetcher: DataFetcherPort | None = None
+        self._data_fetcher: HistoricalDataFetcherPort | None = None
         self._initialized = False
 
     def connect(self, store_path: str | Path, calendar_store_path: str | Path) -> None:

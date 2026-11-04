@@ -3,6 +3,23 @@
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    H3,
+    A,
+    Button,
+    Div,
+    Form,
+    Input,
+    Label,
+    P,
+    Span,
+    Table,
+    Tbody,
+    Td,
+    Th,
+    Thead,
+    Tr,
+)
 from loguru import logger
 from monsterui.all import UkIcon
 

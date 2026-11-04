@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fasthtml.common import Script, Style
 from monsterui.all import Theme
 
@@ -31,7 +33,7 @@ class AppTheme:
     """应用主题配置类"""
 
     @staticmethod
-    def headers():
+    def headers() -> list[Any]:
         """获取主题 headers（CSS 和脚本）"""
         # 使用 monsterui 默认主题（黑白灰），禁用 Theme.red 的红色渐变背景
         base_headers = Theme.neutral.headers()

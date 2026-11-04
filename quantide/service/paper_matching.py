@@ -26,7 +26,7 @@ class PaperMatching:
         """Consume daily limits through the public replay boundary."""
         self._on_limit_update(data)
 
-    def _on_quote_update(self, data: dict):
+    def _on_quote_update(self, data: dict) -> None:
         """行情更新回调，执行撮合逻辑。
 
         本方法将在 MessageHub 线程中运行。更新持仓市值，并尝试撮合待处理订单。
@@ -80,7 +80,7 @@ class PaperMatching:
             normalized[str(asset)] = item
         return normalized
 
-    def _update_positions_market_value(self, data: dict):
+    def _update_positions_market_value(self, data: dict) -> None:
         """更新内存中的持仓市值 (仅用于内存计算，不触发写库)。
 
         # todo: 如果存在性能问题，也许可以通过 polars 向量化操作来优化？这可能取决于有多少个资产
@@ -99,7 +99,7 @@ class PaperMatching:
                     pos.mv = pos.shares * last_price
                     pos.profit = pos.mv - (pos.shares * pos.price)
 
-    def _match_orders_for_asset(self, asset: str, quote: dict, traded_assets: set):
+    def _match_orders_for_asset(self, asset: str, quote: dict, traded_assets: set) -> None:
         """撮合指定资产的订单。"""
         orders = self._active_orders[asset]
         # 初始化剩余成交量
@@ -137,7 +137,7 @@ class PaperMatching:
 
     def _handle_trade_execution(
         self, order: Order, trade: Trade, asset: str, quote: dict, traded_assets: set
-    ):
+    ) -> None:
         """处理单次成交逻辑。"""
         before = (self._cash, deepcopy(self._positions), order.filled, order.status)
         try:
@@ -158,7 +158,7 @@ class PaperMatching:
         self._order_trades[order.qtoid].append(trade)
         traded_assets.add(asset)
 
-    def _handle_order_completion(self, order: Order):
+    def _handle_order_completion(self, order: Order) -> None:
         """处理订单完全成交。"""
         order.status = OrderStatus.SUCCEEDED
         # 更新 Order 状态到 DB
@@ -168,13 +168,13 @@ class PaperMatching:
         all_trades = self._order_trades.pop(order.qtoid)
         self.awake(order.qtoid, ExecutionResult(qt_oid=order.qtoid, trades=all_trades))
 
-    def _handle_order_partial(self, order: Order):
+    def _handle_order_partial(self, order: Order) -> None:
         """处理订单部分成交。"""
         order.status = OrderStatus.PART_SUCC
         # 更新 Order 状态到 DB
         db.update_order(order.qtoid, status=order.status.value, filled=order.filled)
 
-    def _persist_updates(self, traded_assets: set):
+    def _persist_updates(self, traded_assets: set) -> None:
         """持久化持仓和资产信息。"""
         db.save_portfolio_snapshot(self._account_snapshot(), self.positions)
 
@@ -259,7 +259,7 @@ class PaperMatching:
         stamp = amount * self._stamp_tax if side == OrderSide.SELL else 0.0
         return commission + transfer + stamp
 
-    def _apply_trade_to_portfolio(self, trade: Trade):
+    def _apply_trade_to_portfolio(self, trade: Trade) -> None:
         """应用成交到投资组合（仅更新内存状态）。
 
         更新现金、持仓数量、持仓成本。

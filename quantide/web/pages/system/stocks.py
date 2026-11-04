@@ -3,8 +3,17 @@
 import asyncio
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+)
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H2,
+    Button,
+    Input,
+    UkIcon,
+)
 
 from quantide.data.models.stocks import stock_list
 from quantide.web.application import fast_app

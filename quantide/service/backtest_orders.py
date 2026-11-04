@@ -1,9 +1,11 @@
 """Backtest execution commands and account queries."""
 
+from __future__ import annotations
+
 import datetime
 import math
 import uuid
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import polars as pl
@@ -24,8 +26,15 @@ from quantide.core.ports.broker import ExecutionResult
 from quantide.data.models import Order, Position, Trade
 from quantide.data.sqlite import db
 
+if TYPE_CHECKING:
+    from quantide.service.bar_views import HistBarView
+    from quantide.service.datafeed import BarsFeedImpl
 
-def _prepare_backtest_buy_order(self, bars, asset, order_time, kwargs, price, shares):
+
+def _prepare_backtest_buy_order(
+    self: BacktestOrders, bars: pl.DataFrame | None, asset: str, order_time: datetime.datetime,
+    kwargs: dict[str, Any], price: float, shares: int | float,
+) -> Order:
     """Prepare backtest buy order."""
     if bars is None or bars.is_empty():
         self._log(
@@ -67,7 +76,10 @@ def _prepare_backtest_buy_order(self, bars, asset, order_time, kwargs, price, sh
     return order
 
 
-def _prepare_risk_exit_order(self, order_time, asset, shares, price, reason):
+def _prepare_risk_exit_order(
+    self: BacktestOrders, order_time: datetime.datetime, asset: str, shares: int | float,
+    price: float, reason: str,
+) -> tuple[float, Order]:
     """Prepare risk exit order."""
     self.set_clock(order_time)
     pos = self._positions.get(asset)
@@ -109,7 +121,10 @@ def _prepare_risk_exit_order(self, order_time, asset, shares, price, reason):
     return close, order
 
 
-def _prepare_backtest_sell_order(self, bars, asset, order_time, price, shares, kwargs):
+def _prepare_backtest_sell_order(
+    self: BacktestOrders, bars: pl.DataFrame | None, asset: str, order_time: datetime.datetime,
+    price: float, shares: int | float, kwargs: dict[str, Any],
+) -> Order:
     """Prepare backtest sell order."""
     if bars is None or bars.is_empty():
         self._log(
@@ -166,6 +181,36 @@ def _prepare_backtest_sell_order(self, bars, asset, order_time, price, shares, k
 class BacktestOrders:
     """Backtest execution commands and account queries."""
 
+    if TYPE_CHECKING:
+        _portfolio_id: str
+        _portfolio_name: str
+        _cash: float
+        _principal: float
+        _commission: float
+        _stamp_duty: float
+        _min_commission: float
+        _transfer_fee: float
+        _positions: dict[str, Position]
+        _data_feed: BarsFeedImpl
+        _bar_view: HistBarView
+        _match_level: Literal["day", "minute"]
+        _risk_overlay_in_progress: bool
+        _risk_overlay_sold_assets: set[str]
+        allow_same_bar_repurchase: bool
+
+        def as_date(self, dt: datetime.date | datetime.datetime) -> datetime.date: ...
+        def set_clock(self, dt: datetime.datetime) -> None: ...
+        def _validate_sell_shares(self, pos: Position, shares: float) -> None: ...
+        def is_auction_time(self, tm: datetime.datetime) -> bool: ...
+        def _auction_bid_price(self, bars: pl.DataFrame, side: OrderSide) -> float: ...
+        def _price_for_match(
+            self, asset: str, tm: datetime.datetime, fill_timing: str = ""
+        ) -> pl.DataFrame | None: ...
+        def _log(
+            self, level: str, message: str, dt: datetime.date | datetime.datetime | None = None,
+            extra: dict[str, Any] | None = None,
+        ) -> None: ...
+
     async def buy(
         self,
         asset: str,
@@ -173,7 +218,7 @@ class BacktestOrders:
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         # 在回测中，timeout 参数无效，直接忽略
         _ = timeout
@@ -196,6 +241,7 @@ class BacktestOrders:
         # 2. 获取撮合所需的行情数据
         bars = self._price_for_match(asset, order_time, str(kwargs.get("fill_timing", "")).lower())
         order = _prepare_backtest_buy_order(self, bars, asset, order_time, kwargs, price, shares)
+        assert bars is not None  # The preparation helper rejects missing bars.
         db.insert_order(order)
 
         # 5. 执行撮合
@@ -499,7 +545,7 @@ class BacktestOrders:
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         _ = timeout
 
@@ -517,7 +563,7 @@ class BacktestOrders:
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         _ = timeout
         assert order_time is not None, "order_time must be present in backtest mode"
@@ -559,7 +605,7 @@ class BacktestOrders:
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         _ = timeout
 
@@ -569,6 +615,7 @@ class BacktestOrders:
         # 1. 获取撮合所需的行情数据
         bars = self._price_for_match(asset, order_time, str(kwargs.get("fill_timing", "")).lower())
         order = _prepare_backtest_sell_order(self, bars, asset, order_time, price, shares, kwargs)
+        assert bars is not None  # The preparation helper rejects missing bars.
         db.insert_order(order)
 
         # 5. 执行撮合
@@ -692,7 +739,7 @@ class BacktestOrders:
         if len(where_total_filled) == 0:
             i = len(v) - 1
         else:
-            i = np.min(where_total_filled)
+            i = int(np.min(where_total_filled))
 
         # 也许到当天结束，都没有足够的股票
         filled = min(cum_v[i], shares)
@@ -744,7 +791,7 @@ class BacktestOrders:
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         """按持仓百分比卖出"""
         _ = timeout
@@ -772,7 +819,7 @@ class BacktestOrders:
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
         method: Literal["ceil", "floor"] = "ceil",
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         _ = timeout
 
@@ -837,11 +884,11 @@ class BacktestOrders:
         else:
             return await self.sell_amount(asset, -margin, price, order_time, method="floor")
 
-    async def cancel_order(self, qt_oid: str):
+    async def cancel_order(self, qt_oid: str) -> None:
         """回测模式下，不支持取消订单"""
         return None
 
-    async def cancel_all_orders(self, side=None):
+    async def cancel_all_orders(self, side: OrderSide | None = None) -> None:
         """回测模式下，不支持取消订单"""
         return None
 

@@ -430,7 +430,7 @@ class PaperOrders:
         else:
             return ExecutionResult.empty()
 
-    async def cancel_order(self, qt_oid: str):
+    async def cancel_order(self, qt_oid: str) -> None:
         """Persist cancellation before removing an active order or acknowledging the request."""
         with self._lock:
             found = next(
@@ -470,7 +470,7 @@ class PaperOrders:
         order.status = status
         order.status_msg = "Canceled by user"
 
-    async def cancel_all_orders(self, side: OrderSide | None = None):
+    async def cancel_all_orders(self, side: OrderSide | None = None) -> None:
         """Cancel a snapshot of the active queue through the same durable acknowledgement path."""
         with self._lock:
             identities = [
@@ -482,7 +482,7 @@ class PaperOrders:
         for identity in identities:
             await self.cancel_order(identity)
 
-    async def on_day_open(self, limits: dict[str, dict[str, float]] | None = None):
+    async def on_day_open(self, limits: dict[str, dict[str, float]] | None = None) -> None:
         """开盘处理。
 
         Args:
@@ -491,7 +491,7 @@ class PaperOrders:
         # 仿真 broker 实时从 quote 获取 limit，此处暂不需要特殊处理
         pass
 
-    async def on_day_close(self, close_prices: dict[str, float] | None = None):
+    async def on_day_close(self, close_prices: dict[str, float] | None = None) -> None:
         """收盘后处理：生成资产快照，并清理未完成订单。
 
         Args:

@@ -5,6 +5,14 @@ import json
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    P,
+    RedirectResponse,
+    Request,
+    Script,
+    Span,
+)
 from loguru import logger
 from monsterui.all import *
 from starlette.responses import StreamingResponse
@@ -302,7 +310,7 @@ async def _save_gateway_step(form_dict, step):
     return _save_custom_gateway(form_dict)
 
 
-def _disable_ce_gateway():
+def _disable_ce_gateway() -> None:
     state = init_wizard.get_state(force_refresh=True)
     state.gateway_enabled = False
     state.gateway_server = ""

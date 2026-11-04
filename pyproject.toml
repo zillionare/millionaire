@@ -167,8 +167,10 @@ markers = [
 
 [dependency-groups]
 dev = [
-    "mypy (>=1.19.1,<2.0.0)",
-    "pyarrow-stubs (>=20.0.0.20251215)",
+    "mypy==1.20.2",
+    "pandas-stubs==2.3.3.260113",
+    "pyarrow-stubs==20.0.0.20251215",
+    "types-PyYAML==6.0.12.20261103",
     "ruff==0.16.0",
     "tox (>=3.24.5,<4.0.0)",
     "pre-commit==4.3.0",
@@ -207,8 +209,10 @@ doc = [
 
 # Poetry 2.x group definitions — mirrors [dependency-groups] above for CI install
 [tool.poetry.group.dev.dependencies]
-mypy = ">=1.19.1,<2.0.0"
-pyarrow-stubs = ">=20.0.0.20251215"
+mypy = "1.20.2"
+pandas-stubs = "2.3.3.260113"
+pyarrow-stubs = "20.0.0.20251215"
+types-PyYAML = "6.0.12.20261103"
 ruff = "0.16.0"
 tox = ">=3.24.5,<4.0.0"
 pre-commit = "4.3.0"
@@ -245,6 +249,7 @@ mkdocstrings-python = ">=0.9.0,<3.0.0"
 mike = ">=1.1.2,<3.0.0"
 
 [tool.mypy]
+files = ["quantide"]
 cache_dir = "/tmp/millionaire-ce/mypy-cache"
 warn_redundant_casts = true
 warn_unused_ignores = true
@@ -259,6 +264,14 @@ warn_return_any = true
 
 [[tool.mypy.overrides]]
 module = "fire"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "apscheduler", "apscheduler.*", "baostock", "baostock.*",
+    "fasthtml", "fasthtml.*", "fastlite", "fastlite.*",
+    "monsterui", "monsterui.*", "tushare", "tushare.*",
+]
 ignore_missing_imports = true
 
 [tool.coverage.run]

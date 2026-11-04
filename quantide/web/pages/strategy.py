@@ -8,8 +8,24 @@ from typing import Any
 import arrow
 import fasthtml.common as fh
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    P,
+    Pre,
+    RedirectResponse,
+    Response,
+)
 from fasthtml.svg import Path as SvgPath
 from monsterui.all import *
+from monsterui.all import (
+    H1,
+    H3,
+    Button,
+    Card,
+    CardBody,
+    CardHeader,
+)
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from quantide.core.enums import FrameType
@@ -809,7 +825,7 @@ async def deploy_backtest_to_live(req, portfolio_id: str):
         )
 
 
-async def backtest_ws(websocket: WebSocket):
+async def backtest_ws(websocket: WebSocket) -> None:
     """回测报告 websocket 推送。
 
     Args:
@@ -901,7 +917,7 @@ def _launch_backtest_job(
     runner = BacktestRunner()
     from quantide.service.background import run_blocking, start_background
 
-    def _job():
+    def _job() -> None:
         try:
             asyncio.run(
                 runner.run(

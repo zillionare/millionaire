@@ -36,7 +36,7 @@ class AbstractBroker:
         info: str = "",
         start: datetime.date | None = None,
         end: datetime.date | None = None,
-    ):
+    ) -> None:
         self._cash: float = principal
         self._portfolio_id: str = portfolio_id
         self._principal: float = principal

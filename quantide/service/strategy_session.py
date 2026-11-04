@@ -41,13 +41,13 @@ class StrategySession:
         except ValueError:
             return None
 
-    async def start(self):
+    async def start(self) -> None:
         """Initialize the host before the selected risk programs."""
         for strategy in [self.strategy, *self.risks]:
             await strategy.init()
             await strategy.on_start()
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Give every strategy an opportunity to release its own resources."""
         for strategy in [*self.risks, self.strategy]:
             try:

@@ -59,7 +59,7 @@ class DataReadinessMonitor:
     # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
-    def stop(self):
+    def stop(self) -> None:
         """Remove this service's registrations before a subsequent lifespan."""
         remove_owned_jobs(
             self,

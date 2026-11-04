@@ -1,6 +1,7 @@
 # auth/models.py
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 import bcrypt
 
@@ -36,7 +37,7 @@ class User:
     @classmethod
     def is_hashed(cls, pwd: str) -> bool:
         """Check if password is already hashed (bcrypt hashes start with $2b$)"""
-        return pwd and pwd.startswith("$2b$") and len(pwd) == 60
+        return bool(pwd) and pwd.startswith("$2b$") and len(pwd) == 60
 
     @classmethod
     def verify_password(cls, pwd: str, hashed: str) -> bool:
@@ -49,7 +50,7 @@ class User:
             print(f"Error verifying password: {e}")
             return False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize timestamps and hash password if needed"""
         # Hash password if not already hashed
         if self.password and not self.is_hashed(self.password):
@@ -70,7 +71,7 @@ class Session:
 
     id: str
     user_id: int
-    data: dict
+    data: dict[str, Any]
     expires_at: str
     created_at: str
 

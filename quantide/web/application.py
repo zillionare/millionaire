@@ -1,6 +1,7 @@
 """FastHTML applications with a persistent session key outside the working directory."""
 
 import secrets
+from typing import Any
 
 from fasthtml.common import fast_app as _fast_app
 from filelock import FileLock
@@ -9,7 +10,7 @@ from quantide.config.paths import ensure_app_config_dir
 from quantide.core.atomic_files import atomic_path
 
 
-def session_secret():
+def session_secret() -> str:
     """Keep service startup independent of a writable current working directory."""
     path = ensure_app_config_dir() / ".session-key"
     with FileLock(str(path) + ".lock", timeout=10):
@@ -25,7 +26,7 @@ def session_secret():
         return value
 
 
-def fast_app(*args, **kwargs):
+def fast_app(*args: Any, **kwargs: Any) -> Any:
     """Create an application using the installation's durable session secret."""
     kwargs.setdefault("secret_key", session_secret())
     return _fast_app(*args, **kwargs)

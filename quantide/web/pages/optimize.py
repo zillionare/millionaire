@@ -9,6 +9,23 @@ from typing import Any
 import arrow
 import fasthtml.common as fh
 from fasthtml.common import *
+from fasthtml.common import (
+    H1,
+    H3,
+    H4,
+    A,
+    Button,
+    Div,
+    P,
+    RedirectResponse,
+    Script,
+    Table,
+    Tbody,
+    Td,
+    Th,
+    Thead,
+    Tr,
+)
 from loguru import logger
 
 from quantide.service.optimization_tasks import (

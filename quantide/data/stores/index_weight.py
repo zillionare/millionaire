@@ -9,6 +9,7 @@
 
 import datetime
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 
@@ -35,7 +36,7 @@ class IndexWeightStore(ParquetStorage):
     字段：date（快照日）, index_code, con_code, weight
     """
 
-    def __init__(self, path: str | Path, calendar: Calendar):
+    def __init__(self, path: str | Path, calendar: Calendar) -> None:
         """初始化成分存储。
 
         Args:
@@ -43,7 +44,9 @@ class IndexWeightStore(ParquetStorage):
             calendar: 日历对象。
         """
         path = Path(path).expanduser()
-        partition_levels = None if path.suffix == ".parquet" else ("year", "month")
+        partition_levels: tuple[Literal["year", "month", "day"], ...] | None = (
+            None if path.suffix == ".parquet" else ("year", "month")
+        )
         super().__init__(
             "IndexWeight",
             path,

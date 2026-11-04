@@ -42,7 +42,7 @@ class CalendarSDK:
     backtest/paper/live 模式下接口相同 (数据来源由 calendar 适配).
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         from quantide.data.models.calendar import calendar
 
         self._calendar = calendar
@@ -80,7 +80,7 @@ class SecurityListSDK:
     兼容旧接口 (search / get_info / is_st_no_date), 数据来源由 quantide.data.models.stocks 注入.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._securities: dict[str, Security] = {}
 
     def register(self, security: Security) -> None:

@@ -37,7 +37,7 @@ def test_build_skip_patterns_basic():
     assert "/health" in patterns
 
 
-def test_build_skip_patterns_with_additional():
+def test_build_skip_patterns_with_single_additional_path():
     """[AC-NFR1101-01] test_build_skip_patterns_with_additional."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     patterns = mw._build_skip_patterns(additional_paths=["/custom"])

@@ -1,19 +1,31 @@
 """Coverage contracts for date-based historical source responses."""
 
 import datetime
+from collections.abc import Iterable
+from typing import Protocol
 
 import pandas as pd
 import polars as pl
 
+from quantide.core.enums import FrameType
 
-def trading_sessions(calendar, start, end):
+
+class _SessionCalendar(Protocol):
+    def get_frames(
+        self, start: datetime.date, end: datetime.date, frame_type: FrameType
+    ) -> list[datetime.date | datetime.datetime]: ...
+
+
+def trading_sessions(
+    calendar: _SessionCalendar, start: datetime.date, end: datetime.date
+) -> list[datetime.date]:
     """Request only sessions within the source interval, excluding calendar floor carry-in."""
-    from quantide.core.enums import FrameType
-
     return [day for day in calendar.get_frames(start, end, FrameType.DAY) if start <= day <= end]
 
 
-def require_date_coverage(frame, dates, dataset: str) -> None:
+def require_date_coverage(
+    frame: pd.DataFrame | pl.DataFrame | None, dates: Iterable[datetime.date], dataset: str
+) -> None:
     """Reject empty or partial responses before recording a successful checkpoint."""
     expected = {day.date() if isinstance(day, datetime.datetime) else day for day in dates}
     if not expected:

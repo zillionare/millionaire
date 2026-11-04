@@ -25,7 +25,7 @@ def acquire_instance_guard(pid_path: Path, product_name: str) -> None:
         guard.release()
         raise
 
-    def release():
+    def release() -> None:
         with contextlib.suppress(FileNotFoundError):
             pid_path.unlink()
         guard.release()

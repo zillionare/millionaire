@@ -836,7 +836,9 @@ class TestLoginRoutes:
 
         assert response.status_code == 200
         assert "Millionaire" in response.text
-        assert "business@quantide.cn" in response.text
+        assert "投资如山岳般古老" in response.text
+        assert 'name="password"' in response.text
+        assert 'name="username"' not in response.text
 
     def test_auth_login_post_succeeds(self, test_client):
         response = test_client.post(
