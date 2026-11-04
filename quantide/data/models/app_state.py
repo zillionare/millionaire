@@ -5,7 +5,7 @@
 
 import datetime
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from quantide.config.settings import Settings
@@ -15,7 +15,7 @@ from quantide.core.init_wizard_steps import WIZARD_FINAL_STEP
 from quantide.data.models.base import Entity
 
 
-def _normalize_state_dates(self) -> None:
+def _normalize_state_dates(self: "AppState") -> None:
     """Restore persisted dates and initialization timestamps."""
     if isinstance(self.init_started_at, str):
         self.init_started_at = datetime.datetime.fromisoformat(self.init_started_at)
@@ -196,7 +196,7 @@ class AppState(Entity):
             except Exception:
                 self.history_years = 3
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典，用于数据库存储"""
         result = {}
         for key, value in self.__dict__.items():
@@ -209,7 +209,7 @@ class AppState(Entity):
         return result
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AppState":
+    def from_dict(cls, data: dict[str, Any]) -> "AppState":
         """从字典创建实例"""
         # 过滤掉类中不存在的字段
         valid_fields = {f.name for f in cls.__dataclass_fields__.values()}

@@ -20,6 +20,8 @@ from quantide.config.settings import (
     get_mail_server,
 )
 
+MailResult = tuple[dict[str, aiosmtplib.response.SMTPResponse], str]
+
 
 def mail_notify(
     subject: str | None = None,
@@ -27,7 +29,7 @@ def mail_notify(
     msg: EmailMessage | None = None,
     html: bool = False,
     receivers: list[str] | None = None,
-) -> Awaitable:
+) -> Awaitable[MailResult]:
     """发送邮件通知。
 
     发送者、接收者及邮件服务器等配置请通过系统设置配置
@@ -93,7 +95,7 @@ def mail_notify(
 def send_mail(
     sender: str,
     receivers: list[str],
-    password: str,
+    password: str | None,
     msg: EmailMessage | None = None,
     host: str | None = None,
     port: int = 25,
@@ -102,7 +104,7 @@ def send_mail(
     subject: str | None = None,
     body: str | None = None,
     username: str | None = None,
-) -> Awaitable:
+) -> Awaitable[MailResult]:
     """发送邮件通知。
 
     如果只发送简单的文本邮件，请使用 send_mail(sender, receivers, subject=subject,
@@ -161,7 +163,7 @@ def send_mail(
         host = sender.split("@")[-1]
 
     task = asyncio.create_task(
-        aiosmtplib.send(msg, hostname=host, port=port, username=sender, password=password)
+        aiosmtplib.send(msg, hostname=host, port=port, username=username, password=password)
     )
 
     return task

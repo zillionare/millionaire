@@ -1,3 +1,4 @@
+import asyncio
 from email.message import EmailMessage
 
 import quantide.notify.mail as mail_module
@@ -66,3 +67,27 @@ def test_mail_notify_keeps_explicit_subject(monkeypatch):
     )
 
     assert sent["msg"]["Subject"] == "Custom subject"
+
+
+def test_send_mail_uses_explicit_username(monkeypatch):
+    sent = {}
+
+    async def fake_send(message, **kwargs):
+        sent.update(kwargs)
+        return {}, "ok"
+
+    monkeypatch.setattr(mail_module.aiosmtplib, "send", fake_send)
+
+    async def run():
+        return await mail_module.send_mail(
+            "sender@example.com",
+            ["recipient@example.com"],
+            None,
+            subject="hello",
+            body="world",
+            username="smtp-user",
+        )
+
+    assert asyncio.run(run()) == ({}, "ok")
+    assert sent["username"] == "smtp-user"
+    assert sent["password"] is None

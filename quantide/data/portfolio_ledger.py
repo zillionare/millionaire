@@ -8,6 +8,7 @@ import datetime
 import sqlite3
 from collections.abc import Iterable
 
+from quantide.data.models.base import Entity
 from quantide.data.models.entities import Asset, Order, Position, Trade
 
 SNAPSHOT_SCHEMA = """
@@ -19,7 +20,7 @@ CREATE TABLE IF NOT EXISTS position_snapshots (
 """
 
 
-def _write_entity(connection: sqlite3.Connection, entity) -> None:
+def _write_entity(connection: sqlite3.Connection, entity: Entity) -> None:
     values = entity.to_dict()
     values = {
         key: value.isoformat() if isinstance(value, datetime.date) else value
@@ -38,7 +39,12 @@ def _write_entity(connection: sqlite3.Connection, entity) -> None:
     )
 
 
-def _replace_positions(connection, portfolio_id, dt, positions) -> None:
+def _replace_positions(
+    connection: sqlite3.Connection,
+    portfolio_id: str,
+    dt: datetime.date | datetime.datetime,
+    positions: Iterable[Position],
+) -> None:
     day = dt.date() if isinstance(dt, datetime.datetime) else dt
     connection.execute(
         "DELETE FROM positions WHERE portfolio_id=? AND dt=?",
@@ -52,7 +58,12 @@ def _replace_positions(connection, portfolio_id, dt, positions) -> None:
     )
 
 
-def replace_positions(connection, portfolio_id, dt, positions) -> None:
+def replace_positions(
+    connection: sqlite3.Connection,
+    portfolio_id: str,
+    dt: datetime.date | datetime.datetime,
+    positions: Iterable[Position],
+) -> None:
     """Persist even an empty snapshot, retaining historical snapshots."""
     with connection:
         _replace_positions(connection, portfolio_id, dt, positions)

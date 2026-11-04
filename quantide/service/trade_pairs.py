@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypedDict
 
 import polars as pl
 
@@ -17,6 +17,27 @@ from quantide.data.sqlite import db
 
 TRADE_PAIR_OPEN = "open"
 TRADE_PAIR_CLOSED = "closed"
+
+
+class _Lot(TypedDict):
+    tid: str
+    tm: datetime.datetime
+    shares: float
+    price: float
+    fee: float
+
+
+class _Segment(TypedDict):
+    asset: str
+    buy_tid: str
+    sell_tid: str
+    buy_tm: datetime.datetime
+    sell_tm: datetime.datetime
+    shares: float
+    buy_price: float
+    sell_price: float
+    buy_fee: float
+    sell_fee: float
 
 
 @dataclass
@@ -91,18 +112,18 @@ def build_trade_pairs(portfolio_id: str) -> list[TradePair]:
         return []
 
     trades_df = trades_df.sort("tm")
-    lots: dict[str, list[dict[str, Any]]] = {}
-    segments: list[dict[str, Any]] = []
+    lots: dict[str, list[_Lot]] = {}
+    segments: list[_Segment] = []
 
     for row in trades_df.iter_rows(named=True):
         _accumulate_trade(row, lots, segments)
 
-    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    grouped: dict[tuple[str, str], _Segment] = {}
     for segment in segments:
         key = (segment["buy_tid"], segment["sell_tid"])
         item = grouped.get(key)
         if item is None:
-            grouped[key] = dict(segment)
+            grouped[key] = segment.copy()
             continue
         item["shares"] += segment["shares"]
         item["buy_fee"] += segment["buy_fee"]
@@ -123,7 +144,16 @@ def _holding_days(buy_tm: datetime.datetime, sell_tm: datetime.datetime | None) 
     return (sell_tm.date() - buy_tm.date()).days
 
 
-def _match_sale(asset, shares, price, fee, tm, row, lots, segments):
+def _match_sale(
+    asset: str,
+    shares: float,
+    price: float,
+    fee: float,
+    tm: datetime.datetime,
+    row: dict[str, Any],
+    lots: dict[str, list[_Lot]],
+    segments: list[_Segment],
+) -> None:
     """Consume buy lots in FIFO order and allocate both sides of fees."""
     remaining = shares
     queue = lots.setdefault(asset, [])
@@ -152,7 +182,9 @@ def _match_sale(asset, shares, price, fee, tm, row, lots, segments):
             queue.pop(0)
 
 
-def _accumulate_trade(row, lots, segments):
+def _accumulate_trade(
+    row: dict[str, Any], lots: dict[str, list[_Lot]], segments: list[_Segment]
+) -> None:
     """Normalize and add one valid trade to FIFO accounting."""
     asset = str(row.get("asset") or "")
     side = int(row.get("side") or 0)
@@ -179,7 +211,12 @@ def _accumulate_trade(row, lots, segments):
     _match_sale(asset, shares, price, fee, tm, row, lots, segments)
 
 
-def _append_trade_pairs(grouped, pairs, lots, unrealized):
+def _append_trade_pairs(
+    grouped: dict[tuple[str, str], _Segment],
+    pairs: list[TradePair],
+    lots: dict[str, list[_Lot]],
+    unrealized: dict[str, float],
+) -> None:
     """Render matched sales and remaining open lots as report records."""
     for item in grouped.values():
         buy_amount = item["shares"] * item["buy_price"]
