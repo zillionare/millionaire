@@ -1,17 +1,26 @@
 import functools
 import inspect
-from typing import Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from fasthtml.common import *
 from fasthtml.common import (
+    Beforeware,
+    RedirectResponse,
     Response,
 )
+from starlette.requests import Request
+
+if TYPE_CHECKING:
+    from quantide.web.auth.manager import AuthManager
+
+_Route = TypeVar("_Route", bound=Callable[..., Any])
 
 
 class AuthBeforeware:
     """Authentication middleware for fastHTML"""
 
-    def __init__(self, auth_manager, config=None):
+    def __init__(self, auth_manager: "AuthManager", config: dict[str, Any] | None = None) -> None:
         self.auth_manager = auth_manager
         self.config = config or {}
 
@@ -32,12 +41,12 @@ class AuthBeforeware:
             r".*\.svg",
         ]
 
-    def create_beforeware(self, additional_public_paths=None):
+    def create_beforeware(self, additional_public_paths: list[str] | None = None) -> Any:
         """Create beforeware for fastHTML"""
         skip_patterns = self._build_skip_patterns(additional_paths=additional_public_paths)
 
         # Create Beforeware authentication check function
-        def auth_check(req, sess):
+        def auth_check(req: Request, sess: dict[str, Any]) -> Response | None:
             """Check authentication prior to check"""
             auth_username = sess.get("auth")
 
@@ -61,11 +70,12 @@ class AuthBeforeware:
             req.scope["user.id"] = user.id
             req.scope["user_role"] = user.role
             req.scope["user_is_admin"] = user.role == "admin"
+            return None
 
         # Return configured Beforeware
         return Beforeware(auth_check, skip=skip_patterns)
 
-    def _build_skip_patterns(self, additional_paths=None) -> list:
+    def _build_skip_patterns(self, additional_paths: list[str] | None = None) -> list[str]:
         """Build list of paths to skip auth check"""
         skip = []
 
@@ -87,39 +97,39 @@ class AuthBeforeware:
 
         return skip
 
-    def require_admin(self):
+    def require_admin(self) -> Callable[[_Route], _Route]:
         """Decorate paths requiring the admin role."""
         return self.require_role("admin")
 
-    def require_role(self, *allowed_roles):
+    def require_role(self, *allowed_roles: str) -> Callable[[_Route], _Route]:
         """Guard synchronous and asynchronous routes before running any handler code."""
 
-        def decorator(function):
+        def decorator(function: _Route) -> _Route:
             only_request = len(inspect.signature(function).parameters) == 1
 
-            def invoke(request, args, kwargs):
+            def invoke(request: Request, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
                 return function(request) if only_request else function(request, *args, **kwargs)
 
-            def denied(request):
+            def denied(request: Request) -> bool:
                 user = request.scope.get("user")
-                return not user or user.role not in allowed_roles
+                return bool(not user or user.role not in allowed_roles)
 
             if inspect.iscoroutinefunction(function):
 
                 @functools.wraps(function)
-                async def async_wrapper(req, *args: Any, **kwargs: Any):
+                async def async_wrapper(req: Request, *args: Any, **kwargs: Any) -> Any:
                     if denied(req):
                         return Response("Forbidden", status_code=403)
                     return await invoke(req, args, kwargs)
 
-                return async_wrapper
+                return cast(_Route, async_wrapper)
 
             @functools.wraps(function)
-            def wrapper(req, *args: Any, **kwargs: Any):
+            def wrapper(req: Request, *args: Any, **kwargs: Any) -> Any:
                 if denied(req):
                     return Response("Forbidden", status_code=403)
                 return invoke(req, args, kwargs)
 
-            return wrapper
+            return cast(_Route, wrapper)
 
         return decorator
