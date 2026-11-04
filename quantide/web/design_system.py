@@ -109,7 +109,7 @@ class DesignSystem:
         return Script("")
 
     @staticmethod
-    def headers() -> list:
+    def headers() -> list[Style]:
         """加入所有页面 headers 的设计系统资源。"""
         return [DesignSystem.css()]
 

@@ -1,13 +1,16 @@
 """Application-owned task recovery and orderly component shutdown."""
 
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from types import ModuleType
 
 from loguru import logger
+from starlette.applications import Starlette
 
 from quantide.data.sqlite import db
 
 
-def _component_shutdown_callbacks(modes, app):
+def _component_shutdown_callbacks(modes: ModuleType, app: Starlette) -> list[Callable[[], object]]:
     """Component shutdown callbacks."""
     from quantide.core.scheduler import scheduler
     from quantide.service.data_readiness import data_readiness_monitor
@@ -53,7 +56,7 @@ def recover_interrupted_tasks() -> None:
             )
 
 
-def shutdown_components(app) -> None:
+def shutdown_components(app: Starlette) -> None:
     """Attempt every cleanup even when an individual component fails."""
     from quantide.core.message import msg_hub
     from quantide.core.runtime import modes
@@ -79,7 +82,7 @@ def shutdown_components(app) -> None:
 
 
 @asynccontextmanager
-async def application_lifespan(app):
+async def application_lifespan(app: Starlette) -> AsyncIterator[None]:
     """Wire process ownership to ASGI lifespan, including shutdown on SIGTERM."""
     from quantide.core.message import msg_hub
 

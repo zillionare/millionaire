@@ -6,7 +6,9 @@ import datetime
 import uuid
 from typing import Any
 
-from quantide.core.enums import BrokerKind, OrderSide
+import polars as pl
+
+from quantide.core.enums import BrokerKind, FrameType, OrderSide
 from quantide.core.errors import (
     InsufficientCash,
     InsufficientPosition,
@@ -130,7 +132,7 @@ class ShadowBroker:
         end_dt: datetime.datetime | datetime.date | None = None,
         adjust: str | None = None,
         include_forming_bar: bool = True,
-    ):
+    ) -> pl.DataFrame:
         return self._bar_view.get_bars_range(
             assets, start_dt, end_dt, adjust=adjust, include_forming_bar=False
         )
@@ -140,9 +142,9 @@ class ShadowBroker:
         asset: str,
         count: int,
         end_dt: datetime.datetime | None = None,
-        frame_type: Any = "1d",
+        frame_type: FrameType | str = "1d",
         include_forming_bar: bool = True,
-    ):
+    ) -> pl.DataFrame:
         return self._bar_view.get_history(
             asset, count, end_dt, frame_type, include_forming_bar=False
         )
@@ -171,6 +173,8 @@ class ShadowBroker:
                 adjust=None,
                 eager_mode=True,
             )
+            if isinstance(frame, pl.LazyFrame):
+                frame = frame.collect()
             if frame is not None and not frame.is_empty():
                 price = float(frame.row(0, named=True).get("close") or 0)
                 limits = frame.row(0, named=True)

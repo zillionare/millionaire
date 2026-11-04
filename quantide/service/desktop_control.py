@@ -9,7 +9,6 @@ import webbrowser
 
 from quantide.config.paths import get_app_config_dir
 
-
 def _controller_buttons(window, action):
     """Build service actions and schedule controller status refreshes."""
     import tkinter as tk

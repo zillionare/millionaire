@@ -1,6 +1,8 @@
 """Validated settings for the ML example's one-shot selection API."""
 
+import datetime
 from dataclasses import dataclass
+from typing import Any
 
 from quantide.strategies.example._ml_support import (
     _coerce_date,
@@ -21,10 +23,15 @@ class SelectionOptions:
     universe_mode: str
     trim_pct: float
     custom_assets: list[str] | None
-    as_of: object
+    as_of: datetime.date | None
 
     @classmethod
-    def from_config(cls, cfg, overrides, as_of):
+    def from_config(
+        cls,
+        cfg: dict[str, Any],
+        overrides: dict[str, Any] | None,
+        as_of: datetime.date | datetime.datetime | str | None,
+    ) -> "SelectionOptions":
         top_k = max(1, int(cfg.get("top_k", 5)))
         return cls(
             top_k=top_k,

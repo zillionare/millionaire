@@ -27,6 +27,7 @@ import argparse
 import datetime
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 from loguru import logger
@@ -69,7 +70,7 @@ class TencentPublisher:
         fetcher: TencentDataFetcher | None = None,
         calendar: Any | None = None,
         clock: Any | None = None,
-        access_check=None,
+        access_check: Callable[[], None] | None = None,
     ) -> None:
         """初始化。
 
