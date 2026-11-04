@@ -1,37 +1,52 @@
 """Native service management for the installed standalone application."""
 
+from __future__ import annotations
+
 import os
 import plistlib
 import re
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Protocol, cast
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from quantide.config.output_paths import external_runtime_path
 from quantide.config.paths import get_app_config_dir, normalize_data_home
 from quantide.core.atomic_files import atomic_path
 
+if TYPE_CHECKING:
+    import pwd
+
 SERVICE_NAME = os.environ.get("MILLIONAIRE_SERVICE_NAME", "millionaire-ce")
 LABEL = f"ai.quantide.{SERVICE_NAME}"
 
 
-def install_root():
+class _WindowsCtypes(Protocol):
+    WinDLL: Callable[..., Any]
+    WinError: Callable[[int], OSError]
+    get_last_error: Callable[[], int]
+
+
+def install_root() -> Path:
     """Resolve the bundled runtime's parent, retaining relocatable paths."""
     return Path(sys.prefix).resolve().parent
 
 
-def _run(command, check=True):
+def _run(command: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, check=check, capture_output=True, text=True)
 
 
-def _launchd_path(system=False):
+def _launchd_path(system: bool = False) -> Path:
     directory = Path("/Library/LaunchDaemons") if system else Path.home() / "Library/LaunchAgents"
     return directory / f"{LABEL}.plist"
 
 
-def _launchd_profile(system, user):
+def _launchd_profile(
+    system: bool, user: str | None
+) -> tuple[dict[str, str], pwd.struct_passwd | None]:
     if not system:
         return _environment(), None
     if not user or user == "root":
@@ -61,19 +76,19 @@ def _launchd_profile(system, user):
     return environment, owner
 
 
-def _environment():
+def _environment() -> dict[str, str]:
     return {
         "QUANTIDE_CONFIG_HOME": str(get_app_config_dir()),
         "QUANTIDE_DATA_HOME": normalize_data_home(),
     }
 
 
-def _install_launchd(system=False, user=None):
+def _install_launchd(system: bool = False, user: str | None = None) -> None:
     environment, owner = _launchd_profile(system, user)
     Path(environment["QUANTIDE_CONFIG_HOME"]).mkdir(mode=0o700, parents=True, exist_ok=True)
     logs = Path(environment["QUANTIDE_CONFIG_HOME"]) / "logs"
     logs.mkdir(parents=True, exist_ok=True)
-    payload = {
+    payload: dict[str, Any] = {
         "Label": LABEL,
         "ProgramArguments": [sys.executable, "-m", "quantide.cli"],
         "EnvironmentVariables": environment,
@@ -165,7 +180,7 @@ def _install_windows() -> None:
         _run([wrapper, "install"])
 
 
-def _launchd_action(action, system=False):
+def _launchd_action(action: str, system: bool = False) -> subprocess.CompletedProcess[str]:
     domain = "system" if system else f"gui/{os.getuid()}"
     target = f"{domain}/{LABEL}"
     current = _run(["launchctl", "print", target], check=False)
@@ -189,7 +204,7 @@ def _launchd_action(action, system=False):
     return result
 
 
-def _wait_for_exit(pid):
+def _wait_for_exit(pid: int) -> None:
     deadline = time.monotonic() + 35
     while time.monotonic() < deadline:
         try:
@@ -200,7 +215,7 @@ def _wait_for_exit(pid):
     raise TimeoutError(f"Service process {pid} did not stop")
 
 
-def _windows_service_state():
+def _windows_service_state() -> int:
     """Read the SCM state without depending on localized sc.exe output."""
     import ctypes
     from ctypes import wintypes
@@ -221,7 +236,11 @@ def _windows_service_state():
             )
         ]
 
-    api = ctypes.WinDLL("advapi32", use_last_error=True)
+    # These ctypes APIs exist on Windows, while type checking also runs on POSIX.
+    windows_ctypes = cast(_WindowsCtypes, ctypes)
+    api = windows_ctypes.WinDLL("advapi32", use_last_error=True)
+    windows_error = windows_ctypes.WinError
+    last_error = windows_ctypes.get_last_error
     api.OpenSCManagerW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
     api.OpenSCManagerW.restype = wintypes.HANDLE
     api.OpenServiceW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, wintypes.DWORD]
@@ -232,23 +251,23 @@ def _windows_service_state():
     api.CloseServiceHandle.restype = wintypes.BOOL
     manager = api.OpenSCManagerW(None, None, 1)
     if not manager:
-        raise ctypes.WinError(ctypes.get_last_error())
+        raise windows_error(last_error())
     try:
         handle = api.OpenServiceW(manager, SERVICE_NAME, 4)
         if not handle:
-            raise ctypes.WinError(ctypes.get_last_error())
+            raise windows_error(last_error())
         try:
             status = ServiceStatus()
             if not api.QueryServiceStatus(handle, ctypes.byref(status)):
-                raise ctypes.WinError(ctypes.get_last_error())
-            return status.current_state
+                raise windows_error(last_error())
+            return int(status.current_state)
         finally:
             api.CloseServiceHandle(handle)
     finally:
         api.CloseServiceHandle(manager)
 
 
-def _wait_windows_service_stopped(timeout=35):
+def _wait_windows_service_stopped(timeout: float = 35) -> None:
     """Wait for SCM SERVICE_STOPPED even after a successful WinSW command."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -258,7 +277,7 @@ def _wait_windows_service_stopped(timeout=35):
     raise TimeoutError(f"Windows service {SERVICE_NAME} did not finish stopping")
 
 
-def _windows_action(action):
+def _windows_action(action: str) -> subprocess.CompletedProcess[str]:
     """Serialize stop/start and removal against actual service completion."""
     if action == "uninstall":
         stopped = _windows_action("stop")
@@ -272,7 +291,7 @@ def _windows_action(action):
     return result
 
 
-def manage_service(action, *, system=False, user=None):
+def manage_service(action: str, *, system: bool = False, user: str | None = None) -> int:
     """Manage a registered OS service; controller exit never stops the service."""
     if action == "install":
         if sys.platform == "darwin":
