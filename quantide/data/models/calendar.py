@@ -816,7 +816,9 @@ class Calendar(CalendarFrameOperations):
             tzinfo=tz,
         )
 
-    def replace_date(self, dtm: datetime.datetime, dt: datetime.date) -> datetime.datetime:
+    def replace_date(
+        self, dtm: datetime.time | datetime.datetime, dt: datetime.date
+    ) -> datetime.datetime:
         """将`dtm`变量的日期更换为`dt`指定的日期
 
         Example:

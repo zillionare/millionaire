@@ -8,6 +8,8 @@
 以使得 Calendar.get_trade_dates能返回自然日历。
 """
 
+from __future__ import annotations
+
 import datetime
 import glob
 import hashlib
@@ -31,7 +33,9 @@ from quantide.data.stores.bounds import _as_datetime_bound as _as_datetime_bound
 from quantide.data.stores.partitions import PartitionOperations
 
 
-def _scan_storage_range(end, self, start):
+def _scan_storage_range(
+    end: datetime.date | None, self: ParquetStorage, start: datetime.date | None
+) -> pl.LazyFrame | None:
     """Scan storage range."""
     if self._partition_by is None:
         lf = self._scan_store(keep_partition_col=False)
@@ -69,7 +73,7 @@ class ParquetStorage(PartitionOperations):
         store_path: str | Path,
         calendar: Calendar,
         fetch_data_func: Callable[..., Any] | None = None,
-        error_handler: Callable[[list[list]], None] | None = None,
+        error_handler: Callable[[list[list[Any]]], None] | None = None,
         partition_by: Literal["year", "month", "day"] | None = None,
         partition_levels: tuple[Literal["year", "month", "day"], ...] | None = None,
         id_cols: list[str] | None = None,
@@ -142,7 +146,7 @@ class ParquetStorage(PartitionOperations):
             lf = self._scan_store(keep_partition_col=False)
             if lf is None:
                 return 0
-            return lf.select(pl.len()).collect().item()
+            return int(lf.select(pl.len()).collect().item())
         except Exception as e:
             logger.exception(e)
             logger.warning("ParquetStore读取{}失败", self._store_path)
@@ -170,7 +174,9 @@ class ParquetStorage(PartitionOperations):
                 lf = lf.select(pl.exclude(self._partition_by))
         return lf
 
-    def rec_counts_per_date(self, start=None, end=None) -> dict[datetime.date, int]:
+    def rec_counts_per_date(
+        self, start: datetime.date | None = None, end: datetime.date | None = None
+    ) -> dict[datetime.date, int]:
         """Count records by trading date through one implementation for every bar store."""
         lazy = self._scan_store(keep_partition_col=False)
         if lazy is None:
@@ -183,7 +189,7 @@ class ParquetStorage(PartitionOperations):
         counts = lazy.group_by("date").agg(pl.len().alias("n")).collect()
         return {day: int(count) for day, count in counts.iter_rows()}
 
-    def default_error_handler(self, errors: list[list]) -> None:
+    def default_error_handler(self, errors: list[list[Any]]) -> None:
         """默认错误处理函数
 
         将抓取错误写入 failed_tasks 表，便于后续重试。
@@ -367,7 +373,13 @@ class ParquetStorage(PartitionOperations):
         # 重新收集日期缓存，确保 _dates 刷新到最新范围
         self._collect_dates()
 
-    def fetch_with_daily_progress(self, start, end, progress_callback=None, force=False) -> int:
+    def fetch_with_daily_progress(
+        self,
+        start: datetime.date,
+        end: datetime.date,
+        progress_callback: Callable[..., None] | None = None,
+        force: bool = False,
+    ) -> int:
         """Download each requested session, raising on incomplete data."""
         from quantide.data.stores.daily_progress import download_days
 
@@ -377,9 +389,9 @@ class ParquetStorage(PartitionOperations):
         self,
         start: datetime.date,
         end: datetime.date,
-        use_calendar=True,
+        use_calendar: bool = True,
         eager_mode: bool = True,
-    ) -> pl.DataFrame:
+    ) -> pl.DataFrame | pl.LazyFrame:
         """根据指定的日期范围加载数据。
 
         如果本地缓存中包含完整的数据，则从缓存中加载；
@@ -500,10 +512,10 @@ class ParquetStorage(PartitionOperations):
 
     def get(
         self,
-        assets: list[str] | None = None,
-        start: datetime.date = None,
-        end: datetime.date = None,
-        cols: list[str] = None,
+        assets: list[str] | str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+        cols: list[str] | None = None,
         eager_mode: bool = True,
     ) -> pl.LazyFrame | pl.DataFrame:
         """根据指定的日期范围加载数据
@@ -551,7 +563,9 @@ class ParquetStorage(PartitionOperations):
         else:
             return lf
 
-    def get_by_date(self, date: datetime.date, eager_mode: bool = True) -> pl.DataFrame:
+    def get_by_date(
+        self, date: datetime.date, eager_mode: bool = True
+    ) -> pl.DataFrame | pl.LazyFrame:
         """查询截面数据
 
         Args:
@@ -591,29 +605,16 @@ class ParquetStorage(PartitionOperations):
         - 年分区：按年分片
         - 日分区：按天分片（分钟线等细粒度）
         """
+
         # 内部 _partition_by 使用 partition_key_* 命名
-        if self._partition_by is None:
+        def key_fn(day: datetime.date) -> str:
+            if self._partition_by == "partition_key_year":
+                return day.strftime("%Y")
+            if self._partition_by == "partition_key_day":
+                return day.isoformat()
+            return day.strftime("%Y-%m")
 
-            def key_fn(d):
-                return d.strftime("%Y-%m")
-        elif self._partition_by == "partition_key_year":
-
-            def key_fn(d):
-                return d.year
-        elif self._partition_by == "partition_key_month":
-
-            def key_fn(d):
-                return d.strftime("%Y-%m")
-        elif self._partition_by == "partition_key_day":
-
-            def key_fn(d):
-                return d
-        else:
-
-            def key_fn(d):
-                return d.strftime("%Y-%m")
-
-        groups: dict[object, list[datetime.date]] = {}
+        groups: dict[str, list[datetime.date]] = {}
         for dt in dates:
             k = key_fn(dt)
             groups.setdefault(k, []).append(dt)

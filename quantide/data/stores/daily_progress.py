@@ -1,15 +1,23 @@
 """Legacy per-day downloads with explicit partial failure and progress delivery."""
 
+from __future__ import annotations
+
+import datetime
 import inspect
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from quantide.core.enums import FrameType
 from quantide.core.message import msg_hub
 
+if TYPE_CHECKING:
+    from quantide.data.stores.base import ParquetStorage
 
-def _publish(payload):
+
+def _publish(payload: dict[str, Any] | None) -> None:
     try:
         msg_hub.publish(topic="fetch_data_progress", msg_content=payload)
     except Exception:
@@ -20,12 +28,12 @@ def _publish(payload):
 class DayProgress:
     """Progress for one requested day; reporting cannot change download facts."""
 
-    date: object
+    date: datetime.date
     index: int
     total: int
-    callback: object
+    callback: Callable[..., None] | None
 
-    def payload(self, phase):
+    def payload(self, phase: str) -> dict[str, str | int]:
         return {
             "phase": phase,
             "current_date": self.date.strftime("%Y-%m-%d"),
@@ -33,7 +41,7 @@ class DayProgress:
             "total": self.total,
         }
 
-    def phase(self, phase):
+    def phase(self, phase: str) -> None:
         _publish(self.payload(phase))
         if self.callback:
             try:
@@ -42,8 +50,10 @@ class DayProgress:
                 self.callback(self.date, self.index, self.total)
 
 
-def _download_day(store, progress):
+def _download_day(store: ParquetStorage, progress: DayProgress) -> None:
     fetch = store._fetch_data_func
+    if fetch is None:
+        raise ValueError("未提供 fetch_data_func")
     kwargs = (
         {"phase_callback": progress.phase}
         if "phase_callback" in inspect.signature(fetch).parameters
@@ -59,7 +69,13 @@ def _download_day(store, progress):
     progress.phase("done")
 
 
-def download_days(store, start, end, progress_callback, force):
+def download_days(
+    store: ParquetStorage,
+    start: datetime.date,
+    end: datetime.date,
+    progress_callback: Callable[..., None] | None,
+    force: bool,
+) -> int:
     """Keep committed dates, but raise if any requested date failed."""
     start, end = (
         store._calendar.ceiling(start, FrameType.DAY),
