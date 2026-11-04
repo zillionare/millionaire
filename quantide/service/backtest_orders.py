@@ -32,8 +32,13 @@ if TYPE_CHECKING:
 
 
 def _prepare_backtest_buy_order(
-    self: BacktestOrders, bars: pl.DataFrame | None, asset: str, order_time: datetime.datetime,
-    kwargs: dict[str, Any], price: float, shares: int | float,
+    self: BacktestOrders,
+    bars: pl.DataFrame | None,
+    asset: str,
+    order_time: datetime.datetime,
+    kwargs: dict[str, Any],
+    price: float,
+    shares: int | float,
 ) -> Order:
     """Prepare backtest buy order."""
     if bars is None or bars.is_empty():
@@ -77,8 +82,12 @@ def _prepare_backtest_buy_order(
 
 
 def _prepare_risk_exit_order(
-    self: BacktestOrders, order_time: datetime.datetime, asset: str, shares: int | float,
-    price: float, reason: str,
+    self: BacktestOrders,
+    order_time: datetime.datetime,
+    asset: str,
+    shares: int | float,
+    price: float,
+    reason: str,
 ) -> tuple[float, Order]:
     """Prepare risk exit order."""
     self.set_clock(order_time)
@@ -122,8 +131,13 @@ def _prepare_risk_exit_order(
 
 
 def _prepare_backtest_sell_order(
-    self: BacktestOrders, bars: pl.DataFrame | None, asset: str, order_time: datetime.datetime,
-    price: float, shares: int | float, kwargs: dict[str, Any],
+    self: BacktestOrders,
+    bars: pl.DataFrame | None,
+    asset: str,
+    order_time: datetime.datetime,
+    price: float,
+    shares: int | float,
+    kwargs: dict[str, Any],
 ) -> Order:
     """Prepare backtest sell order."""
     if bars is None or bars.is_empty():
@@ -207,7 +221,10 @@ class BacktestOrders:
             self, asset: str, tm: datetime.datetime, fill_timing: str = ""
         ) -> pl.DataFrame | None: ...
         def _log(
-            self, level: str, message: str, dt: datetime.date | datetime.datetime | None = None,
+            self,
+            level: str,
+            message: str,
+            dt: datetime.date | datetime.datetime | None = None,
             extra: dict[str, Any] | None = None,
         ) -> None: ...
 
@@ -852,6 +869,7 @@ class BacktestOrders:
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
+        **kwargs: Any,
     ) -> ExecutionResult:
         """将`asset`仓位调整到占总市值的`target_pct`
 
@@ -869,20 +887,20 @@ class BacktestOrders:
         Returns:
             ExecutionResult: 交易结果
         """
-        _ = timeout
-
         total = self.total_asset()
 
         target_mv = total * target_pct
         pos = self._positions.get(asset)
         if pos is None:
-            return await self.buy_amount(asset, target_mv, price, order_time)
+            return await self.buy_amount(asset, target_mv, price, order_time, timeout, **kwargs)
 
         margin = target_mv - pos.mv
         if margin > 0:
-            return await self.buy_amount(asset, margin, price, order_time)
+            return await self.buy_amount(asset, margin, price, order_time, timeout, **kwargs)
         else:
-            return await self.sell_amount(asset, -margin, price, order_time, method="floor")
+            return await self.sell_amount(
+                asset, -margin, price, order_time, timeout, method="floor", **kwargs
+            )
 
     async def cancel_order(self, qt_oid: str) -> None:
         """回测模式下，不支持取消订单"""

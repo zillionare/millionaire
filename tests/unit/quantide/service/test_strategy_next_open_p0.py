@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import datetime
 import inspect
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -9,6 +11,7 @@ from quantide.core.enums import FrameType
 from quantide.core.ports.broker import ExecutionResult
 from quantide.core.strategy import RiskStrategy
 from quantide.service.data_readiness import DataReadinessMonitor
+from quantide.service.backtest_orders import BacktestOrders
 from quantide.service.runner import BacktestRunner, _BacktestNextOpenBrokerProxy
 from quantide.service.strategy_runtime import (
     NextOpenBarBrokerProxy,
@@ -30,6 +33,27 @@ def test_risk_strategy_cannot_be_started_as_independent_backtest(monkeypatch):
         manager.create_backtest_runtime(
             "portfolio", "Risk", {}, "1d", "2024-01-01", "2024-02-01", 10000
         )
+
+
+@pytest.mark.asyncio
+async def test_target_percent_preserves_next_open_timing_for_both_directions():
+    buy, sell = AsyncMock(), AsyncMock()
+    broker = SimpleNamespace(
+        total_asset=lambda: 10000.0, _positions={}, buy_amount=buy, sell_amount=sell
+    )
+    tm = datetime.datetime(2024, 1, 2, 10, 30)
+    await BacktestOrders.trade_target_pct(
+        broker, "000001.SZ", 0.5, order_time=tm, timeout=2.0, fill_timing="next_open"
+    )
+    buy.assert_awaited_once_with("000001.SZ", 5000.0, 0, tm, 2.0, fill_timing="next_open")
+
+    broker._positions["000001.SZ"] = SimpleNamespace(mv=5000.0)
+    await BacktestOrders.trade_target_pct(
+        broker, "000001.SZ", 0.3, order_time=tm, timeout=2.0, fill_timing="next_open"
+    )
+    sell.assert_awaited_once_with(
+        "000001.SZ", 2000.0, 0, tm, 2.0, method="floor", fill_timing="next_open"
+    )
 
 
 class _DailyStrategy:

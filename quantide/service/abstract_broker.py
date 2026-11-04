@@ -3,7 +3,7 @@ import datetime
 import json
 import threading
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -26,6 +26,67 @@ from quantide.service.backtest_logs import record_backtest_log
 
 class AbstractBroker:
     """抽象 Broker 类。只实现超时控制功能，策略的 metrics 计算等功能"""
+
+    if TYPE_CHECKING:
+
+        async def cancel_order(self, qt_oid: str) -> None: ...
+        async def cancel_all_orders(self, side: OrderSide | None = None) -> None: ...
+        async def buy(
+            self,
+            asset: str,
+            shares: int | float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def sell(
+            self,
+            asset: str,
+            shares: int | float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def buy_amount(
+            self,
+            asset: str,
+            amount: int | float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def sell_amount(
+            self,
+            asset: str,
+            amount: int | float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def buy_percent(
+            self,
+            asset: str,
+            percent: float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def sell_percent(
+            self,
+            asset: str,
+            percent: float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def trade_target_pct(
+            self,
+            asset: str,
+            target_pct: float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
 
     def __init__(
         self,
