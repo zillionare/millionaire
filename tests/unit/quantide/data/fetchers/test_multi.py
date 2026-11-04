@@ -97,9 +97,7 @@ class _FakeFetcher:
 class _LegacyBaostock:
     source_name = "baostock"
 
-    def fetch_minute_bars(
-        self, asset, start_date, end_date, frequency="30", adjust="3"
-    ):
+    def fetch_minute_bars(self, asset, start_date, end_date, frequency="30", adjust="3"):
         return pd.DataFrame(
             [
                 {
@@ -141,6 +139,23 @@ def test_daily_bars_falls_back_when_primary_fails():
     assert not frame.empty
     assert frame.iloc[0]["close"] == 20.0
     assert errors and errors[0][0] == "tushare"
+
+
+def test_daily_bars_all_sources_fail_preserves_errors_and_return_shape():
+    multi = MultiSourceDataFetcher(
+        fetchers={"first": _FakeFetcher(fail=True), "second": _FakeFetcher(fail=True)},
+        stages={"daily_bars": ["first", "second"]},
+    )
+    frame, errors = multi.fetch_bars(datetime.date(2024, 1, 2))
+    assert frame.empty
+    assert [error[0] for error in errors] == ["first", "second"]
+
+
+def test_daily_bars_without_source_reports_unavailability():
+    multi = MultiSourceDataFetcher(stages={"daily_bars": []})
+    frame, errors = multi.fetch_bars(datetime.date(2024, 1, 2))
+    assert frame.empty
+    assert errors == [["daily_bars", "fetch_bars", "no available data source"]]
 
 
 def test_minute_bars_falls_back_to_baostock():

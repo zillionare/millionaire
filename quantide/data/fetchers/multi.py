@@ -18,7 +18,7 @@ fetcher 优先级，首选失败时自动降级到下一个。
 from __future__ import annotations
 
 import datetime
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any, cast
 
 import pandas as pd
@@ -110,26 +110,33 @@ class BaostockMinuteAdapter:
         return frame[STANDARD_MINUTE_BAR_COLUMNS].reset_index(drop=True), []
 
 
-def _append_source_errors(result, errors):
+def _append_source_errors(result: Any, errors: ErrorRecord) -> Any:
     if isinstance(result, tuple) and len(result) > 1 and errors:
         return result[0], [*errors, *(result[1] or [])]
     return result
 
 
-def _empty_source_result(empty, errors):
+def _empty_source_result(empty: Any, errors: ErrorRecord) -> Any:
     if isinstance(empty, tuple):
         return empty[0], [*errors, *(empty[1] or [])]
     return empty if empty is not None else pd.DataFrame()
 
 
-def _minute_source_call(function, asset, start, end, period, count):
+def _minute_source_call(
+    function: Callable[..., Any],
+    asset: str,
+    start: datetime.date | None,
+    end: datetime.date | None,
+    period: str,
+    count: int,
+) -> Any:
     try:
         return function(asset, start_date=start, end_date=end, period=str(period), count=int(count))
     except TypeError:
         return function(asset, start, end, frequency=str(period))
 
 
-def _normalized_minute_result(result):
+def _normalized_minute_result(result: Any) -> tuple[pd.DataFrame | None, ErrorRecord]:
     if isinstance(result, pd.DataFrame):
         return result, []
     return result[0], result[1] if len(result) > 1 else []
@@ -202,10 +209,13 @@ class MultiSourceDataFetcher:
         **kwargs: Any,
     ) -> Any:
         errors: ErrorRecord = []
-        for name, fetcher in self._fetchers_for(stage):
+        sources = self._fetchers_for(stage)
+        attempted = False
+        for name, fetcher in sources:
             func = getattr(fetcher, method, None)
             if func is None:
                 continue
+            attempted = True
             try:
                 result = func(*args, **kwargs)
             except Exception as exc:
@@ -215,58 +225,75 @@ class MultiSourceDataFetcher:
                 return _append_source_errors(result, errors)
             if isinstance(result, tuple) and len(result) > 1 and result[1]:
                 errors.extend(result[1])
+        if not attempted and isinstance(empty, tuple):
+            errors.append([stage, method, "no available data source"])
         return _empty_source_result(empty, errors)
+
+    def _call_frame(
+        self, stage: str, method: str, *args: Any, **kwargs: Any
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
+        result = self._call(stage, method, *args, empty=(pd.DataFrame(), []), **kwargs)
+        if isinstance(result, pd.DataFrame):
+            return result, []
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[0], pd.DataFrame):
+            return result[0], result[1]
+        raise TypeError(f"{stage}.{method} returned an invalid historical data result")
 
     # ------------------------------------------------------------------
     # 日线与辅助字段
     # ------------------------------------------------------------------
     def fetch_calendar(self, epoch: datetime.date) -> pd.DataFrame:
-        return self._call(
-            "calendar",
-            "fetch_calendar",
-            epoch,
-            empty=pd.DataFrame(
-                {
-                    "date": pd.Series(dtype="datetime64[ms]"),
-                    "is_open": pd.Series(dtype="int64"),
-                }
+        return cast(
+            pd.DataFrame,
+            self._call(
+                "calendar",
+                "fetch_calendar",
+                epoch,
+                empty=pd.DataFrame(
+                    {
+                        "date": pd.Series(dtype="datetime64[ms]"),
+                        "is_open": pd.Series(dtype="int64"),
+                    }
+                ),
             ),
         )
 
     def fetch_stock_list(self) -> pd.DataFrame | None:
-        return self._call("stock_list", "fetch_stock_list", empty=None)
+        return cast(pd.DataFrame | None, self._call("stock_list", "fetch_stock_list", empty=None))
 
     def fetch_adjust_factor(
         self, dates: Iterable[datetime.date] | datetime.date
     ) -> tuple[pd.DataFrame, ErrorRecord]:
-        return self._call("adjust_factor", "fetch_adjust_factor", dates)
+        return self._call_frame("adjust_factor", "fetch_adjust_factor", dates)
 
     def fetch_bars(
         self, dates: Iterable[datetime.date] | datetime.date
     ) -> tuple[pd.DataFrame, ErrorRecord]:
-        return self._call("daily_bars", "fetch_bars", dates)
+        return self._call_frame("daily_bars", "fetch_bars", dates)
 
     def fetch_limit_price(
         self, dates: Iterable[datetime.date] | datetime.date
     ) -> tuple[pd.DataFrame, ErrorRecord]:
-        return self._call("limit_price", "fetch_limit_price", dates)
+        return self._call_frame("limit_price", "fetch_limit_price", dates)
 
     def fetch_st_info(
         self, dates: Iterable[datetime.date] | datetime.date
     ) -> tuple[pd.DataFrame, ErrorRecord]:
-        return self._call("st_info", "fetch_st_info", dates)
+        return self._call_frame("st_info", "fetch_st_info", dates)
 
     def fetch_bars_ext(
         self,
         dates: Iterable[datetime.date] | datetime.date,
         phase_callback: Any = None,
     ) -> tuple[pd.DataFrame, ErrorRecord]:
-        return self._call("daily_bars", "fetch_bars_ext", dates, phase_callback=phase_callback)
+        return self._call_frame(
+            "daily_bars", "fetch_bars_ext", dates, phase_callback=phase_callback
+        )
 
     def fetch_daily_basic(
         self, dates: Iterable[datetime.date] | datetime.date
     ) -> tuple[pd.DataFrame, ErrorRecord]:
-        return self._call("daily_basic", "fetch_daily_basic", dates)
+        return self._call_frame("daily_basic", "fetch_daily_basic", dates)
 
     # ------------------------------------------------------------------
     # 指数
@@ -277,14 +304,14 @@ class MultiSourceDataFetcher:
         start_date: datetime.date,
         end_date: datetime.date,
     ) -> tuple[pd.DataFrame, ErrorRecord]:
-        return self._call("index_bars", "fetch_index_bars", index_codes, start_date, end_date)
+        return self._call_frame("index_bars", "fetch_index_bars", index_codes, start_date, end_date)
 
     def fetch_index_weights(
         self,
         index_codes: Iterable[str] | str,
         snapshot_dates: Iterable[datetime.date],
     ) -> tuple[pd.DataFrame, ErrorRecord]:
-        return self._call("index_weights", "fetch_index_weights", index_codes, snapshot_dates)
+        return self._call_frame("index_weights", "fetch_index_weights", index_codes, snapshot_dates)
 
     # ------------------------------------------------------------------
     # 分钟线 / 实时
@@ -316,7 +343,7 @@ class MultiSourceDataFetcher:
             errors.extend(item_errors or [])
         return pd.DataFrame(columns=STANDARD_MINUTE_BAR_COLUMNS), errors
 
-    def fetch_quote_snapshot(self, symbols: Iterable[str] | str) -> dict[str, dict]:
+    def fetch_quote_snapshot(self, symbols: Iterable[str] | str) -> dict[str, dict[str, Any]]:
         for _name, fetcher in self._fetchers_for("quote_snapshot"):
             func = getattr(fetcher, "fetch_quote_snapshot", None)
             if func is None:
@@ -326,7 +353,7 @@ class MultiSourceDataFetcher:
             except Exception:
                 continue
             if result:
-                return result
+                return cast(dict[str, dict[str, Any]], result)
         return {}
 
     # ------------------------------------------------------------------
