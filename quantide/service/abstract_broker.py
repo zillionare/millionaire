@@ -9,6 +9,7 @@ from loguru import logger
 
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
 from quantide.core.errors import InsufficientPosition, NonMultipleOfLotSize
+from quantide.core.order_values import coerce_order_side
 from quantide.core.ports.broker import (
     AssetView,
     CancelAck,
@@ -65,7 +66,7 @@ class AbstractBroker:
         key: str,
         value: float,
         dt: datetime.datetime | None = None,
-        extra: dict | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """记录策略运行数据
 
@@ -378,7 +379,7 @@ class AbstractBroker:
             timeout=request.timeout,
         )
 
-    def _status_matches(self, raw_status, expected: str) -> bool:
+    def _status_matches(self, raw_status: Any, expected: str) -> bool:
         """判断订单状态是否匹配."""
         text = str(expected).strip().upper()
         if text.isdigit():
@@ -390,7 +391,7 @@ class AbstractBroker:
                 return False
         return str(raw_status).upper() == text
 
-    def _to_trade(self, trade) -> Trade:
+    def _to_trade(self, trade: Trade | dict[str, Any]) -> Trade:
         """转换 dict 或 Trade 为 Trade."""
         if isinstance(trade, Trade):
             return trade
@@ -399,7 +400,7 @@ class AbstractBroker:
             qtoid=str(trade.get("qtoid") or ""),
             foid="",
             asset=str(trade.get("asset") or ""),
-            side=str(trade.get("side") or ""),
+            side=coerce_order_side(trade.get("side")),
             shares=float(trade.get("shares") or 0),
             price=float(trade.get("price") or 0),
             amount=float(trade.get("amount") or 0),
@@ -409,7 +410,7 @@ class AbstractBroker:
             portfolio_id=self.portfolio_id,
         )
 
-    def _to_datetime(self, value):
+    def _to_datetime(self, value: Any) -> datetime.datetime:
         """将值转换为 datetime."""
         if isinstance(value, datetime.datetime):
             return value

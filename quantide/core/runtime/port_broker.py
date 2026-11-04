@@ -6,7 +6,7 @@ from typing import Any, cast
 import polars as pl
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
-from quantide.core.order_values import coerce_order_status
+from quantide.core.order_values import coerce_order_side, coerce_order_status
 from quantide.core.ports import BrokerPort, CancelAck, ExecutionResult
 from quantide.data.models import Asset, Order, Position
 
@@ -348,19 +348,7 @@ class PortBackedBroker:
         )
 
     def _to_side(self, value: Any) -> OrderSide:
-        if isinstance(value, OrderSide):
-            return value
-        if isinstance(value, int):
-            try:
-                return OrderSide(value)
-            except ValueError:
-                return OrderSide.UNKNOWN
-        text = str(value).strip().lower()
-        if text in {"buy", "1", "买入"}:
-            return OrderSide.BUY
-        if text in {"sell", "-1", "卖出"}:
-            return OrderSide.SELL
-        return OrderSide.UNKNOWN
+        return coerce_order_side(value)
 
     def _to_status(self, value: Any) -> OrderStatus:
         return coerce_order_status(value)

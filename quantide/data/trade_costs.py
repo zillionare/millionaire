@@ -4,20 +4,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from quantide.core.enums import OrderSide
-
-
-def _side(value: Any) -> OrderSide:
-    if isinstance(value, OrderSide):
-        return value
-    try:
-        return OrderSide(int(value))
-    except Exception:
-        return {
-            "BUY": OrderSide.BUY,
-            "1": OrderSide.BUY,
-            "SELL": OrderSide.SELL,
-            "-1": OrderSide.SELL,
-        }.get(str(value).strip().upper(), OrderSide.UNKNOWN)
+from quantide.core.order_values import coerce_order_side
 
 
 def _apply_cost(previous: tuple[float, float], row: dict[str, Any]) -> tuple[float, float]:
@@ -25,7 +12,7 @@ def _apply_cost(previous: tuple[float, float], row: dict[str, Any]) -> tuple[flo
     quantity = float(row.get("shares") or 0)
     if quantity <= 0:
         return previous
-    side = _side(row.get("side"))
+    side = coerce_order_side(row.get("side"))
     if side == OrderSide.BUY:
         total = shares * average + float(row.get("amount") or 0) + float(row.get("fee") or 0)
         shares += quantity
