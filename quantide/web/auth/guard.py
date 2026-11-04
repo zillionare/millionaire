@@ -1,18 +1,22 @@
 """Apply signed-session authentication to direct routes and mounted applications."""
 
+from typing import Any
+
 from starlette.responses import JSONResponse, RedirectResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from quantide.service.init_wizard import init_wizard
+from quantide.web.auth.manager import AuthManager
 
 
 class AuthGuard:
     """Protect every mounted route and websocket after session decoding."""
 
-    def __init__(self, app, auth):
+    def __init__(self, app: ASGIApp, auth: AuthManager) -> None:
         self.app = app
         self.auth = auth
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in {"http", "websocket"}:
             return await self.app(scope, receive, send)
         path = scope.get("path", "")
@@ -36,7 +40,7 @@ class AuthGuard:
         return await self.app(scope, receive, send)
 
     @staticmethod
-    def _public(path, session):
+    def _public(path: str, session: dict[str, Any]) -> bool:
         if path in {"/api/health", "/favicon.ico", "/auth/login"} or path.startswith("/static/"):
             return True
         if path == "/init-wizard" or path.startswith("/init-wizard/"):

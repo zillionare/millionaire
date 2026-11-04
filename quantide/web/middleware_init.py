@@ -3,8 +3,11 @@
 在请求处理前检查应用是否已完成初始化，如果未完成则重定向到初始化向导。
 """
 
-from fasthtml.common import RedirectResponse
+from collections.abc import Awaitable, Callable
+
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from quantide.service.init_wizard import init_wizard
 
@@ -26,7 +29,9 @@ class InitCheckMiddleware(BaseHTTPMiddleware):
         "/api/health",
     ]
 
-    async def dispatch(self, request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """处理请求"""
         path = request.url.path
         force = str(request.query_params.get("force", "false")).lower() == "true"
@@ -47,8 +52,6 @@ class InitCheckMiddleware(BaseHTTPMiddleware):
         ):
             if request.method == "GET":
                 return RedirectResponse("/", status_code=302)
-            from fasthtml.common import JSONResponse
-
             return JSONResponse(
                 {"error": "应用已初始化，如需重配请使用 force=true"}, status_code=403
             )
@@ -60,8 +63,6 @@ class InitCheckMiddleware(BaseHTTPMiddleware):
         if not initialized:
             if request.method == "GET":
                 return RedirectResponse("/init-wizard", status_code=302)
-            from fasthtml.common import JSONResponse
-
             return JSONResponse(
                 {"error": "应用未初始化，请先完成初始化向导"},
                 status_code=503,
@@ -71,7 +72,7 @@ class InitCheckMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def check_init_redirect():
+def check_init_redirect() -> RedirectResponse | None:
     """检查初始化状态的快捷函数
 
     用于在路由处理函数中手动检查初始化状态。
