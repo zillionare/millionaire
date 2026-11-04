@@ -8,6 +8,7 @@ from fasthtml.common import Label as _Label
 from monsterui.all import *
 
 from quantide.config.branding import get_branding
+from quantide.web.application import RouteRegistrar
 from quantide.web.components.modal import ModalBackdrop, ModalViewport
 
 from .forms import (
@@ -434,7 +435,7 @@ class AuthRoutes:
 
         return self.routes
 
-    def _register_login_routes(self, rt, prefix):
+    def _register_login_routes(self, rt: RouteRegistrar, prefix: str) -> None:
         """Register login routes"""
 
         # Login routes
@@ -485,7 +486,7 @@ class AuthRoutes:
 
         self.routes["login_submit"] = login_submit
 
-    def _register_logout_route(self, rt, prefix):
+    def _register_logout_route(self, rt: RouteRegistrar, prefix: str) -> None:
         @rt(f"{prefix}/logout")
         def logout(sess):
             sess.clear()
@@ -493,7 +494,7 @@ class AuthRoutes:
 
         self.routes["logout"] = logout
 
-    def _register_registration_routes(self, rt, prefix):
+    def _register_registration_routes(self, rt: RouteRegistrar, prefix: str) -> None:
 
         # Optional: Register route
         if self.auth.config.get("allow_registration", False):
@@ -504,7 +505,7 @@ class AuthRoutes:
             self.routes["register_page"] = register_page
             self.routes["register_submit"] = register_submit
 
-    def _register_password_reset_routes(self, rt, prefix):
+    def _register_password_reset_routes(self, rt: RouteRegistrar, prefix: str) -> None:
         # Optional: Password reset route
         if self.auth.config.get("allow_password_reset", False):
 
@@ -528,7 +529,7 @@ class AuthRoutes:
             self.routes["forgot_password"] = forgot_page
             self.routes["forgot_submit"] = forgot_submit
 
-    def _register_profile_route(self, rt, prefix):
+    def _register_profile_route(self, rt: RouteRegistrar, prefix: str) -> None:
         # Register route to a profile form
         profile_page = _create_profile_page_handler(prefix, rt)
 
