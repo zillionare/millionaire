@@ -196,7 +196,7 @@ class DataReadinessMonitor:
             if not required.issubset(set(frame.columns)):
                 return False
             selected = frame.select(sorted(required))
-            return selected.null_count().row(0) == (0,) * len(required)
+            return bool(selected.null_count().row(0) == (0,) * len(required))
         except Exception:
             return False
 

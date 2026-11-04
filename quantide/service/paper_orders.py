@@ -50,7 +50,10 @@ def _validate_buy_reference_price(self: PaperOrders, price: float, asset: str) -
 
 
 def _validated_sell_order(
-    self: PaperOrders, asset: str, shares: float, price: float,
+    self: PaperOrders,
+    asset: str,
+    shares: float,
+    price: float,
     order_time: datetime.datetime | None,
 ) -> Order:
     """Validate sell availability and market constraints before creating an order."""

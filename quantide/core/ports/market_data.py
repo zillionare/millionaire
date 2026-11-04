@@ -25,7 +25,7 @@ class MarketDataPort(Protocol):
         """取消订阅行情."""
         ...
 
-    async def stream(self) -> AsyncIterator[MarketEvent]:
+    def stream(self) -> AsyncIterator[MarketEvent]:
         """获取事件流."""
         ...
 

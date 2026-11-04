@@ -3,6 +3,8 @@
 提供投资组合的风险和收益指标计算，包括夏普比率、最大回撤、年化收益等。
 """
 
+import datetime
+
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -71,9 +73,9 @@ def bills(portfolio_id: str):
 def metrics(
     portfolio_id: str,
     baseline_returns: pl.DataFrame | None = None,
-    start: pd.Timestamp | None = None,
-    end: pd.Timestamp | None = None,
-) -> pd.DataFrame:
+    start: datetime.date | None = None,
+    end: datetime.date | None = None,
+) -> pd.DataFrame | None:
     """计算组合评估指标
 
     baseline_returns 应该有 dt 列和 returns 列。如果它的 `dt` 范围超出 portfolio_id 对应的

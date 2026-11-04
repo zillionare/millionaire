@@ -26,6 +26,21 @@ class RecordingPort:
     async def cancel_all(self, side=None): self.calls.append(("cancel_all", side)); return 1
 
 
+def test_price_fallback_reads_position_snapshot_without_recursive_queries():
+    class PositionOnlyPort(RecordingPort):
+        def query_positions(self):
+            self.calls.append("positions")
+            return super().query_positions()
+
+    port = PositionOnlyPort()
+    broker = PortBackedBroker(port, "portfolio-1", BrokerKind.SIMULATION)
+
+    assert broker.get_prices(["000001.SZ"]) == {"000001.SZ": 10.0}
+    assert port.calls == ["positions"]
+    assert broker.positions["000001.SZ"].mv == 1000
+    assert len(port.calls) == 3
+
+
 async def test_port_backed_broker_maps_empty_assets_views_and_unknown_order_values():
     """FR-0204 AC-4/AC-5: legacy views retain portfolio identity and unknown maps."""
     broker = PortBackedBroker(RecordingPort(), "portfolio-1", BrokerKind.SIMULATION)

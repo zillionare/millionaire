@@ -245,7 +245,7 @@ class KlineChart:
         return Div(*buttons, cls="flex gap-2")
 
     @staticmethod
-    def ma_buttons(chart_id: str, ma_periods: list[int] = None) -> FT:
+    def ma_buttons(chart_id: str, ma_periods: list[int] | None = None) -> FT:
         """渲染均线切换按钮"""
         if ma_periods is None:
             ma_periods = [5, 10, 20, 60]

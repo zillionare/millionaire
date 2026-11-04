@@ -1,6 +1,7 @@
 """Wizard forms."""
 
 import datetime
+from collections.abc import Mapping
 from typing import Any
 
 from fasthtml.common import *
@@ -70,7 +71,7 @@ def _coerce_checkbox(value: Any, default: bool = False) -> bool:
 
 def _normalize_form_values(
     source: dict[str, Any] | None,
-    aliases: dict[str, tuple[str, ...]],
+    aliases: Mapping[str, tuple[str, ...]],
     defaults: dict[str, Any],
 ) -> dict[str, Any]:
     return {
@@ -81,7 +82,7 @@ def _normalize_form_values(
 
 def _extract_form_updates(
     source: dict[str, Any] | None,
-    aliases: dict[str, tuple[str, ...]],
+    aliases: Mapping[str, tuple[str, ...]],
 ) -> dict[str, Any]:
     if source is None:
         return {}

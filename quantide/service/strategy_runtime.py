@@ -54,8 +54,13 @@ def _runtime_row_block(
 
 
 def _validate_runtime_start(
-    self: "StrategyRuntimeManager", strategy_name: str, config: dict[str, Any], interval: str,
-    mode: str, portfolio_id: str, runtime_id: str,
+    self: "StrategyRuntimeManager",
+    strategy_name: str,
+    config: dict[str, Any],
+    interval: str,
+    mode: str,
+    portfolio_id: str,
+    runtime_id: str,
 ) -> None:
     """Validate runtime start."""
     strategy_cls = strategy_loader.load_from_cache().get(strategy_name)
@@ -89,7 +94,9 @@ def _validate_runtime_start(
 
 
 def _runtime_block_reason(
-    account_block: dict[str, Any] | None, block_reason: str, blocked_scope: str,
+    account_block: dict[str, Any] | None,
+    block_reason: str,
+    blocked_scope: str,
     strategy_block: dict[str, Any] | None,
 ) -> tuple[str, str]:
     """Runtime block reason."""

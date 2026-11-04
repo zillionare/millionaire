@@ -18,9 +18,17 @@ class OrderConvenience:
     """Translate the public sizing methods to one implementation-owned dispatcher."""
 
     if TYPE_CHECKING:
+
         async def _submit_execution(
-            self, asset: str, side: OrderSide, value: int | float, style: str, price: float,
-            order_time: datetime.datetime | None, timeout: float, extra: dict[str, Any],
+            self,
+            asset: str,
+            side: OrderSide,
+            value: int | float,
+            style: str,
+            price: float,
+            order_time: datetime.datetime | None,
+            timeout: float,
+            extra: dict[str, Any],
         ) -> ExecutionResult: ...
 
     async def buy(
@@ -109,8 +117,14 @@ class OrderConvenience:
 
 
 def execution_request(
-    asset: str, side: OrderSide, value: int | float, style: str, price: float,
-    order_time: datetime.datetime | None, timeout: float, extra: dict[str, Any],
+    asset: str,
+    side: OrderSide,
+    value: int | float,
+    style: str,
+    price: float,
+    order_time: datetime.datetime | None,
+    timeout: float,
+    extra: dict[str, Any],
 ) -> OrderRequest:
     """Normalize the shared legacy sizing call to the typed order contract."""
     return OrderRequest(

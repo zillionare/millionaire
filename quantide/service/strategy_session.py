@@ -28,8 +28,14 @@ class StrategySession:
     """Keep per-session state out of the runtime manager's scheduling loop."""
 
     def __init__(
-        self, manager: StrategyRuntimeManager, runtime: StrategyRuntime, strategy: BaseStrategy,
-        risks: list[RiskStrategy], broker: Any, interval: str, timing: str,
+        self,
+        manager: StrategyRuntimeManager,
+        runtime: StrategyRuntime,
+        strategy: BaseStrategy,
+        risks: list[RiskStrategy],
+        broker: Any,
+        interval: str,
+        timing: str,
         proxies: tuple[Callable[..., Any], Callable[..., Any]],
     ) -> None:
         self.manager = manager

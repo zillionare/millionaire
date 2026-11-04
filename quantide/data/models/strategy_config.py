@@ -52,8 +52,8 @@ class SkippedEntry:
 class EnumerationResult:
     """v0.2: 枚举结果 (from spec FR-020)"""
 
-    strategies: list  # list[StrategyMetadata]
-    diagnostics: list  # list[SkippedEntry]
+    strategies: list[StrategyMetadata]
+    diagnostics: list[SkippedEntry]
 
 
 @dataclass

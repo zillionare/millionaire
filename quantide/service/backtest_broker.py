@@ -45,6 +45,8 @@ def _adjust_held_position_factors(held, factors, prev_dt, new_dt):
 
 
 class BacktestBroker(BacktestSnapshots, BacktestOrders, AbstractBroker):
+    interval: str
+
     def __init__(
         self,
         bt_start: datetime.date | datetime.datetime,
