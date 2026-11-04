@@ -46,9 +46,10 @@ class InitWizardService:
     4. 初始化完成标志管理
     """
 
-    _instance = None
+    _instance: "InitWizardService | None" = None
+    _initialized: bool
 
-    def __new__(cls):
+    def __new__(cls) -> "InitWizardService":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
@@ -168,7 +169,7 @@ class InitWizardService:
         self._state.updated_at = datetime.datetime.now()
 
         try:
-            db["app_state"].upsert(self._state.to_dict(), pk=AppState.__pk__)  # type: ignore[arg-type]
+            db["app_state"].upsert(self._state.to_dict(), pk=AppState.__pk__)
             # 强制提交，确保其他连接能看到更新
             db.conn.commit()
             logger.info("应用状态已保存")

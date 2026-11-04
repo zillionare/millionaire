@@ -30,7 +30,7 @@ from quantide.web.pages.strategy_routes import (
 )
 
 
-def _build_log_rows(portfolio_id: str, limit: int = 200) -> list[dict]:
+def _build_log_rows(portfolio_id: str, limit: int = 200) -> list[dict[str, str]]:
     """构建日志行。
 
     Args:
@@ -73,7 +73,7 @@ def _build_log_panel(
     rows: list[dict[str, Any]] | None = None,
     source_label: str = "实时日志",
     error_text: str = "",
-) -> Any:
+) -> Div:
     """构建回测日志面板。"""
     log_rows = rows if rows is not None else _build_log_rows(portfolio_id, limit=200)
     meta = _build_log_meta(portfolio_id)
@@ -169,7 +169,7 @@ def _build_log_panel(
 
 
 @rt("/backtest/{portfolio_id}/logs/saved")
-def load_saved_backtest_log_panel(portfolio_id: str):
+def load_saved_backtest_log_panel(portfolio_id: str) -> Div:
     """加载已保存的回测日志面板。"""
     status, _ = _resolve_backtest_status(portfolio_id)
     try:
