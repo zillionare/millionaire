@@ -1,7 +1,7 @@
 """Legacy strategy/UI facade for the gateway BrokerPort."""
 
 import datetime
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 
@@ -110,12 +110,16 @@ class GatewayBrokerWrapper(BarViewFacade, OrderConvenience, AbstractBroker):
             forming_applied = True
 
         if not forming_applied and "adjust" in hist.columns and not hist.is_empty():
-            hist = qfq_adjustment(hist, adj_factor_col="adjust", eager_mode=True)
+            hist = cast(
+                pl.DataFrame, qfq_adjustment(hist, adj_factor_col="adjust", eager_mode=True)
+            )
         return hist
 
-    def _provider_get_bars(self, provider, asset, count, end_date, frame_type):
+    def _provider_get_bars(
+        self, provider: Any, asset: str, count: int, end_date: datetime.date, frame_type: str
+    ) -> pl.DataFrame:
         frame = provider_history(provider, asset, count, end_date, frame_type, eager=True)
-        return frame if frame is not None else empty_history()
+        return cast(pl.DataFrame, frame) if frame is not None else empty_history()
 
     def _maybe_attach_forming_bar(
         self,
@@ -137,33 +141,35 @@ class GatewayBrokerWrapper(BarViewFacade, OrderConvenience, AbstractBroker):
         bar = market_data_hub.get_daily_bar(asset)
         if bar is None:
             return self._provider_get_bars(
-                self._history_provider or daily_bars,
+                getattr(self, "_history_provider", None) or daily_bars,
                 asset,
                 count,
                 self._previous_trade_date(end_date),
                 "1d",
             )
         bar_dt = bar.get("dt")
-        if hasattr(bar_dt, "date"):
+        if bar_dt is not None and hasattr(bar_dt, "date"):
             bar_dt = bar_dt.date()
         if bar_dt != end_date:
             return hist
         return self._concat_forming_with_history(hist, bar, count)
 
     @staticmethod
-    def _concat_forming_with_history(hist: pl.DataFrame, forming: dict, count: int) -> pl.DataFrame:
+    def _concat_forming_with_history(
+        hist: pl.DataFrame, forming: dict[str, Any], count: int
+    ) -> pl.DataFrame:
         """共用 _concat_with_forming 逻辑（与 sim_broker 一致）。"""
         from quantide.service.sim_broker import PaperBroker
 
         return PaperBroker._concat_with_forming(hist, forming, count)
 
-    def _previous_trade_date(self, today):
+    def _previous_trade_date(self, today: datetime.date) -> datetime.date:
         return previous_session(calendar, today)
 
-    def _resolve_history_end_date(self, end_dt):
-        return history_end(end_dt, self._today(), calendar)
+    def _resolve_history_end_date(self, end_dt: datetime.datetime | None) -> datetime.date:
+        return cast(datetime.date, history_end(end_dt, self._today(), calendar))
 
-    def _empty_history_frame(self):
+    def _empty_history_frame(self) -> pl.DataFrame:
         return empty_history()
 
     def _today(self) -> datetime.date:
@@ -261,7 +267,7 @@ class GatewayBrokerWrapper(BarViewFacade, OrderConvenience, AbstractBroker):
                 side=side,
                 shares=v.shares,
                 bid_type=BidType.FIXED,
-                tm=v.tm or self._today(),
+                tm=v.tm or datetime.datetime.combine(self._today(), datetime.time.min),
                 price=v.price,
                 filled=v.filled,
                 foid=v.order_id or None,
@@ -276,14 +282,14 @@ class GatewayBrokerWrapper(BarViewFacade, OrderConvenience, AbstractBroker):
         key: str,
         value: float,
         dt: datetime.datetime | None = None,
-        extra: dict | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """记录策略运行数据.
 
         Gateway 兼容层当前仅用于 UI 交易与查询，不持久化策略指标。
         """
 
-    def get_prices(self, assets):
+    def get_prices(self, assets: list[str]) -> dict[str, float]:
         return quote_prices(assets, market_data_hub.get_quote)
 
     async def cancel_order(self, qt_oid: str) -> None:
@@ -426,7 +432,9 @@ class GatewayBrokerWrapper(BarViewFacade, OrderConvenience, AbstractBroker):
         """Estimate a deferred limit order from its scheduled reference session."""
         end_date, column = self._limit_price_reference(order)
         try:
-            history = daily_bars.get_bars(n=2, end=end_date, assets=[order["asset"]])
+            history = cast(
+                pl.DataFrame, daily_bars.get_bars(n=2, end=end_date, assets=[order["asset"]])
+            )
             base = (
                 float(history.row(-1, named=True).get(column, 0.0) or 0.0)
                 if history is not None and not history.is_empty()
@@ -440,7 +448,7 @@ class GatewayBrokerWrapper(BarViewFacade, OrderConvenience, AbstractBroker):
             return 0.0
         return round(base * (1.0 + float(order.get("slippage", 0.0) or 0.0)), 4)
 
-    def _limit_price_reference(self, order):
+    def _limit_price_reference(self, order: dict[str, Any]) -> tuple[datetime.date, str]:
         target = order.get("scheduled_at")
         if isinstance(target, datetime.datetime):
             target = target.date()

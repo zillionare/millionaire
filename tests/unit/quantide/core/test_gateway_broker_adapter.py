@@ -237,6 +237,7 @@ async def test_gateway_broker_preserves_qtoid_when_gateway_returns_external_orde
     assert ack.order_id == "qt-1"
     assert orders[0].order_id == "qt-1"
     assert trades[0].qtoid == "qt-1"
+    assert trades[0].side is OrderSide.BUY
 
 
 @pytest.mark.asyncio

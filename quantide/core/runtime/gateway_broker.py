@@ -53,7 +53,7 @@ class GatewayBrokerAdapter(OrderConvenience, BrokerPort):
         key: str,
         value: float,
         dt: datetime.datetime | None = None,
-        extra: dict | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """记录策略运行数据.
 
@@ -67,7 +67,7 @@ class GatewayBrokerAdapter(OrderConvenience, BrokerPort):
         price: float = 0,
         order_time: datetime.datetime | None = None,
         timeout: float = 0.5,
-        **kwargs,
+        **kwargs: Any,
     ) -> ExecutionResult:
         """调整目标仓位占比."""
         asset_view = self.query_assets()
@@ -244,7 +244,7 @@ class GatewayBrokerAdapter(OrderConvenience, BrokerPort):
                     price=float(row.get("price") or 0),
                     amount=float(row.get("amount") or 0),
                     tm=self._parse_time_text(str(row.get("time") or "")),
-                    side=str(row.get("side") or ""),
+                    side=_coerce_order_side(str(row.get("side") or "")),
                     cid="",
                 )
             )
@@ -301,7 +301,7 @@ class GatewayBrokerAdapter(OrderConvenience, BrokerPort):
             amount = self._target_order_amount(request, price, amount)
         return int((amount / price) // 100 * 100)
 
-    def _target_order_amount(self, request, price, target):
+    def _target_order_amount(self, request: OrderRequest, price: float, target: float) -> float:
         current = next(
             (
                 position.shares * price

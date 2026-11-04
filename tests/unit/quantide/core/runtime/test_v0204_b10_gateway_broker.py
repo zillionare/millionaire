@@ -61,7 +61,6 @@ def test_maybe_attach_forming_bar_returns_hist_when_end_dt_before_open():
 def test_maybe_attach_forming_bar_returns_prev_bars_when_bar_none():
     """[AC-NFR1101-01] Returns _provider_get_bars when live_quote bar is None (line 190)."""
     wrapper = _make_wrapper()
-    wrapper._history_provider = None  # attribute referenced at line 191
     hist = MagicMock()
     today = dt.date(2024, 6, 1)
     end_dt = dt.datetime(2024, 6, 1, 10, 0)  # after 9:30

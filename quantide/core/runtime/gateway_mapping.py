@@ -15,9 +15,9 @@ def _coerce_order_side(value: str) -> OrderSide:
     甚至下单回报里可能带 ``OrderSide`` 整数值。统一在这里收敛。
     """
     text = str(value or "").strip().lower()
-    if text in {"buy", "b", "1"}:
+    if text in {"buy", "b", "1", "买入"}:
         return OrderSide.BUY
-    if text in {"sell", "s", "-1"}:
+    if text in {"sell", "s", "-1", "卖出"}:
         return OrderSide.SELL
     return OrderSide.UNKNOWN
 

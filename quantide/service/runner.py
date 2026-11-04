@@ -14,7 +14,7 @@ from quantide.core.order_execution import BROKER_ORDER_METHODS
 from quantide.core.ports import ClockPort
 from quantide.core.ports.broker import ExecutionResult
 from quantide.core.runtime.clock_bridge import BacktestClockAdapter
-from quantide.core.strategy import BaseStrategy, RiskStrategy
+from quantide.core.strategy import BaseStrategy, RiskStrategy, Strategy
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.minute_bars import minute_bars
@@ -89,7 +89,7 @@ class BacktestRunner:
         self._stop_event.set()
 
     @staticmethod
-    def strategy_interval(strategy_cls: type[BaseStrategy]) -> str:
+    def strategy_interval(strategy_cls: type[Strategy]) -> str:
         """Return the immutable interval declared by a strategy class."""
         declared = getattr(strategy_cls, "BAR_INTERVAL", None)
         if not isinstance(declared, str):
@@ -110,7 +110,7 @@ class BacktestRunner:
     @classmethod
     def validate_strategy_interval(
         cls,
-        strategy_cls: type[BaseStrategy],
+        strategy_cls: type[Strategy],
         config: dict[str, Any] | None,
         frame_type: FrameType | str,
     ) -> str:
