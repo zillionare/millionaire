@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 
 class ErrorCode(StrEnum):
@@ -55,7 +56,7 @@ class ErrorEnvelope:
     ok: bool
     code: ErrorCode
     message: str
-    details: dict | None = None
+    details: dict[str, Any] | None = None
     retry_after_seconds: int | None = None
     request_id: str | None = None
 
@@ -64,7 +65,7 @@ def build_error_envelope(
     code: ErrorCode,
     message: str,
     *,
-    details: dict | None = None,
+    details: dict[str, Any] | None = None,
     retry_after_seconds: int | None = None,
     request_id: str | None = None,
 ) -> ErrorEnvelope:

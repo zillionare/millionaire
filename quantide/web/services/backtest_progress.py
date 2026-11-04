@@ -121,7 +121,7 @@ def placeholder_text_for_unavailable_metric(metric: str) -> str:
     return _PLACEHOLDER_TEXT
 
 
-def should_keep_empty_position_day(positions: list) -> bool:
+def should_keep_empty_position_day(positions: list[object]) -> bool:
     """AC-10: 空仓日不省略, 仍出现在列表中.
 
     Args:

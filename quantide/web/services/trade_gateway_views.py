@@ -1,6 +1,7 @@
 """Convert gateway history payloads into the shared view models."""
 
 import datetime
+from typing import Any
 
 from fasthtml.common import *
 from monsterui.all import *
@@ -14,7 +15,7 @@ from quantide.data.models import Order, Position
 
 
 def _coerce_gateway_position(
-    payload: dict,
+    payload: dict[str, Any],
     portfolio_id: str = "gateway",
 ) -> Position:
     """把 gateway 返回的持仓 dict 包装成 ``Position`` 数据类."""
@@ -38,7 +39,7 @@ def _coerce_gateway_position(
 
 
 def _coerce_gateway_order(
-    payload: dict,
+    payload: dict[str, Any],
     portfolio_id: str = "gateway",
 ) -> Order:
     """把 gateway 返回的委托 dict 包装成 ``Order`` 数据类."""

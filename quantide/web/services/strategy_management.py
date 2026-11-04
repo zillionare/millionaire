@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 
 class StrategyType(StrEnum):
@@ -56,7 +57,7 @@ class StrategyItem:
     strategy_type: StrategyType
     is_builtin: bool
     source: StrategySource
-    default_config: dict
+    default_config: dict[str, Any]
     skipped_reasons: list[str] | None
     hidden: bool = False
     running_live: bool = False
