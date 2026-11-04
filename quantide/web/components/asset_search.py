@@ -1,10 +1,15 @@
 """Fast asset search results; no per-row quote requests."""
 
-from fasthtml.common import Div, to_xml
+from __future__ import annotations
+
+from typing import Any
+
+import pandas as pd
+from fasthtml.common import FT, Div, to_xml
 from starlette.responses import HTMLResponse
 
 
-def AssetSearchResults(frame, *, lightning=False):
+def AssetSearchResults(frame: pd.DataFrame, *, lightning: bool = False) -> HTMLResponse:
     items = [
         _asset_search_item(row, lightning)
         for _, row in frame.sort_values("asset").head(20).iterrows()
@@ -26,7 +31,7 @@ def AssetSearchResults(frame, *, lightning=False):
     )
 
 
-def _asset_search_item(row, lightning):
+def _asset_search_item(row: pd.Series[Any], lightning: bool) -> FT:
     asset, name, pinyin = (row.get(key, "") for key in ("asset", "name", "pinyin"))
     attrs = {} if lightning else {"data_name": name, "data_price": ""}
     title_theme, detail_theme = (

@@ -1,11 +1,13 @@
 """Input controls for the legacy home and live trade panels."""
 
 from fasthtml.common import *
+from fasthtml.common import FT, Div
 from fasthtml.common import Label as _Label
 from monsterui.all import *
+from monsterui.all import Button, Input, UkIcon
 
 
-def LegacyTradeInputs(price_label, submit_class):
+def LegacyTradeInputs(price_label: str, submit_class: str) -> FT:
     input_cls = (
         "mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 "
         "text-sm text-gray-900 outline-none transition focus:border-[#e41815] "

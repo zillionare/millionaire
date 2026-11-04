@@ -2,6 +2,7 @@
 
 from fasthtml.common import *
 from fasthtml.common import (
+    FT,
     Button,
     Div,
     Script,
@@ -11,7 +12,7 @@ from fasthtml.common import (
 
 def TradeToast(
     message: str, level: str = "error", *, hx_swap_oob: bool = False, container: bool = False
-):
+) -> FT:
     """构建交易页 toast 容器。
 
     Args:

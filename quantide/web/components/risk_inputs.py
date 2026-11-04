@@ -1,9 +1,12 @@
 """Shared field names and numeric typing for strategy risk selection."""
 
+from typing import Any
+
 import fasthtml.common as fh
+from fasthtml.common import FT
 
 
-def RiskParameterInput(index, key, value, cls):
+def RiskParameterInput(index: int, key: str, value: Any, cls: str) -> FT:
     numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
     return fh.Input(
         name=f"risk_param_{index}_{key}",
@@ -14,7 +17,7 @@ def RiskParameterInput(index, key, value, cls):
     )
 
 
-def RiskProgramCheckbox(program, checked, text_class):
+def RiskProgramCheckbox(program: dict[str, Any], checked: bool, text_class: str) -> FT:
     program_id = str(program["id"])
     return fh.Label(
         fh.Input(

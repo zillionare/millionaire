@@ -1,9 +1,9 @@
 """Breadcrumbs for the system maintenance section."""
 
-from fasthtml.common import A, Div, Nav, Span
+from fasthtml.common import FT, A, Div, Nav, Span
 
 
-def SystemBreadcrumb(title):
+def SystemBreadcrumb(title: str) -> FT:
     return Div(
         Nav(
             A("首页", href="/", cls="hover:text-[#e41815]"),

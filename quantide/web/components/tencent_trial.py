@@ -1,11 +1,11 @@
 """Wizard controls for the optional Tencent demonstration source."""
 
-from fasthtml.common import Div, Input, Label, P
+from fasthtml.common import FT, Div, Input, Label, P
 
 from quantide.config.tencent_trial import trial_status
 
 
-def TencentTrialControl():
+def TencentTrialControl() -> FT:
     """Show explicit consent and a fixed, non-renewable deadline."""
     status = trial_status()
     return Div(
