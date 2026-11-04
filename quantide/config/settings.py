@@ -24,7 +24,9 @@ from quantide.config.features import supports_live_trading
 from quantide.config.paths import normalize_data_home
 
 
-def _runtime_connection_fields(state, parsed):
+def _runtime_connection_fields(
+    state: Any, parsed: urllib.parse.ParseResult
+) -> tuple[str, int, str]:
     """Resolve gateway connection defaults and the effective runtime mode."""
     gateway_scheme = str(getattr(state, "gateway_scheme", "") or parsed.scheme or "http")
     fallback_port = 443 if gateway_scheme == "https" else 80
@@ -42,7 +44,7 @@ DEFAULT_TIMEZONE = ZoneInfo("Asia/Shanghai")
 _LAST_APP_STATE_LOAD_ERROR: tuple[type[BaseException], str] | None = None
 
 
-def _gateway_server_origin(port, scheme, server):
+def _gateway_server_origin(port: int, scheme: str, server: str) -> str:
     """Gateway server origin."""
     if server.startswith("http://") or server.startswith("https://"):
         base = server.rstrip("/")

@@ -27,14 +27,14 @@ class TrialStatus:
     expired: bool = False
 
 
-def _utc(now=None):
+def _utc(now: datetime.datetime | None = None) -> datetime.datetime:
     current = now or datetime.datetime.now(datetime.UTC)
     if current.tzinfo is None:
         raise ValueError("Tencent trial clock must be timezone-aware")
     return current.astimezone(datetime.UTC)
 
 
-def trial_status(now=None) -> TrialStatus:
+def trial_status(now: datetime.datetime | None = None) -> TrialStatus:
     """Enforce expiry on every use, including after application restart."""
     if not db._initialized:
         return TrialStatus()
@@ -53,7 +53,7 @@ def trial_status(now=None) -> TrialStatus:
     return TrialStatus(bool(enabled) and not expired, first, deadline, expired)
 
 
-def configure_trial(enabled: bool, now=None) -> TrialStatus:
+def configure_trial(enabled: bool, now: datetime.datetime | None = None) -> TrialStatus:
     """Opt in once; disabling, reinstalling code or rerunning wizard cannot renew it."""
     if not db._initialized:
         raise RuntimeError("Initialize the application database before configuring data sources")
