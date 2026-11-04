@@ -2,22 +2,32 @@
 
 import datetime
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 
+from quantide.data.models.calendar import Calendar
 from quantide.data.stores.base import ParquetStorage, _as_datetime_bound
 
 
 class BarStore(ParquetStorage):
     """Configure a raw-bar store with its explicit security identity column."""
 
-    def __init__(self, name, path, calendar, identity):
+    def __init__(self, name: str, path: str | Path, calendar: Calendar, identity: str) -> None:
         path = Path(path).expanduser()
-        partition = None if path.suffix == ".parquet" else "year"
+        partition: Literal["year"] | None = None if path.suffix == ".parquet" else "year"
         super().__init__(name, path, calendar, None, error_handler=None, partition_by=partition)
         self._id_cols = ["date", identity]
 
-    def _read_bars(self, identifiers, start, end, eager, *, full_day=False):
+    def _read_bars(
+        self,
+        identifiers: list[str] | None,
+        start: datetime.date | datetime.datetime | None,
+        end: datetime.date | datetime.datetime | None,
+        eager: bool,
+        *,
+        full_day: bool = False,
+    ) -> pl.DataFrame | pl.LazyFrame:
         frame = self._scan_store(keep_partition_col=False)
         if frame is None:
             return pl.DataFrame() if eager else pl.LazyFrame()

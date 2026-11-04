@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 from filelock import FileLock
@@ -20,6 +21,9 @@ from quantide.config.settings import get_data_home, get_tushare_token
 from quantide.core.atomic_files import write_parquet
 from quantide.core.singleton import singleton
 from quantide.data.coverage import require_date_coverage, trading_sessions
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 @singleton
@@ -183,7 +187,7 @@ class DailyBasic:
         require_date_coverage(frame, dates, "daily_basic")
         return self._merge_and_save(frame, external_runtime_path(path or self.path))
 
-    def _merge_and_save(self, frame, target: Path) -> int:
+    def _merge_and_save(self, frame: pd.DataFrame, target: Path) -> int:
         """Serialize read/merge/replace and retain the existing file on any failure."""
         new_data = pl.from_pandas(frame)
         target.parent.mkdir(parents=True, exist_ok=True)
