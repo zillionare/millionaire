@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, cast
 
 import arrow
 import numpy as np
+import pyarrow as pa
 import pyarrow.compute as pc
 
 from quantide.config.settings import get_timezone
@@ -14,7 +17,9 @@ from quantide.core.enums import FrameType
 Frame = datetime.datetime | datetime.date
 
 
-def _previous_minute_session(day_offset, h, m, moment, self):
+def _previous_minute_session(
+    day_offset: int, h: int, m: int, moment: datetime.datetime, self: CalendarFrameOperations
+) -> tuple[int, int, datetime.date]:
     """Previous minute session."""
     if self.day_shift(moment, 0) < moment.date() or day_offset == -1:
         h = 15
@@ -28,7 +33,22 @@ def _previous_minute_session(day_offset, h, m, moment, self):
 class CalendarFrameOperations:
     """CalendarFrameOperations implementation."""
 
-    def minute_frames_floor(self, ticks, moment):
+    if TYPE_CHECKING:
+        minute_level_frames: list[FrameType]
+        day_level_frames: list[FrameType]
+        ticks: dict[FrameType, list[int]]
+        day_frames: pa.Array[Any] | None
+        week_frames: pa.Array[Any] | None
+        month_frames: pa.Array[Any] | None
+
+        def day_shift(self, start: datetime.date, offset: int) -> datetime.date: ...
+        def is_trade_day(self, dt: Frame) -> bool: ...
+        def shift(self, moment: Frame, n: int, frame_type: FrameType) -> Frame: ...
+        def replace_time(
+            self, date: datetime.date, hour: int, minute: int = 0
+        ) -> datetime.datetime: ...
+
+    def minute_frames_floor(self, ticks: Sequence[int], moment: int) -> tuple[int, int]:
         """
         返回分钟刻度及日期进位。
 
@@ -60,7 +80,7 @@ class CalendarFrameOperations:
             return ticks[-1], -1
         # ’right' 相当于 ticks <= m
         index = np.searchsorted(ticks, moment, side="right")
-        return ticks[index - 1], 0
+        return ticks[int(index) - 1], 0
 
     def floor(self, moment: Frame, frame_type: FrameType) -> Frame:
         """求`moment`在指定的`frame_type`中的下界
@@ -100,13 +120,14 @@ class CalendarFrameOperations:
             Frame: 对应周期的交易时刻。
         """
         if frame_type in self.minute_level_frames:
+            minute_moment = cast(datetime.datetime, moment)
             tm, day_offset = self.minute_frames_floor(
-                self.ticks[frame_type], moment.hour * 60 + moment.minute
+                self.ticks[frame_type], minute_moment.hour * 60 + minute_moment.minute
             )
             h, m = tm // 60, tm % 60
-            h, m, new_day = _previous_minute_session(day_offset, h, m, moment, self)
+            h, m, new_day = _previous_minute_session(day_offset, h, m, minute_moment, self)
             return datetime.datetime(
-                new_day.year, new_day.month, new_day.day, h, m, tzinfo=moment.tzinfo
+                new_day.year, new_day.month, new_day.day, h, m, tzinfo=minute_moment.tzinfo
             )
 
         if type(moment) is datetime.date:
@@ -116,6 +137,7 @@ class CalendarFrameOperations:
                 moment = self.replace_time(moment, 15, 0)
 
         # 如果是交易日，但还未收盘，对回测也适用
+        assert isinstance(moment, datetime.datetime)
         if self.is_trade_day(moment) and moment.hour * 60 + moment.minute < 900:
             moment = self.day_shift(moment, -1)
 
@@ -128,11 +150,14 @@ class CalendarFrameOperations:
         else:  # pragma: no cover
             raise ValueError(f"frame type {frame_type} not supported.")
 
-        result = arr.filter(pc.less_equal(arr, moment))
+        if arr is None:
+            raise ValueError("交易日历未初始化，请先调用 load()")
+        # Arrow accepts Python date/datetime scalars, although its stubs omit them.
+        result = arr.filter(cast(Any, pc.less_equal)(arr, moment))
         if len(result) == 0:
-            return arr[0].as_py()
+            return cast(Frame, arr[0].as_py())
 
-        return result[-1].as_py()
+        return cast(Frame, result[-1].as_py())
 
     def last_min_frame(self, day: str | datetime.date, frame_type: FrameType) -> Frame:
         """获取`day`日周期为`frame_type`的结束frame。
@@ -172,7 +197,7 @@ class CalendarFrameOperations:
         else:  # pragma: no cover
             raise ValueError(f"{frame_type} not supported")
 
-    def frame_len(self, frame_type: FrameType):
+    def frame_len(self, frame_type: FrameType) -> int:
         """返回以分钟为单位的frame长度。
 
         对日线以上级别没有意义，但会返回240

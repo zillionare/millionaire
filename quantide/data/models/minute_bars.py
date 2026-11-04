@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import datetime
+from typing import cast
 
 import polars as pl
 from loguru import logger
@@ -25,7 +26,9 @@ from quantide.data.stores.minute_bars import MinuteBarsStore
 MINUTE_BAR_COLUMNS = list(STANDARD_BAR_COLUMNS)
 
 
-def _join_daily_reference_bars(aux, raw):
+def _join_daily_reference_bars(
+    aux: pl.DataFrame | pl.LazyFrame | None, raw: pl.DataFrame
+) -> pl.DataFrame:
     """Join daily reference bars."""
     if isinstance(aux, pl.DataFrame) and not aux.is_empty():
         aux = (
@@ -101,14 +104,17 @@ class MinuteBars:
         if self._store is None:
             return pl.DataFrame()
         raw = self._store.get(assets, start, end, eager_mode=True)
-        if raw is None or raw.is_empty():
+        if raw is None:
+            return pl.DataFrame()
+        assert isinstance(raw, pl.DataFrame)
+        if raw.is_empty():
             return pl.DataFrame()
 
         raw = raw.with_columns(pl.col("date").cast(pl.Datetime("ms")))
         start_date = start.date() if isinstance(start, datetime.datetime) else start
         end_date = end.date() if isinstance(end, datetime.datetime) else end
         if end_date is None:
-            end_date = raw["date"].max().date()
+            end_date = cast(datetime.datetime, raw["date"].max()).date()
 
         # 日线辅助字段：adjust / is_st / up_limit / down_limit
         aux = daily_bars.get_bars_in_range(
@@ -145,11 +151,11 @@ class MinuteBars:
                 (pl.col("down_limit") * ratio).alias("down_limit"),
             )
             if adjust == "qfq":
-                merged = qfq_adjustment(merged, eager_mode=True)
+                merged = cast(pl.DataFrame, qfq_adjustment(merged, eager_mode=True))
             else:
                 from quantide.data.helper import hfq_adjustment
 
-                merged = hfq_adjustment(merged, eager_mode=True)
+                merged = cast(pl.DataFrame, hfq_adjustment(merged, eager_mode=True))
             assert isinstance(merged, pl.DataFrame)
 
         result = merged.select(MINUTE_BAR_COLUMNS).sort(["date", "asset"])
