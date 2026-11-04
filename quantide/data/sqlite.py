@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import (
     Any,
     TypeVar,
+    cast,
 )
 
 import polars as pl
@@ -123,11 +124,13 @@ class SQLiteDB:
             self._thread_local.generation = self._connection_generation
             self._initialized = True
 
-    def _initialize_connection(self, connection, db_path):
+    def _initialize_connection(
+        self, connection: sqlite3.Connection, db_path: str | Path
+    ) -> su.Database:
         try:
             database = su.Database(connection)
             if db_path != ":memory:":
-                database.enable_wal()
+                database.enable_wal()  # type: ignore[no-untyped-call]
             self._init_tables(database)
             connection.commit()
             connection.execute("PRAGMA foreign_keys = ON")
@@ -169,7 +172,7 @@ class SQLiteDB:
                 and getattr(self._thread_local, "generation", None) == generation
                 and self._connection_is_alive(conn)
             ):
-                return self._thread_local.db
+                return cast(su.Database, self._thread_local.db)
 
             # A TestClient (and production ASGI servers) may handle a request
             # on a different thread from the one that initialized the app.
@@ -185,7 +188,7 @@ class SQLiteDB:
             self._thread_local.db = su.Database(conn)
             self._thread_local.generation = generation
 
-            return self._thread_local.db
+            return cast(su.Database, self._thread_local.db)
 
     @staticmethod
     def _connection_is_alive(conn: sqlite3.Connection) -> bool:
@@ -196,7 +199,7 @@ class SQLiteDB:
             return False
         return True
 
-    def _open_connection(self):
+    def _open_connection(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
             self._connection_uri,
             uri=self.db_path == ":memory:",
@@ -237,8 +240,8 @@ class SQLiteDB:
         ):
             self._ensure_entity_table(db, entity)
 
-    def _ensure_entity_table(self, database, entity):
-        table = database[entity.__table_name__]
+    def _ensure_entity_table(self, database: su.Database, entity: type[Entity]) -> None:
+        table = cast(su.db.Table, database[entity.__table_name__])
         schema = entity.to_db_schema()
         table.create(schema, pk=entity.__pk__, if_not_exists=True)
         for column, kind in schema.items():
@@ -272,11 +275,11 @@ class SQLiteDB:
         ):
             db.execute(f"DROP TABLE IF EXISTS {table_name}")
 
-    def __getitem__(self, table_name) -> su.db.Table:
+    def __getitem__(self, table_name: str) -> su.db.Table:
         """代理获取表对象"""
         return self.db[table_name]  # type: ignore
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """代理其他方法调用"""
         return getattr(self.db, name)
 
@@ -287,9 +290,9 @@ class SQLiteDB:
             positions: 持仓信息或持仓信息列表
         """
         if isinstance(positions, Position):
-            self["positions"].upsert(positions.to_dict(), pk=Position.__pk__)  # type: ignore
+            self["positions"].upsert(positions.to_dict(), pk=Position.__pk__)
         else:
-            self["positions"].upsert_all([p.to_dict() for p in positions], pk=Position.__pk__)  # type: ignore
+            self["positions"].upsert_all([p.to_dict() for p in positions], pk=Position.__pk__)
 
     def replace_positions(
         self,
@@ -344,7 +347,7 @@ class SQLiteDB:
                 "UNION ALL SELECT dt FROM position_snapshots))"
             )
         )
-        params = []
+        params: list[Any] = []
         if portfolio_id:
             where += " AND portfolio_id = ?"
             params.append(portfolio_id)
@@ -368,7 +371,7 @@ class SQLiteDB:
     ) -> pl.DataFrame:
         """根据 portfolio_id 和时间范围查询持仓信息"""
         where_clauses = []
-        params = []
+        params: list[Any] = []
 
         if portfolio_id:
             where_clauses.append("portfolio_id = ?")
@@ -398,7 +401,7 @@ class SQLiteDB:
         Returns:
             订单ID, 用于后续查询和更新。该订单 ID 为内部 id，而柜台或者第三方的 id。
         """
-        self["orders"].insert(order.to_dict(), pk=Order.__pk__)  # type: ignore
+        self["orders"].insert(order.to_dict(), pk=Order.__pk__)
         return order.qtoid
 
     def get_order_by_foid(self, foid: str | int) -> Order | None:
@@ -444,7 +447,8 @@ class SQLiteDB:
             portfolio_id: 指定组合 ID
         """
         if dt is not None:
-            return self.query_order_by_date(dt, portfolio_id)
+            result = self.query_order_by_date(dt, portfolio_id)
+            return result if result is not None else pl.DataFrame()
 
         return self.orders_all(portfolio_id)
 
@@ -464,7 +468,7 @@ class SQLiteDB:
             dt = dt.date()
 
         where = "tm >= ? and tm < ?"
-        params = [dt, dt + datetime.timedelta(days=1)]
+        params: list[Any] = [dt, dt + datetime.timedelta(days=1)]
 
         if portfolio_id:
             where += " and portfolio_id = ?"
@@ -489,7 +493,7 @@ class SQLiteDB:
         if isinstance(end, datetime.datetime):
             end = end.date()
         where = "tm >= ? and tm < ?"
-        params: list = [start, end + datetime.timedelta(days=1)]
+        params: list[Any] = [start, end + datetime.timedelta(days=1)]
         if portfolio_id:
             where += " and portfolio_id = ?"
             params.append(portfolio_id)
@@ -510,14 +514,14 @@ class SQLiteDB:
             return df.with_columns(pl.col("tm").cast(pl.Datetime))
         return df
 
-    def update_order(self, qtoid: str, **updates) -> None:
+    def update_order(self, qtoid: str, **updates: Any) -> None:
         """更新订单信息
 
         Args:
             oid: 订单ID
             kwupdatesargs: 更新的字段
         """
-        self["orders"].update(qtoid, updates)  # type: ignore
+        self["orders"].update(qtoid, updates)
 
     def insert_trades(self, trades: list[Trade] | Trade) -> None:
         """保存成交信息
@@ -530,7 +534,7 @@ class SQLiteDB:
         else:
             trades = trades
 
-        self["trades"].insert_all([trade.to_dict() for trade in trades], ignore=True)  # type: ignore
+        self["trades"].insert_all([trade.to_dict() for trade in trades], ignore=True)
 
     def insert_strategy_logs(self, logs: list[StrategyLog] | StrategyLog) -> None:
         """保存策略日志
@@ -541,7 +545,7 @@ class SQLiteDB:
         if isinstance(logs, StrategyLog):
             logs = [logs]
 
-        self["strategy_logs"].insert_all([log.to_dict() for log in logs], ignore=True)  # type: ignore
+        self["strategy_logs"].insert_all([log.to_dict() for log in logs], ignore=True)
 
     def insert_backtest_logs(
         self,
@@ -558,7 +562,7 @@ class SQLiteDB:
         self["backtest_logs"].insert_all(
             [log.to_dict() for log in logs],
             ignore=True,
-        )  # type: ignore
+        )
 
     def get_strategy_logs(
         self,
@@ -577,7 +581,7 @@ class SQLiteDB:
             策略日志 DataFrame
         """
         where_clauses = []
-        params = []
+        params: list[Any] = []
 
         if portfolio_id:
             where_clauses.append("portfolio_id = ?")
@@ -619,7 +623,7 @@ class SQLiteDB:
             回测日志 DataFrame。
         """
         where_clauses = []
-        params = []
+        params: list[Any] = []
 
         if portfolio_id:
             where_clauses.append("portfolio_id = ?")
@@ -718,7 +722,7 @@ class SQLiteDB:
             dt = dt.date()
 
         where = "tm >= ? and tm < ?"
-        params = [dt, dt + datetime.timedelta(days=1)]
+        params: list[Any] = [dt, dt + datetime.timedelta(days=1)]
 
         if portfolio_id:
             where += " and portfolio_id = ?"
@@ -743,7 +747,7 @@ class SQLiteDB:
         if isinstance(end, datetime.datetime):
             end = end.date()
         where = "tm >= ? and tm < ?"
-        params: list = [start, end + datetime.timedelta(days=1)]
+        params: list[Any] = [start, end + datetime.timedelta(days=1)]
         if portfolio_id:
             where += " and portfolio_id = ?"
             params.append(portfolio_id)
@@ -801,7 +805,7 @@ class SQLiteDB:
             portfolio_id: 组合(策略）ID，如果为 None 则不限制组合
         """
         where = None
-        params = []
+        params: list[Any] = []
         if portfolio_id:
             where = "portfolio_id = ?"
             params = [portfolio_id]
@@ -829,7 +833,7 @@ class SQLiteDB:
     ) -> pl.DataFrame:
         """根据 portfolio_id 和时间范围查询资产信息"""
         where_clauses = []
-        params = []
+        params: list[Any] = []
 
         if portfolio_id:
             where_clauses.append("portfolio_id = ?")
@@ -858,15 +862,15 @@ class SQLiteDB:
         """
         if isinstance(asset, Asset):
             assert asset.principal is not None, "资产信息中本金不能为空"
-            self["assets"].upsert(asset.to_dict(), pk=Asset.__pk__)  # type: ignore
+            self["assets"].upsert(asset.to_dict(), pk=Asset.__pk__)
         else:
             dicts = []
             for a in asset:
                 assert a.principal is not None, "资产信息中本金不能为空"
                 dicts.append(a.to_dict())
-            self["assets"].upsert_all(dicts, pk=Asset.__pk__)  # type: ignore
+            self["assets"].upsert_all(dicts, pk=Asset.__pk__)
 
-    def update_asset(self, dt: datetime.date, portfolio_id: str, **updates):
+    def update_asset(self, dt: datetime.date, portfolio_id: str, **updates: Any) -> None:
         """更新资产信息
 
         与 save_asset 不同，本方法允许单字段更新
@@ -874,11 +878,11 @@ class SQLiteDB:
         if isinstance(dt, datetime.datetime):
             dt = dt.date()
         row = {"portfolio_id": portfolio_id, "dt": dt, **updates}
-        self["assets"].upsert(row, pk=Asset.__pk__)  # type: ignore
+        self["assets"].upsert(row, pk=Asset.__pk__)
 
     def insert_portfolio(self, portfolio: Portfolio) -> None:
         """插入组合信息"""
-        self["portfolios"].insert(portfolio.to_dict(), pk=Portfolio.__pk__)  # type: ignore
+        self["portfolios"].insert(portfolio.to_dict(), pk=Portfolio.__pk__)
 
     def get_portfolio(self, portfolio_id: str) -> Portfolio | None:
         """获取组合信息"""
@@ -941,7 +945,7 @@ class SQLiteDB:
         # Polars handles string to date conversion if we cast
         return df.with_columns([pl.col("start").cast(pl.Date), pl.col("end").cast(pl.Date)])
 
-    def update_portfolio(self, portfolio_id: str, **updates) -> None:
+    def update_portfolio(self, portfolio_id: str, **updates: Any) -> None:
         """更新组合信息
 
         Args:
