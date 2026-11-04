@@ -12,7 +12,7 @@ from quantide.config.branding import get_branding
 from quantide.web.components.header import header_component
 
 
-def analysis_page(request: Request):
+def analysis_page(request: Request) -> HTMLResponse:
     """Render the retired analysis page placeholder."""
     session = request.scope.get("session", {})
     user = session.get("auth")
@@ -71,6 +71,6 @@ def analysis_page(request: Request):
     return HTMLResponse(html_content)
 
 
-async def analysis_handler(request: Request):
+async def analysis_handler(request: Request) -> HTMLResponse:
     """HTTP handler for the retired analysis page."""
     return analysis_page(request)

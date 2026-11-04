@@ -69,11 +69,11 @@ class MessageHub:
 
     def __init__(self, queue_size: int = 10000) -> None:
         self._lock = threading.Lock()
-        self._subscribers: dict[str, list[Callable]] = {}
-        self._queues: dict[str, Queue] = {}
+        self._subscribers: dict[str, list[Callable[[Any], object]]] = {}
+        self._queues: dict[str, Queue[Any]] = {}
 
         # 异步分发队列
-        self._dispatch_queue: Queue = Queue(maxsize=queue_size)
+        self._dispatch_queue: Queue[tuple[str, Any]] = Queue(maxsize=queue_size)
         self._stop_event = threading.Event()
         self._worker = threading.Thread(
             target=self._dispatch_loop, name="MessageHubWorker", daemon=True
@@ -84,7 +84,7 @@ class MessageHub:
         self._last_log_time: dict[str, datetime.datetime] = {}
         self._log_interval = datetime.timedelta(seconds=60)  # 每分钟最多记录一次
 
-    def subscribe(self, topic: str, callback: Callable) -> None:
+    def subscribe(self, topic: str, callback: Callable[[Any], object]) -> None:
         """
         订阅指定主题的消息
 
@@ -99,7 +99,7 @@ class MessageHub:
             if callback not in self._subscribers[topic]:
                 self._subscribers[topic].append(callback)
 
-    def unsubscribe(self, topic: str, callback: Callable) -> None:
+    def unsubscribe(self, topic: str, callback: Callable[[Any], object]) -> None:
         """取消订阅指定主题的消息"""
         with self._lock:
             if topic in self._subscribers:
