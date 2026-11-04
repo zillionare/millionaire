@@ -1,5 +1,6 @@
 # auth/database.py
 from pathlib import Path
+from typing import Any
 
 from fastlite import database
 
@@ -26,7 +27,7 @@ class AuthDatabase:
         self.sessions = None  # Optional session storage
         self.audit_log = None  # Optional security audit
 
-    def initialize_auth_tables(self):
+    def initialize_auth_tables(self) -> Any:
         # Force User to be fully processed as a dataclass
         import dataclasses
 
@@ -39,7 +40,7 @@ class AuthDatabase:
 
         return self.db
 
-    def get_db(self):
+    def get_db(self) -> Any:
         """Get database instance for app to add tables"""
         return self.db
 

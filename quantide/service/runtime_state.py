@@ -5,8 +5,9 @@ from __future__ import annotations
 import datetime
 import json
 import uuid
+from _thread import RLock
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from quantide.config.features import require_live_trading, supports_live_trading
 from quantide.config.paths import get_strategy_runtime_state_path
@@ -15,8 +16,13 @@ from quantide.core.enums import BrokerKind
 from quantide.service.runtime_config import _optional_float
 from quantide.service.runtime_models import StrategyRuntime
 
+if TYPE_CHECKING:
+    from quantide.service.registry import BrokerRegistry
 
-def _resolve_runtime_account(self, spec):
+
+def _resolve_runtime_account(
+    self: RuntimeStatePersistence, spec: dict[str, Any]
+) -> tuple[str, str, Any]:
     """Validate the edition and resolve the persisted runtime account."""
     if str(spec.get("mode") or "").lower() == "live":
         require_live_trading()
@@ -36,7 +42,7 @@ def _resolve_runtime_account(self, spec):
     return account_kind, portfolio_id, broker
 
 
-def _restore_paper_fees(account_kind, broker, spec):
+def _restore_paper_fees(account_kind: str, broker: Any, spec: dict[str, Any]) -> None:
     """Restore paper fees."""
     if account_kind == BrokerKind.SIMULATION.value:
         port = getattr(broker, "port", None)
@@ -54,6 +60,43 @@ def _restore_paper_fees(account_kind, broker, spec):
 
 class RuntimeStatePersistence:
     """Durable runtime specifications and restart restoration."""
+
+    if TYPE_CHECKING:
+        _lock: RLock
+        _registry: BrokerRegistry | None
+        _gateway_broker: Any
+        _market_data: Any
+        _runtime_specs: dict[str, dict[str, Any]]
+        _blocked_accounts: dict[str, dict[str, Any]]
+        _blocked_strategies: dict[str, dict[str, Any]]
+        _risk_events: list[dict[str, Any]]
+        _data_missing_alarms: set[str]
+
+        def record_system_event(
+            self,
+            *,
+            title: str,
+            message: str,
+            severity: str = "warning",
+            blocked: bool = True,
+            target_id: str = "system",
+        ) -> None: ...
+        def _start_strategy_runtime(
+            self,
+            mode: str,
+            strategy_name: str,
+            config: dict[str, Any],
+            broker: Any,
+            portfolio_id: str,
+            source_backtest_portfolio_id: str,
+            account_kind: str,
+            interval: str,
+            market_data: Any,
+            principal: float = 0.0,
+            runtime_id: str | None = None,
+            strategy_id: str | None = None,
+            persist: bool = True,
+        ) -> StrategyRuntime: ...
 
     def _state_file(self) -> Path:
         return get_strategy_runtime_state_path()
@@ -104,14 +147,16 @@ class RuntimeStatePersistence:
             if str(spec.get("status") or "").lower() == "running":
                 self._restore_one_runtime(spec)
 
-    def _refuse_restoration(self, spec, block_scope, reason, event):
+    def _refuse_restoration(
+        self, spec: dict[str, Any], block_scope: str, reason: str, event: dict[str, str]
+    ) -> None:
         spec.update(status="blocked", block_scope=block_scope, block_reason=reason)
         if event["severity"] == "critical":
             spec["error"] = reason
         self._save_specs()
         self._record_risk_event(**event, blocked=True)
 
-    def _edition_prevents_restoration(self, spec, runtime_id):
+    def _edition_prevents_restoration(self, spec: dict[str, Any], runtime_id: str) -> bool:
         if str(spec.get("mode") or "").lower() != "live" or supports_live_trading():
             return False
         reason = "CE edition 暂不支持实盘交易，未恢复该实盘运行时"
@@ -129,7 +174,7 @@ class RuntimeStatePersistence:
         )
         return True
 
-    def _risk_prevents_restoration(self, spec, runtime_id):
+    def _risk_prevents_restoration(self, spec: dict[str, Any], runtime_id: str) -> bool:
         from quantide.service.risk_programs import unavailable_risk_program_ids
 
         unavailable = unavailable_risk_program_ids(
@@ -153,7 +198,7 @@ class RuntimeStatePersistence:
         )
         return True
 
-    def _existing_block_prevents_restoration(self, spec, runtime_id):
+    def _existing_block_prevents_restoration(self, spec: dict[str, Any], runtime_id: str) -> bool:
         account_key = self._account_key(
             str(spec.get("mode") or ""), str(spec.get("portfolio_id") or "")
         )
@@ -162,7 +207,7 @@ class RuntimeStatePersistence:
         if account is None and strategy is None:
             return False
         scope = "account" if account is not None else "strategy"
-        reason = str((account if account is not None else strategy).get("reason") or "")
+        reason = str((account if account is not None else strategy or {}).get("reason") or "")
         self._refuse_restoration(
             spec,
             scope,
@@ -180,7 +225,7 @@ class RuntimeStatePersistence:
         )
         return True
 
-    def _restore_one_runtime(self, spec):
+    def _restore_one_runtime(self, spec: dict[str, Any]) -> None:
         runtime_id = str(spec.get("runtime_id") or "")
         if spec.get("mode") == "backtest":
             if spec.get("status") in {"pending", "running", "stopping"}:
