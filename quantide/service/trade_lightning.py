@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 import sqlite_utils as su
 
@@ -47,7 +49,7 @@ class TradeLightningEntry:
         if isinstance(self.updated_at, str):
             self.updated_at = datetime.datetime.fromisoformat(self.updated_at)
 
-    def to_record(self) -> dict[str, str]:
+    def to_record(self) -> dict[str, str | float]:
         """转换为数据库记录。
 
         Returns:
@@ -67,7 +69,7 @@ class TradeLightningEntry:
 
 def _ensure_lightning_table() -> None:
     """确保闪电单数据表存在。"""
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     table.create(  # pylint: disable=no-member
         {
             "portfolio_id": str,
@@ -135,7 +137,7 @@ def get_trade_lightning_entry(portfolio_id: str, asset: str) -> TradeLightningEn
     return _row_to_entry(rows[0])
 
 
-def _row_to_entry(row) -> TradeLightningEntry:
+def _row_to_entry(row: Mapping[str, Any]) -> TradeLightningEntry:
     """把数据库行（含可能缺失 cached_price 列的历史数据）转成 entry."""
     data = dict(row)
     if "cached_price" not in data:
@@ -216,7 +218,7 @@ def add_trade_lightning_entry(
         price_ref=price_ref,
         cached_price=compute_cached_price(asset, price_ref),
     )
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     table.insert(  # pylint: disable=no-member
         entry.to_record(), pk=("portfolio_id", "asset")
     )
@@ -253,7 +255,7 @@ def update_trade_lightning_entry(
         updated_at=datetime.datetime.now(),
         cached_price=compute_cached_price(asset, price_ref),
     )
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     table.upsert(  # pylint: disable=no-member
         updated.to_record(), pk=("portfolio_id", "asset")
     )
@@ -274,7 +276,7 @@ def remove_trade_lightning_entry(portfolio_id: str, asset: str) -> bool:
     if entry is None:
         return False
 
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     table.delete((portfolio_id, asset))  # pylint: disable=no-member
     return True
 
@@ -292,7 +294,7 @@ def clear_trade_lightning_entries(portfolio_id: str) -> int:
     if not entries:
         return 0
 
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     for entry in entries:
         table.delete((entry.portfolio_id, entry.asset))  # pylint: disable=no-member
     return len(entries)

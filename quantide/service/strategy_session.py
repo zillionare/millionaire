@@ -1,11 +1,20 @@
 """One strategy's callbacks, risk checks and durable signal dispatch."""
 
+from __future__ import annotations
+
 import datetime
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
+if TYPE_CHECKING:
+    from quantide.core.strategy import BaseStrategy, RiskStrategy
+    from quantide.service.runtime_models import StrategyRuntime
+    from quantide.service.strategy_runtime import StrategyRuntimeManager
 
-def fill_timing(strategy_cls, config):
+
+def fill_timing(strategy_cls: type[Any], config: dict[str, Any] | None) -> str:
     """Resolve the documented configuration/class/default precedence once."""
     value = (config or {}).get("fill_timing", getattr(strategy_cls, "fill_timing", None))
     if value is None:
@@ -18,7 +27,11 @@ def fill_timing(strategy_cls, config):
 class StrategySession:
     """Keep per-session state out of the runtime manager's scheduling loop."""
 
-    def __init__(self, manager, runtime, strategy, risks, broker, interval, timing, proxies):
+    def __init__(
+        self, manager: StrategyRuntimeManager, runtime: StrategyRuntime, strategy: BaseStrategy,
+        risks: list[RiskStrategy], broker: Any, interval: str, timing: str,
+        proxies: tuple[Callable[..., Any], Callable[..., Any]],
+    ) -> None:
         self.manager = manager
         self.runtime = runtime
         self.strategy = strategy
@@ -27,11 +40,11 @@ class StrategySession:
         self.interval = interval
         self.queued = timing in {"next_open", "open"}
         self.daily_proxy, self.bar_proxy = proxies
-        self.risk_day = None
-        self.last_bar = None
+        self.risk_day: datetime.date | None = None
+        self.last_bar: datetime.datetime | None = None
         self.last_decision = self._load_decision()
 
-    def _load_decision(self):
+    def _load_decision(self) -> datetime.date | None:
         with self.manager._lock:
             saved = (self.manager._runtime_specs.get(self.runtime.runtime_id) or {}).get(
                 "last_decision_date", ""
@@ -55,7 +68,7 @@ class StrategySession:
             except Exception:
                 logger.exception("策略停止回调失败")
 
-    async def tick(self, now):
+    async def tick(self, now: datetime.datetime) -> None:
         """Run risk checks before dispatching a new host signal."""
         if hasattr(self.runtime.broker, "set_clock"):
             self.runtime.broker.set_clock(now)
@@ -73,7 +86,7 @@ class StrategySession:
                 self.runtime, bool(getattr(self.strategy, "_data_missing", False))
             )
 
-    async def _check_risk(self, now):
+    async def _check_risk(self, now: datetime.datetime) -> None:
         if self.risks and self.risk_day != now.date():
             if self.risk_day is not None:
                 for strategy in self.risks:
@@ -84,7 +97,7 @@ class StrategySession:
         for strategy in self.risks:
             await strategy.on_check(self.broker.positions, now)
 
-    def _proxy(self, proxy_type, **boundary):
+    def _proxy(self, proxy_type: Callable[..., Any], **boundary: Any) -> Any:
         return proxy_type(
             self.broker,
             store=self.manager.tracking_store,
@@ -94,7 +107,7 @@ class StrategySession:
             **boundary,
         )
 
-    async def _dispatch(self, tm, proxy):
+    async def _dispatch(self, tm: datetime.datetime, proxy: Any) -> None:
         original = self.strategy.broker
         self.strategy.broker = proxy
         try:
@@ -103,7 +116,7 @@ class StrategySession:
         finally:
             self.strategy.broker = original
 
-    async def _minute_signal(self, now):
+    async def _minute_signal(self, now: datetime.datetime) -> None:
         completed = self.manager._latest_completed_30m_bar(now)
         if self.queued:
             await self.manager.process_next_open_30m_intents(self.runtime.runtime_id, now)
@@ -116,7 +129,7 @@ class StrategySession:
             await self.strategy.on_bar(completed)
         self.last_bar = completed
 
-    async def _daily_signal(self, now):
+    async def _daily_signal(self, now: datetime.datetime) -> None:
         day = self.manager._next_open_decision_day(now)
         if day is None or day == self.last_decision:
             return

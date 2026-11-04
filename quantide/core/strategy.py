@@ -69,11 +69,11 @@ class Strategy(ABC):
     def log(
         self,
         msg: str,
-        *args,
+        *args: Any,
         tm: datetime.datetime | datetime.date | None = None,
         level: str = "INFO",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         log_time = tm
         if log_time is None:
             log_time = self._current_time
@@ -98,7 +98,7 @@ class Strategy(ABC):
                     tzinfo=log_time.tzinfo,
                 )
 
-                def _time_patcher(record):
+                def _time_patcher(record: dict[str, Any]) -> None:
                     record["time"] = sim_time
 
                 self.logger.patch(_time_patcher).log(level, msg, *args, **kwargs)
@@ -120,7 +120,7 @@ class Strategy(ABC):
         key: str,
         value: float,
         dt: datetime.datetime | None = None,
-        extra: dict | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         if dt is None:
             dt = self._current_time
@@ -206,7 +206,7 @@ class BaseStrategy(Strategy):
 
 
 class RiskStrategy(Strategy):
-    def __init__(self, broker, config: dict):
+    def __init__(self, broker: BrokerPort, config: dict[str, Any]) -> None:
         super().__init__(broker, config)
         import uuid
 

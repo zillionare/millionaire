@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import threading
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -13,6 +13,7 @@ from quantide.core.enums import BrokerKind, FrameType
 from quantide.core.market_time import market_now
 from quantide.core.runtime import RuntimeContext
 from quantide.core.runtime.registration import register_port_backed_broker
+from quantide.core.strategy import Strategy
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
@@ -30,10 +31,15 @@ from quantide.service.runtime_proxies import (
 from quantide.service.runtime_risk import RuntimeRiskControls
 from quantide.service.runtime_state import RuntimeStatePersistence
 from quantide.service.sim_broker import PaperBroker
-from quantide.service.strategy_tracking import tracking_store
+from quantide.service.strategy_tracking import TrackingStore, tracking_store
+
+if TYPE_CHECKING:
+    from quantide.service.strategy_session import StrategySession
 
 
-def _runtime_row_block(self, account_key, runtime):
+def _runtime_row_block(
+    self: "StrategyRuntimeManager", account_key: str, runtime: StrategyRuntime
+) -> tuple[str, str]:
     """Runtime row block."""
     account_block = self._blocked_accounts.get(account_key)
     strategy_block = (
@@ -47,7 +53,10 @@ def _runtime_row_block(self, account_key, runtime):
     return blocked_scope, block_reason
 
 
-def _validate_runtime_start(self, strategy_name, config, interval, mode, portfolio_id, runtime_id):
+def _validate_runtime_start(
+    self: "StrategyRuntimeManager", strategy_name: str, config: dict[str, Any], interval: str,
+    mode: str, portfolio_id: str, runtime_id: str,
+) -> None:
     """Validate runtime start."""
     strategy_cls = strategy_loader.load_from_cache().get(strategy_name)
     if strategy_cls is not None:
@@ -79,7 +88,10 @@ def _validate_runtime_start(self, strategy_name, config, interval, mode, portfol
         raise RuntimeError(f"策略运行时已被封锁: {runtime_id}")
 
 
-def _runtime_block_reason(account_block, block_reason, blocked_scope, strategy_block):
+def _runtime_block_reason(
+    account_block: dict[str, Any] | None, block_reason: str, blocked_scope: str,
+    strategy_block: dict[str, Any] | None,
+) -> tuple[str, str]:
     """Runtime block reason."""
     if account_block is not None:
         blocked_scope = "account"
@@ -91,7 +103,7 @@ def _runtime_block_reason(account_block, block_reason, blocked_scope, strategy_b
 
 
 class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, RuntimeIntentExecution):
-    def __init__(self, tracking=None):
+    def __init__(self, tracking: TrackingStore | None = None) -> None:
         self._tracking_store = tracking or tracking_store
         self._lock = threading.RLock()
         self._shutting_down = False
@@ -112,7 +124,7 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
         self._gateway_broker: Any = None
 
     @property
-    def tracking_store(self):
+    def tracking_store(self) -> TrackingStore:
         """Durable signal repository, injectable by SDK users and deterministic tests."""
         return getattr(self, "_tracking_store", tracking_store)
 
@@ -701,7 +713,7 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
             live_execution_slippage=live_execution_slippage,
         )
 
-    def _prepare_session(self, runtime, interval):
+    def _prepare_session(self, runtime: StrategyRuntime, interval: str) -> "StrategySession":
         from quantide.service.strategy_session import StrategySession, fill_timing
 
         strategy_cls = strategy_loader.load_from_cache().get(runtime.strategy_name)
@@ -733,7 +745,7 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
             (NextOpenBrokerProxy, NextOpenBarBrokerProxy),
         )
 
-    def _finish_session(self, runtime):
+    def _finish_session(self, runtime: StrategyRuntime) -> None:
         from quantide.service.strategy_tasks import strategy_task_manager
 
         runtime.updated_at = datetime.datetime.now()
@@ -903,7 +915,9 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
 strategy_runtime_manager = StrategyRuntimeManager()
 
 
-def _persisted_backtest_interval(strategy_name, spec, strategy_cls):
+def _persisted_backtest_interval(
+    strategy_name: str, spec: dict[str, Any] | None, strategy_cls: type[Strategy] | None
+) -> str:
     """Validate period declarations before restoring a saved backtest."""
     if spec is not None:
         if "interval" not in spec or not str(spec.get("interval") or "").strip():
@@ -923,7 +937,9 @@ def _persisted_backtest_interval(strategy_name, spec, strategy_cls):
     return resolved_interval
 
 
-def _restored_backtest_config(spec, strategy_name):
+def _restored_backtest_config(
+    spec: dict[str, Any] | None, strategy_name: str
+) -> tuple[dict[str, Any], bool, str, type[Strategy] | None]:
     """Restore persisted parameters or the strategy defaults for a legacy record."""
     strategy_cls = None
     if spec is not None:
@@ -939,7 +955,7 @@ def _restored_backtest_config(spec, strategy_name):
     return config, cheat, cheat_tm, strategy_cls
 
 
-def _attach_runtime_tasks(runtime):
+def _attach_runtime_tasks(runtime: StrategyRuntime) -> None:
     """Attach scheduled tracking work without preventing runtime startup on failure."""
     try:
         from quantide.service.strategy_tasks import strategy_task_manager
