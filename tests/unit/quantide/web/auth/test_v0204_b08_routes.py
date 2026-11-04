@@ -529,7 +529,8 @@ def test_register_all_minimal_no_admin():
     app = MagicMock()
     fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     app.route = fake_route
-    routes.register_all(app, prefix="/auth", include_admin=False, allow_custom_login=False)
+    result = routes.register_all(app, prefix="/auth", include_admin=False, allow_custom_login=False)
+    assert result is routes.routes
     assert "login_page" in routes.routes
     assert "logout" in routes.routes
     assert "profile_page" in routes.routes

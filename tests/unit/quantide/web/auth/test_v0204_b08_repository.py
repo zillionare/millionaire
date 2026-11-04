@@ -70,6 +70,13 @@ def test_search_users_by_email_query(repo):
     assert u2 in got
 
 
+def test_search_users_tolerates_missing_names_and_email(repo):
+    missing = MagicMock(username=None, email=None, role="user", active=True)
+    match = MagicMock(username="alice", email=None, role="user", active=True)
+    repo.list_all = MagicMock(return_value=[missing, match])
+    assert repo.search_users(query="ali") == [match]
+
+
 def test_search_users_by_role(repo):
     """[AC-FR1501-06] test_search_users_by_role."""
     u1 = MagicMock(username="alice", email="a@x.com", role="user", active=True)

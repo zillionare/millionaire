@@ -1,4 +1,6 @@
 # auth/routes.py
+from typing import TYPE_CHECKING, Any
+
 from fasthtml.common import *
 
 # Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
@@ -14,6 +16,9 @@ from .forms import (
     create_profile_form,
     create_register_form,
 )
+
+if TYPE_CHECKING:
+    from .manager import AuthManager
 
 
 def _admin_flash_message(query):
@@ -369,11 +374,17 @@ def _create_profile_submit_handler(self, prefix, rt):
 class AuthRoutes:
     """Handles route registration for auth system"""
 
-    def __init__(self, auth_manager):
+    def __init__(self, auth_manager: "AuthManager") -> None:
         self.auth = auth_manager
-        self.routes = {}
+        self.routes: dict[str, Any] = {}
 
-    def register_all(self, app, prefix="/auth", include_admin=False, allow_custom_login=False):
+    def register_all(
+        self,
+        app: Any,
+        prefix: str = "/auth",
+        include_admin: bool = False,
+        allow_custom_login: bool = False,
+    ) -> dict[str, Any]:
         """Register all auth routes with optional admin interface"""
         rt = app.route
 
@@ -420,6 +431,8 @@ class AuthRoutes:
                 )
 
                 self.routes["admin_users_list"] = admin_users_list_with_messages
+
+        return self.routes
 
     def _register_login_routes(self, rt, prefix):
         """Register login routes"""
