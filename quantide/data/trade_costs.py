@@ -1,9 +1,12 @@
 """Rebuild weighted position costs from committed trades, including purchase fees."""
 
+from collections.abc import Iterable
+from typing import Any
+
 from quantide.core.enums import OrderSide
 
 
-def _side(value):
+def _side(value: Any) -> OrderSide:
     if isinstance(value, OrderSide):
         return value
     try:
@@ -17,7 +20,7 @@ def _side(value):
         }.get(str(value).strip().upper(), OrderSide.UNKNOWN)
 
 
-def _apply_cost(previous, row):
+def _apply_cost(previous: tuple[float, float], row: dict[str, Any]) -> tuple[float, float]:
     shares, average = previous
     quantity = float(row.get("shares") or 0)
     if quantity <= 0:
@@ -34,9 +37,9 @@ def _apply_cost(previous, row):
     return shares, average
 
 
-def position_costs(rows):
+def position_costs(rows: Iterable[dict[str, Any]]) -> dict[str, tuple[float, float]]:
     """Calculate only from facts; callers decide whether history agrees with their snapshot."""
-    state = {}
+    state: dict[str, tuple[float, float]] = {}
     for row in rows:
         asset = str(row.get("asset") or "")
         if asset:

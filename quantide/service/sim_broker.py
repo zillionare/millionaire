@@ -25,6 +25,7 @@ from quantide.core.message import msg_hub
 from quantide.core.order_identity import client_order_id
 from quantide.core.ports import MarketDataPort
 from quantide.core.ports.broker import ExecutionResult
+from quantide.core.ports.clock import ClockPort
 from quantide.data.models import Asset, Order, Portfolio, Position, Trade
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
@@ -47,14 +48,14 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
 
     supports_idempotent_orders = True
 
-    def find_order_by_client_id(self, identity: str):
+    def find_order_by_client_id(self, identity: str) -> Order | None:
         """Return an accepted order after restart without submitting it again."""
         order = db.get_order(identity)
         if order is not None and order.portfolio_id != self.portfolio_id:
             raise ValueError("Order identity belongs to another portfolio")
         return order
 
-    def _existing_order_result(self):
+    def _existing_order_result(self) -> ExecutionResult | None:
         identity = client_order_id.get()
         if not identity or self.find_order_by_client_id(identity) is None:
             return None
@@ -77,8 +78,8 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
         market_value_update_interval: float = 10.0,
         market_data: MarketDataPort | None = None,
         auction_epsilon: float = 0.001,
-        clock=None,
-    ):
+        clock: ClockPort | None = None,
+    ) -> None:
         """初始化 PaperBroker。
 
         Args:
@@ -121,7 +122,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
         self._min_commission = min_commission
         self._slippage = slippage
         self._dry_run = dry_run
-        self._dry_run_signals: list[dict] = []
+        self._dry_run_signals: list[dict[str, Any]] = []
         self._limits: dict[str, dict[str, float]] = {}
         self._clock: datetime.datetime | None = None
         self._clock_port = clock
@@ -166,7 +167,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
         market_value_update_interval: float = 10.0,
         market_data: MarketDataPort | None = None,
         auction_epsilon: float = 0.001,
-        clock=None,
+        clock: ClockPort | None = None,
     ) -> "PaperBroker":
         """创建新的 PaperBroker 实例。
 
@@ -211,7 +212,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
         cls,
         portfolio_id: str,
         market_data: MarketDataPort | None = None,
-        clock=None,
+        clock: ClockPort | None = None,
     ) -> "PaperBroker":
         """加载已存在的 PaperBroker 实例。
 
@@ -276,7 +277,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
             self._slippage = float(slippage)
         self._save_fee_config()
 
-    def _on_limit_update(self, data: dict) -> None:
+    def _on_limit_update(self, data: dict[str, Any]) -> None:
         """涨跌停更新回调。
 
         SimBroker 通过 MarketDataHub 获取实时涨跌停数据。
@@ -292,7 +293,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
                         "down": float(limits.get("down", limits.get("down_limit", 0)) or 0),
                     }
 
-    def get_prices(self, assets):
+    def get_prices(self, assets: list[str]) -> dict[str, float]:
         return quote_prices(assets, self._get_quote)
 
     def _get_quote(self, asset: str) -> dict[str, Any] | None:
@@ -475,7 +476,7 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
         snap = self._market_data.snapshot([asset]).get(asset)
         if snap is None:
             return False
-        return snap.volume == 0
+        return bool(snap.volume == 0)
 
     @staticmethod
     def _floor_lot_size(shares: float) -> int:

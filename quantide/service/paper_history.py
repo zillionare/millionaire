@@ -1,7 +1,7 @@
 """Compatibility helpers for historical bar views."""
 
 import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import polars as pl
 
@@ -18,7 +18,7 @@ from quantide.service.bar_access import (
 from quantide.service.market_data_hub import market_data_hub
 
 
-def _cast_forming_column(col, forming_df, hist):
+def _cast_forming_column(col: str, forming_df: pl.DataFrame, hist: pl.DataFrame) -> pl.DataFrame:
     """Cast forming column."""
     if col in forming_df.columns and hist.schema[col] != forming_df.schema[col]:
         try:
@@ -28,7 +28,7 @@ def _cast_forming_column(col, forming_df, hist):
     return forming_df
 
 
-def _forming_row_fields(forming, date_column):
+def _forming_row_fields(forming: dict[str, Any], date_column: str) -> dict[str, Any]:
     clean = dict(forming)
     if "frame" in clean and not isinstance(clean["frame"], (datetime.date, datetime.datetime)):
         clean.pop("frame")
@@ -40,7 +40,7 @@ def _forming_row_fields(forming, date_column):
     return clean
 
 
-def _fill_forming_auxiliary(history, forming):
+def _fill_forming_auxiliary(history: pl.DataFrame, forming: dict[str, Any]) -> None:
     down, up = market_data_hub.get_limits(forming.get("asset", ""))
     auxiliary = {
         "adjust": history["adjust"][-1] if "adjust" in history.columns else 1.0,
@@ -56,16 +56,26 @@ def _fill_forming_auxiliary(history, forming):
 class PaperHistory:
     """Compatibility helpers for historical bar views."""
 
-    def _previous_trade_date(self, today):
+    if TYPE_CHECKING:
+        _market_data: Any
+
+        def _get_today(self) -> datetime.date: ...
+
+    def _previous_trade_date(self, today: datetime.date) -> datetime.date:
         return previous_session(calendar, today)
 
-    def _get_history_bars(self, asset, count, end_date, frame_type):
+    def _get_history_bars(
+        self, asset: str, count: int, end_date: datetime.date | None, frame_type: str
+    ) -> pl.DataFrame | None:
         provider = history_source(
             self._market_data, daily_bars, getattr(daily_bars, "_store", None) is not None
         )
         if provider is None:
             return self._empty_history_frame()
-        return provider_history(provider, asset, count, end_date, frame_type, eager=True)
+        return cast(
+            pl.DataFrame | None,
+            provider_history(provider, asset, count, end_date, frame_type, eager=True),
+        )
 
     def _should_attach_forming_bar(
         self,
@@ -85,7 +95,7 @@ class PaperHistory:
         if bar is None:
             return None
         bar_dt = bar.get("dt")
-        if hasattr(bar_dt, "date"):
+        if bar_dt is not None and hasattr(bar_dt, "date"):
             bar_dt = bar_dt.date()
         if bar_dt != end_date:
             return None
@@ -111,11 +121,13 @@ class PaperHistory:
         identity = [date_column, "asset"] if "asset" in merged.columns else [date_column]
         merged = merged.unique(subset=identity, keep="last").sort(date_column).tail(count)
         if "adjust" in merged.columns:
-            merged = qfq_adjustment(merged, adj_factor_col="adjust", eager_mode=True)
+            merged = cast(
+                pl.DataFrame, qfq_adjustment(merged, adj_factor_col="adjust", eager_mode=True)
+            )
         return merged
 
-    def _resolve_history_end_date(self, end_dt):
+    def _resolve_history_end_date(self, end_dt: datetime.datetime | None) -> datetime.date | None:
         return history_end(end_dt, self._get_today(), calendar)
 
-    def _empty_history_frame(self):
+    def _empty_history_frame(self) -> pl.DataFrame:
         return empty_history()

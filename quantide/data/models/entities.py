@@ -117,7 +117,7 @@ class Asset(Entity):
     total: float
 
     @classmethod
-    def initial(cls, portfolio_id, day, principal):
+    def initial(cls, portfolio_id: str, day: datetime.date, principal: float) -> "Asset":
         """Create the initial all-cash account snapshot."""
         return cls(
             portfolio_id=portfolio_id,

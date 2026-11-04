@@ -6,7 +6,7 @@ DataFrame = pd.DataFrame | pl.DataFrame | pl.LazyFrame
 
 
 def qfq_adjustment(
-    df: pd.DataFrame | pl.LazyFrame,
+    df: pd.DataFrame | pl.DataFrame | pl.LazyFrame,
     adj_factor_col: str = "adjust",
     eager_mode: bool = True,
 ) -> pl.LazyFrame | pl.DataFrame:
@@ -63,7 +63,7 @@ def qfq_adjustment(
 
 
 def hfq_adjustment(
-    df: pd.DataFrame | pl.LazyFrame,
+    df: pd.DataFrame | pl.DataFrame | pl.LazyFrame,
     adj_factor_col: str = "adjust",
     eager_mode: bool = True,
 ) -> pl.DataFrame | pl.LazyFrame:
@@ -118,7 +118,7 @@ def train_test_split(
     group_id: str | None = "asset",
     cuts: tuple[float, float] = (0.7, 0.2),
     date_col: str = "date",
-):
+) -> tuple[DataFrame, DataFrame, DataFrame]:
     """
     对时间序列进行train, valid和test子集划分
 

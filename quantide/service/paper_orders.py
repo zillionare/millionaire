@@ -1,6 +1,10 @@
 """Paper order entry, sizing, cancellation and session settlement."""
 
+from __future__ import annotations
+
 import datetime
+from _thread import RLock
+from typing import TYPE_CHECKING, Any
 
 from quantide.core.enums import (
     BidType,
@@ -16,11 +20,12 @@ from quantide.core.errors import (
 )
 from quantide.core.order_identity import client_order_id
 from quantide.core.ports.broker import ExecutionResult
-from quantide.data.models import Order
+from quantide.data.models import Asset, Order, Position, Trade
+from quantide.data.models.base import new_uuid_id
 from quantide.data.sqlite import db
 
 
-def _validate_buy_reference_price(self, price, asset):
+def _validate_buy_reference_price(self: PaperOrders, price: float, asset: str) -> float:
     """Validate buying limits and select a conservative sizing reference price."""
     if price != 0:
         down_limit, up_limit = self._get_price_limits(asset)
@@ -44,7 +49,10 @@ def _validate_buy_reference_price(self, price, asset):
     return est_price
 
 
-def _validated_sell_order(self, asset, shares, price, order_time):
+def _validated_sell_order(
+    self: PaperOrders, asset: str, shares: float, price: float,
+    order_time: datetime.datetime | None,
+) -> Order:
     """Validate sell availability and market constraints before creating an order."""
     if asset not in self._positions:
         raise InsufficientPosition(security=asset, amount=shares)
@@ -67,13 +75,45 @@ def _validated_sell_order(self, asset, shares, price, order_time):
         side=OrderSide.SELL,
         bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
         tm=order_time or self._now(),
-        **({"qtoid": client_order_id.get()} if client_order_id.get() else {}),
+        qtoid=client_order_id.get() or new_uuid_id(),
     )
     return order
 
 
 class PaperOrders:
     """Paper order entry, sizing, cancellation and session settlement."""
+
+    if TYPE_CHECKING:
+        _lock: RLock
+        _cash: float
+        _dry_run: bool
+        _dry_run_signals: list[dict[str, Any]]
+        _positions: dict[str, Position]
+        _active_orders: dict[str, list[Order]]
+        _order_trades: dict[str, list[Trade]]
+
+        @property
+        def portfolio_id(self) -> str: ...
+        @property
+        def total_assets(self) -> float: ...
+        @property
+        def positions(self) -> list[Position]: ...
+        def _settle_previous_sessions(self) -> None: ...
+        def _existing_order_result(self) -> ExecutionResult | None: ...
+        def _now(self) -> datetime.datetime: ...
+        def _get_today(self) -> datetime.date: ...
+        def _floor_lot_size(self, shares: float) -> int: ...
+        def _calculate_fee(self, amount: float, side: OrderSide) -> float: ...
+        def _get_quote(self, asset: str) -> dict[str, Any] | None: ...
+        def _get_price_limits(self, asset: str) -> tuple[float, float]: ...
+        def _reject_at_limit(self, asset: str, side: OrderSide) -> None: ...
+        def _is_halted(self, asset: str) -> bool: ...
+        def _validate_sell_shares(self, pos: Position, shares: float) -> None: ...
+        def _account_snapshot(self) -> Asset: ...
+        async def wait(
+            self, event_id: Any, timeout: float
+        ) -> tuple[ExecutionResult | None, float]: ...
+        def awake(self, event_id: Any, result: Any) -> None: ...
 
     async def buy(
         self,
@@ -138,7 +178,7 @@ class PaperOrders:
             side=OrderSide.BUY,
             bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
             tm=order_time or self._now(),
-            **({"qtoid": client_order_id.get()} if client_order_id.get() else {}),
+            qtoid=client_order_id.get() or new_uuid_id(),
         )
         db.insert_order(order)
 
@@ -232,7 +272,7 @@ class PaperOrders:
             成交结果
         """
         # 计算数量
-        quote = self._get_quote(asset)
+        quote = self._get_quote(asset) or {}
         if not quote:
             return ExecutionResult.empty()
 
@@ -273,7 +313,7 @@ class PaperOrders:
         Returns:
             成交结果
         """
-        quote = self._get_quote(asset)
+        quote = self._get_quote(asset) or {}
         if not quote and price == 0:
             return ExecutionResult.empty()
 
@@ -346,7 +386,7 @@ class PaperOrders:
         Returns:
             成交结果
         """
-        quote = self._get_quote(asset)
+        quote = self._get_quote(asset) or {}
         if not quote and price == 0:
             return ExecutionResult.empty()
 
@@ -388,7 +428,7 @@ class PaperOrders:
         Returns:
             成交结果
         """
-        quote = self._get_quote(asset)
+        quote = self._get_quote(asset) or {}
         if not quote and price == 0:
             return ExecutionResult.empty()
 
@@ -418,17 +458,18 @@ class PaperOrders:
         if diff > 0:
             # 买入
             return await self.buy_amount(asset, diff, price, order_time, timeout)
-        elif diff < 0:
+        if diff < 0:
             # 卖出
             # 注意：sell_amount 会向下取整 100 股。
             # 如果 diff 很小，可能不交易。
             # 如果希望精确清仓，可能需要特殊处理 sell_percent(0) 的情况?
             # trade_target_pct(0) -> sell all.
             if target_pct < 0.0001:
-                return await self.sell_percent(asset, 1.0, order_time, timeout)
+                return await self.sell_percent(
+                    asset, 1.0, price=price, order_time=order_time, timeout=timeout
+                )
             return await self.sell_amount(asset, -diff, price, order_time, timeout)
-        else:
-            return ExecutionResult.empty()
+        return ExecutionResult.empty()
 
     async def cancel_order(self, qt_oid: str) -> None:
         """Persist cancellation before removing an active order or acknowledging the request."""
@@ -462,7 +503,7 @@ class PaperOrders:
             }:
                 self._persist_cancellation(stored)
 
-    def _persist_cancellation(self, order):
+    def _persist_cancellation(self, order: Order) -> None:
         status = OrderStatus.PARTSUCC_CANCEL if order.filled > 0 else OrderStatus.CANCELED
         db.update_order(
             order.qtoid, status=status.value, status_msg="Canceled by user", filled=order.filled
@@ -513,7 +554,7 @@ class PaperOrders:
             for asset, pos in self._positions.items():
                 pos.dt = today
 
-                price = 0
+                price = 0.0
                 if close_prices and asset in close_prices:
                     price = close_prices[asset]
                 else:

@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -199,6 +200,28 @@ async def test_paper_broker_error_and_cancel_paths(paper_broker):
     await paper_broker.cancel_all_orders()
     await buy_task
     await sell_task
+
+
+@pytest.mark.asyncio
+async def test_target_zero_passes_order_details_to_full_sell(paper_broker, monkeypatch):
+    asset = "000007.SZ"
+    paper_broker._positions[asset] = Position(
+        portfolio_id=paper_broker.portfolio_id,
+        dt=datetime.date.today(),
+        asset=asset,
+        shares=1000,
+        avail=1000,
+        price=10.0,
+        profit=0.0,
+        mv=10000.0,
+    )
+    sell = AsyncMock()
+    monkeypatch.setattr(paper_broker, "sell_percent", sell)
+    order_time = datetime.datetime(2026, 11, 3, 10, 30)
+
+    await paper_broker.trade_target_pct(asset, 0, price=10.0, order_time=order_time, timeout=2.0)
+
+    sell.assert_awaited_once_with(asset, 1.0, price=10.0, order_time=order_time, timeout=2.0)
 
 
 @pytest.mark.asyncio

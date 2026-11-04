@@ -1,9 +1,11 @@
 """Historical close and moving-average references with explicit data semantics."""
 
 import math
+from collections.abc import Callable, Iterable
+from typing import Any
 
 
-def positive_price(value):
+def positive_price(value: Any) -> float:
     """Reject missing, nonnumeric and nonfinite prices at the order boundary."""
     try:
         price = float(value or 0)
@@ -40,9 +42,11 @@ def historical_reference(store, asset, price_ref, *, end, adjust):
         return 0.0
 
 
-def quote_prices(assets, get_quote):
+def quote_prices(
+    assets: Iterable[str], get_quote: Callable[[str], dict[str, Any] | None]
+) -> dict[str, float]:
     """Return finite, positive last-traded prices from a broker's quote interface."""
-    prices = {}
+    prices: dict[str, float] = {}
     for asset in assets:
         quote = get_quote(asset)
         price = positive_price((quote or {}).get("lastPrice"))

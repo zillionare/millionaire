@@ -1,7 +1,10 @@
 """Paper quote matching and atomic execution persistence."""
 
+import datetime
 import time
+from _thread import RLock
 from copy import deepcopy
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -18,15 +21,44 @@ from quantide.data.sqlite import db
 class PaperMatching:
     """Paper quote matching and atomic execution persistence."""
 
-    def on_quote(self, data: dict) -> None:
+    if TYPE_CHECKING:
+        _lock: RLock
+        _closed: bool
+        _cash: float
+        _principal: float
+        _commission: float
+        _min_commission: float
+        _transfer_fee: float
+        _stamp_tax: float
+        _slippage: float
+        _last_mv_update_time: float
+        _market_value_update_interval: float
+        _order_trades: dict[str, list[Trade]]
+        _positions: dict[str, Position]
+        _active_orders: dict[str, list[Order]]
+
+        @property
+        def positions(self) -> list[Position]: ...
+        @property
+        def portfolio_id(self) -> str: ...
+        def _get_today(self) -> datetime.date: ...
+        def _now(self) -> datetime.datetime: ...
+        def _settle_previous_sessions(self) -> None: ...
+        def _on_limit_update(self, data: dict[str, Any]) -> None: ...
+        def _get_price_limits(self, asset: str) -> tuple[float, float]: ...
+        def _in_auction(self, price: float) -> bool: ...
+        def _auction_limit_price(self, price: float) -> float: ...
+        def awake(self, event_id: Any, result: Any) -> None: ...
+
+    def on_quote(self, data: dict[str, Any]) -> None:
         """Consume a market snapshot through the public replay boundary."""
         self._on_quote_update(data)
 
-    def on_limit(self, data: dict) -> None:
+    def on_limit(self, data: dict[str, Any]) -> None:
         """Consume daily limits through the public replay boundary."""
         self._on_limit_update(data)
 
-    def _on_quote_update(self, data: dict) -> None:
+    def _on_quote_update(self, data: dict[str, Any]) -> None:
         """行情更新回调，执行撮合逻辑。
 
         本方法将在 MessageHub 线程中运行。更新持仓市值，并尝试撮合待处理订单。
@@ -43,7 +75,7 @@ class PaperMatching:
                 if not self._active_orders:
                     return
 
-                traded_assets = set()
+                traded_assets: set[str] = set()
                 # 遍历所有待处理订单的资产
                 # 使用 list() 复制 keys，因为可能会在迭代中修改字典
                 for asset in list(self._active_orders.keys()):
@@ -56,11 +88,11 @@ class PaperMatching:
             logger.exception(e)
 
     @staticmethod
-    def _normalize_quotes(data: dict) -> dict:
+    def _normalize_quotes(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
         """把不同来源的快照统一成 ``lastPrice`` 键。"""
         if not data:
             return {}
-        normalized: dict[str, dict] = {}
+        normalized: dict[str, dict[str, Any]] = {}
         for asset, raw in data.items():
             if not isinstance(raw, dict):
                 continue
@@ -80,7 +112,7 @@ class PaperMatching:
             normalized[str(asset)] = item
         return normalized
 
-    def _update_positions_market_value(self, data: dict) -> None:
+    def _update_positions_market_value(self, data: dict[str, dict[str, Any]]) -> None:
         """更新内存中的持仓市值 (仅用于内存计算，不触发写库)。
 
         # todo: 如果存在性能问题，也许可以通过 polars 向量化操作来优化？这可能取决于有多少个资产
@@ -99,7 +131,9 @@ class PaperMatching:
                     pos.mv = pos.shares * last_price
                     pos.profit = pos.mv - (pos.shares * pos.price)
 
-    def _match_orders_for_asset(self, asset: str, quote: dict, traded_assets: set) -> None:
+    def _match_orders_for_asset(
+        self, asset: str, quote: dict[str, Any], traded_assets: set[str]
+    ) -> None:
         """撮合指定资产的订单。"""
         orders = self._active_orders[asset]
         # 初始化剩余成交量
@@ -136,7 +170,7 @@ class PaperMatching:
             self._active_orders[asset] = remaining_orders
 
     def _handle_trade_execution(
-        self, order: Order, trade: Trade, asset: str, quote: dict, traded_assets: set
+        self, order: Order, trade: Trade, asset: str, quote: dict[str, Any], traded_assets: set[str]
     ) -> None:
         """处理单次成交逻辑。"""
         before = (self._cash, deepcopy(self._positions), order.filled, order.status)
@@ -174,7 +208,7 @@ class PaperMatching:
         # 更新 Order 状态到 DB
         db.update_order(order.qtoid, status=order.status.value, filled=order.filled)
 
-    def _persist_updates(self, traded_assets: set) -> None:
+    def _persist_updates(self, traded_assets: set[str]) -> None:
         """持久化持仓和资产信息。"""
         db.save_portfolio_snapshot(self._account_snapshot(), self.positions)
 
@@ -193,7 +227,9 @@ class PaperMatching:
             total=self._cash + market_value,
         )
 
-    def _try_match(self, order: Order, quote: dict, available_shares_limit: float = float("inf")):
+    def _try_match(
+        self, order: Order, quote: dict[str, Any], available_shares_limit: float = float("inf")
+    ) -> tuple[float, Trade | None]:
         """Check price eligibility, then create one fill bounded by the available quote volume."""
         last_price = quote.get("lastPrice", 0)
         if last_price <= 0 or not self._order_price_eligible(order, last_price):
@@ -225,7 +261,7 @@ class PaperMatching:
         )
         return matched, trade
 
-    def _order_price_eligible(self, order, price):
+    def _order_price_eligible(self, order: Order, price: float) -> bool:
         down, up = self._get_price_limits(order.asset)
         if order.side == OrderSide.BUY and up > 0 and price >= up:
             return False
@@ -237,7 +273,7 @@ class PaperMatching:
             order.side == OrderSide.SELL and order.price <= price
         )
 
-    def _auction_order_eligible(self, order, price):
+    def _auction_order_eligible(self, order: Order, price: float) -> bool:
         if not self._in_auction(price) or order.side != OrderSide.BUY or order.price <= 0:
             return True
         _, up = self._get_price_limits(order.asset)

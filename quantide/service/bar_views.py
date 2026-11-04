@@ -17,7 +17,8 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any
+from collections.abc import Callable
+from typing import Any, cast
 
 import polars as pl
 
@@ -34,7 +35,9 @@ from quantide.service.bar_access import (
 )
 
 
-def _snapshot_from_port(asset, self, snapshot):
+def _snapshot_from_port(
+    asset: str, self: LiveBarView, snapshot: dict[str, Any] | None
+) -> dict[str, Any] | None:
     """Snapshot from port."""
     if self._market_data is not None and hasattr(self._market_data, "snapshot"):
         try:
@@ -59,7 +62,9 @@ def _snapshot_from_port(asset, self, snapshot):
     return snapshot
 
 
-def _current_snapshot_price(snapshot, today):
+def _current_snapshot_price(
+    snapshot: dict[str, Any] | None, today: datetime.date
+) -> float | None:
     """Reject absent prices and snapshots carrying another session's timestamp."""
     if not isinstance(snapshot, dict):
         return None
@@ -75,7 +80,7 @@ def _current_snapshot_price(snapshot, today):
             day = day.date()
         if day != today:
             return None
-    return price
+    return cast(float, price)
 
 
 class BarViewError(Exception):
@@ -90,18 +95,22 @@ class HistBarView:
     - `get_bars_range`：多只股票的日期区间日线（策略面板选股/预取走此路径）。
     """
 
-    def __init__(self, bars=None, minute_bars=None):
+    def __init__(self, bars: Any = None, minute_bars: Any = None) -> None:
         from quantide.data.models.daily_bars import daily_bars
         from quantide.data.models.minute_bars import minute_bars as default_minute_bars
 
         self._bars = bars if bars is not None else daily_bars
         self._minute_bars = minute_bars if minute_bars is not None else default_minute_bars
 
-    def _resolve_end_date(self, end_dt):
+    def _resolve_end_date(self, end_dt: datetime.datetime | None) -> datetime.date | None:
         return history_end(end_dt, None, calendar)
 
-    def _fetch_completed(self, asset, count, end_date, frame_type="1d"):
-        return self._bars.get_bars(n=count, end=end_date, assets=[asset], adjust=None)
+    def _fetch_completed(
+        self, asset: str, count: int, end_date: datetime.date | None, frame_type: str = "1d"
+    ) -> pl.DataFrame:
+        return cast(
+            pl.DataFrame, self._bars.get_bars(n=count, end=end_date, assets=[asset], adjust=None)
+        )
 
     #: 兼容历史字符串写法
     _MINUTE_ALIASES = {
@@ -155,6 +164,7 @@ class HistBarView:
         from quantide.data.models.calendar import calendar
 
         end = calendar.ceiling(now, frame_type)
+        end = cast(datetime.datetime, end)
         return end.replace(tzinfo=None) if end.tzinfo is not None else end
 
     def get_minute_history(
@@ -173,7 +183,10 @@ class HistBarView:
             end_dt = datetime.datetime.now()
         if end_dt.tzinfo is not None:
             end_dt = end_dt.replace(tzinfo=None)
-        return self._minute_bars.get_bars(count, end=end_dt, assets=[asset], adjust="qfq")
+        return cast(
+            pl.DataFrame,
+            self._minute_bars.get_bars(count, end=end_dt, assets=[asset], adjust="qfq"),
+        )
 
     def get_history(
         self,
@@ -211,8 +224,11 @@ class HistBarView:
             end_dt = start_dt
         end_date = end_dt.date() if isinstance(end_dt, datetime.datetime) else end_dt
         start_date = start_dt.date() if isinstance(start_dt, datetime.datetime) else start_dt
-        df = self._bars.get_bars_in_range(
-            start_date, end_date, assets=assets, adjust=adjust, eager_mode=True
+        df = cast(
+            pl.DataFrame | None,
+            self._bars.get_bars_in_range(
+                start_date, end_date, assets=assets, adjust=adjust, eager_mode=True
+            ),
         )
         if df is None or df.is_empty():
             return pl.DataFrame()
@@ -227,18 +243,18 @@ class LiveBarView(HistBarView):
 
     def __init__(
         self,
-        bars=None,
-        market_data=None,
-        today_func=None,
-        minute_aggregator=None,
-    ):
+        bars: Any = None,
+        market_data: Any = None,
+        today_func: Callable[[], datetime.date] | None = None,
+        minute_aggregator: Any = None,
+    ) -> None:
         super().__init__(bars)
         self._market_data = market_data
         self._today_func = today_func
         self._minute_aggregator = minute_aggregator
 
     @property
-    def _aggregator(self):
+    def _aggregator(self) -> Any:
         """盘中 30 分钟线合成器（默认全局单例）。"""
         if self._minute_aggregator is not None:
             return self._minute_aggregator
@@ -260,7 +276,7 @@ class LiveBarView(HistBarView):
         market_data = self._market_data
         if market_data is not None and hasattr(market_data, "get_limits"):
             try:
-                limits = market_data.get_limits(asset)
+                limits = cast(tuple[float, float], market_data.get_limits(asset))
                 if limits != (0.0, 0.0):
                     return limits
             except Exception:  # pragma: no cover - 行情端口异常时回落
@@ -289,7 +305,10 @@ class LiveBarView(HistBarView):
         except Exception:
             prev_day = day - datetime.timedelta(days=1)
         try:
-            frame = self._bars.get_bars(n=1, end=prev_day, assets=[asset], adjust=None)
+            frame = cast(
+                pl.DataFrame | None,
+                self._bars.get_bars(n=1, end=prev_day, assets=[asset], adjust=None),
+            )
         except Exception:
             return None
         if frame is None or frame.is_empty() or "close" not in frame.columns:
@@ -359,7 +378,7 @@ class LiveBarView(HistBarView):
 
             snapshot = market_data_hub.get_daily_bar(asset)
         price = _current_snapshot_price(snapshot, self._today())
-        if price is None:
+        if price is None or snapshot is None:
             return None
         down_limit, up_limit = self._limits(asset)
         return {
@@ -389,13 +408,15 @@ class LiveBarView(HistBarView):
             return pl.DataFrame()
         return pl.DataFrame(rows)
 
-    def _prev_trade_date(self, today):
+    def _prev_trade_date(self, today: datetime.date) -> datetime.date:
         return previous_session(calendar, today)
 
-    def _fetch_completed(self, asset, count, end_date, frame_type="1d"):
+    def _fetch_completed(
+        self, asset: str, count: int, end_date: datetime.date | None, frame_type: str = "1d"
+    ) -> pl.DataFrame:
         provider = history_source(self._market_data, self._bars)
         frame = provider_history(provider, asset, count, end_date, frame_type)
-        return frame if frame is not None else pl.DataFrame()
+        return cast(pl.DataFrame, frame) if frame is not None else pl.DataFrame()
 
     def _inject_forming(
         self,
@@ -524,7 +545,7 @@ class LiveBarView(HistBarView):
             end_dt.date() == self._today()
             and completed is not None
             and not completed.is_empty()
-            and completed["date"].max().date() < end_dt.date()
+            and cast(datetime.datetime, completed["date"].max()).date() < end_dt.date()
         ):
             # 历史只到上一交易日：qfq 基准是昨日因子，需换算到今日基准。
             # 若存储已含今日数据（盘后同步）则基准已是今日因子，不能重复缩放。
@@ -574,8 +595,11 @@ class LiveBarView(HistBarView):
             end_dt = start_dt
         end_date = end_dt.date() if isinstance(end_dt, datetime.datetime) else end_dt
         start_date = start_dt.date() if isinstance(start_dt, datetime.datetime) else start_dt
-        completed = self._bars.get_bars_in_range(
-            start_date, end_date, assets=assets, adjust=adjust, eager_mode=True
+        completed = cast(
+            pl.DataFrame | None,
+            self._bars.get_bars_in_range(
+                start_date, end_date, assets=assets, adjust=adjust, eager_mode=True
+            ),
         )
         if completed is None or completed.is_empty():
             return pl.DataFrame()
