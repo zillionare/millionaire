@@ -1,9 +1,9 @@
-site_name: Millionaire CE 中文手册
+site_name: Millionaire 中文手册
 site_description: 面向 A 股的开源量化框架：数据、回测、研究、仿真与运行保障。
-site_dir: /tmp/millionaire-ce/site
-site_url: https://zillionare.github.io/millionaire-ce/
-repo_url: https://github.com/zillionare/millionaire-ce
-repo_name: zillionare/millionaire-ce
+site_dir: /tmp/millionaire/site
+site_url: https://zillionare.github.io/millionaire/
+repo_url: https://github.com/zillionare/millionaire
+repo_name: zillionare/millionaire
 
 nav:
   - 首页: index.md

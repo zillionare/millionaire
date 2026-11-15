@@ -5,7 +5,7 @@
 
 | 现象 | 检查与处理 |
 | --- | --- |
-| 找不到 `millionaire-ce` | macOS 默认命令在 `~/.local/bin`，可先用完整路径；Ubuntu 检查包安装结果；Windows 用控制器快捷方式或[安装 Python 路径](operations.md) |
+| 找不到 `millionaire` | macOS 默认命令在 `~/.local/bin`，可先用完整路径；Ubuntu 检查包安装结果；Windows 用控制器快捷方式或[安装 Python 路径](operations.md) |
 | 浏览器打不开 | 确认服务运行、地址/端口正确、没有第二实例占用；服务器远程访问优先使用[SSH 隧道](native-installation.md) |
 | 一直显示初始化 | 完成 wizard 的管理员密码和数据下载步骤；检查服务账户的目录权限与任务错误 |
 | `admin` 无法登录 | 系统没有默认密码；使用 wizard 中设置的密码，确认浏览器访问的是同一个服务/配置目录 |
@@ -28,7 +28,7 @@
 
 ## 反馈问题
 
-在 [GitHub Issues](https://github.com/zillionare/millionaire-ce/issues)提供：版本、操作系统与
+在 [GitHub Issues](https://github.com/zillionare/millionaire/issues)提供：版本、操作系统与
 架构、原生/源码安装方式、最小复现步骤、期望/实际结果、任务/报告 ID 和脱敏日志。
 不要上传 token、管理员密码、完整认证数据库或真实账户凭据。
 日志和备份位置见[运维](operations.md)。

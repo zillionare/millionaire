@@ -9,8 +9,8 @@
 - 本地 Python 虚拟环境。
 - 能访问 Python 依赖源的网络。
 
-`pyproject.toml` 中的分发包名是 `millionaire-ce`，运行时版本标识默认为
-`millionaire-ce`。
+`pyproject.toml` 中的分发包名是 `millionaire`，运行时版本标识默认为
+`millionaire`。
 
 ## 跨平台本地安装
 
@@ -53,7 +53,7 @@ Poetry 用户也可以使用 `poetry install --with doc,test,quality`。
 安装后运行：
 
 ```bash
-.venv/bin/millionaire-ce --open
+.venv/bin/millionaire --open
 ```
 
 命令行接受 `--host`、`--port`、`--reload`、`--stub`、`--open` 和
@@ -63,7 +63,7 @@ Poetry 用户也可以使用 `poetry install --with doc,test,quality`。
 .venv/bin/python scripts/serve.py --open
 ```
 
-Windows 使用 `.venv\Scripts\millionaire-ce.exe --open` 或
+Windows 使用 `.venv\Scripts\millionaire.exe --open` 或
 `.venv\Scripts\python.exe scripts\serve.py --open`。`--open` 在 Uvicorn
 启动后打开本机地址；环境变量 `QUANTIDE_OPEN_BROWSER=1` 有同样效果，
 `--no-browser` 可覆盖它。

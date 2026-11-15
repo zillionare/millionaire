@@ -16,17 +16,17 @@
 用户可以在配置目录放置 `extensions/quote_provider.py`，再显式启用：
 
 ```bash
-millionaire-ce quote-provider status
-millionaire-ce quote-provider enable
-millionaire-ce service stop
-millionaire-ce service start
+millionaire quote-provider status
+millionaire quote-provider enable
+millionaire service stop
+millionaire service start
 ```
 
 `status` 输出准确的用户代码位置。Windows 系统服务使用安装器创建的配置目录；
 在管理员 PowerShell 中先设置 `$env:QUANTIDE_CONFIG_HOME` 为
-`C:\ProgramData\MillionaireCE\config`，再执行这些命令。
-macOS 系统服务默认目录为 `/Library/Application Support/MillionaireCE/config`；
-Linux 为 `/var/lib/millionaire-ce/config`。普通 macOS 用户服务默认使用
+`C:\ProgramData\Millionaire\config`，再执行这些命令。
+macOS 系统服务默认目录为 `/Library/Application Support/Millionaire/config`；
+Linux 为 `/var/lib/millionaire/config`。普通 macOS 用户服务默认使用
 `~/.config/quantide`，也支持 `QUANTIDE_CONFIG_HOME`。
 
 扩展运行在服务进程中，工厂接口如下：
@@ -65,7 +65,7 @@ Paper 撮合、风控、分钟合成和 UI 消费同一份标准行情。
 扩展须提供 `start()`、`stop()`，可通过 `subscribed_symbols()` 读取当前订阅。
 执行 `quote-provider enable` 会将实时源切换为用户扩展；没有新选择记录的旧配置
 保留用户扩展优先于腾讯演示源的行为。向导自动选用 Tushare 后，服务使用该明确选择。加载失败会显式报告初始化错误，不自动改用其它源。
-停用命令为 `millionaire-ce quote-provider disable`；重启服务后生效，代码文件保留。
+停用命令为 `millionaire quote-provider disable`；重启服务后生效，代码文件保留。
 安装升级和默认卸载均保留配置目录里的扩展。
 
 历史数据的内置能力也有边界：Tushare 日线及证券主数据覆盖沪、深、北交易所，

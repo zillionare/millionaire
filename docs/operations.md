@@ -2,7 +2,7 @@
 
 后台服务运行网页、同步任务和策略。macOS 默认提供菜单栏 **M** 控件，可查看状态、
 启停服务、打开网页和日志目录。退出菜单栏控件不停止服务，重新显示时打开用户
-“应用程序”中的 Millionaire CE，或运行 `millionaire-ce control`。
+“应用程序”中的 Millionaire，或运行 `millionaire control`。
 Windows 使用系统托盘控件，右键提供同类操作，双击打开网页；退出后可从开始菜单或
 桌面快捷方式重新打开。Ubuntu 桌面使用窗口式控制器。
 只停止某个策略请使用“系统维护 → 运行时监控”。
@@ -12,26 +12,26 @@ Windows 使用系统托盘控件，右键提供同类操作，双击打开网页
 macOS 默认用户服务：
 
 ```bash
-millionaire-ce service status
-millionaire-ce service stop
-millionaire-ce service start
+millionaire service status
+millionaire service stop
+millionaire service start
 ```
 
 Ubuntu 系统服务：
 
 ```bash
-sudo millionaire-ce service status
-sudo millionaire-ce service stop
-sudo millionaire-ce service start
-sudo journalctl -u millionaire-ce -n 100 --no-pager
+sudo millionaire service status
+sudo millionaire service stop
+sudo millionaire service start
+sudo journalctl -u millionaire -n 100 --no-pager
 ```
 
 Windows 优先使用系统托盘菜单；命令行可在管理员 PowerShell 中运行安装目录自带 Python：
 
 ```powershell
-& 'C:\Program Files\MillionaireCE\runtime\python.exe' -m quantide.cli service status
-& 'C:\Program Files\MillionaireCE\runtime\python.exe' -m quantide.cli service stop
-& 'C:\Program Files\MillionaireCE\runtime\python.exe' -m quantide.cli service start
+& 'C:\Program Files\Millionaire\runtime\python.exe' -m quantide.cli service status
+& 'C:\Program Files\Millionaire\runtime\python.exe' -m quantide.cli service stop
+& 'C:\Program Files\Millionaire\runtime\python.exe' -m quantide.cli service start
 ```
 
 更改安装目录后对应替换路径。不要在服务已经运行时再用前台命令启动第二实例。
@@ -43,9 +43,9 @@ Windows 优先使用系统托盘菜单；命令行可在管理员 PowerShell 中
 | 安装方式 | 配置/账户目录 | 默认行情目录 | 服务日志 |
 | --- | --- | --- | --- |
 | macOS 用户 | `~/.config/quantide` | `~/.quantide` | 配置目录的 `logs` |
-| macOS 系统服务 | `/Library/Application Support/MillionaireCE/config` | 同级 `data` | 配置目录的 `logs` |
-| Ubuntu 原生包 | `/var/lib/millionaire-ce/config` | `/var/lib/millionaire-ce/data` | systemd journal |
-| Windows 原生包 | `C:\ProgramData\MillionaireCE\config` | 同级 `data` | `C:\ProgramData\MillionaireCE\logs` |
+| macOS 系统服务 | `/Library/Application Support/Millionaire/config` | 同级 `data` | 配置目录的 `logs` |
+| Ubuntu 原生包 | `/var/lib/millionaire/config` | `/var/lib/millionaire/data` | systemd journal |
+| Windows 原生包 | `C:\ProgramData\Millionaire\config` | 同级 `data` | `C:\ProgramData\Millionaire\logs` |
 
 wizard 中自定义的数据目录优先；环境变量 `QUANTIDE_CONFIG_HOME` 可以指定配置目录。
 配置目录中的 `quantide.db` 保存认证、配置、账户/委托/成交和跟踪事实；还应保留
@@ -53,7 +53,7 @@ wizard 中自定义的数据目录优先；环境变量 `QUANTIDE_CONFIG_HOME` �
 日常日志中的目录和状态可以帮助核对服务实际使用了哪套配置。
 
 源码前台运行时，未配置行情目录会使用系统临时目录中的
-`millionaire-ce/runtime-<用户标识>/market`；已有 wizard 数据目录优先于
+`millionaire/runtime-<用户标识>/market`；已有 wizard 数据目录优先于
 `QUANTIDE_DATA_HOME`。长期使用应在 wizard 中选择持久目录，临时目录可能被系统清理。
 `start.sh` 的开发日志通过 `QUANTIDE_LOG_HOME` 设置，默认在上述临时根目录的 `logs`。
 原生安装器会显式设置表中的持久服务目录。源码树内部路径会被拒绝；

@@ -1,9 +1,8 @@
 # 版本功能边界
 
-源码树对应社区版（CE），分发包名为 `millionaire-ce`，运行时版本标识为
-`millionaire-ce`。产品名 `millionaire` 同时覆盖 CE 与 `millionaire pro`；
-专业版能力在产品文档中会明确标注。共享适配边界也可供独立维护的 millionaire pro
-使用；专业版不在本包内，可通过版本门禁启用真实交易。
+Millionaire 社区版（CE）的分发包名和运行时版本标识均为 `millionaire`。
+Millionaire 产品家族还包括独立维护的 `millionaire pro`；专业版能力在产品文档中
+会明确标注。共享适配边界可供 pro 使用；专业版不在本包内，可通过版本门禁启用真实交易。
 
 ## CE 行为
 

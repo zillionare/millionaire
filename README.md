@@ -1,10 +1,10 @@
-# Millionaire CE
+# Millionaire
 
 面向 A 股的开源量化框架：让用户专注于因子和策略研究，复用数据、回测、参数优化、
 预测解释与持续仿真的完整流程。采用 MIT 许可证。
 
-millionaire 是社区版与专业版的合称；本仓库提供 millionaire-ce（CE），
-专业版专属功能明确称为 millionaire pro。
+Millionaire 是社区版与专业版的合称；本仓库是社区版（CE），包名和命令均为
+`millionaire`，专业版专属功能明确称为 millionaire pro。
 
 ## 为什么使用它
 
@@ -30,11 +30,11 @@ millionaire 是社区版与专业版的合称；本仓库提供 millionaire-ce�
 3. [初始化与数据准备](docs/initialization.md)，设置管理员密码和 Tushare 数据源。
 4. [完成第一次回测](docs/backtesting.md)，阅读报告，再[转入仿真](docs/paper-trading.md)。
 
-[在线文档](https://zillionare.github.io/millionaire-ce/)随默认分支发布；
+[在线文档](https://zillionare.github.io/millionaire/)随默认分支发布；
 功能开发分支的文档可能尚未部署。如果站点仍显示旧版，可直接在 GitHub 仓库阅读
 [`docs/`](docs/)（GitHub 会渲染 Markdown），或在源码目录运行 `mkdocs serve`
 离线查看。站点不依赖第三方字体或脚本资源，代理环境不应出现渲染挂起。
-安装包以 [GitHub Releases](https://github.com/zillionare/millionaire-ce/releases)
+安装包以 [GitHub Releases](https://github.com/zillionare/millionaire/releases)
 实际列出的产物为准，旧版本的 Release 不代表已包含本分支的新安装器。
 
 ## 安装后
@@ -46,7 +46,7 @@ Ubuntu 桌面提供窗口式控制器。
 退出控件不会停止后台服务；退出后可以重新打开：
 
 ```bash
-millionaire-ce control
+millionaire control
 ```
 
 默认网页地址为 `http://127.0.0.1:8130`。首次启动进入 wizard，没有默认管理员密码。
@@ -68,11 +68,11 @@ CE 不内置三重障碍、回撤卖出、成本止损或私有风险程序，�
 
 ## 开发与贡献
 
-包名是 `millionaire-ce`，Python 导入名为 `quantide`。源码开发要求 Python 3.13：
+包名是 `millionaire`，Python 导入名为 `quantide`。源码开发要求 Python 3.13：
 
 ```bash
 python3.13 scripts/install.py --ml30m
-.venv/bin/millionaire-ce --open
+.venv/bin/millionaire --open
 ```
 
 Windows 使用 `py -3.13 scripts\install.py --ml30m`；激活虚拟环境后可直接调用命令。
