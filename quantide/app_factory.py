@@ -19,7 +19,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.staticfiles import StaticFiles
 
-from quantide.config.branding import get_branding
+from quantide.config.branding import get_branding, get_runtime_edition
 from quantide.config.dev_stubs import ensure_dev_stubs_started
 from quantide.config.paths import (
     get_app_config_dir,
@@ -122,7 +122,11 @@ def _initialize_app_database() -> Path:
 def _health_response(request: Request) -> JSONResponse:
     failed = bool(getattr(request.app.state, "startup_error", ""))
     return JSONResponse(
-        {"status": "degraded" if failed else "ok", "pid": os.getpid(), "edition": "millionaire-ce"},
+        {
+            "status": "degraded" if failed else "ok",
+            "pid": os.getpid(),
+            "edition": get_runtime_edition(),
+        },
         status_code=503 if failed else 200,
     )
 

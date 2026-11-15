@@ -18,7 +18,7 @@ from quantide.web.pages import init_wizard as init_wizard_page
 @pytest.fixture(autouse=True)
 def private_edition_wizard_cases(monkeypatch):
     """Keep legacy gateway-form cases exercising the shared private path."""
-    monkeypatch.setattr('quantide.config.features.get_runtime_edition', lambda: 'millionaire')
+    monkeypatch.setattr('quantide.config.features.get_runtime_edition', lambda: 'zillionaire')
     monkeypatch.setattr(init_wizard_page, "ensure_access_report",
                         lambda state, **kw: {"history_ready": True, "realtime_ready": False})
     monkeypatch.setattr(init_wizard_page, "load_access_report",

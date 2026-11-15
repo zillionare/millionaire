@@ -9,14 +9,14 @@ SOURCE = Path(__file__).parent / "packaging/macos"
 
 def build_menu_app(payload):
     """Build a menu-only Cocoa application using the macOS CI toolchain."""
-    app = payload / "Millionaire CE.app"
+    app = payload / "Millionaire.app"
     contents = app / "Contents"
     executable = contents / "MacOS/MillionaireMenu"
     executable.parent.mkdir(parents=True)
     metadata = {
-        "CFBundleIdentifier": "ai.quantide.millionaire-ce.controller",
+        "CFBundleIdentifier": "ai.quantide.millionaire.controller",
         "CFBundleExecutable": executable.name,
-        "CFBundleName": "Millionaire CE",
+        "CFBundleName": "Millionaire",
         "CFBundlePackageType": "APPL",
         "CFBundleVersion": "1",
         "LSUIElement": True,

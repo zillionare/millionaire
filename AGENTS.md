@@ -2,12 +2,14 @@
 
 ## Product names and documentation claims
 
-- `millionaire` refers to the CE and pro product family. Use `millionaire-ce`
-  (or CE) for the community edition and `millionaire pro` for pro-only features,
-  including real trading and built-in triple-barrier risk programs. Shared
-  architecture may be described as millionaire; make edition boundaries explicit.
-- Preserve public package names, CLI commands and runtime edition identifiers.
-  Product wording is not authorization to rename these compatibility contracts.
+- `millionaire` is the community edition's product name, repository, distribution
+  package, CLI command and runtime edition. The broader product family also includes
+  `millionaire pro` (repository `millionaire-pro`); label pro-only features,
+  including real trading and built-in triple-barrier risk programs, explicitly.
+  The Python import name remains `quantide`.
+- Preserve the public package name `millionaire`, CLI command `millionaire` and
+  runtime edition identifiers. Product wording is not authorization to rename
+  these compatibility contracts.
 - Check implementation before presenting a feature as available. Historical
   specs describe requirements, not proof of delivery. Keep the product overview's
   promotional tone while stating current scope and model assumptions accurately.
@@ -27,7 +29,7 @@
   do not create root `data/`, `dist/`, `packaging/`, `quality-reports/`, `review/`,
   `site/`, `build/`, `.sesskey` or `quantide.db` (including SQLite sidecars).
 - Use `python -m scripts.artifact_paths` to get the development artifact directory.
-  POSIX defaults to `/tmp/millionaire-ce/<workspace-id>/`; Windows uses its native
+  POSIX defaults to `/tmp/millionaire/<workspace-id>/`; Windows uses its native
   temporary directory. `MILLIONAIRE_ARTIFACTS_DIR` may override it to another location
   outside the checkout. Use `python -m scripts.artifact_paths --run <command...>`
   for test/tool runs so child processes inherit external cache and coverage paths.

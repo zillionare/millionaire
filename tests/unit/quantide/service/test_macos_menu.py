@@ -17,11 +17,11 @@ class MacOSMenuTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.payload = self.root / "version with spaces"
-        self.app = self.payload / "Millionaire CE.app"
+        self.app = self.payload / "Millionaire.app"
         (self.app / "Contents").mkdir(parents=True)
         (self.app / "Contents/Info.plist").write_bytes(plistlib.dumps({}))
         self.agent = self.root / "agent.plist"
-        self.link = self.root / "Applications/Millionaire CE.app"
+        self.link = self.root / "Applications/Millionaire.app"
         service = self.root / "service.plist"
         service.write_bytes(plistlib.dumps({"StandardOutPath": str(self.root / "logs/service.log")}))
         for name, value in (("install_root", self.payload), ("_launchd_path", service),
@@ -38,7 +38,7 @@ class MacOSMenuTests(unittest.TestCase):
         macos_menu.install_menu()
         self.assertEqual(self.link.resolve(), self.app.resolve())
         profile = json.loads((self.payload / "controller.json").read_text())
-        self.assertEqual(profile["launcher"], str(self.payload / "millionaire-ce"))
+        self.assertEqual(profile["launcher"], str(self.payload / "millionaire"))
         self.assertEqual(profile["logs"], str(self.root / "logs"))
         self.assertEqual(profile["domain"], "gui/12345")
         agent = plistlib.loads(self.agent.read_bytes())

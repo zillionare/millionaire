@@ -87,7 +87,7 @@ Red-Green-Refactor 中先提交失败的测试；生产代码提交仍须满足�
 4. `installers / installer (...)`：分别构建并实际验收 `macos-arm64`、
    `ubuntu-amd64`、`windows-x64` 安装包。macOS 仅支持 Apple Silicon，不再构建 Intel 包。
 
-`.github/workflows/docs.yml` 在默认分支 `millionaire-ce`、`main`/`master` push 或
+`.github/workflows/docs.yml` 在 `main`/`master` push 或
 手动触发时严格构建文档并部署 GitHub Pages。站点构建必须自包含，不依赖外部字体主机；
 分支文档未合并到默认分支前不会自动上线。
 

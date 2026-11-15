@@ -90,7 +90,7 @@ jobs:
       - name: Smoke test installed CLI and app outside the source checkout
         working-directory: ${{ runner.temp }}
         run: |
-          millionaire-ce --help
+          millionaire --help
           python -c "import lightgbm, polars_talib; from quantide.app_factory import create_app; create_app(enforce_single_instance=False)"
       - name: Unit tests and 80 percent coverage gate (no external network)
         run: >-

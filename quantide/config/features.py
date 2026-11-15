@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from quantide.config.branding import get_runtime_edition
 
-CE_EDITION = "millionaire-ce"
+CE_EDITION = "millionaire"
 LIVE_TRADING_UNAVAILABLE_MESSAGE = "CE edition 暂不支持实盘交易"
 
 

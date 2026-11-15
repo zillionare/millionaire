@@ -15,18 +15,18 @@ SCRIPT = Path(__file__).resolve().parents[2] / "scripts/packaging/uninstall.sh"
 @pytest.fixture
 def installation(tmp_path):
     home = tmp_path / "user home"
-    root = home / ".local/share/millionaire-ce"
-    binary = root / "versions/0.3.0.test/millionaire-ce"
+    root = home / ".local/share/millionaire"
+    binary = root / "versions/0.3.0.test/millionaire"
     binary.parent.mkdir(parents=True)
     log = tmp_path / "service-actions.txt"
     binary.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$ACTION_LOG"\n')
     binary.chmod(0o755)
     (root / "current").symlink_to(binary.parent)
-    (root / ".millionaire-ce-install").write_text("Millionaire CE managed installation\n")
+    (root / ".millionaire-install").write_text("Millionaire managed installation\n")
     (root / "service-scope").write_text("user\n")
     bin_dir = home / ".local/bin"
     bin_dir.mkdir(parents=True)
-    (bin_dir / "millionaire-ce").symlink_to(root / "current/millionaire-ce")
+    (bin_dir / "millionaire").symlink_to(root / "current/millionaire")
     (root / "bin-dir").write_text(str(bin_dir) + "\n")
     data = home / ".quantide/retained.txt"
     data.parent.mkdir()
@@ -46,7 +46,7 @@ def test_both_entry_points_remove_only_managed_installation(installation, entry)
     result = subprocess.run([str(script)], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert not root.exists()
-    assert not (bin_dir / "millionaire-ce").is_symlink()
+    assert not (bin_dir / "millionaire").is_symlink()
     assert data.read_text() == "retain market data"
     assert (archive / "uninstall.sh").exists()
     assert log.read_text().splitlines() == ["control --uninstall", "service uninstall"]
@@ -69,7 +69,7 @@ def test_incomplete_or_mismatched_installation_is_not_deleted(installation, dama
     root, archive, _, data, log, env = installation
     args = []
     if damage == "marker":
-        (root / ".millionaire-ce-install").write_text("another application")
+        (root / ".millionaire-install").write_text("another application")
     elif damage == "scope":
         (root / "service-scope").write_text("unexpected")
     elif damage == "launcher":

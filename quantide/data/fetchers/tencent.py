@@ -169,7 +169,7 @@ class TencentDataFetcher:
         self._session = requests.Session()
         self._session.headers.update(
             {
-                "User-Agent": "MillionaireCE/0.3 (+https://github.com/zillionare/millionaire-ce)",
+                "User-Agent": "Millionaire/0.3 (+https://github.com/zillionare/millionaire)",
             }
         )
         return self._session

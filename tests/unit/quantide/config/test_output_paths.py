@@ -46,7 +46,7 @@ def test_temporary_fallback_is_per_user_and_independent_of_cwd(monkeypatch, tmp_
 def test_windows_fallback_uses_native_temp(monkeypatch, tmp_path):
     monkeypatch.setattr(output_paths, "os", SimpleNamespace(name="nt"))
     monkeypatch.setattr(output_paths.tempfile, "gettempdir", lambda: str(tmp_path))
-    assert output_paths.temporary_runtime_dir().is_relative_to(tmp_path / "millionaire-ce")
+    assert output_paths.temporary_runtime_dir().is_relative_to(tmp_path / "millionaire")
 
 
 def test_explicit_data_home_overrides_environment_and_stays_absolute(monkeypatch, tmp_path):

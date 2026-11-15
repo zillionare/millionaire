@@ -36,7 +36,7 @@ namespace Millionaire {
             menu.Items.Add(new ToolStripSeparator());
             Add(menu, "quit", "退出托盘控件", delegate { ExitThread(); });
             Icon.Icon = SystemIcons.Application;
-            Icon.Text = "Millionaire CE";
+            Icon.Text = "Millionaire";
             Icon.ContextMenuStrip = menu;
             Icon.DoubleClick += delegate { OpenWebsite(); };
             Icon.Visible = true;
@@ -75,7 +75,7 @@ namespace Millionaire {
                 Running = false;
                 Items["state"].Text = "服务未安装或状态不可用";
             }
-            Icon.Text = "Millionaire CE：" + Items["state"].Text;
+            Icon.Text = "Millionaire：" + Items["state"].Text;
             UpdateControls();
         }
 
@@ -123,7 +123,7 @@ namespace Millionaire {
         }
 
         void Report(string message) {
-            Icon.ShowBalloonTip(5000, "Millionaire CE", message, ToolTipIcon.Error);
+            Icon.ShowBalloonTip(5000, "Millionaire", message, ToolTipIcon.Error);
         }
 
         public void RequestExit() {

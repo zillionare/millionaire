@@ -75,7 +75,7 @@ def controller_url() -> str:
     """Let non-privileged desktop controls read the service's non-secret port."""
     public = os.getenv("QUANTIDE_PUBLIC_WEB_PORT", "").strip()
     if not public and sys.platform.startswith("linux"):
-        name = os.getenv("MILLIONAIRE_SERVICE_NAME", "millionaire-ce")
+        name = os.getenv("MILLIONAIRE_SERVICE_NAME", "millionaire")
         public = str(Path("/run") / name / "web-port")
     if public:
         try:

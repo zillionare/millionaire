@@ -23,7 +23,7 @@ def _wait_for_local_tray():
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
-        handle = kernel.OpenMutexW(0x100000, False, f"Local\\MillionaireCE.{SERVICE_NAME}")
+        handle = kernel.OpenMutexW(0x100000, False, f"Local\\Millionaire.{SERVICE_NAME}")
         if handle:
             kernel.CloseHandle(handle)
             return
@@ -36,7 +36,7 @@ def verify_tray():
     root = install_root()
     executable = root / "MillionaireTray.exe"
     startup = Path(os.environ["PROGRAMDATA"]) / (
-        "Microsoft/Windows/Start Menu/Programs/StartUp/Millionaire CE.lnk"
+        "Microsoft/Windows/Start Menu/Programs/StartUp/Millionaire.lnk"
     )
     assert startup.exists(), "Installer did not register the login tray shortcut"
     work = artifact_root() / "work/tray-acceptance"

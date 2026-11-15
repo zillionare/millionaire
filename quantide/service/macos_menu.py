@@ -14,7 +14,7 @@ from quantide.service.host_service import LABEL, _launchd_path, _run, install_ro
 
 def bundle_path() -> Path:
     """Return the menu application shipped alongside the bundled Python."""
-    return install_root() / "Millionaire CE.app"
+    return install_root() / "Millionaire.app"
 
 
 def _agent_path() -> Path:
@@ -24,13 +24,13 @@ def _agent_path() -> Path:
 def _application_link(system: bool) -> Path:
     directory = os.environ.get("MILLIONAIRE_APPLICATIONS_DIR", "").strip()
     base = Path("/Applications") if system else Path.home() / "Applications"
-    return external_runtime_path(Path(directory) if directory else base) / "Millionaire CE.app"
+    return external_runtime_path(Path(directory) if directory else base) / "Millionaire.app"
 
 
 def _profile(system: bool) -> dict[str, Any]:
     service = plistlib.loads(_launchd_path(system).read_bytes())
     return {
-        "launcher": str(install_root() / "millionaire-ce"),
+        "launcher": str(install_root() / "millionaire"),
         "label": LABEL,
         "domain": "system" if system else f"gui/{os.getuid()}",
         "logs": str(Path(service["StandardOutPath"]).parent),

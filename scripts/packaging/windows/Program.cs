@@ -12,7 +12,7 @@ namespace Millionaire {
             try { return Run(arguments); }
             catch (Exception error) {
                 if (Array.IndexOf(arguments, "--service-action") < 0)
-                    MessageBox.Show(error.Message, "Millionaire CE");
+                    MessageBox.Show(error.Message, "Millionaire");
                 return 1;
             }
         }
@@ -24,7 +24,7 @@ namespace Millionaire {
             var profile = new TrayProfile(root);
             int actionIndex = Array.IndexOf(arguments, "--service-action");
             if (actionIndex >= 0) return profile.ServiceAction(arguments[actionIndex + 1]);
-            string identity = "MillionaireCE." + profile.ServiceName;
+            string identity = "Millionaire." + profile.ServiceName;
             using (var signal = QuitSignal(identity)) {
                 if (Array.IndexOf(arguments, "--quit") >= 0) {
                     signal.Set();

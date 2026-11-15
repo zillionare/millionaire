@@ -53,7 +53,7 @@ class NativeInstallation:
         self.directory = directory
         self.environment = {
             **os.environ,
-            "MILLIONAIRE_SERVICE_NAME": "millionaire-ce-ci",
+            "MILLIONAIRE_SERVICE_NAME": "millionaire-ci",
             "MILLIONAIRE_SERVICE_HOME": str(directory / "service-data"),
             "MILLIONAIRE_INSTALL_ROOT": str(directory / "installed"),
             "MILLIONAIRE_BIN_DIR": str(directory / "bin"),
@@ -91,17 +91,17 @@ class NativeInstallation:
             self.config = self.directory / "service-data/config"
         else:
             run(["dpkg", "-i", self.artifact], self.environment)
-            self.python = Path("/opt/millionaire-ce/runtime/bin/python3.13")
-            self.config = Path("/var/lib/millionaire-ce/config")
+            self.python = Path("/opt/millionaire/runtime/bin/python3.13")
+            self.config = Path("/var/lib/millionaire/config")
 
     def command(self):
         """Exercise the public symlink, not just the internal runtime executable."""
         if os.name == "nt":
             return [self.python, "-m", "quantide.cli"]
         entry = (
-            self.directory / "bin/millionaire-ce"
+            self.directory / "bin/millionaire"
             if sys.platform == "darwin"
-            else Path("/usr/bin/millionaire-ce")
+            else Path("/usr/bin/millionaire")
         )
         return [entry]
 
@@ -124,7 +124,7 @@ class NativeInstallation:
             # End users may run the archive's script from their extraction folder.
             run(["sh", next(self.source.glob("*/uninstall.sh"))], self.environment)
         else:
-            run(["dpkg", "--remove", "millionaire-ce"], self.environment)
+            run(["dpkg", "--remove", "millionaire"], self.environment)
 
 
 def verify(installation):

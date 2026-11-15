@@ -59,7 +59,7 @@ def artifact_root() -> Path:
     configured = os.environ.get("MILLIONAIRE_ARTIFACTS_DIR", "").strip()
     base = Path(tempfile.gettempdir()) if os.name == "nt" else Path("/tmp")
     workspace = hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]
-    return external_path(configured or base / "millionaire-ce" / workspace)
+    return external_path(configured or base / "millionaire" / workspace)
 
 
 def artifact_environment() -> dict[str, str]:

@@ -1,10 +1,10 @@
 [tool]
 
 [tool.poetry]
-name = "millionaire-ce"
+name = "millionaire"
 version = "0.3.1"
-homepage = "https://github.com/zillionare/millionaire-ce"
-description = "Millionaire Community Edition quantitative trading platform."
+homepage = "https://github.com/zillionare/millionaire"
+description = "Millionaire quantitative trading platform."
 authors = ["Aaron Yang <aaron_yang@jieyu.ai>"]
 readme = "README.md"
 license = "MIT"
@@ -74,7 +74,7 @@ scikit-learn = { version = "^1.7.0", optional = true }
 ml30m = ["lightgbm", "scikit-learn"]
 
 [tool.poetry.scripts]
-millionaire-ce = "quantide.cli:main"
+millionaire = "quantide.cli:main"
 
 [[tool.poetry.source]]
 name = "tsinghua"
@@ -85,7 +85,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
-cache-dir = "/tmp/millionaire-ce/ruff-cache"
+cache-dir = "/tmp/millionaire/ruff-cache"
 line-length = 100
 target-version = "py313"
 extend-exclude = [
@@ -151,7 +151,7 @@ max-statements = 50
 max-locals = 15
 
 [tool.pytest.ini_options]
-cache_dir = "/tmp/millionaire-ce/pytest-cache"
+cache_dir = "/tmp/millionaire/pytest-cache"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-m 'not live_data and not private_only and not e2e_live_smoke'"
@@ -250,7 +250,7 @@ mike = ">=1.1.2,<3.0.0"
 
 [tool.mypy]
 files = ["quantide"]
-cache_dir = "/tmp/millionaire-ce/mypy-cache"
+cache_dir = "/tmp/millionaire/mypy-cache"
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_unused_configs = true
@@ -270,7 +270,7 @@ module = [
 ignore_missing_imports = true
 
 [tool.coverage.run]
-data_file = "${COVERAGE_FILE-/tmp/millionaire-ce/coverage/.coverage}"
+data_file = "${COVERAGE_FILE-/tmp/millionaire/coverage/.coverage}"
 source = ["quantide"]
 branch = true
 parallel = true

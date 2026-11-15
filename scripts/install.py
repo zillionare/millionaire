@@ -47,7 +47,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if sys.version_info < (3, 13):  # noqa: UP036 - provide a clear installer error
-        parser.error("Millionaire CE requires Python 3.13 or newer")
+        parser.error("Millionaire requires Python 3.13 or newer")
 
     venv_path = args.venv.expanduser()
     if not venv_path.is_absolute():
@@ -65,7 +65,7 @@ def main() -> int:
     _run([str(python), "-m", "pip", "install", "-e", requirement])
 
     print(f"Installed CE into {venv_path}")
-    launcher = python.parent / ("millionaire-ce.exe" if os.name == "nt" else "millionaire-ce")
+    launcher = python.parent / ("millionaire.exe" if os.name == "nt" else "millionaire")
     print(f"Run: {launcher} --open")
     return 0
 

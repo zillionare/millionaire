@@ -7,7 +7,7 @@ Millionaire 可以复用同一策略与 Broker 抽象，另行装配自己的真
 启动一个具有独立持久化数据库的柜台进程：
 
 ```bash
-millionaire-ce simulated-counter --database ./demo-counter.sqlite3 --listen-port 8131
+millionaire simulated-counter --database ./demo-counter.sqlite3 --listen-port 8131
 ```
 
 进程只监听本机回环地址。SDK 适配器也拒绝外部地址，并检查服务器的模拟模式标识：

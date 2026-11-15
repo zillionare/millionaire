@@ -10,7 +10,7 @@
 | 构建/维护脚本与安装模板 | `scripts/`、`scripts/packaging/` |
 | 用户手册 | `docs/` |
 | 审查、历史证据和版本规格 | `.louke/project/reviews/`、`.louke/project/specs/` |
-| 包、站点、测试/质量报告及工具缓存 | `/tmp/millionaire-ce/<工作区标识>/`；Windows 使用原生临时目录 |
+| 包、站点、测试/质量报告及工具缓存 | `/tmp/millionaire/<工作区标识>/`；Windows 使用原生临时目录 |
 | 用户持久化配置和真实行情 | 用户或服务的数据目录，见[运维](operations.md)；不放临时目录 |
 
 安装器模板是源码，不能当临时文件删掉。原根目录的 `data` 是固定测试样本，现已迁入
@@ -54,7 +54,7 @@ wheel/sdist 校验还会拒绝开发管理文件和生成物，保留合法的 `
 
 `init_data()`、`init_data(None)` 和空白路径使用同一解析流程：显式参数 → 已保存的
 wizard 数据目录 → `QUANTIDE_DATA_HOME` → 系统临时目录中的
-`millionaire-ce/runtime-<用户标识>/market`。默认读取配置数据库后再选择行情目录；
+`millionaire/runtime-<用户标识>/market`。默认读取配置数据库后再选择行情目录；
 不再将空字符串当成当前工作目录。Windows 的临时目录取自系统 `%TEMP%`。
 因子分析 CLI、ML 示例和 `daily_basic` 均复用该配置。
 

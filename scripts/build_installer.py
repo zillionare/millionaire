@@ -113,26 +113,26 @@ def windows_wrapper(payload):
 def build_deb(payload, version, output):
     """Produce a systemd package; persistent data is outside /opt."""
     root = payload.parent / "deb"
-    destination = root / "opt/millionaire-ce"
+    destination = root / "opt/millionaire"
     destination.parent.mkdir(parents=True)
     shutil.copytree(payload, destination, symlinks=True)
-    entry = root / "usr/bin/millionaire-ce"
+    entry = root / "usr/bin/millionaire"
     entry.parent.mkdir(parents=True)
-    entry.symlink_to("/opt/millionaire-ce/millionaire-ce")
-    desktop = root / "usr/share/applications/millionaire-ce.desktop"
+    entry.symlink_to("/opt/millionaire/millionaire")
+    desktop = root / "usr/share/applications/millionaire.desktop"
     desktop.parent.mkdir(parents=True)
     desktop.write_text(
-        "[Desktop Entry]\nType=Application\nName=Millionaire CE\n"
-        "Exec=/usr/bin/millionaire-ce control\nTerminal=false\nCategories=Office;Finance;\n",
+        "[Desktop Entry]\nType=Application\nName=Millionaire\n"
+        "Exec=/usr/bin/millionaire control\nTerminal=false\nCategories=Office;Finance;\n",
         encoding="utf-8",
     )
     control = root / "DEBIAN"
     control.mkdir()
     (control / "control").write_text(
-        f"Package: millionaire-ce\nVersion: {version}\nArchitecture: amd64\n"
-        "Maintainer: Millionaire CE contributors\n"
+        f"Package: millionaire\nVersion: {version}\nArchitecture: amd64\n"
+        "Maintainer: Millionaire contributors\n"
         "Depends: libc6 (>= 2.28), libgomp1, libx11-6, libxext6, libxrender1\n"
-        "Description: Millionaire Community Edition quantitative research service\n",
+        "Description: Millionaire quantitative research service\n",
         encoding="utf-8",
     )
     for name in ("postinst", "prerm", "postrm"):
@@ -156,19 +156,19 @@ def build_platform(payload, version, output_dir):
             PACKAGING / "windows.iss",
         )
         return
-    shutil.copy2(PACKAGING / "launcher.sh", payload / "millionaire-ce")
-    (payload / "millionaire-ce").chmod(0o755)
+    shutil.copy2(PACKAGING / "launcher.sh", payload / "millionaire")
+    (payload / "millionaire").chmod(0o755)
     if sys.platform == "linux":
         if architecture not in {"x86_64", "amd64"}:
             raise ValueError("The first Ubuntu installer supports x86_64")
-        build_deb(payload, version, output_dir / f"millionaire-ce-{version}-ubuntu-amd64.deb")
+        build_deb(payload, version, output_dir / f"millionaire-{version}-ubuntu-amd64.deb")
         return
     for filename in ("install.sh", "uninstall.sh"):
         shutil.copy2(PACKAGING / filename, payload / filename)
     shutil.copy2(ROOT / "scripts/wait_for_service.py", payload / "wait-for-service.py")
     (payload / "install.sh").chmod(0o755)
     (payload / "VERSION").write_text(version, encoding="utf-8")
-    name = f"millionaire-ce-{version}-macos-{architecture}"
+    name = f"millionaire-{version}-macos-{architecture}"
     with tarfile.open(output_dir / f"{name}.tar.gz", "w:gz") as archive:
         archive.add(payload, arcname=name)
 

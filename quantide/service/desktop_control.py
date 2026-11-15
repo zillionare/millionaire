@@ -43,7 +43,7 @@ def _controller_buttons(window: tk.Tk, action: Callable[[str], None]) -> None:
             str(get_app_config_dir() / "logs")
             if os.name != "nt"
             else os.path.join(
-                os.environ.get("PROGRAMDATA", r"C:\ProgramData"), "MillionaireCE", "logs"
+                os.environ.get("PROGRAMDATA", r"C:\ProgramData"), "Millionaire", "logs"
             ),
         ),
     ).pack()
@@ -54,9 +54,9 @@ def create_controller() -> tk.Tk:
     import tkinter as tk
 
     window = tk.Tk()
-    window.title("Millionaire CE")
+    window.title("Millionaire")
     window.geometry("440x240")
-    status = tk.StringVar(value="Millionaire CE 后台服务")
+    status = tk.StringVar(value="Millionaire 后台服务")
     action_lock = threading.Lock()
     tk.Label(window, textvariable=status, wraplength=410).pack(pady=18)
 

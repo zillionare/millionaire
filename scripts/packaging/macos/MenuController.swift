@@ -21,7 +21,7 @@ final class MenuController: NSObject, NSApplicationDelegate {
     var quitApplication: () -> Void = { NSApp.terminate(nil) }
     var showError: (String) -> Void = { message in
         let alert = NSAlert()
-        alert.messageText = "Millionaire CE"
+        alert.messageText = "Millionaire"
         alert.informativeText = message
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
@@ -35,7 +35,7 @@ final class MenuController: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.title = "M"
-        item.button?.toolTip = "Millionaire CE"
+        item.button?.toolTip = "Millionaire"
         statusItem = item
         menu.autoenablesItems = false
         status.isEnabled = false
@@ -121,7 +121,7 @@ final class MenuController: NSObject, NSApplicationDelegate {
                     busy = false
                     running = state.0 == 0 && state.1.contains("state = running")
                     status.title = running ? "服务正在运行" : "服务已停止或等待重启"
-                    statusItem?.button?.toolTip = "Millionaire CE：\(status.title)"
+                    statusItem?.button?.toolTip = "Millionaire：\(status.title)"
                     updateControls()
                     if action != "status" && result.0 != 0 { showError(result.1) }
                 }

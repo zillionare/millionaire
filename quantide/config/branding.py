@@ -15,10 +15,10 @@ from importlib.metadata import PackageNotFoundError, packages_distributions, ver
 from pathlib import Path
 
 RUNTIME_NAME = "quantide"
-DEFAULT_EDITION = "millionaire-ce"
+DEFAULT_EDITION = "millionaire"
 EDITION_ENV_VAR = "QUANTIDE_EDITION"
 EDITION_OVERRIDE_ENV_VAR = "QUANTIDE_ENABLE_EDITION_OVERRIDE"
-SUPPORTED_EDITIONS = {"millionaire", "millionaire-ce", "zillionaire"}
+SUPPORTED_EDITIONS = {"millionaire", "millionaire-pro", "zillionaire"}
 
 
 @dataclass(frozen=True)
@@ -129,7 +129,11 @@ def get_branding() -> Branding:
         edition = override_edition
         release_package = f"{RUNTIME_NAME}-{edition}"
 
-    product_name = "Zillionaire" if edition == "zillionaire" else "Millionaire"
+    product_name = {
+        "millionaire": "Millionaire",
+        "millionaire-pro": "Millionaire Pro",
+        "zillionaire": "Zillionaire",
+    }.get(edition, "Millionaire")
     return Branding(
         edition=edition,
         runtime_name=RUNTIME_NAME,

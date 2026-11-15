@@ -1,4 +1,4 @@
-"""Run the installed Millionaire CE web application."""
+"""Run the installed Millionaire web application."""
 
 from __future__ import annotations
 

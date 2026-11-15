@@ -1,10 +1,10 @@
 # 本版能力与版本状态
 
-Millionaire CE 采用 MIT 许可证，分发包名为 `millionaire-ce`，Python 导入名为
+Millionaire 采用 MIT 许可证，分发包名为 `millionaire`，Python 导入名为
 `quantide`。本手册描述当前源码树；原生安装包和 GitHub Release 的版本可能滞后，
 下载时以 Release 实际列出的文件、版本号和校验值为准。
 
-millionaire 是 CE 与 millionaire pro 的合称。本页列出社区版的交付范围；仅属于
+Millionaire 是社区版与专业版的合称。本页列出社区版（CE）的交付范围；仅属于
 专业版的功能均使用 millionaire pro 明确标注。
 
 ## 已提供的能力

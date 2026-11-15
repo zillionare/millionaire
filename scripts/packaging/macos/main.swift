@@ -1,7 +1,7 @@
 import Cocoa
 
 let application = NSApplication.shared
-let identifier = Bundle.main.bundleIdentifier ?? "ai.quantide.millionaire-ce.controller"
+let identifier = Bundle.main.bundleIdentifier ?? "ai.quantide.millionaire.controller"
 let others = NSRunningApplication.runningApplications(withBundleIdentifier: identifier)
     .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
 if CommandLine.arguments.contains("--quit") {
@@ -25,7 +25,7 @@ do {
     application.run()
 } catch {
     let alert = NSAlert()
-    alert.messageText = "Millionaire CE 菜单栏控件尚未配置"
+    alert.messageText = "Millionaire 菜单栏控件尚未配置"
     alert.informativeText = "请重新运行安装脚本。\n\(error.localizedDescription)"
     alert.runModal()
     exit(1)

@@ -9,18 +9,18 @@
 #endif
 [Setup]
 AppId={{D87B676D-DC50-4E39-8DC4-120A9303E77B}
-AppName=Millionaire CE
+AppName=Millionaire
 AppVersion={#AppVersion}
-DefaultDirName={autopf}\MillionaireCE
-DefaultGroupName=Millionaire CE
+DefaultDirName={autopf}\Millionaire
+DefaultGroupName=Millionaire
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 Compression=lzma2
 SolidCompression=yes
-OutputBaseFilename=millionaire-ce-{#AppVersion}-windows-x64
+OutputBaseFilename=millionaire-{#AppVersion}-windows-x64
 OutputDir={#OutputDir}
-UninstallDisplayName=Millionaire CE
+UninstallDisplayName=Millionaire
 CloseApplications=yes
 RestartApplications=no
 
@@ -28,13 +28,13 @@ RestartApplications=no
 Source: "{#Payload}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Dirs]
-Name: "{commonappdata}\MillionaireCE"; Permissions: admins-full system-full
-Name: "{commonappdata}\MillionaireCE-Status"; Permissions: users-readexec admins-full system-full
+Name: "{commonappdata}\Millionaire"; Permissions: admins-full system-full
+Name: "{commonappdata}\Millionaire-Status"; Permissions: users-readexec admins-full system-full
 
 [Icons]
-Name: "{group}\Millionaire CE Controller"; Filename: "{app}\MillionaireTray.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\Millionaire CE"; Filename: "{app}\MillionaireTray.exe"; WorkingDir: "{app}"
-Name: "{commonstartup}\Millionaire CE"; Filename: "{app}\MillionaireTray.exe"; WorkingDir: "{app}"
+Name: "{group}\Millionaire Controller"; Filename: "{app}\MillionaireTray.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\Millionaire"; Filename: "{app}\MillionaireTray.exe"; WorkingDir: "{app}"
+Name: "{commonstartup}\Millionaire"; Filename: "{app}\MillionaireTray.exe"; WorkingDir: "{app}"
 
 [Run]
 Filename: "{app}\MillionaireTray.exe"; Flags: nowait runasoriginaluser
@@ -97,7 +97,7 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
     if not UninstallSilent then
-      if MsgBox('Delete all Millionaire CE settings, account databases and market data?',
+      if MsgBox('Delete all Millionaire settings, account databases and market data?',
         mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
-        DelTree(ExpandConstant('{commonappdata}\MillionaireCE'), True, True, True);
+        DelTree(ExpandConstant('{commonappdata}\Millionaire'), True, True, True);
 end;

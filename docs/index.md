@@ -1,12 +1,12 @@
-# Millionaire CE 用户手册
+# Millionaire 用户手册
 
-Millionaire CE 是面向 A 股的开源量化框架。你可以从自带策略开始，把精力放在因子和
+Millionaire 是面向 A 股的开源量化框架。你可以从自带策略开始，把精力放在因子和
 交易逻辑上，复用历史数据、回测、参数优化、预测解释、账户归因及持续仿真的流程。
 
-本手册描述当前 `millionaire-ce` 源码树的能力；原生安装包和 GitHub Release 的版本
-可能稍后更新，具体以 Release 中的文件名、校验值和页面标注为准。文中的 **millionaire**
-是社区版与专业版的合称；**millionaire-ce（CE）** 指社区版，**millionaire pro** 指专业版。
-涉及版本专属能力时会明确标注。
+本手册描述当前 `millionaire` 源码树的能力；原生安装包和 GitHub Release 的版本
+可能稍后更新，具体以 Release 中的文件名、校验值和页面标注为准。Millionaire
+是社区版与专业版的合称；本手册对应社区版（CE），专业版能力统一标注为
+**millionaire pro**。
 
 ## 核心能力
 
@@ -35,7 +35,7 @@ millionaire pro 或用户宿主扩展接入。
 日线策略始终按日线运行，30 分钟策略始终按 30 分钟运行，运行器会拒绝冲突配置。
 涨跌停检查需要有效的限价数据。详见[成交时序与策略防呆](execution.md)。
 
-**自带策略与研究流程** millionaire-ce 自带双均线、月线均线和基于 LightGBM 的
+**自带策略与研究流程** millionaire 自带双均线、月线均线和基于 LightGBM 的
 示例策略，串起因子计算、模型训练、选股调仓、参数优化与 SHAP 预测解释。你可以在
 [因子研究](factor-analysis.md)中先独立检验因子，再进入[因子与 LightGBM](factors-and-ml.md)
 训练模型。源码树还提供离线策略/因子审计入口和账户事实收益归因，见
@@ -73,7 +73,7 @@ CE 默认风险程序注册表为空。详见[风险扩展契约](design/risk_pr
 
 CE 支持 macOS Apple Silicon（ARM64）、Ubuntu x86_64 和 Windows x64；原生包自带
 Python 与固定版本依赖。是否已经发布对应安装包，以
-[GitHub Releases](https://github.com/zillionare/millionaire-ce/releases) 的实际文件为准。
+[GitHub Releases](https://github.com/zillionare/millionaire/releases) 的实际文件为准。
 
 CE 不提供真实交易，不内置三重障碍、回撤卖出、成本止损等私有风险程序。腾讯实时演示源
 默认关闭，用户可选择一次固定 30 天演示；到期后使用自定义行情扩展。源码树提供离线审计

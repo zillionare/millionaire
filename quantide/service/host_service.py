@@ -20,7 +20,7 @@ from quantide.core.atomic_files import atomic_path
 if TYPE_CHECKING:
     import pwd
 
-SERVICE_NAME = os.environ.get("MILLIONAIRE_SERVICE_NAME", "millionaire-ce")
+SERVICE_NAME = os.environ.get("MILLIONAIRE_SERVICE_NAME", "millionaire")
 LABEL = f"ai.quantide.{SERVICE_NAME}"
 
 
@@ -54,7 +54,7 @@ def _launchd_profile(
     import pwd
 
     owner = pwd.getpwnam(user)
-    base = Path("/Library/Application Support/MillionaireCE")
+    base = Path("/Library/Application Support/Millionaire")
     base.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chown(base, owner.pw_uid, owner.pw_gid)
     environment = {
@@ -68,7 +68,7 @@ def _launchd_profile(
         directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chown(directory, owner.pw_uid, owner.pw_gid)
     environment.update(HOME=owner.pw_dir, USER=owner.pw_name, LOGNAME=owner.pw_name)
-    status = base.parent / "MillionaireCE-Status"
+    status = base.parent / "Millionaire-Status"
     status.mkdir(mode=0o755, parents=True, exist_ok=True)
     status.chmod(0o755)
     os.chown(status, owner.pw_uid, owner.pw_gid)
@@ -113,19 +113,19 @@ def _install_systemd() -> None:
     destination = Path("/etc/systemd/system") / f"{SERVICE_NAME}.service"
     executable = str(Path(sys.executable).resolve()).replace('"', '\\"')
     content = (
-        "[Unit]\nDescription=Millionaire CE\nAfter=network-online.target\n"
+        "[Unit]\nDescription=Millionaire\nAfter=network-online.target\n"
         "Wants=network-online.target\n[Service]\nType=simple\n"
-        "User=millionaire-ce\nGroup=millionaire-ce\n"
+        "User=millionaire\nGroup=millionaire\n"
         f'ExecStart="{executable}" -m quantide.cli\n'
-        "Environment=QUANTIDE_CONFIG_HOME=/var/lib/millionaire-ce/config\n"
-        "Environment=QUANTIDE_DATA_HOME=/var/lib/millionaire-ce/data\n"
+        "Environment=QUANTIDE_CONFIG_HOME=/var/lib/millionaire/config\n"
+        "Environment=QUANTIDE_DATA_HOME=/var/lib/millionaire/data\n"
         f"Environment=QUANTIDE_PUBLIC_WEB_PORT=/run/{SERVICE_NAME}/web-port\n"
         f"RuntimeDirectory={SERVICE_NAME}\n"
         "RuntimeDirectoryMode=0755\nRuntimeDirectoryPreserve=yes\n"
         "Restart=on-failure\nRestartSec=10\nTimeoutStopSec=30\n"
         "KillSignal=SIGTERM\nUMask=0077\nNoNewPrivileges=true\n"
         "ProtectSystem=strict\nProtectHome=true\n"
-        f"ReadWritePaths=/var/lib/millionaire-ce /run/{SERVICE_NAME}\n"
+        f"ReadWritePaths=/var/lib/millionaire /run/{SERVICE_NAME}\n"
         "[Install]\nWantedBy=multi-user.target\n"
     )
     with atomic_path(destination) as temporary:
@@ -138,14 +138,14 @@ def _install_windows() -> None:
     root = external_runtime_path(install_root())
     directory = external_runtime_path(
         os.environ.get("MILLIONAIRE_SERVICE_HOME", "").strip()
-        or Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "MillionaireCE"
+        or Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "Millionaire"
     )
     directory.mkdir(parents=True, exist_ok=True)
     service = Element("service")
     values = {
         "id": SERVICE_NAME,
-        "name": "Millionaire CE",
-        "description": "CE research service",
+        "name": "Millionaire",
+        "description": "Millionaire research service",
         "executable": str(Path(sys.executable)),
         "arguments": "-m quantide.cli",
         "workingdirectory": str(directory),

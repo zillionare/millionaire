@@ -84,7 +84,7 @@ class ArtifactPathsTest(unittest.TestCase):
             source = root / "bad.tar.gz"
             with tarfile.open(source, "w:gz") as archive:
                 payload = b"generated content"
-                member = tarfile.TarInfo("millionaire-ce-0.3.0/site/index.html")
+                member = tarfile.TarInfo("millionaire-0.3.0/site/index.html")
                 member.size = len(payload)
                 archive.addfile(member, io.BytesIO(payload))
             self.assertTrue(validate_release_artifacts._validate_artifact(source))

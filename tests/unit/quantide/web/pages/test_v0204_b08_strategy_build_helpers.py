@@ -24,7 +24,7 @@ from quantide.web.pages.strategy import (
 @pytest.fixture(autouse=True)
 def private_edition_strategy_cases(monkeypatch, private_edition_feature_override):
     """Exercise shared live-deployment helpers as private-edition cases."""
-    monkeypatch.setattr('quantide.config.features.get_runtime_edition', lambda: 'millionaire')
+    monkeypatch.setattr('quantide.config.features.get_runtime_edition', lambda: 'zillionaire')
 
 
 def test_build_date_axis_with_portfolio():

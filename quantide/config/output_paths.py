@@ -19,7 +19,7 @@ def temporary_runtime_dir() -> Path:
     """Use a stable per-user subdirectory of /tmp, or native Windows TEMP."""
     base = Path(tempfile.gettempdir()) if os.name == "nt" else Path("/tmp")
     profile = hashlib.sha256(str(Path.home()).encode()).hexdigest()[:12]
-    return external_runtime_path(base / "millionaire-ce" / f"runtime-{profile}")
+    return external_runtime_path(base / "millionaire" / f"runtime-{profile}")
 
 
 def console_log_path() -> Path:
