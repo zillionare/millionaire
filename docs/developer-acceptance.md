@@ -2,6 +2,10 @@
 
 本文档面向仓库开发者，而不是最终用户。
 
+代码质量预算、三平台安装/测试、离线测试隔离及发布硬门禁见
+[代码质量与发布门禁](quality.md)。发布 CI 使用 `--runxfail` 并拒绝跳过，
+不能用下列普通 pytest 命令中的 xfail/skip 作为发布通过证据。
+
 目标只有两个：
 
 1. 说明本地如何启动和使用当前系统。
@@ -108,18 +112,13 @@ QUANTIDE_ENABLE_DEV_STUBS=1 uvicorn quantide.app:app --reload
 ### 三模式一致性定向核查
 
 ```bash
-.venv/bin/python -m pytest tests/e2e/three_mode/test_dual_ma_parity.py -q
+.venv/bin/python -m pytest tests/e2e/three_mode/test_ce_parity.py -q
 ```
 
-用途：确认在同一策略、同一标的、同一时间窗口下，`backtest / paper / simulation`
-的成交事实、每日权益曲线和收益指标仍然一致。
-
-这条用例当前固定校验：
-
-1. 策略：`DualMAStrategy`
-2. 标的：`000001.SZ`
-3. 时间窗口：`2024-01-02` 到 `2024-05-31`
-4. 参数：`fast=5`、`slow=10`、`invest=100000`、`initial_cash=200000`
+用途：对同一个策略分别运行回测、Paper 和独立 HTTP 模拟柜台，比较订单、成交、
+持仓、现金和每日权益。柜台使用独立数据库，不依赖 QMT 或真实交易接口。
+用例包含零费用和非零费用的人工核算基准，以及重复提交、部分成交、撤单、
+柜台进程强制退出后恢复。详见[模拟柜台与一致性](simulated-counter.md)。
 
 ### 开发态 stub UI 流程核查
 
@@ -143,7 +142,7 @@ QUANTIDE_ENABLE_DEV_STUBS=1 uvicorn quantide.app:app --reload
 5. 旧入口 `/strategy/live` 不得绕过 CE 的 live feature gate。
 6. 如果本次改动涉及交易逻辑，至少再跑一次 backtest/paper parity 定向用例。
 
-私有版专属的 gateway/live UI 合同用例使用 `private_only` marker，不能作为
+millionaire pro 专属的 gateway/live UI 合同用例使用 `private_only` marker，不能作为
 CE 验收证据。需要验证这些共享内部实现时，必须显式启用
 `QUANTIDE_ENABLE_EDITION_OVERRIDE=1 QUANTIDE_EDITION=zillionaire`；普通 CE
 运行不应启动 live broker，也不应恢复持久化的 live runtime。
@@ -164,8 +163,8 @@ CE 验收证据。需要验证这些共享内部实现时，必须显式启用
 ## 7. 结果去哪里看
 
 1. 自动化结果首先看终端里的 pytest 输出。
-2. 三模式 parity 的共享 baseline 在 `tests/assets/baselines/dual_ma_2024.backtest.json`。
-3. 三模式 parity 的测试入口在 `tests/e2e/three_mode/test_dual_ma_parity.py`。
+2. CE parity 的人工现金与持仓基准在测试中明确列出，不从被测实现生成。
+3. 三模式 parity 的测试入口在 `tests/e2e/three_mode/test_ce_parity.py`。
 4. 发布态验收缺口与放行判断以 release gate 和 CI 结果为准。
 
 如果你只想回答一个最小问题："我这次改动有没有把三模式主链路弄坏？"

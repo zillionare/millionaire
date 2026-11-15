@@ -1,15 +1,82 @@
-# Millionaire Community Edition
+# Millionaire CE 用户手册
 
-This documentation set describes the current Community Edition (CE) tree.
+Millionaire CE 是面向 A 股的开源量化框架。你可以从自带策略开始，把精力放在因子和
+交易逻辑上，复用历史数据、回测、参数优化、预测解释、账户归因及持续仿真的流程。
 
-The project remains under active refactoring, so pages describe the behavior
-and setup available in this tree rather than promising a complete native
-installer or production deployment.
+本手册描述当前 `millionaire-ce` 源码树的能力；原生安装包和 GitHub Release 的版本
+可能稍后更新，具体以 Release 中的文件名、校验值和页面标注为准。文中的 **millionaire**
+是社区版与专业版的合称；**millionaire-ce（CE）** 指社区版，**millionaire pro** 指专业版。
+涉及版本专属能力时会明确标注。
 
-Start with:
+## 核心能力
 
-- [Installation](installation.md) for local setup, optional dependencies,
-  browser opening, and service-manager hooks.
-- [CE scope](scope.md) for the paper-only boundary and generic risk extension
-  point.
-- [Developer acceptance](developer-acceptance.md) for repository-level checks.
+**策略在回测、仿真和独立模拟柜台之间复用** millionaire 把交易和撮合从策略逻辑中
+剥离出来，使用统一的 Broker 接口，再通过适配器提供不同运行模式下的交易、撮合实现。
+遵循框架接口的策略可以沿用同一份交易逻辑，减少切换模式时的代码移植。CE 已提供回测、
+仿真和独立 HTTP 模拟柜台，用模拟方式验证三条执行路径的一致性；真实交易由
+millionaire pro 或用户宿主扩展接入。
+
+**不锁定券商** 实盘接口的门槛和接入标准始终在变。millionaire 提供统一的 HTTP
+交易接口，将柜台与策略进程分开，你可以根据券商实际开放的接口自行适配柜台；即使不熟悉
+编程，也可让 AI 依据接口、参考实现和验收用例协助完成。CE 提供适配边界和模拟柜台，
+真实账户接入由 millionaire pro 或用户宿主扩展装配。详见[柜台适配指南](broker-adapters.md)。
+
+**不锁定数据源** 适配器将供应商数据转换为统一字段、时间和单位：历史数据进入标准
+存储，实时行情进入行情 Hub。项目内的这套数据约定称为 SQEP（标准行情交换协议）。
+接入新数据源从编写适配器开始，AI 也可以依据接口和样例协助完成。详见
+[标准行情交换协议](SQEP.md)。
+
+**数据完整性与可恢复回补** 维护任务以配置的数据起始日 `epoch` 为完整性边界，
+先补齐尾部，再按“最近缺口 → 更早缺口”逐月回补。回测启动前会检查目标区间的日线覆盖：
+市场级缺口会阻止回测，市值和指数等可选数据缺口会记录但不阻断。无法补全的区间会进入
+风险事件，后续回测命中时明确拒绝，而不是生成一段冻结净值的报告。
+
+**策略防呆** 框架自带成交时序、T+1、涨跌停和资金检查；策略周期是固有属性，
+日线策略始终按日线运行，30 分钟策略始终按 30 分钟运行，运行器会拒绝冲突配置。
+涨跌停检查需要有效的限价数据。详见[成交时序与策略防呆](execution.md)。
+
+**自带策略与研究流程** millionaire-ce 自带双均线、月线均线和基于 LightGBM 的
+示例策略，串起因子计算、模型训练、选股调仓、参数优化与 SHAP 预测解释。你可以在
+[因子研究](factor-analysis.md)中先独立检验因子，再进入[因子与 LightGBM](factors-and-ml.md)
+训练模型。源码树还提供离线策略/因子审计入口和账户事实收益归因，见
+[策略与因子审计](strategy-audit.md)与[预测解释与收益归因](prediction-explanation.md)。
+
+**主策略与风控策略独立设计** 兼容的风控程序只需创建一次，就可以与多个主策略叠加。
+CE 提供风险程序注册、兼容性检查、优先级及回测/仿真生命周期；用户注册适配器后，
+即可选择自己的风控程序。基于三重障碍法的内置止盈止损属于 **millionaire pro** 能力，
+CE 默认风险程序注册表为空。详见[风险扩展契约](design/risk_program_selection.md)。
+
+**尾盘竞价模式** 对日线策略，millionaire 支持明确的 Cheat-on-Close 模型：回测按
+当日收盘模型撮合，仿真在收盘前依据当时可见行情计算并提交委托。当日买入仍遵守 T+1；
+最终收盘价在决策时尚不可知，真实成交仍受排队、流动性和滑点影响。模型前提见
+[成交时序](execution.md)。
+
+**影子伴行（Shadow-Run）** CE 为日线策略提供双实例对照：仿真实例依据当前行情运行，
+回测实例在当天收盘、历史数据就绪后用同一策略和配置回放，再对照两个账户的净值、
+回撤与每日差额。日线对照与收盘数据同步是自然匹配；30 分钟逐 bar 对照仍待补齐。
+使用入口见[仿真与影子对照](paper-trading.md#shadow-run)。
+
+## 推荐阅读顺序
+
+| 你现在要做什么 | 入口 |
+| --- | --- |
+| 第一次使用 | [快速开始](quickstart.md) → [安装](native-installation.md) → [初始化](initialization.md) |
+| 验证策略想法 | [第一次回测](backtesting.md) → [成交时序和防呆](execution.md) |
+| 开发策略或因子 | [编写策略](strategies.md) → [因子与 LightGBM](factors-and-ml.md) |
+| 研究和比较结果 | [因子研究](factor-analysis.md) → [参数优化](optimization.md) → [预测解释与收益归因](prediction-explanation.md) |
+| 连续运行 | [仿真](paper-trading.md) → [启停、升级与恢复](operations.md) |
+| 自行接入数据/柜台 | [行情扩展](quote-extensions.md) → [柜台适配](broker-adapters.md) |
+| 核对证据与质量 | [策略与因子审计](strategy-audit.md) → [质量门禁](quality.md) |
+| 遇到问题 | [常见问题](troubleshooting.md) |
+
+## 阅读前确认
+
+CE 支持 macOS Apple Silicon（ARM64）、Ubuntu x86_64 和 Windows x64；原生包自带
+Python 与固定版本依赖。是否已经发布对应安装包，以
+[GitHub Releases](https://github.com/zillionare/millionaire-ce/releases) 的实际文件为准。
+
+CE 不提供真实交易，不内置三重障碍、回撤卖出、成本止损等私有风险程序。腾讯实时演示源
+默认关闭，用户可选择一次固定 30 天演示；到期后使用自定义行情扩展。源码树提供离线审计
+和账户收益归因，但它们不是对所有策略/柜台的安全性证明，也不是收益保证。30 分钟影子
+生命周期和完整数据源能力矩阵仍属后续工作，见[版本状态与后续方向](roadmap.md)。
+更完整的交付与验证范围见[本版能力与版本状态](scope.md)。
