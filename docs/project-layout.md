@@ -9,7 +9,7 @@
 | 测试与固定行情样本 | `tests/`、`tests/assets/market_data/` |
 | 构建/维护脚本与安装模板 | `scripts/`、`scripts/packaging/` |
 | 用户手册 | `docs/` |
-| 审查、历史证据和下一版规格 | `.louke/project/reviews/`、`.louke/project/specs/` |
+| 审查、历史证据和版本规格 | `.louke/project/reviews/`、`.louke/project/specs/` |
 | 包、站点、测试/质量报告及工具缓存 | `/tmp/millionaire-ce/<工作区标识>/`；Windows 使用原生临时目录 |
 | 用户持久化配置和真实行情 | 用户或服务的数据目录，见[运维](operations.md)；不放临时目录 |
 

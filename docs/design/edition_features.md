@@ -1,53 +1,37 @@
-# Edition feature boundaries
+# 版本功能边界
 
-The source-tree package is the Community Edition (CE), distributed as
-`millionaire-ce` and identified at runtime as the `millionaire-ce` edition.
-The product name `millionaire` covers both CE and `millionaire pro`. Pro-only
-features are explicitly named as such in product documentation.
-Shared adapter boundaries may also be used by the separately maintained
-millionaire pro edition; that edition is outside this package and can enable live
-trading through the edition gate.
+源码树对应社区版（CE），分发包名为 `millionaire-ce`，运行时版本标识为
+`millionaire-ce`。产品名 `millionaire` 同时覆盖 CE 与 `millionaire pro`；
+专业版能力在产品文档中会明确标注。共享适配边界也可供独立维护的 millionaire pro
+使用；专业版不在本包内，可通过版本门禁启用真实交易。
 
-## CE behavior
+## CE 行为
 
-- Live trading is unavailable. The live header/sidebar entries, live account
-  widgets, live page, gateway settings page, and live deployment controls are
-  omitted from the UI.
-- Direct requests to live routes, live deployment endpoints, live account
-  endpoints, and gateway settings return HTTP 503 with a clear CE-unavailable
-  response. This boundary applies even when an old configuration database
-  contains gateway or QMT settings.
-- CE initialization keeps the shared wizard state machine but replaces the
-  gateway-settings step with a paper/simulation information step. Submitted
-  gateway fields cannot enable a live gateway in CE.
-- Paper/simulation accounts and strategy runtimes remain available after
-  initialization. Their quotes continue to come from `MarketDataHub`,
-  including explicitly enabled user quote extensions or the single, fixed 30-day
-  Tencent demonstration. Tencent is disabled by default and cannot be renewed
-  after expiry.
-- A persisted `live` runtime mode is not resumed: persisted live strategy
-  runtimes are marked `status=blocked`, with `block_scope=edition`, and the
-  gateway broker is never started. Generic gateway and live adapter modules
-  remain in the tree as an adapter boundary; CE does not expose or register
-  them.
-- The risk-program registry starts empty. CE ships no built-in triple-barrier,
-  pullback-sell, or cost-stop program; hosts must register a custom
-  `RiskProgramAdapter` explicitly. Generic `RISK_OVERLAY` host declarations
-  resolve only through that registry.
-- A direct `deploy_to_live` call fails with
-  `FeatureUnavailableError("CE edition 暂不支持实盘交易")` before resolving a
-  backtest or touching a gateway broker.
+- **实盘不可用**：实盘顶部/侧栏入口、实盘账户组件、实盘页面、gateway 设置页和
+  实盘部署控制不出现在 CE 界面中。
+- **直接请求被拒绝**：对实盘路由、实盘部署端点、实盘账户端点和 gateway 设置的直接
+  请求返回 HTTP 503，并给出明确的 CE 不可用响应；即使旧配置数据库中保留了
+  gateway 或 QMT 设置也一样。
+- **初始化边界**：CE 保留共享的向导状态机，但把 gateway 设置步骤替换为仿真/纸面
+  说明。提交 gateway 字段不能在 CE 中启用实盘 gateway。
+- **仿真保留**：初始化和仿真/纸面账户、策略运行时仍可用。行情继续来自
+  `MarketDataHub`，包括用户显式启用的行情扩展或一次固定 30 天的腾讯演示。
+  腾讯默认关闭，到期后不能续期。
+- **旧实盘运行时不恢复**：持久化的 `live` 运行模式不会恢复；相关策略运行时标记为
+  `status=blocked`、`block_scope=edition`，gateway broker 不会启动。通用 gateway
+  和实盘适配模块保留为适配边界，但 CE 不暴露也不注册它们。
+- **风险程序注册表为空**：CE 不内置三重障碍、回撤卖出或成本止损程序；宿主必须显式
+  注册自定义 `RiskProgramAdapter`。通用 `RISK_OVERLAY` 声明只通过该注册表解析。
+- **部署调用失败**：直接调用 `deploy_to_live` 会在解析回测或接触 gateway broker 之前
+  抛出 `FeatureUnavailableError("CE edition 暂不支持实盘交易")`。
 
-The edition gate is implemented in `quantide.config.features`; use
-`supports_live_trading()` or `require_live_trading()` at application/runtime
-boundaries instead of deleting shared gateway internals.
+版本门禁实现在 `quantide.config.features`。应用和运行时边界应使用
+`supports_live_trading()` 或 `require_live_trading()`，不要删除共享 gateway 内部实现。
 
-## Pro-edition contract tests
+## 专业版合同测试
 
-Gateway adapter and private live-runtime internals remain testable in the
-shared source tree, but those tests must explicitly enable the development
-edition override. The existing internal edition identifier and test marker are
-compatibility contracts and retain their current spelling:
+gateway 适配器和私有实盘运行时内部实现仍可在共享源码树中测试，但这些测试必须显式
+启用开发版本覆盖。现有内部版本标识和测试标记是兼容契约，保留当前拼写：
 
 ```bash
 QUANTIDE_ENABLE_EDITION_OVERRIDE=1 \
@@ -55,6 +39,5 @@ QUANTIDE_EDITION=zillionaire \
 pytest tests/e2e -m private_only
 ```
 
-The normal CE test run excludes tests marked `private_only`. CE tests must
-assert the unavailable exception or edition block and must not assert that a
-live broker starts.
+普通 CE 测试排除 `private_only` 标记。CE 测试必须断言不可用异常或版本阻断，不能断言
+实盘 broker 已启动。

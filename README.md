@@ -30,10 +30,10 @@ millionaire 是社区版与专业版的合称；本仓库提供 millionaire-ce�
 3. [初始化与数据准备](docs/initialization.md)，设置管理员密码和 Tushare 数据源。
 4. [完成第一次回测](docs/backtesting.md)，阅读报告，再[转入仿真](docs/paper-trading.md)。
 
-[在线文档](https://zillionare.github.io/millionaire-ce/)随默认分支更新；
-功能开发分支的文档可能尚未部署。如果所在网络无法访问 GitHub Pages，可直接在
-GitHub 仓库阅读 [`docs/`](docs/)（GitHub 会渲染 Markdown），或在源码目录运行
-`mkdocs serve` 离线查看。站点不依赖第三方字体或脚本资源，代理环境不应出现渲染挂起。
+[在线文档](https://zillionare.github.io/millionaire-ce/)随默认分支发布；
+功能开发分支的文档可能尚未部署。如果站点仍显示旧版，可直接在 GitHub 仓库阅读
+[`docs/`](docs/)（GitHub 会渲染 Markdown），或在源码目录运行 `mkdocs serve`
+离线查看。站点不依赖第三方字体或脚本资源，代理环境不应出现渲染挂起。
 安装包以 [GitHub Releases](https://github.com/zillionare/millionaire-ce/releases)
 实际列出的产物为准，旧版本的 Release 不代表已包含本分支的新安装器。
 
@@ -62,7 +62,9 @@ Linux 系统服务的启停命令需要 sudo；Windows 会在需要时请求管�
 历史数据下载与该实时行情选项相互独立。
 
 CE 不内置三重障碍、回撤卖出、成本止损或私有风险程序，风险程序注册表默认是空的。
-现有“归因”是模型预测解释，完整收益归因及 AI 因子/策略审计属于[下一版规划](docs/roadmap.md)。
+源码树提供 SHAP 预测解释、账户事实[收益归因](docs/prediction-explanation.md)和离线
+[策略/因子审计](docs/strategy-audit.md)；它们不是收益保证，也不是对所有策略/柜台的
+安全证明。30 分钟影子和数据源能力矩阵仍见[版本状态](docs/roadmap.md)。
 
 ## 开发与贡献
 
