@@ -116,13 +116,13 @@ def test_scheduler_start_only_when_present_and_idle(fresh_scheduler) -> None:
     assert fresh_scheduler._is_running is True
 
 
-def test_scheduler_start_noop_without_init(fresh_scheduler) -> None:
-    """AC-FR0700-07: start() does not start a scheduler that was never initialized."""
+def test_scheduler_start_initializes_after_shutdown(fresh_scheduler) -> None:
+    """Start initializes missing state so repeated app lifespans resume owned jobs."""
     fresh_scheduler._scheduler = None
     fresh_scheduler._is_running = False
     fresh_scheduler.start()
-    assert fresh_scheduler._is_running is False
-    assert fresh_scheduler._scheduler is None
+    assert fresh_scheduler._is_running is True
+    assert fresh_scheduler._scheduler is not None
 
 
 def test_scheduler_stop_noop_when_not_running(fresh_scheduler) -> None:

@@ -74,6 +74,30 @@ def test_scan_and_cache_prefers_user_directory_when_strategy_name_conflicts(
     sys.modules.pop(module_name, None)
 
 
+def test_automatic_builtin_registration_keeps_user_override(db: Any, tmp_path: Path) -> None:
+    from quantide.service.discovery import StrategyLoader
+
+    user_dir = tmp_path / "strategies"
+    user_dir.mkdir()
+    strategy_file = user_dir / "custom_dual.py"
+    strategy_file.write_text(
+        "from quantide.core.strategy import BaseStrategy\n"
+        "class DualMAStrategy(BaseStrategy):\n    pass\n",
+        encoding="utf-8",
+    )
+    loader = StrategyLoader()
+    loader.set_scan_directory(str(user_dir))
+    loader.scan_and_cache()
+    # Model an existing cache that contains the user's override only.
+    db.execute("DELETE FROM strategy_info WHERE name != ?", ["DualMAStrategy"])
+    db.conn.commit()
+    loader.ensure_builtin_strategies()
+    result = loader.load_from_cache()
+    assert result["DualMAStrategy"].__module__ == "custom_dual"
+    assert "MLMomentumReversalStrategy" in result
+    sys.modules.pop("custom_dual", None)
+
+
 def test_copy_examples_to_directory_copies_missing_files_and_skips_existing(
     db: Any,
     tmp_path: Path,

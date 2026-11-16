@@ -10,13 +10,20 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
+from filelock import FileLock
 from loguru import logger
 
-from quantide.config.settings import get_tushare_token
-from quantide.core.enums import FrameType
+from quantide.config.output_paths import external_runtime_path
+from quantide.config.settings import get_data_home, get_tushare_token
+from quantide.core.atomic_files import write_parquet
 from quantide.core.singleton import singleton
+from quantide.data.coverage import require_date_coverage, trading_sessions
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 @singleton
@@ -29,21 +36,21 @@ class DailyBasic:
     """
 
     def __init__(self) -> None:
-        self._path: Path = self._default_path()
+        self._path: Path | None = None
         self._data: pl.DataFrame = pl.DataFrame()
         self._loaded = False
 
     @staticmethod
     def _default_path() -> Path:
-        return Path("~/.quantide/data/daily_basic.parquet").expanduser()
+        return Path(get_data_home()) / "data/daily_basic.parquet"
 
     @property
     def path(self) -> Path:
-        return self._path
+        return self._path if self._path is not None else self._default_path()
 
     @property
     def is_available(self) -> bool:
-        return self._path.exists()
+        return self.path.exists()
 
     @property
     def data(self) -> pl.DataFrame:
@@ -59,11 +66,11 @@ class DailyBasic:
         if path is not None:
             self._path = Path(path).expanduser()
         self._loaded = False
-        if not self._path.exists():
-            logger.warning("daily basic store not found: {}", self._path)
+        if not self.path.exists():
+            logger.warning("daily basic store not found: {}", self.path)
             return self
         try:
-            data = pl.read_parquet(self._path)
+            data = pl.read_parquet(self.path)
         except Exception as exc:  # pragma: no cover - corrupt file is an ops issue
             logger.exception("failed to load daily basic store: {}", exc)
             return self
@@ -89,12 +96,10 @@ class DailyBasic:
             logger.error(
                 "daily basic store missing columns {}: {}",
                 sorted(required - set(data.columns)),
-                self._path,
+                self.path,
             )
             return pl.DataFrame()
-        return data.unique(subset=["date", "asset"], keep="last").sort(
-            ["date", "asset"]
-        )
+        return data.unique(subset=["date", "asset"], keep="last").sort(["date", "asset"])
 
     def get(
         self,
@@ -130,11 +135,7 @@ class DailyBasic:
                 pl.col("date"),
                 pl.col("asset"),
                 pl.col("total_mv"),
-                *(
-                    [pl.col("circ_mv")]
-                    if "circ_mv" in self._data.columns
-                    else []
-                ),
+                *([pl.col("circ_mv")] if "circ_mv" in self._data.columns else []),
             ]
         )
         left = frame.with_columns(
@@ -162,7 +163,7 @@ class DailyBasic:
         if dates is None:
             if start is None or end is None:
                 raise ValueError("start/end or dates must be provided")
-            dates = list(calendar.get_frames(start, end, FrameType.DAY))
+            dates = list(trading_sessions(calendar, start, end))
         if not dates:
             return 0
 
@@ -182,35 +183,26 @@ class DailyBasic:
         )
         frame, errors = fetch(dates)
         if errors:
-            logger.warning("daily_basic fetch completed with {} errors", len(errors))
-        if frame is None or len(frame) == 0:
-            logger.warning("daily_basic fetch returned no data")
-            return 0
+            raise RuntimeError(f"daily_basic source failed: {errors}")
+        require_date_coverage(frame, dates, "daily_basic")
+        return self._merge_and_save(frame, external_runtime_path(path or self.path))
 
+    def _merge_and_save(self, frame: pd.DataFrame, target: Path) -> int:
+        """Serialize read/merge/replace and retain the existing file on any failure."""
         new_data = pl.from_pandas(frame)
-        target = Path(path or self._path).expanduser()
-        existing = pl.DataFrame()
-        if target.exists():
-            try:
-                existing = self._normalize(pl.read_parquet(target))
-            except Exception as exc:
-                logger.warning("could not read existing daily_basic store: {}", exc)
-
-        combined = pl.concat(
-            [existing, new_data] if not existing.is_empty() else [new_data],
-            how="diagonal_relaxed",
-        )
-        combined = self._normalize(combined)
         target.parent.mkdir(parents=True, exist_ok=True)
-        combined.write_parquet(target)
-        self._path = target
-        self._data = combined
-        self._loaded = True
-        logger.info(
-            "daily_basic store updated: {} rows, {} dates",
-            combined.height,
-            combined["date"].n_unique(),
-        )
+        with FileLock(str(target) + ".lock", timeout=30):
+            existing = self._normalize(pl.read_parquet(target)) if target.exists() else None
+            combined = pl.concat(
+                [existing, new_data] if existing is not None else [new_data],
+                how="diagonal_relaxed",
+            )
+            combined = self._normalize(combined)
+            write_parquet(combined, target)
+            self._path = target
+            self._data = combined
+            self._loaded = True
+        logger.info("daily_basic store updated: {} rows", combined.height)
         return combined.height
 
 

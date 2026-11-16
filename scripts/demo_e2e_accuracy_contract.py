@@ -11,7 +11,7 @@ import datetime as dt
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -121,9 +121,7 @@ def _calculate_metrics(equity: pd.DataFrame) -> dict[str, Any]:
     volatility = returns.std() * np.sqrt(252)
     sharpe = returns.mean() / returns.std() * np.sqrt(252)
     cumulative = (1 + returns).cumprod()
-    drawdown = (
-        cumulative - cumulative.expanding().max()
-    ) / cumulative.expanding().max()
+    drawdown = (cumulative - cumulative.expanding().max()) / cumulative.expanding().max()
     return {
         "raw": {
             "start_date": str(returns.index.min()),
@@ -170,6 +168,55 @@ def _serialize_equity(equity: pd.DataFrame) -> list[dict[str, Any]]:
     return rows
 
 
+class _MovingAverages(NamedTuple):
+    prev_fast: float
+    prev_slow: float
+    curr_fast: float
+    curr_slow: float
+
+
+def _demo_moving_averages(history):
+    if len(history) < SLOW_WINDOW + 2:
+        return None
+    closes = history["close"].to_numpy()
+    return _MovingAverages(
+        closes[-(FAST_WINDOW + 1) : -1].mean(),
+        closes[-(SLOW_WINDOW + 1) : -1].mean(),
+        closes[-FAST_WINDOW:].mean(),
+        closes[-SLOW_WINDOW:].mean(),
+    )
+
+
+def _simulate_demo_day(row, bars, all_dates, cash, shares, trades):
+    previous_dates = [date for date in all_dates if date < row.date]
+    history = bars[bars["date"].isin(previous_dates)].tail(SLOW_WINDOW + 5)
+    averages = _demo_moving_averages(history)
+    if averages is None:
+        return cash, shares
+    signal_date = previous_dates[-1]
+    if (
+        averages.prev_fast <= averages.prev_slow
+        and averages.curr_fast > averages.curr_slow
+        and shares == 0
+    ):
+        quantity = int((INVEST_AMOUNT / (float(row.up_limit) * (1 + COMMISSION))) // 100) * 100
+        amount = quantity * float(row.open)
+        cash -= amount + amount * COMMISSION
+        shares += quantity
+        trades.append(_trade_record(row, signal_date, "BUY", quantity, cash, shares, averages))
+    elif (
+        averages.prev_fast >= averages.prev_slow
+        and averages.curr_fast < averages.curr_slow
+        and shares > 0
+    ):
+        quantity = shares
+        amount = quantity * float(row.open)
+        cash += amount - amount * COMMISSION
+        shares = 0
+        trades.append(_trade_record(row, signal_date, "SELL", quantity, cash, shares, averages))
+    return cash, shares
+
+
 def simulate(path: Path) -> dict[str, Any]:
     """Run the independent dual-MA demo simulation.
 
@@ -190,45 +237,7 @@ def simulate(path: Path) -> dict[str, Any]:
     equity_rows: list[dict[str, Any]] = []
 
     for row in scenario_bars.itertuples(index=False):
-        previous_dates = [date for date in all_dates if date < row.date]
-        history = bars[bars["date"].isin(previous_dates)].tail(SLOW_WINDOW + 5)
-        if len(history) >= SLOW_WINDOW + 2:
-            closes = history["close"].to_numpy()
-            curr_fast = closes[-FAST_WINDOW:].mean()
-            curr_slow = closes[-SLOW_WINDOW:].mean()
-            prev_fast = closes[-(FAST_WINDOW + 1) : -1].mean()
-            prev_slow = closes[-(SLOW_WINDOW + 1) : -1].mean()
-            averages = (prev_fast, prev_slow, curr_fast, curr_slow)
-            signal_date = previous_dates[-1]
-
-            if prev_fast <= prev_slow and curr_fast > curr_slow and shares == 0:
-                quantity = (
-                    int(
-                        (INVEST_AMOUNT / (float(row.up_limit) * (1 + COMMISSION)))
-                        // 100
-                    )
-                    * 100
-                )
-                amount = quantity * float(row.open)
-                fee = amount * COMMISSION
-                cash -= amount + fee
-                shares += quantity
-                trades.append(
-                    _trade_record(
-                        row, signal_date, "BUY", quantity, cash, shares, averages
-                    )
-                )
-            elif prev_fast >= prev_slow and curr_fast < curr_slow and shares > 0:
-                quantity = shares
-                amount = quantity * float(row.open)
-                fee = amount * COMMISSION
-                cash += amount - fee
-                shares = 0
-                trades.append(
-                    _trade_record(
-                        row, signal_date, "SELL", quantity, cash, shares, averages
-                    )
-                )
+        cash, shares = _simulate_demo_day(row, bars, all_dates, cash, shares, trades)
 
         equity_rows.append(
             {
@@ -282,7 +291,10 @@ def simulate(path: Path) -> dict[str, Any]:
             "gateway_stub": [
                 "quote stream replays the scenario rows in date order",
                 "paper/live matching uses the same open price and limit-price fields",
-                "order acknowledgements preserve qtoid and include an external_order_id only as mapping data",
+                (
+                    "order acknowledgements preserve qtoid and include an "
+                    "external_order_id only as mapping data"
+                ),
                 "fills match the baseline trade_date, side, shares, price, amount, and fee",
             ],
         },

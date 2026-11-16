@@ -1,25 +1,64 @@
-site_name: Millionaire CE
-site_url: https://zillionare.github.io/millionaire-ce/
-repo_url: https://github.com/zillionare/millionaire-ce
-repo_name: zillionare/millionaire-ce
+site_name: Millionaire 中文手册
+site_description: 面向 A 股的开源量化框架：数据、回测、研究、仿真与运行保障。
+site_dir: /tmp/millionaire/site
+site_url: https://zillionare.github.io/millionaire/
+repo_url: https://github.com/zillionare/millionaire
+repo_name: zillionare/millionaire
 
 nav:
-  - Home: index.md
-  - Installation: installation.md
-  - CE scope: scope.md
-  - Developer acceptance: developer-acceptance.md
-  - Design:
-      - Edition boundaries: design/edition_features.md
-      - Risk program boundary: design/risk_program_selection.md
-      - Data service: design/data_service.md
-      - UI: ui.md
-      - ML momentum reversal: design/ml_momentum_reversal.md
-      - 30-minute ML smoke: design/ml_30m_smoke.md
+  - 首页: index.md
+  - 开始使用:
+      - 本版能力与版本状态: scope.md
+      - 快速开始: quickstart.md
+      - 安装与后台服务: native-installation.md
+      - 初始化与数据准备: initialization.md
+      - 页面入口: ui.md
+  - 研究与策略:
+      - 第一次回测与报告: backtesting.md
+      - 成交时序与策略防呆: execution.md
+      - 编写和发现策略: strategies.md
+      - 因子与 LightGBM: factors-and-ml.md
+      - 因子研究: factor-analysis.md
+      - 月线均线策略: monthly-strategy.md
+      - 参数优化: optimization.md
+      - 预测解释与收益归因: prediction-explanation.md
+      - AI 辅助开发: ai-development.md
+  - 持续运行:
+      - 仿真与影子对照: paper-trading.md
+      - 启停、升级与备份恢复: operations.md
+      - 常见问题与故障处理: troubleshooting.md
+  - 接入与扩展:
+      - 标准行情交换协议: SQEP.md
+      - 实时行情与用户扩展: quote-extensions.md
+      - 自行适配交易柜台: broker-adapters.md
+      - 独立模拟柜台: simulated-counter.md
+  - 开发者参考:
+      - 源码安装与开发启动: installation.md
+      - 仓库布局与临时产物: project-layout.md
+      - 开发者验收: developer-acceptance.md
+      - 代码质量与发布门禁: quality.md
+      - 策略与因子审计: strategy-audit.md
+      - 版本功能边界: design/edition_features.md
+      - 风险程序扩展契约: design/risk_program_selection.md
+      - 数据服务参考: design/data_service.md
+      - ML 日线决策合同: design/ml_momentum_reversal.md
+      - 30 分钟示例合同: design/ml_30m_smoke.md
+  - 版本状态与后续方向: roadmap.md
 
 theme:
   name: material
-  language: en
+  language: zh
+  font: false
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+    - search.suggest
 
 plugins:
   - search:
-      lang: en
+      lang:
+        - zh
+        - en

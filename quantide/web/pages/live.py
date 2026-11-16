@@ -1,50 +1,66 @@
 """实盘交易页面"""
-from typing import Any
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, Protocol
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    P,
+    Span,
+    Tr,
+)
 
 # Use FastHTML's plain Label for form elements to avoid MonsterUI's uk-label styling
-from fasthtml.common import Label as _Label
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    Button,
+    Form,
+    Input,
+    Td,
+    UkIcon,
+)
+from starlette.requests import Request
 
 from quantide.core.enums import BrokerKind
 from quantide.data.models import Asset, Position
-from quantide.web.components.asset_label import resolve_asset_name
+from quantide.service.registry import BrokerRegistry
+from quantide.web.application import fast_app
+from quantide.web.components.account_positions import AccountPositionInfo
+from quantide.web.components.account_summary import AssetSummary as AssetSummary
+from quantide.web.components.account_summary import build_asset_overview
+from quantide.web.components.data_tables import AccountDetailTable
+from quantide.web.components.legacy_trade_panel import LegacyTradeInputs
 from quantide.web.layouts.main import MainLayout
+from quantide.web.services.trade_orders import submit_share_form
+from quantide.web.session_data import SessionData
 from quantide.web.theme import AppTheme
 
 live_app, rt = fast_app(hdrs=AppTheme.headers())
 
 
-def _get_registry(req) -> Any:
+class _LiveBroker(Protocol):
+    asset: Asset
+
+
+def _get_registry(req: Request) -> BrokerRegistry | None:
     return req.scope.get("registry")
 
 
-def _build_asset_overview(asset: Asset | None) -> dict:
+def _build_asset_overview(asset: Asset | None) -> dict[str, Any]:
     if asset is None:
         return {
-            "total": 0,
-            "cash": 0,
-            "frozen_cash": 0,
-            "market_value": 0,
-            "pnl": 0,
-            "pnl_pct": 0,
+            key: 0 for key in ("total", "cash", "frozen_cash", "market_value", "pnl", "pnl_pct")
         }
-
-    pnl = asset.total - asset.principal
-    ppnl = pnl / asset.principal if asset.principal else 0.0
-    return {
-        "total": asset.total,
-        "cash": asset.cash,
-        "frozen_cash": asset.frozen_cash,
-        "market_value": asset.market_value,
-        "pnl": pnl,
-        "pnl_pct": ppnl,
-    }
+    return build_asset_overview(asset)
 
 
-def GatewayConnectionStatus(connected: bool = False):
+def GatewayConnectionStatus(connected: bool = False) -> Any:
     status_cls = "text-green-600" if connected else "text-red-600"
     status_text = "已连接" if connected else "未连接"
     icon = "check-circle" if connected else "x-circle"
@@ -59,139 +75,12 @@ def GatewayConnectionStatus(connected: bool = False):
     )
 
 
-def AssetSummary(asset_overview: dict | None = None, **kwargs):
-    """资产概览：白底卡片 + 分隔线，红=盈利，绿=亏损。"""
-    asset_overview = asset_overview or {}
-
-    total = asset_overview.get("total")
-    cash = asset_overview.get("cash")
-    frozen_cash = asset_overview.get("frozen_cash")
-    market_value = asset_overview.get("market_value")
-    pnl = asset_overview.get("pnl")
-    pnl_pct = asset_overview.get("pnl_pct")
-
-    total_text = f"{total:,.2f}" if total is not None else "0.00"
-    cash_text = f"{cash:,.2f}" if cash is not None else "0.00"
-    frozen_cash_text = f"{frozen_cash:,.2f}" if frozen_cash is not None else "0.00"
-    market_value_text = f"{market_value:,.2f}" if market_value is not None else "0.00"
-    pnl_text = f"{pnl:,.2f}" if pnl is not None else "0.00"
-    pnl_pct_text = f"{pnl_pct * 100:.2f}%" if pnl_pct is not None else "0.00%"
-
-    pnl_cls = "text-red-500" if (pnl or 0) > 0 else ("text-green-600" if (pnl or 0) < 0 else "text-gray-900")
-
-    def _stat(label, value, cls="text-gray-900"):
-        return Div(
-            P(label, cls="text-xs text-gray-500"),
-            P(value, cls=f"mt-1 text-xl font-semibold tabular-nums {cls}"),
-            cls="bg-white px-4 py-4",
-        )
-
-    return Div(
-        Div(
-            _stat("总资产", total_text),
-            _stat("可用金额", cash_text),
-            _stat("冻结金额", frozen_cash_text),
-            _stat("总市值", market_value_text),
-            _stat("盈亏", pnl_text, pnl_cls),
-            _stat("盈亏比例", pnl_pct_text, pnl_cls),
-            cls="grid grid-cols-2 gap-px bg-gray-100 md:grid-cols-3 xl:grid-cols-6",
-        ),
-        id="asset-summary",
-        cls="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm",
-        **kwargs,
-    )
+def PositionInfo(positions: list[Position] | None = None, portfolio_id: str = "") -> Any:
+    return AccountPositionInfo(positions, refresh_url=f"/trade/live/{portfolio_id}/positions")
 
 
-def PositionInfo(positions: list[Position] | None = None, portfolio_id: str = ""):
-    headers = [
-        "证券代码",
-        "证券名称",
-        "当前持股",
-        "可用股数",
-        "冻结数量",
-        "市值",
-        "最新价",
-        "成本价",
-        "盈亏",
-        "盈亏比例",
-    ]
-
-    rows = []
-    if positions:
-        for p in positions:
-            pnl_pct = (p.profit / (p.mv - p.profit)) if (p.mv - p.profit) != 0 else 0
-            current_price = p.mv / p.shares if p.shares > 0 else 0
-            color_cls = "text-red-500" if p.profit > 0 else ("text-green-500" if p.profit < 0 else "")
-
-            rows.append(
-                Tr(
-                    Td(p.asset),
-                    Td(resolve_asset_name(p.asset)),
-                    Td(f"{p.shares:,}"),
-                    Td(f"{p.avail:,}"),
-                    Td(f"{p.shares - p.avail:,}"),
-                    Td(f"{p.mv:,.2f}"),
-                    Td(f"{current_price:,.2f}"),
-                    Td(f"{p.price:,.2f}"),
-                    Td(f"{p.profit:,.2f}", cls=color_cls),
-                    Td(f"{pnl_pct * 100:.2f}%", cls=color_cls),
-                )
-            )
-    else:
-        rows.append(
-            Tr(
-                Td(
-                    "暂无持仓",
-                    colspan=len(headers),
-                    cls="text-center py-10 text-gray-500",
-                )
-            )
-        )
-
-    return Div(
-        Div(
-            Div(
-                UkIcon("briefcase", cls="mr-2 text-[#e41815]"),
-                H3("持仓信息", cls="text-lg font-semibold mb-0"),
-                cls="flex items-center",
-            ),
-            Button(
-                UkIcon("refresh-cw", size=16),
-                " 刷新",
-                cls=(
-                    "inline-flex items-center gap-1 rounded-lg border border-gray-200 "
-                    "bg-white px-3 py-1.5 text-xs font-medium text-gray-600 "
-                    "hover:border-[#e41815] hover:text-[#e41815]"
-                ),
-                hx_get=f"/trade/live/{portfolio_id}/positions",
-                hx_target="#position-info",
-                hx_swap="outerHTML",
-            ),
-            cls="flex justify-between items-center mb-4",
-        ),
-        Table(
-            Thead(Tr(*[Th(h, cls="text-xs font-bold") for h in headers])),
-            Tbody(*rows),
-            cls="uk-table uk-table-divider uk-table-small uk-table-hover border border-gray-100 rounded-lg overflow-hidden",
-        ),
-        id="position-info",
-        cls="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-full",
-    )
-
-
-def TradePanel(portfolio_id: str):
+def TradePanel(portfolio_id: str) -> Any:
     """实盘下单面板：白底、红色买入、绿色卖出。"""
-    input_cls = (
-        "mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm "
-        "text-gray-900 outline-none transition focus:border-[#e41815] "
-        "focus:ring-2 focus:ring-[#e41815]/10"
-    )
-    label_cls = "block text-xs font-medium text-gray-500"
-    ratio_btn_cls = (
-        "rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-600 "
-        "transition hover:border-[#e41815] hover:text-[#e41815]"
-    )
-
     return Div(
         Form(
             Div(
@@ -200,7 +89,11 @@ def TradePanel(portfolio_id: str):
                         UkIcon("plus-circle", size=14),
                         "买入",
                         type="button",
-                        onclick="document.getElementById('side').value='BUY'; this.closest('div').querySelectorAll('button').forEach(b=>b.classList.remove('active')); this.classList.add('active');",
+                        onclick=(
+                            "document.getElementById('side').value='BUY'; "
+                            "this.closest('div').querySelectorAll('button').forEach(b=>b."
+                            "classList.remove('active')); this.classList.add('active');"
+                        ),
                         cls=(
                             "flex-1 rounded-md px-3 py-2 text-sm font-medium transition "
                             "bg-[#e41815] text-white"
@@ -210,7 +103,11 @@ def TradePanel(portfolio_id: str):
                         UkIcon("minus-circle", size=14),
                         "卖出",
                         type="button",
-                        onclick="document.getElementById('side').value='SELL'; this.closest('div').querySelectorAll('button').forEach(b=>b.classList.remove('active')); this.classList.add('active');",
+                        onclick=(
+                            "document.getElementById('side').value='SELL'; "
+                            "this.closest('div').querySelectorAll('button').forEach(b=>b."
+                            "classList.remove('active')); this.classList.add('active');"
+                        ),
                         cls=(
                             "flex-1 rounded-md px-3 py-2 text-sm font-medium transition "
                             "bg-green-600 text-white"
@@ -220,44 +117,12 @@ def TradePanel(portfolio_id: str):
                 )
             ),
             Input(type="hidden", id="side", name="side", value="BUY"),
-            Div(
-                _Label("股票代码", cls=label_cls),
-                Input(
-                    name="asset",
-                    placeholder="例如: 000001.SZ",
-                    cls=input_cls,
-                    required=True,
-                ),
-                _Label("委托价格", cls=label_cls),
-                Input(
-                    name="price",
-                    type="number",
-                    step="0.01",
-                    value="0.00",
-                    cls=input_cls,
-                ),
-                _Label("仓位选择", cls=label_cls),
-                Div(
-                    Button("满仓", type="button", cls=ratio_btn_cls),
-                    Button("1/2", type="button", cls=ratio_btn_cls),
-                    Button("1/3", type="button", cls=ratio_btn_cls),
-                    Button("1/4", type="button", cls=ratio_btn_cls),
-                    Button("1/10", type="button", cls=ratio_btn_cls),
-                    cls="flex gap-1 mb-4 mt-1",
-                ),
-                _Label("交易数量 (股)", cls=label_cls),
-                Input(
-                    name="shares", type="number", step="100", cls=input_cls, required=True
-                ),
-                Button(
-                    UkIcon("shopping-cart", size=16),
-                    " 下单",
-                    type="submit",
-                    cls=(
-                        "inline-flex w-full items-center justify-center gap-2 rounded-lg "
-                        "bg-[#e41815] px-4 py-2.5 text-sm font-semibold text-white "
-                        "transition hover:bg-[#c91412]"
-                    ),
+            LegacyTradeInputs(
+                "委托价格",
+                (
+                    "inline-flex w-full items-center justify-center gap-2 rounded-lg "
+                    "bg-[#e41815] px-4 py-2.5 text-sm font-semibold text-white transition "
+                    "hover:bg-[#c91412]"
                 ),
             ),
             hx_post=f"/trade/live/{portfolio_id}/order",
@@ -268,7 +133,7 @@ def TradePanel(portfolio_id: str):
     )
 
 
-def PortfolioList(portfolios: list[dict], gateway_connected: bool = False):
+def PortfolioList(portfolios: list[dict[str, Any]], gateway_connected: bool = False) -> Any:
     headers = ["账户ID", "账户名称", "初始资金", "总资产", "收益率", "状态", "操作"]
 
     rows = []
@@ -290,7 +155,10 @@ def PortfolioList(portfolios: list[dict], gateway_connected: bool = False):
                     Td(name),
                     Td(f"{principal:,.2f}"),
                     Td(f"{total:,.2f}"),
-                    Td(f"{pnl_pct * 100:.2f}%", cls="text-red-500" if pnl_pct > 0 else "text-green-500"),
+                    Td(
+                        f"{pnl_pct * 100:.2f}%",
+                        cls="text-red-500" if pnl_pct > 0 else "text-green-500",
+                    ),
                     Td(status_text, cls=status_cls),
                     Td(
                         A(
@@ -327,29 +195,37 @@ def PortfolioList(portfolios: list[dict], gateway_connected: bool = False):
             cls="flex justify-between items-center mb-4",
         ),
         GatewayConnectionStatus(gateway_connected),
-        Table(
-            Thead(Tr(*[Th(h, cls="text-xs font-bold") for h in headers])),
-            Tbody(*rows),
-            cls="uk-table uk-table-divider uk-table-small uk-table-hover border border-gray-100 rounded-lg overflow-hidden",
-        ),
+        AccountDetailTable(headers, rows),
         cls="bg-white p-4 rounded-xl shadow-sm border border-gray-100",
     )
 
 
-def CreatePortfolioModal():
+def CreatePortfolioModal() -> Any:
     return Div(
         Div(
             H3("Gateway 接入说明", cls="text-lg font-bold mb-4"),
             Div(
                 Div(
                     UkIcon("alert-triangle", cls="text-gray-600 mr-2"),
-                    P("主体工程的实盘路径已收敛到 qmt-gateway。这里不再创建本地 QMT 账户。", cls="text-sm text-gray-600"),
+                    P(
+                        "主体工程的实盘路径已收敛到 qmt-gateway。这里不再创建本地 QMT 账户。",
+                        cls="text-sm text-gray-600",
+                    ),
                     cls="flex items-start mb-4 p-3 bg-gray-50 rounded-lg",
                 ),
             ),
             Div(
-                P("发布态实盘能力只通过 gateway 提供。请在 Windows + QMT 机器上启动 qmt-gateway，并完成登录与连接配置。", cls="text-sm text-gray-700 mb-3"),
-                P("当 gateway 可用后，主体会自动在实盘列表中显示 gateway 账户。", cls="text-sm text-gray-700 mb-4"),
+                P(
+                    (
+                        "发布态实盘能力只通过 gateway 提供。请在 Windows + QMT "
+                        "机器上启动 qmt-gateway，并完成登录与连接配置。"
+                    ),
+                    cls="text-sm text-gray-700 mb-3",
+                ),
+                P(
+                    "当 gateway 可用后，主体会自动在实盘列表中显示 gateway 账户。",
+                    cls="text-sm text-gray-700 mb-4",
+                ),
                 Div(
                     Button(
                         "关闭",
@@ -368,7 +244,7 @@ def CreatePortfolioModal():
 
 
 @rt("/")
-def live_list(req, session):
+def live_list(req: Request, session: SessionData) -> Any:
     layout = MainLayout(title="实盘交易", user=session.get("auth"))
     layout.sidebar_menu = [
         {
@@ -381,59 +257,33 @@ def live_list(req, session):
     ]
 
     reg = _get_registry(req)
-    portfolios = []
-    gateway_connected = False
+    portfolios, gateway_connected = _live_portfolios(reg)
 
-    if reg:
-        brokers = reg.list_by_kind(BrokerKind.QMT)
-        for broker_info in brokers:
-            portfolio_id = broker_info.get("id")
-            broker = reg.get(BrokerKind.QMT, portfolio_id)
-            if broker:
-                asset = broker.asset if hasattr(broker, "asset") else None
-                pnl_pct = 0
-                total = 0
-                principal = 0
-                if asset:
-                    total = asset.total
-                    principal = asset.principal
-                    pnl_pct = (total - principal) / principal if principal > 0 else 0
-
-                portfolios.append({
-                    "portfolio_id": portfolio_id,
-                    "name": broker_info.get("name", ""),
-                    "principal": principal,
-                    "total": total,
-                    "pnl_pct": pnl_pct,
-                    "status": broker_info.get("status", True),
-                })
-
-                if hasattr(broker, "is_connected"):
-                    gateway_connected = broker.is_connected
-
-    def main_block():
+    def main_block() -> Any:
         return Div(
             PortfolioList(portfolios, gateway_connected),
             Div(id="create-modal"),
             cls="p-4",
         )
 
-    layout.main_block = main_block
+    layout.set_main_block(main_block)
     return layout.render()
 
 
 @rt("/create")
-def show_create_modal():
+def show_create_modal() -> Any:
     return CreatePortfolioModal()
 
 
 @rt("/create", methods=["POST"])
-async def create_portfolio(req):
-    return Div("主体工程已移除本地QMT账户创建，请通过 gateway 进行实盘接入。", cls="text-gray-500 p-4")
+async def create_portfolio(req: Request) -> Any:
+    return Div(
+        "主体工程已移除本地QMT账户创建，请通过 gateway 进行实盘接入。", cls="text-gray-500 p-4"
+    )
 
 
 @rt("/{portfolio_id}")
-def portfolio_detail(req, session, portfolio_id: str):
+def portfolio_detail(req: Request, session: SessionData, portfolio_id: str) -> Any:
     layout = MainLayout(title="实盘账户详情", user=session.get("auth"))
     layout.sidebar_menu = [
         {
@@ -449,18 +299,22 @@ def portfolio_detail(req, session, portfolio_id: str):
     broker = reg.get(BrokerKind.QMT, portfolio_id) if reg else None
 
     asset_overview = None
-    positions = []
+    positions: list[Any] = []
     gateway_connected = False
 
     if broker:
         if hasattr(broker, "asset"):
             asset_overview = _build_asset_overview(broker.asset)
         if hasattr(broker, "positions"):
-            positions = list(broker.positions.values()) if isinstance(broker.positions, dict) else broker.positions
+            positions = (
+                list(broker.positions.values())
+                if isinstance(broker.positions, dict)
+                else broker.positions
+            )
         if hasattr(broker, "is_connected"):
             gateway_connected = broker.is_connected
 
-    def main_block():
+    def main_block() -> Any:
         return Div(
             Div(
                 A(
@@ -486,12 +340,12 @@ def portfolio_detail(req, session, portfolio_id: str):
             cls="p-4",
         )
 
-    layout.main_block = main_block
+    layout.set_main_block(main_block)
     return layout.render()
 
 
 @rt("/{portfolio_id}/positions")
-def get_positions(req, portfolio_id: str):
+def get_positions(req: Request, portfolio_id: str) -> Any:
     reg = _get_registry(req)
     broker = reg.get(BrokerKind.QMT, portfolio_id) if reg else None
     positions = list(broker.positions.values()) if broker and hasattr(broker, "positions") else []
@@ -499,24 +353,15 @@ def get_positions(req, portfolio_id: str):
 
 
 @rt("/{portfolio_id}/order", methods=["POST"])
-async def place_order(req, portfolio_id: str):
+async def place_order(req: Request, portfolio_id: str) -> Any:
     reg = _get_registry(req)
     broker = reg.get(BrokerKind.QMT, portfolio_id) if reg else None
 
     if not broker:
         return Div("Broker not found", cls="text-red-500 p-4")
 
-    form = await req.form()
-    side = form.get("side", "BUY")
-    asset = form.get("asset")
-    price = float(form.get("price", 0))
-    shares = int(form.get("shares", 0))
-
     try:
-        if side == "BUY":
-            await broker.buy(asset, shares, price)
-        else:
-            await broker.sell(asset, shares, price)
+        await submit_share_form(broker, await req.form())
 
         positions = list(broker.positions.values()) if hasattr(broker, "positions") else []
 
@@ -529,3 +374,43 @@ async def place_order(req, portfolio_id: str):
     except Exception as e:
         logger.exception(e)
         return Div(f"下单失败: {str(e)}", cls="text-red-500 font-bold p-4 bg-red-100 rounded")
+
+
+def _live_portfolios(reg: BrokerRegistry | None) -> tuple[list[dict[str, Any]], bool]:
+    """Read the gateway accounts and their latest connection status."""
+    portfolios: list[dict[str, Any]] = []
+    gateway_connected = False
+    if reg:
+        brokers = reg.list_by_kind(BrokerKind.QMT)
+        for broker_info in brokers:
+            portfolio_id = str(broker_info.get("id") or "")
+            broker = reg.get(BrokerKind.QMT, portfolio_id)
+            if broker:
+                portfolios.append(_live_account_summary(broker_info, portfolio_id, broker))
+
+                if hasattr(broker, "is_connected"):
+                    gateway_connected = bool(broker.is_connected)
+    return portfolios, gateway_connected
+
+
+def _live_account_summary(
+    broker_info: Mapping[str, Any], portfolio_id: str, broker: _LiveBroker
+) -> dict[str, Any]:
+    """Read one account capital snapshot."""
+    asset = getattr(broker, "asset", None)
+    pnl_pct = 0
+    total = 0
+    principal = 0
+    if asset:
+        total = asset.total
+        principal = asset.principal
+        pnl_pct = (total - principal) / principal if principal > 0 else 0
+
+    return {
+        "portfolio_id": portfolio_id,
+        "name": broker_info.get("name", ""),
+        "principal": principal,
+        "total": total,
+        "pnl_pct": pnl_pct,
+        "status": broker_info.get("status", True),
+    }

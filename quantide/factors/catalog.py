@@ -25,9 +25,7 @@ def list_feature_specs() -> list[FeatureSpec]:
     specs: list[FeatureSpec] = []
     for group, names in FEATURE_GROUPS.items():
         for name in names:
-            specs.append(
-                FeatureSpec(name=name, group=group, doc=FEATURE_DOCS.get(name, ""))
-            )
+            specs.append(FeatureSpec(name=name, group=group, doc=FEATURE_DOCS.get(name, "")))
     return specs
 
 
@@ -44,7 +42,9 @@ def resolve_feature_selection(requested: list[str] | None) -> list[str]:
         ValueError: 勾选了不存在的因子。
     """
     if not requested:
-        return list(FEATURE_GROUPS and [name for names in FEATURE_GROUPS.values() for name in names])
+        return list(
+            FEATURE_GROUPS and [name for names in FEATURE_GROUPS.values() for name in names]
+        )
     known = {name for names in FEATURE_GROUPS.values() for name in names}
     unknown = [name for name in requested if name not in known]
     if unknown:

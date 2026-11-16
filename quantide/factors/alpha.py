@@ -21,13 +21,13 @@ FACTOR_VERSION: str = hashlib.sha1(Path(__file__).read_bytes()).hexdigest()[:12]
 
 #: 因子分组（顺序即 :data:`FEATURE_COLS` 的顺序），供 UI 分组展示。
 FEATURE_GROUPS: dict[str, list[str]] = {
-    "板块与市场相对强弱": [
+    "相对强弱": [
         "rs_board_5d",
         "rs_board_20d",
         "rs_market_rank",
         "downside_resilience",
     ],
-    "短线 K 线博弈形态": [
+    "短线形态": [
         "upper_shadow",
         "lower_shadow",
         "upper_shadow_atr",
@@ -40,21 +40,19 @@ FEATURE_GROUPS: dict[str, list[str]] = {
         "high_open_bear",
         "low_open_bull",
         "intraday_vs_overnight_5d",
+        "ma20_support_bounce",
     ],
-    "均线支撑与均线斜率": [
+    "资金推动": [
+        "clv_money_flow",
+        "pv_sync_10d",
+        "limit_up_gene",
+    ],
+    "动量与反转": [
         "ma10_slope",
         "ma20_slope",
         "ma_alignment",
         "bias_5",
         "bias_20",
-        "ma20_support_bounce",
-    ],
-    "资金推动与量价特征": [
-        "clv_money_flow",
-        "pv_sync_10d",
-        "limit_up_gene",
-    ],
-    "动量与反转交叉特征": [
         "sharpe_mom_20d",
         "rev_5d_shrink_vol",
         "shadow_bias_reversal",
@@ -62,9 +60,7 @@ FEATURE_GROUPS: dict[str, list[str]] = {
 }
 
 #: 全部因子名（按分组顺序）。
-FEATURE_COLS: list[str] = [
-    name for group in FEATURE_GROUPS.values() for name in group
-]
+FEATURE_COLS: list[str] = [name for group in FEATURE_GROUPS.values() for name in group]
 
 #: 每个特征的「计算方法 / 含义 / 示例」说明，键与 :data:`FEATURE_COLS` 一一对应。
 #: 计算口径里的公共中间量：
@@ -221,7 +217,6 @@ FEATURE_DOCS: dict[str, str] = {
 }
 
 
-
 def compute_alpha_features(
     df: pl.DataFrame,
     stock_meta: pl.DataFrame | None = None,
@@ -231,17 +226,16 @@ def compute_alpha_features(
     特征分组（与 :data:`FEATURE_COLS` 一一对应，每个特征的「计算方法 / 含义 /
     示例」见 :data:`FEATURE_DOCS`）：
 
-    1. 板块与市场相对强弱：``rs_board_5d`` ``rs_board_20d`` ``rs_market_rank``
+    1. 相对强弱：``rs_board_5d`` ``rs_board_20d`` ``rs_market_rank``
        ``downside_resilience``
-    2. 短线 K 线博弈形态：``upper_shadow`` ``lower_shadow``（当日振幅比例口径）
+    2. 短线形态：``upper_shadow`` ``lower_shadow``（当日振幅比例口径）
        ``upper_shadow_atr`` ``lower_shadow_atr``（ATR 归一）
        ``upper_shadow_limit`` ``lower_shadow_limit``（涨跌停限归一）
        ``overnight_gap`` ``intraday_ret`` ``vol_ratio_5_20`` ``high_open_bear``
-       ``low_open_bull`` ``intraday_vs_overnight_5d``
-    3. 均线支撑与斜率：``ma10_slope`` ``ma20_slope`` ``ma_alignment`` ``bias_5``
-       ``bias_20`` ``ma20_support_bounce``
-    4. 资金推动与量价：``clv_money_flow`` ``pv_sync_10d`` ``limit_up_gene``
-    5. 动量与反转交互：``sharpe_mom_20d`` ``rev_5d_shrink_vol``
+       ``low_open_bull`` ``intraday_vs_overnight_5d`` ``ma20_support_bounce``
+    3. 资金推动：``clv_money_flow`` ``pv_sync_10d`` ``limit_up_gene``
+    4. 动量与反转：``ma10_slope`` ``ma20_slope`` ``ma_alignment`` ``bias_5``
+       ``bias_20`` ``sharpe_mom_20d`` ``rev_5d_shrink_vol``
        ``shadow_bias_reversal``
 
     影线族的三种口径（同一根 K 线同时给出，便于模型区分「形态」与「量级」）：
@@ -280,9 +274,7 @@ def compute_alpha_features(
     # 窗口下都一致（可增量计算并入库复用）；而所有因子都是比例/收益口径，
     # 与整体缩放无关，切换口径不改变因子取值。
     adjust_expr = (
-        pl.col("adjust").cast(pl.Float64).fill_null(1.0)
-        if "adjust" in cols
-        else pl.lit(1.0)
+        pl.col("adjust").cast(pl.Float64).fill_null(1.0) if "adjust" in cols else pl.lit(1.0)
     )
     norm_exprs: list[pl.Expr] = [
         pl.col("date").cast(pl.Date).alias("date"),
@@ -297,46 +289,34 @@ def compute_alpha_features(
         norm_exprs.append(
             pl.when(pl.col("amount").is_not_null() & (pl.col("amount") > 0))
             .then(pl.col("amount").cast(pl.Float64))
-            .otherwise(
-                pl.col("volume").cast(pl.Float64) * pl.col("close").cast(pl.Float64)
-            )
+            .otherwise(pl.col("volume").cast(pl.Float64) * pl.col("close").cast(pl.Float64))
             .alias("amount")
         )
     else:
         norm_exprs.append(
-            (
-                pl.col("volume").cast(pl.Float64) * pl.col("close").cast(pl.Float64)
-            ).alias("amount")
+            (pl.col("volume").cast(pl.Float64) * pl.col("close").cast(pl.Float64)).alias("amount")
         )
 
     if "adjust" in cols:
-        norm_exprs.append(
-            pl.col("adjust").cast(pl.Float64).fill_null(1.0).alias("adjust")
-        )
+        norm_exprs.append(pl.col("adjust").cast(pl.Float64).fill_null(1.0).alias("adjust"))
     else:
         norm_exprs.append(pl.lit(1.0).alias("adjust"))
 
     if "is_st" in cols:
-        norm_exprs.append(
-            pl.col("is_st").cast(pl.Boolean).fill_null(False).alias("is_st")
-        )
+        norm_exprs.append(pl.col("is_st").cast(pl.Boolean).fill_null(False).alias("is_st"))
     else:
         norm_exprs.append(pl.lit(False).alias("is_st"))
 
     if "up_limit" in cols:
         norm_exprs.append(
-            (pl.col("up_limit").cast(pl.Float64).fill_null(0.0) * adjust_expr).alias(
-                "up_limit"
-            )
+            (pl.col("up_limit").cast(pl.Float64).fill_null(0.0) * adjust_expr).alias("up_limit")
         )
     else:
         norm_exprs.append(pl.lit(0.0).alias("up_limit"))
 
     if "down_limit" in cols:
         norm_exprs.append(
-            (pl.col("down_limit").cast(pl.Float64).fill_null(0.0) * adjust_expr).alias(
-                "down_limit"
-            )
+            (pl.col("down_limit").cast(pl.Float64).fill_null(0.0) * adjust_expr).alias("down_limit")
         )
     else:
         norm_exprs.append(pl.lit(0.0).alias("down_limit"))
@@ -354,10 +334,7 @@ def compute_alpha_features(
         .then(pl.lit("创业板"))
         .when(pl.col("asset").str.starts_with("002"))
         .then(pl.lit("深市中小"))
-        .when(
-            pl.col("asset").str.starts_with("60")
-            | pl.col("asset").str.starts_with("00")
-        )
+        .when(pl.col("asset").str.starts_with("60") | pl.col("asset").str.starts_with("00"))
         .then(pl.lit("主板"))
         .otherwise(pl.lit("其他"))
     )
@@ -369,15 +346,12 @@ def compute_alpha_features(
         and "industry" in stock_meta.columns
         and stock_meta["industry"].drop_nulls().len() > 0
     ):
-        meta_clean = (
-            stock_meta.select(
-                [
-                    pl.col("asset").cast(pl.Utf8),
-                    pl.col("industry").cast(pl.Utf8).alias("_meta_board"),
-                ]
-            )
-            .unique(subset=["asset"], keep="first")
-        )
+        meta_clean = stock_meta.select(
+            [
+                pl.col("asset").cast(pl.Utf8),
+                pl.col("industry").cast(pl.Utf8).alias("_meta_board"),
+            ]
+        ).unique(subset=["asset"], keep="first")
         out = (
             out.join(meta_clean, on="asset", how="left")
             .with_columns(
@@ -397,37 +371,15 @@ def compute_alpha_features(
     # Basic returns & moving averages per asset
     out = out.with_columns(
         [
-            (pl.col("close") / pl.col("close").shift(1).over("asset") - 1.0).alias(
-                "ret_1d"
-            ),
-            (pl.col("close") / pl.col("close").shift(3).over("asset") - 1.0).alias(
-                "ret_3d"
-            ),
-            (pl.col("close") / pl.col("close").shift(5).over("asset") - 1.0).alias(
-                "ret_5d"
-            ),
-            (pl.col("close") / pl.col("close").shift(10).over("asset") - 1.0).alias(
-                "ret_10d"
-            ),
-            (pl.col("close") / pl.col("close").shift(20).over("asset") - 1.0).alias(
-                "ret_20d"
-            ),
-            pl.col("close")
-            .rolling_mean(window_size=5, min_samples=2)
-            .over("asset")
-            .alias("ma5"),
-            pl.col("close")
-            .rolling_mean(window_size=10, min_samples=2)
-            .over("asset")
-            .alias("ma10"),
-            pl.col("close")
-            .rolling_mean(window_size=20, min_samples=2)
-            .over("asset")
-            .alias("ma20"),
-            pl.col("close")
-            .rolling_mean(window_size=60, min_samples=2)
-            .over("asset")
-            .alias("ma60"),
+            (pl.col("close") / pl.col("close").shift(1).over("asset") - 1.0).alias("ret_1d"),
+            (pl.col("close") / pl.col("close").shift(3).over("asset") - 1.0).alias("ret_3d"),
+            (pl.col("close") / pl.col("close").shift(5).over("asset") - 1.0).alias("ret_5d"),
+            (pl.col("close") / pl.col("close").shift(10).over("asset") - 1.0).alias("ret_10d"),
+            (pl.col("close") / pl.col("close").shift(20).over("asset") - 1.0).alias("ret_20d"),
+            pl.col("close").rolling_mean(window_size=5, min_samples=2).over("asset").alias("ma5"),
+            pl.col("close").rolling_mean(window_size=10, min_samples=2).over("asset").alias("ma10"),
+            pl.col("close").rolling_mean(window_size=20, min_samples=2).over("asset").alias("ma20"),
+            pl.col("close").rolling_mean(window_size=60, min_samples=2).over("asset").alias("ma60"),
             pl.col("amount")
             .rolling_mean(window_size=5, min_samples=2)
             .over("asset")
@@ -439,12 +391,8 @@ def compute_alpha_features(
             (pl.col("high") - pl.col("low")).clip(lower_bound=1e-6).alias("bar_range"),
             pl.max_horizontal("open", "close").alias("body_top"),
             pl.min_horizontal("open", "close").alias("body_bot"),
-            (pl.col("open") / pl.col("close").shift(1).over("asset") - 1.0).alias(
-                "overnight_gap"
-            ),
-            (pl.col("close") / pl.col("open").clip(lower_bound=1e-6) - 1.0).alias(
-                "intraday_ret"
-            ),
+            (pl.col("open") / pl.col("close").shift(1).over("asset") - 1.0).alias("overnight_gap"),
+            (pl.col("close") / pl.col("open").clip(lower_bound=1e-6) - 1.0).alias("intraday_ret"),
         ]
     )
 
@@ -454,19 +402,11 @@ def compute_alpha_features(
             pl.col("ret_5d").mean().over(["date", "board"]).alias("board_ret_5d"),
             pl.col("ret_20d").mean().over(["date", "board"]).alias("board_ret_20d"),
             pl.col("ret_1d").mean().over("date").alias("mkt_ret_1d"),
-            ((pl.col("high") - pl.col("body_top")) / pl.col("bar_range")).alias(
-                "upper_shadow"
-            ),
-            ((pl.col("body_bot") - pl.col("low")) / pl.col("bar_range")).alias(
-                "lower_shadow"
-            ),
+            ((pl.col("high") - pl.col("body_top")) / pl.col("bar_range")).alias("upper_shadow"),
+            ((pl.col("body_bot") - pl.col("low")) / pl.col("bar_range")).alias("lower_shadow"),
             (pl.col("vol_ma5") / (pl.col("vol_ma20") + 1e-6)).alias("vol_ratio_5_20"),
-            (pl.col("ma10") / pl.col("ma10").shift(5).over("asset") - 1.0).alias(
-                "ma10_slope"
-            ),
-            (pl.col("ma20") / pl.col("ma20").shift(5).over("asset") - 1.0).alias(
-                "ma20_slope"
-            ),
+            (pl.col("ma10") / pl.col("ma10").shift(5).over("asset") - 1.0).alias("ma10_slope"),
+            (pl.col("ma20") / pl.col("ma20").shift(5).over("asset") - 1.0).alias("ma20_slope"),
             (
                 (
                     (pl.col("close") > pl.col("ma5")).cast(pl.Float64)
@@ -477,10 +417,9 @@ def compute_alpha_features(
             ).alias("ma_alignment"),
             (pl.col("close") / (pl.col("ma5") + 1e-6) - 1.0).alias("bias_5"),
             (pl.col("close") / (pl.col("ma20") + 1e-6) - 1.0).alias("bias_20"),
-            (
-                (2.0 * pl.col("close") - pl.col("high") - pl.col("low"))
-                / pl.col("bar_range")
-            ).alias("clv"),
+            ((2.0 * pl.col("close") - pl.col("high") - pl.col("low")) / pl.col("bar_range")).alias(
+                "clv"
+            ),
             pl.col("ret_1d")
             .rolling_std(window_size=20, min_samples=3)
             .over("asset")
@@ -517,9 +456,7 @@ def compute_alpha_features(
     )
     out = out.with_columns(
         pl.when(pl.col("up_limit") > 0)
-        .then(
-            (pl.col("up_limit") - pl.col("prev_close")) / pl.col("prev_close") * 100.0
-        )
+        .then((pl.col("up_limit") - pl.col("prev_close")) / pl.col("prev_close") * 100.0)
         .otherwise(None)
         .alias("limit_pct")
     )
@@ -527,21 +464,18 @@ def compute_alpha_features(
         [
             (pl.col("upper_wick") / pl.col("atr20")).alias("upper_shadow_atr"),
             (pl.col("lower_wick") / pl.col("atr20")).alias("lower_shadow_atr"),
-            (
-                (pl.col("upper_wick") / pl.col("prev_close") * 100.0)
-                / pl.col("limit_pct")
-            ).alias("upper_shadow_limit"),
-            (
-                (pl.col("lower_wick") / pl.col("prev_close") * 100.0)
-                / pl.col("limit_pct")
-            ).alias("lower_shadow_limit"),
-            (
-                (2.0 * pl.col("close") - pl.col("high") - pl.col("low"))
-                / pl.col("atr20")
-            ).alias("clv_atr"),
-            (
-                pl.col("intraday_ret") * pl.col("prev_close") / pl.col("atr20")
-            ).alias("intraday_ret_atr"),
+            ((pl.col("upper_wick") / pl.col("prev_close") * 100.0) / pl.col("limit_pct")).alias(
+                "upper_shadow_limit"
+            ),
+            ((pl.col("lower_wick") / pl.col("prev_close") * 100.0) / pl.col("limit_pct")).alias(
+                "lower_shadow_limit"
+            ),
+            ((2.0 * pl.col("close") - pl.col("high") - pl.col("low")) / pl.col("atr20")).alias(
+                "clv_atr"
+            ),
+            (pl.col("intraday_ret") * pl.col("prev_close") / pl.col("atr20")).alias(
+                "intraday_ret_atr"
+            ),
         ]
     )
 
@@ -552,8 +486,7 @@ def compute_alpha_features(
             (pl.col("ret_5d") - pl.col("board_ret_5d")).alias("rs_board_5d"),
             (pl.col("ret_20d") - pl.col("board_ret_20d")).alias("rs_board_20d"),
             (
-                pl.col("ret_10d").rank().over("date")
-                / pl.len().over("date").clip(lower_bound=1)
+                pl.col("ret_10d").rank().over("date") / pl.len().over("date").clip(lower_bound=1)
             ).alias("rs_market_rank"),
             (
                 (pl.col("ret_1d") - pl.col("mkt_ret_1d"))
@@ -595,10 +528,7 @@ def compute_alpha_features(
             .rolling_mean(window_size=5, min_samples=1)
             .over("asset")
             .alias("clv_money_flow"),
-            (
-                pl.col("ret_1d").sign()
-                * (pl.col("amount") / (pl.col("vol_ma20") + 1e-6) - 1.0)
-            )
+            (pl.col("ret_1d").sign() * (pl.col("amount") / (pl.col("vol_ma20") + 1e-6) - 1.0))
             .rolling_mean(window_size=10, min_samples=1)
             .over("asset")
             .alias("pv_sync_10d"),
@@ -611,24 +541,18 @@ def compute_alpha_features(
             .over("asset")
             .alias("limit_up_gene"),
             # Group 5: Momentum-Reversal Interactions
-            (
-                pl.col("ret_20d") / (pl.col("volatility_20d") * (20.0**0.5))
-            ).alias("sharpe_mom_20d"),
-            (-pl.col("ret_5d") / (pl.col("vol_ratio_5_20") + 0.5)).alias(
-                "rev_5d_shrink_vol"
-            ),
+            (pl.col("ret_20d") / (pl.col("volatility_20d") * (20.0**0.5))).alias("sharpe_mom_20d"),
+            (-pl.col("ret_5d") / (pl.col("vol_ratio_5_20") + 0.5)).alias("rev_5d_shrink_vol"),
             (
                 -pl.col("upper_shadow_atr")
                 * pl.max_horizontal(pl.col("bias_20"), pl.lit(0.0))
                 * pl.col("vol_ratio_5_20")
-                + pl.col("lower_shadow_atr")
-                * pl.max_horizontal(-pl.col("bias_5"), pl.lit(0.0))
+                + pl.col("lower_shadow_atr") * pl.max_horizontal(-pl.col("bias_5"), pl.lit(0.0))
             ).alias("shadow_bias_reversal"),
         ]
     )
 
     return out
-
 
 
 def standardize_features(
@@ -662,11 +586,7 @@ def standardize_features(
         for col in cols:
             raw = pl.col(col).cast(pl.Float64).fill_nan(None)
             mean = raw.rolling_mean(window_size=20, min_samples=2).over("asset")
-            std = (
-                raw.rolling_std(window_size=20, min_samples=2)
-                .over("asset")
-                .fill_null(0.0)
-            )
+            std = raw.rolling_std(window_size=20, min_samples=2).over("asset").fill_null(0.0)
             clipped = raw.clip(
                 lower_bound=mean - 3.0 * std,
                 upper_bound=mean + 3.0 * std,
@@ -675,7 +595,6 @@ def standardize_features(
             z_exprs.append(z.alias(f"{col}_z"))
 
     return df.with_columns(z_exprs)
-
 
 
 def _zscore_1d(arr: np.ndarray) -> np.ndarray:
@@ -687,5 +606,3 @@ def _zscore_1d(arr: np.ndarray) -> np.ndarray:
     if std < 1e-8:
         return np.zeros_like(clean)
     return (clean - float(np.mean(clean))) / (std + 1e-6)
-
-

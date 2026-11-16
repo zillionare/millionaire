@@ -16,6 +16,7 @@ from quantide.config.paths import clear_app_config_dir_override
 from quantide.core.init_wizard_steps import WIZARD_FINAL_STEP
 from quantide.core.runtime.modes import RuntimeBootstrap
 from quantide.data.models.app_state import AppState
+from quantide.data.sqlite import db
 from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
 from quantide.service.strategy_runtime import strategy_runtime_manager
@@ -59,6 +60,9 @@ def _reset_broker_registry() -> None:
 
 def _reset_global_state() -> None:
     init_wizard._state = None
+    previous_auth = AuthManager.get_instance()
+    if previous_auth is not None:
+        previous_auth.close()
     AuthManager._instance = None
     init_wizard_page._sync_status = dict(_SYNC_STATUS_TEMPLATE)
     init_wizard_page._set_download_error(None)
@@ -157,5 +161,6 @@ def system_settings_e2e_session():
                     app_config_dir=app_config_dir,
                 )
         finally:
+            db.close()
             _reset_global_state()
             clear_app_config_dir_override()

@@ -37,7 +37,7 @@ def test_get_history_returns_empty_frame_when_daily_bars_lacks_methods(monkeypat
     wrapper = _make_wrapper()
     bare = object()  # no get_bars / get_history
     monkeypatch.setattr(
-        "quantide.core.runtime.gateway_broker.daily_bars", bare, raising=True
+        "quantide.core.runtime.gateway_legacy.daily_bars", bare, raising=True
     )
     out = wrapper.get_history("000001.SZ", 5, dt.datetime(2024, 1, 10, 10, 0))
     assert isinstance(out, pl.DataFrame)
@@ -62,7 +62,7 @@ def test_get_history_provider_get_bars_path_returns_history(monkeypatch):
             return df
 
     monkeypatch.setattr(
-        "quantide.core.runtime.gateway_broker.daily_bars", _ProviderWithGetBars(), raising=True
+        "quantide.core.runtime.gateway_legacy.daily_bars", _ProviderWithGetBars(), raising=True
     )
     out = wrapper.get_history(
         "000001.SZ", 1, dt.datetime(2024, 1, 1, 9, 0), include_forming_bar=False

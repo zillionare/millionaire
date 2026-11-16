@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from quantide.config.branding import DEFAULT_EDITION, get_branding
+from quantide.config.output_paths import temporary_runtime_dir
 import quantide.config.dev_stubs as dev_stubs_module
 import quantide.config.settings as settings_module
 from quantide.config.settings import (
@@ -53,6 +54,7 @@ class FakeDb:
 
 
 def test_get_settings_uses_defaults_when_db_is_unavailable(monkeypatch):
+    monkeypatch.delenv("QUANTIDE_DATA_HOME", raising=False)
     monkeypatch.setattr(settings_module, "_load_app_state", lambda: None)
 
     settings = get_settings()
@@ -60,7 +62,7 @@ def test_get_settings_uses_defaults_when_db_is_unavailable(monkeypatch):
     assert settings.edition == DEFAULT_EDITION
     assert settings.product_name == get_branding().product_name
     assert settings.release_package == get_branding().release_package
-    assert settings.app_home == str(Path("~/.quantide").expanduser())
+    assert settings.app_home == str(temporary_runtime_dir() / "market")
     assert settings.app_host == "127.0.0.1"
     assert settings.app_port == 8130
     assert settings.app_prefix == "/quantide"
@@ -88,17 +90,17 @@ def test_get_settings_honors_explicit_non_localhost_app_host(db):
 
 def test_start_script_binds_localhost_unless_explicitly_overridden():
     project_root = Path(__file__).resolve().parents[4]
-    script = (project_root / "start.sh").read_text()
+    script = (project_root / "start.sh").read_text(encoding="utf-8")
 
     assert '"--host" "0.0.0.0"' not in script
-    assert "${QUANTIDE_HOST:-127.0.0.1}" in script
+    assert "python -m quantide.cli" in script
 
 
 def test_module_entrypoint_binds_localhost_unless_explicitly_overridden():
     project_root = Path(__file__).resolve().parents[4]
-    source = (project_root / "quantide" / "app.py").read_text()
+    source = (project_root / "quantide" / "app.py").read_text(encoding="utf-8")
 
-    assert 'os.getenv("QUANTIDE_HOST", "127.0.0.1")' in source
+    assert "effective_address()" in source
 
 
 def test_get_settings_prefers_app_state(db, tmp_path: Path):

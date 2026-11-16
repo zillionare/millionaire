@@ -1,0 +1,284 @@
+
+        var chart = echarts.init(document.getElementById('@@chart_id@@'));
+        var dateAxis = @@date_axis_json@@;
+        var totalSeries = @@total_series_json@@;
+        var benchmarkSeries = @@benchmark_series_json@@;
+        var dailyPnlSeries = @@daily_pnl_json@@;
+        var tradeCountSeries = @@trade_count_json@@;
+        var seriesData = {
+            dateAxis: dateAxis,
+            total: totalSeries,
+            benchmark: benchmarkSeries,
+            dailyPnl: dailyPnlSeries,
+            tradeCount: tradeCountSeries
+        };
+        var option = {
+            tooltip: { trigger: 'axis' },
+            grid: [
+                { left: 60, right: 20, top: 40, height: 200 },
+                { left: 60, right: 20, top: 260, height: 110 },
+                { left: 60, right: 20, top: 400, height: 120 }
+            ],
+            xAxis: [
+                { type: 'category', data: dateAxis, boundaryGap: false, axisLabel: { show: false } },
+                { type: 'category', data: dateAxis, boundaryGap: true, axisLabel: { show: false }, gridIndex: 1 },
+                { type: 'category', data: dateAxis, boundaryGap: true, axisLabel: { show: true }, gridIndex: 2 }
+            ],
+            yAxis: [
+                { type: 'value', scale: true },
+                { type: 'value', scale: true, gridIndex: 1 },
+                { type: 'value', scale: true, gridIndex: 2 }
+            ],
+            dataZoom: [
+                { type: 'inside', xAxisIndex: [0, 1, 2] },
+                { type: 'slider', xAxisIndex: [0, 1, 2], bottom: 0 }
+            ],
+            series: [
+                {
+                    name: '总资产',
+                    type: 'line',
+                    data: totalSeries,
+                    smooth: true,
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    itemStyle: { color: '#d9534f' }
+                },
+                {
+                    name: '基准',
+                    type: 'line',
+                    data: benchmarkSeries,
+                    smooth: true,
+                    xAxisIndex: 0,
+                    yAxisIndex: 0,
+                    lineStyle: { type: 'dashed' },
+                    itemStyle: { color: '#9ca3af' }
+                },
+                {
+                    name: '每日盈亏',
+                    type: 'bar',
+                    data: dailyPnlSeries,
+                    xAxisIndex: 1,
+                    yAxisIndex: 1,
+                    itemStyle: { color: '#5b8ff9' }
+                },
+                {
+                    name: '每日交易',
+                    type: 'bar',
+                    data: tradeCountSeries,
+                    xAxisIndex: 2,
+                    yAxisIndex: 2,
+                    itemStyle: { color: '#30bf78' }
+                }
+            ]
+        };
+        chart.setOption(option);
+        window.addEventListener('resize', function() { chart.resize(); });
+
+        function fmtPercent(v) {
+            if (v === null || v === undefined || isNaN(v)) return "--";
+            return (v * 100).toFixed(2) + "%";
+        }
+
+        function fmtNumber(v) {
+            if (v === null || v === undefined || isNaN(v)) return "--";
+            return Number(v).toFixed(2);
+        }
+
+        function fmtValue(v, fmt) {
+            if (fmt === "percent") return fmtPercent(v);
+            return fmtNumber(v);
+        }
+
+        function metricColor(v) {
+            if (v > 0) return "text-red-600";
+            if (v < 0) return "text-green-600";
+            return "text-gray-700";
+        }
+
+        function updateMetric(key, value, fmt) {
+            var el = document.getElementById('metric_' + key);
+            if (!el) return;
+            el.textContent = fmtValue(value, fmt);
+            el.className = metricColor(value) + " ml-1";
+        }
+
+        function getDateValue(id) {
+            var el = document.getElementById(id);
+            return el ? el.value : "";
+        }
+
+        function filterSeries(series) {
+            var start = getDateValue("filter_start");
+            var end = getDateValue("filter_end");
+            var filtered = {
+                dateAxis: [],
+                total: [],
+                benchmark: [],
+                dailyPnl: [],
+                tradeCount: []
+            };
+            for (var i = 0; i < series.dateAxis.length; i++) {
+                var dt = series.dateAxis[i];
+                if (start && dt < start) continue;
+                if (end && dt > end) continue;
+                filtered.dateAxis.push(dt);
+                filtered.total.push(series.total[i]);
+                filtered.benchmark.push(series.benchmark[i]);
+                filtered.dailyPnl.push(series.dailyPnl[i]);
+                filtered.tradeCount.push(series.tradeCount[i]);
+            }
+            return filtered;
+        }
+
+        function updateChart(series) {
+            var filtered = filterSeries(series);
+            chart.setOption({
+                xAxis: [
+                    { data: filtered.dateAxis },
+                    { data: filtered.dateAxis },
+                    { data: filtered.dateAxis }
+                ],
+                series: [
+                    { data: filtered.total },
+                    { data: filtered.benchmark },
+                    { data: filtered.dailyPnl },
+                    { data: filtered.tradeCount }
+                ]
+            });
+        }
+
+        var filterStart = document.getElementById("filter_start");
+        if (filterStart) {
+            filterStart.addEventListener("change", function() { updateChart(seriesData); });
+        }
+        var filterEnd = document.getElementById("filter_end");
+        if (filterEnd) {
+            filterEnd.addEventListener("change", function() { updateChart(seriesData); });
+        }
+        updateChart(seriesData);
+
+        function renderDailySummary(rows) {
+            var body = document.getElementById('daily_summary_body');
+            if (!body) return;
+            var html = "";
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                html += "<tr>" +
+                    "<td>" + r.dt + "</td>" +
+                    "<td>" + fmtNumber(r.cash) + "</td>" +
+                    "<td>" + fmtNumber(r.market_value) + "</td>" +
+                    "<td>" + fmtNumber(r.total) + "</td>" +
+                    "<td>" + fmtNumber(r.daily_pnl) + "</td>" +
+                    "<td>" + fmtPercent(r.daily_return) + "</td>" +
+                    "</tr>";
+            }
+            body.innerHTML = html;
+        }
+
+        function renderPositions(rows) {
+            var body = document.getElementById('positions_body');
+            if (!body) return;
+            var html = "";
+            var lastDate = null;
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                if (lastDate !== r.dt) {
+                    html += "<tr><td colspan='6' class='bg-gray-50 font-semibold'>" + r.dt + "</td></tr>";
+                    lastDate = r.dt;
+                }
+                html += "<tr>" +
+                    "<td>" + r.asset + "</td>" +
+                    "<td>" + fmtNumber(r.shares) + "</td>" +
+                    "<td>" + fmtNumber(r.avail) + "</td>" +
+                    "<td>" + fmtNumber(r.price) + "</td>" +
+                    "<td>" + fmtNumber(r.mv) + "</td>" +
+                    "<td>" + fmtNumber(r.profit) + "</td>" +
+                    "</tr>";
+            }
+            body.innerHTML = html;
+        }
+
+        function renderLogs(rows) {
+            var logEl = document.getElementById('log_output');
+            if (!logEl) return;
+            var lines = [];
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                var line = r.dt + " | " + (r.level || "INFO") + " | " + (r.source || "system") + " | " + (r.message || "");
+                if (r.extra) {
+                    line += " | " + r.extra;
+                }
+                lines.push(line);
+            }
+            logEl.textContent = lines.length ? lines.join("\n") : "暂无回测日志";
+        }
+
+        function renderLogMeta(meta) {
+            if (!meta) return;
+            var saveStatus = document.getElementById('log_save_status');
+            if (saveStatus) {
+                if (meta.save_requested && meta.saved) {
+                    saveStatus.textContent = '已保存到文件，可重复加载';
+                    saveStatus.className = 'text-xs text-green-600';
+                } else if (meta.save_requested) {
+                    saveStatus.textContent = '已启用文件保存，日志生成后会写入本地文件';
+                    saveStatus.className = 'text-xs text-gray-500';
+                } else {
+                    saveStatus.textContent = '本次回测未启用文件保存';
+                    saveStatus.className = 'text-xs text-gray-500';
+                }
+            }
+            var savePath = document.getElementById('log_save_path');
+            if (savePath && meta.saved_path) {
+                savePath.textContent = meta.saved_path;
+            }
+        }
+
+        var wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+        var wsUrl = wsScheme + "://" + window.location.host + "/strategy/backtest/@@portfolio_id@@/ws";
+        var ws = new WebSocket(wsUrl);
+
+        ws.onmessage = function(event) {
+            try {
+                var data = JSON.parse(event.data);
+                if (data.series) {
+                    var series = data.series;
+                    seriesData = {
+                        dateAxis: series.date_axis,
+                        total: series.total,
+                        benchmark: series.benchmark,
+                        dailyPnl: series.daily_pnl,
+                        tradeCount: series.trade_count
+                    };
+                    updateChart(seriesData);
+                }
+                if (data.metrics) {
+                    var formats = @@metric_format_json@@;
+                    for (var key in formats) {
+                        updateMetric(key, data.metrics[key], formats[key]);
+                    }
+                }
+                if (data.daily_summary) {
+                    renderDailySummary(data.daily_summary);
+                }
+                if (data.positions) {
+                    renderPositions(data.positions);
+                }
+                if (data.logs) {
+                    renderLogs(data.logs);
+                }
+                if (data.log_meta) {
+                    renderLogMeta(data.log_meta);
+                }
+                var errorEl = document.getElementById('backtest_error');
+                if (errorEl && data.error) {
+                    errorEl.textContent = data.error;
+                    if (errorEl.parentElement) {
+                        errorEl.parentElement.classList.remove('hidden');
+                    }
+                }
+                if (data.status && data.status !== 'running') {
+                    ws.close();
+                }
+            } catch (e) {}
+        };

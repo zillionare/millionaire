@@ -1,0 +1,287 @@
+
+    :root {
+      --brand: @@BRAND@@;
+      --brand-dark: @@BRAND_DARK@@;
+      --brand-light: @@BRAND_LIGHT@@;
+
+      --fg: @@GRAY_900@@;
+      --fg-muted: @@GRAY_600@@;
+      --fg-subtle: @@GRAY_500@@;
+
+      --bg: @@WHITE@@;
+      --bg-subtle: @@GRAY_50@@;
+      --bg-muted: @@GRAY_100@@;
+
+      --border: @@GRAY_200@@;
+      --border-strong: @@GRAY_300@@;
+
+      --success: @@GREEN@@;
+      --success-dark: @@GREEN_DARK@@;
+      --warning: @@AMBER@@;
+      --danger: @@BRAND@@;
+      --danger-dark: @@BRAND_DARK@@;
+
+      --radius-sm: @@RADIUS_SM@@px;
+      --radius-md: @@RADIUS_MD@@px;
+      --radius-lg: @@RADIUS_LG@@px;
+
+      --shadow-sm: @@SHADOW_SM@@;
+      --shadow-md: @@SHADOW_MD@@;
+      --shadow-lg: @@SHADOW_LG@@;
+
+      --font: @@FONT_STACK@@;
+      --font-mono: @@MONO_STACK@@;
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+    }
+
+    /* ---------------- 基础 ---------------- */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg-subtle);
+      color: var(--fg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    h1, h2, h3, h4, h5, h6 { color: var(--fg); font-weight: 600; margin: 0; }
+    p { margin: 0; }
+    a { color: var(--fg); text-decoration: none; }
+    a:hover { color: var(--brand); }
+    code, pre, .mono { font-family: var(--font-mono); }
+    input, select, textarea, button { font: inherit; }
+
+    /* ---------------- 卡片 ---------------- */
+    .card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+    .card--padded { padding: var(--space-6); }
+
+    /* ---------------- 表格 ---------------- */
+    .q-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .q-table th {
+      text-align: left;
+      padding: var(--space-2) var(--space-4);
+      color: var(--fg-subtle);
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-subtle);
+    }
+    .q-table td {
+      padding: var(--space-2) var(--space-4);
+      border-bottom: 1px solid var(--border);
+      color: var(--fg);
+    }
+    .q-table tr:last-child td { border-bottom: none; }
+    .q-table tbody tr:hover { background: var(--bg-subtle); }
+    .q-data-table tbody tr { transition: background 0.12s ease; }
+    .q-data-table tbody tr:nth-child(even) { background: #fafafa; }
+    .q-data-table tbody tr:hover { background: var(--bg-muted); }
+
+    /* ---------------- 表单 ---------------- */
+    .q-input {
+      box-sizing: border-box;
+      height: 36px !important;
+      min-height: 36px !important;
+      margin: 0 !important;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+      padding: 0 var(--space-3) !important;
+      font-size: 14px;
+      line-height: normal;
+      color: var(--fg);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .q-input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px var(--brand-light);
+    }
+    .q-input::placeholder { color: var(--fg-subtle); }
+    .q-input--search,
+    input.q-input[type="search"] { padding-left: 2.5rem !important; }
+    .q-label { font-size: 12px; font-weight: 500; color: var(--fg-muted); display: block; margin-bottom: var(--space-1); }
+
+    /* ---------------- 按钮 ---------------- */
+    .q-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 36px; margin-top: 0 !important; margin-bottom: 0 !important;
+      padding: 0 var(--space-3); border-radius: var(--radius-md);
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      user-select: none; white-space: nowrap;
+    }
+    button.btn-sm,
+    a.btn-sm {
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px !important;
+      min-height: 32px !important;
+      margin: 0 !important;
+      padding: 0 var(--space-3) !important;
+      font-size: 14px !important;
+      line-height: 1 !important;
+      white-space: nowrap;
+    }
+    .q-btn:hover { background: var(--bg-subtle); border-color: var(--border-strong); }
+    .q-btn--sm { height: 28px; padding: 0 var(--space-2); font-size: 12px; }
+    .q-btn--primary {
+      background: var(--brand); border-color: var(--brand); color: #fff;
+    }
+    .q-btn--primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
+    .q-btn--ghost { background: transparent; border-color: transparent; color: var(--fg-muted); }
+    .q-btn--ghost:hover { background: var(--bg-subtle); color: var(--fg); }
+    .q-btn--danger { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .q-btn--danger:hover { background: var(--brand-dark); }
+    .q-btn--outline-brand {
+      background: transparent !important;
+      border: 1px solid var(--brand) !important;
+      color: var(--brand) !important;
+    }
+    .q-btn--outline-brand:hover {
+      background: var(--brand-light) !important;
+      color: var(--brand-dark) !important;
+    }
+    .q-btn--paper {
+      background: var(--bg) !important;
+      border: 1px solid #7a9a3a !important;
+      color: #647d2d !important;
+    }
+    .q-btn--paper:hover {
+      background: #f4f8e8 !important;
+      border-color: #6b8532 !important;
+      color: #566b26 !important;
+    }
+    .q-btn--success { background: var(--success); border-color: var(--success); color: #fff; }
+    .q-btn--success:hover { background: var(--success-dark); }
+    .q-btn--buy { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .q-btn--buy:hover { background: var(--brand-dark); }
+    .q-btn--sell { background: var(--success); border-color: var(--success); color: #fff; }
+    .q-btn--sell:hover { background: var(--success-dark); }
+    .q-btn--icon { padding: 0; width: 32px; height: 32px; }
+    .q-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Override the document's native button defaults in strategy rows. */
+    .strategy-actions button.q-btn { margin: 0; line-height: normal; }
+    .strategy-actions button.q-btn--ghost { background: transparent; border-color: transparent; }
+    .strategy-actions button.q-btn--ghost:hover { background: var(--bg-subtle); }
+    .strategy-actions button.q-btn--success {
+      background: var(--success); border-color: var(--success); color: #fff;
+    }
+    .strategy-actions button.q-btn--success:hover { background: var(--success-dark); }
+
+    /* ---------------- Badge / Chip ---------------- */
+    .q-badge {
+      display: inline-flex; align-items: center; padding: 2px 8px;
+      border-radius: 999px; font-size: 12px; font-weight: 500;
+      border: 1px solid var(--border); background: var(--bg-subtle); color: var(--fg-muted);
+    }
+    .q-badge--brand { background: var(--brand-light); color: var(--brand); border-color: var(--brand-light); }
+    .q-badge--success { background: #f0fdf4; color: var(--success); border-color: #bbf7d0; }
+    .q-badge--warning { background: #fffbeb; color: var(--warning); border-color: #fde68a; }
+    .q-badge--danger { background: var(--brand-light); color: var(--brand); border-color: var(--brand-light); }
+    .q-badge--neutral { background: var(--bg-subtle); color: var(--fg-muted); }
+
+    /* ---------------- 对话框 ---------------- */
+    .q-modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    .q-modal {
+      background: var(--bg); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg); width: 100%;
+      max-height: calc(100vh - 32px); display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .q-modal__header {
+      background: var(--brand); color: #fff;
+      padding: var(--space-4) var(--space-6);
+      font-size: 16px; font-weight: 600; flex-shrink: 0;
+    }
+    .q-modal__body { padding: var(--space-6); overflow-y: auto; flex: 1; }
+    .q-modal__footer {
+      padding: var(--space-4) var(--space-6); border-top: 1px solid var(--border);
+      display: flex; justify-content: flex-end; gap: var(--space-2); flex-shrink: 0;
+    }
+
+    .backtest-dialog-overlay {
+      position: fixed; inset: 0; z-index: 50; padding: 16px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.5);
+    }
+    .backtest-dialog {
+      width: min(760px, calc(100vw - 32px));
+      max-height: min(820px, calc(100dvh - 32px));
+      display: flex; flex-direction: column; overflow: hidden;
+      background: var(--bg); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+    }
+    .backtest-dialog__header {
+      display: flex; align-items: center; flex-wrap: wrap; flex-shrink: 0;
+      padding: 14px 20px; border-bottom: 1px solid var(--border);
+    }
+    .backtest-dialog__header h3 { margin: 0; overflow-wrap: anywhere; }
+    .backtest-dialog__form { display: flex; flex: 1; flex-direction: column; min-height: 0; margin: 0; }
+    .backtest-dialog__body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px; }
+    .backtest-dialog__footer {
+      display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px;
+      flex-shrink: 0; padding: 10px 20px; border-top: 1px solid var(--border);
+    }
+    .backtest-dialog__footer button {
+      box-sizing: border-box;
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 36px !important; min-height: 36px !important;
+      margin: 0; padding: 0 12px !important;
+      line-height: 1 !important; text-align: center;
+    }
+    .backtest-dialog__footer button.hidden { display: none !important; }
+
+    /* ---------------- 面包屑 ---------------- */
+    .q-breadcrumb { display: flex; align-items: center; gap: var(--space-2); font-size: 14px; color: var(--fg-muted); }
+    .q-breadcrumb a:hover { color: var(--brand); }
+    .q-breadcrumb__sep { color: var(--fg-subtle); }
+    .q-breadcrumb__current { color: var(--fg); font-weight: 500; }
+
+    /* ---------------- Tabs ---------------- */
+    .q-tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--border); }
+    .q-tab {
+      padding: var(--space-2) var(--space-3); font-size: 14px; font-weight: 500;
+      color: var(--fg-muted); cursor: pointer; border-bottom: 2px solid transparent;
+      margin-bottom: -1px; user-select: none;
+    }
+    .q-tab:hover { color: var(--fg); }
+    .q-tab--active { color: var(--brand); border-bottom-color: var(--brand); }
+
+    /* ---------------- 页面容器 ---------------- */
+    .page { max-width: 1400px; margin: 0 auto; width: 100%; padding: var(--space-6); }
+    .page__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); }
+    .page__title { font-size: 20px; font-weight: 600; color: var(--fg); }
+    .page__subtitle { font-size: 13px; color: var(--fg-subtle); margin-top: var(--space-1); }
+
+    /* ---------------- 其他 ---------------- */
+    .hidden { display: none; }
+    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .stat-grid { display: grid; gap: 1px; background: var(--border); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); }
+    .stat { background: var(--bg); padding: var(--space-4); }
+    .stat__label { font-size: 12px; color: var(--fg-subtle); }
+    .stat__value { font-size: 20px; font-weight: 600; color: var(--fg); margin-top: var(--space-1); font-family: var(--font-mono); }

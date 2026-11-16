@@ -124,9 +124,7 @@ def test_shadow_limit_normalization_is_board_aware() -> None:
 
 def test_shadow_limit_is_null_without_price_limit() -> None:
     """缺少涨跌停价时，涨跌停口径为空（标准化后按 0 处理）。"""
-    panel = _shadow_panel(up_limit_ratio=0.10).with_columns(
-        pl.lit(0.0).alias("up_limit")
-    )
+    panel = _shadow_panel(up_limit_ratio=0.10).with_columns(pl.lit(0.0).alias("up_limit"))
     features = compute_alpha_features(panel)
     last = features.filter(pl.col("date") == features["date"].max()).row(0, named=True)
 
@@ -182,9 +180,7 @@ def test_compute_alpha_features_industry_overrides_prefix_board() -> None:
 
     features = compute_alpha_features(panel, stock_meta=meta)
     latest = features.filter(pl.col("date") == features["date"].max())
-    board_by_asset = dict(
-        latest.select(["asset", "board"]).iter_rows()
-    )
+    board_by_asset = dict(latest.select(["asset", "board"]).iter_rows())
 
     assert board_by_asset["600001.SH"] == "新能源"
     assert board_by_asset["688001.SH"] == "半导体"
@@ -203,8 +199,6 @@ def test_compute_alpha_features_prefix_board_without_meta() -> None:
     assert board_by_asset["002001.SZ"] == "深市中小"
 
 
-
-
 def test_factor_catalog_lists_every_feature_with_doc() -> None:
     """因子清单覆盖全部因子，并带上说明文档。"""
     specs = list_feature_specs()
@@ -213,6 +207,15 @@ def test_factor_catalog_lists_every_feature_with_doc() -> None:
     assert {spec.name for spec in specs} == set(FEATURE_COLS)
     assert all(spec.doc for spec in specs)
     assert {spec.group for spec in specs} == set(FEATURE_GROUPS)
+
+
+def test_feature_groups_use_compact_taxonomy() -> None:
+    """分组名称保持精简，均线支撑归入形态，均线斜率归入动量与反转。"""
+    assert list(FEATURE_GROUPS) == ["相对强弱", "短线形态", "资金推动", "动量与反转"]
+    assert "ma20_support_bounce" in FEATURE_GROUPS["短线形态"]
+    assert {"ma10_slope", "ma20_slope", "ma_alignment", "bias_5", "bias_20"} <= set(
+        FEATURE_GROUPS["动量与反转"]
+    )
 
 
 def test_resolve_feature_selection_defaults_to_all() -> None:

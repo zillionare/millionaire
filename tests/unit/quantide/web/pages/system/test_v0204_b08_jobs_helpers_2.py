@@ -76,7 +76,7 @@ def test_run_daily_bars_sync_success(db):
     "No assertion; just exercise the path" coverage-only test flagged
     by Prism M3.
     """
-    with patch("quantide.data.models.daily_bars.daily_bars") as mock_db:
+    with patch("quantide.service.maintenance.maintain_data", return_value="已更新") as mock_db:
         mock_db.store.update = MagicMock(return_value=None)
         with patch.object(jobs_mod, "_save_job_history") as mock_save:
             _run_daily_bars_sync()
@@ -89,8 +89,8 @@ def test_run_daily_bars_sync_success(db):
 
 def test_run_daily_bars_sync_exception(db):
     """[AC-NFR1101-01] Failure path records an error job-history entry."""
-    with patch("quantide.data.models.daily_bars.daily_bars") as mock_db:
-        mock_db.store.update = MagicMock(side_effect=RuntimeError("boom"))
+    with patch("quantide.service.maintenance.maintain_data", return_value="已更新") as mock_db:
+        mock_db.side_effect = RuntimeError("boom")
         with patch.object(jobs_mod, "_save_job_history") as mock_save:
             _run_daily_bars_sync()
     mock_save.assert_called_once()
@@ -161,7 +161,8 @@ def test_run_market_snapshot(db):
     mock_save.assert_called_once()
     saved_args = mock_save.call_args.args
     assert saved_args[0] == "market_snapshot"
-    assert saved_args[2] == "success"
+    assert saved_args[2] == "error"
+    assert "未收到行情" in saved_args[3]
 
 
 # ---------------------------------------------------------------------------

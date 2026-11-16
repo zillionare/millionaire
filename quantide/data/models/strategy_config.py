@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
 
+from quantide.core.strategy_metadata import StrategyMetadata as CoreStrategyMetadata
 from quantide.data.models.base import Entity, new_uuid_id
 
 
@@ -31,18 +31,11 @@ SKIP_INVALID_CONFIG = "InvalidConfig"
 SKIP_BUILTIN_OVERRIDDEN = "BuiltinOverridden"
 
 
-@dataclass
-class StrategyMetadata:
-    """v0.2: 单个策略的元数据 (from spec FR-020)"""
+@dataclass(frozen=True)
+class StrategyMetadata(CoreStrategyMetadata):
+    """Persistence DTO that adds scan diagnostics to the shared metadata schema."""
 
-    strategy_id: str
-    name: str
-    description: str
-    strategy_type: Literal["independent", "risk"]
-    module: str
-    is_builtin: bool
-    default_config: dict  # dict[str, ParamSpec]
-    skipped_reasons: list  # list[SkippedEntry], 此策略的 skip 原因
+    skipped_reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -59,8 +52,8 @@ class SkippedEntry:
 class EnumerationResult:
     """v0.2: 枚举结果 (from spec FR-020)"""
 
-    strategies: list  # list[StrategyMetadata]
-    diagnostics: list  # list[SkippedEntry]
+    strategies: list[StrategyMetadata]
+    diagnostics: list[SkippedEntry]
 
 
 @dataclass

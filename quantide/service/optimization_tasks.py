@@ -87,13 +87,14 @@ def _row_to_dict(row: dict[str, Any]) -> dict[str, Any]:
 class _RunningTask:
     """内存中的运行中任务。"""
 
-    def __init__(self, spec: OptimizationSpec):
+    def __init__(self, spec: OptimizationSpec) -> None:
         self.spec = spec
         self.optimizer = ParamOptimizer(spec)
         self.done = 0
         self.total = 0
         self.results: list[dict[str, Any]] = []
         self.error = ""
+        self.thread: threading.Thread | None = None
 
 
 _RUNNING: dict[str, _RunningTask] = {}
@@ -226,6 +227,7 @@ def start_optimization(spec: OptimizationSpec) -> str:
                 _RUNNING.pop(task_id, None)
 
     thread = threading.Thread(target=_worker, name=f"optimize-{task_id[:8]}", daemon=True)
+    running.thread = thread
     thread.start()
     return task_id
 
@@ -300,14 +302,22 @@ def list_tasks(strategy_name: str = "", limit: int = 20) -> list[dict[str, Any]]
             )
         )
     else:
-        rows = list(
-            db[OPTIMIZATION_TABLE].rows_where(
-                order_by="started_at desc", limit=limit
-            )
-        )
+        rows = list(db[OPTIMIZATION_TABLE].rows_where(order_by="started_at desc", limit=limit))
     return [_row_to_dict(dict(row)) for row in rows]
 
 
 def objective_label(objective: str) -> str:
     """目标函数的中文名。"""
     return OBJECTIVE_LABELS.get(objective, objective)
+
+
+def shutdown_optimizations() -> None:
+    """Cancel active optimizers and wait for bounded, cooperative termination."""
+    with _LOCK:
+        tasks = list(_RUNNING.values())
+    for task in tasks:
+        task.optimizer.cancel()
+    for task in tasks:
+        thread = getattr(task, "thread", None)
+        if thread is not None:
+            thread.join()

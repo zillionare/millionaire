@@ -16,7 +16,7 @@ class AdapterSpec:
 class AdapterRegistry:
     """按能力注册和解析适配器."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化注册表."""
         self._items: dict[str, dict[str, Any]] = {}
 
@@ -51,7 +51,5 @@ class AdapterRegistry:
         result: list[AdapterSpec] = []
         for capability, adapters in self._items.items():
             for name, adapter in adapters.items():
-                result.append(
-                    AdapterSpec(name=name, capability=capability, adapter=adapter)
-                )
+                result.append(AdapterSpec(name=name, capability=capability, adapter=adapter))
         return result

@@ -3,7 +3,6 @@
 提供日线转周线、月线的功能。
 """
 
-
 import polars as pl
 
 
@@ -51,13 +50,17 @@ class Resampler:
 
         # 按周聚合
         # 使用 group_by_dynamic 按周分组
-        return df.sort("dt").group_by_dynamic(
-            index_column="dt",
-            every="1w",
-            period="1w",
-            label="left",
-            start_by="monday",
-        ).agg(agg_exprs)
+        return (
+            df.sort("dt")
+            .group_by_dynamic(
+                index_column="dt",
+                every="1w",
+                period="1w",
+                label="left",
+                start_by="monday",
+            )
+            .agg(agg_exprs)
+        )
 
     @staticmethod
     def daily_to_monthly(df: pl.DataFrame) -> pl.DataFrame:
@@ -93,12 +96,16 @@ class Resampler:
             agg_exprs.append(pl.col("adjust").last().alias("adjust"))
 
         # 按月聚合
-        return df.sort("dt").group_by_dynamic(
-            index_column="dt",
-            every="1mo",
-            period="1mo",
-            label="left",
-        ).agg(agg_exprs)
+        return (
+            df.sort("dt")
+            .group_by_dynamic(
+                index_column="dt",
+                every="1mo",
+                period="1mo",
+                label="left",
+            )
+            .agg(agg_exprs)
+        )
 
     @staticmethod
     def resample(df: pl.DataFrame, freq: str) -> pl.DataFrame:

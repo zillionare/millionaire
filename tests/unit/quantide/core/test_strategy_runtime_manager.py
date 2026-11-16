@@ -127,7 +127,7 @@ def test_strategy_runtime_manager_restart_recovery_skips_blocked_specs(
     tmp_path: Path, monkeypatch
 ):
     monkeypatch.setattr(
-        "quantide.service.strategy_runtime.supports_live_trading", lambda: True
+        "quantide.service.runtime_state.supports_live_trading", lambda: True
     )
     manager = StrategyRuntimeManager()
     manager._state_file = lambda: tmp_path / "strategy_runtimes.json"
@@ -504,7 +504,7 @@ def test_strategy_loop_live_wires_broker_config_and_uses_real_time(monkeypatch):
     # SC-04: ``on_bar`` only receives ``tm``; the frame is exposed via
     # ``strategy.interval`` (see ``strategy_runtime``'s live loop).
     assert frame_value == FrameType.DAY.value
-    delta = abs((bar_tm - _rt_mod.datetime.datetime.now()).total_seconds())
+    delta = abs((bar_tm - _rt_mod.market_now()).total_seconds())
     assert delta < 5, (
         f"live loop 的 bar_tm 应是 real time (now), 偏差 {delta:.1f}s"
     )

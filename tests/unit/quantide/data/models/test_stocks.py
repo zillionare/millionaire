@@ -50,7 +50,7 @@ def test_load(mock_get_data_fetcher, mock_logger):
 
 @patch("quantide.data.models.stocks.dev_stubs_enabled", return_value=True)
 @patch("quantide.data.models.stocks.get_data_fetcher")
-def test_load_forces_refresh_in_dev_stub_mode(mock_get_data_fetcher, _mock_dev_stubs_enabled):
+def test_load_forces_refresh_in_dev_stub_mode(mock_get_data_fetcher, _mock_dev_stubs_enabled, tmp_path):
     stub_frame = pd.DataFrame(
         {
             "asset": ["000001.SZ"],
@@ -62,18 +62,18 @@ def test_load_forces_refresh_in_dev_stub_mode(mock_get_data_fetcher, _mock_dev_s
     )
     mock_get_data_fetcher.return_value.fetch_stock_list.return_value = stub_frame
 
-    with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as f:
-        pd.DataFrame(
-            {
-                "asset": ["000001.SZ"],
-                "name": ["000001.SZ"],
-                "pinyin": ["000001"],
-                "list_date": [datetime.date(1991, 4, 3)],
-                "delist_date": [pd.NaT],
-            }
-        ).to_parquet(f.name, index=False)
+    path = tmp_path / "stocks.parquet"
+    pd.DataFrame(
+        {
+            "asset": ["000001.SZ"],
+            "name": ["000001.SZ"],
+            "pinyin": ["000001"],
+            "list_date": [datetime.date(1991, 4, 3)],
+            "delist_date": [pd.NaT],
+        }
+    ).to_parquet(path, index=False)
 
-        stock_list.load(f.name)
+    stock_list.load(path)
 
     assert mock_get_data_fetcher.return_value.fetch_stock_list.called
     assert stock_list.get_name("000001.SZ") == "平安银行"

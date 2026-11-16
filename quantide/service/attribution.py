@@ -8,12 +8,13 @@ web 层不感知具体模型：策略类通过 ``ATTRIBUTION`` 声明自己支�
 from __future__ import annotations
 
 import datetime
-import json
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 from loguru import logger
 
+from quantide.core.ports.broker import ExecutionResult
+from quantide.core.strategy_config import stored_strategy_config
 from quantide.data.sqlite import db
 from quantide.factors import FACTOR_VERSION
 from quantide.service.discovery import strategy_loader
@@ -45,6 +46,8 @@ class _AttributionBroker:
       截面就取不到目标日期了）。
     """
 
+    portfolio_id = "attribution"
+
     def __init__(
         self,
         positions: dict[str, Any] | None = None,
@@ -53,6 +56,119 @@ class _AttributionBroker:
         self._bt_end: datetime.date | None = bt_end
         self.positions: dict[str, Any] = positions or {}
         self.cash: float = 0.0
+
+    def record(
+        self,
+        key: str,
+        value: float,
+        dt: datetime.datetime | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """Attribution never records metrics."""
+        return None
+
+    def get_history(
+        self,
+        asset: str,
+        count: int,
+        end_dt: datetime.datetime | None = None,
+        frame_type: object = "1d",
+        *,
+        include_forming_bar: bool = True,
+    ) -> pl.DataFrame:
+        """Attribution does not execute strategy bar callbacks."""
+        raise NotImplementedError("attribution broker does not provide history")
+
+    def get_prices(self, assets: list[str]) -> dict[str, float]:
+        """Attribution does not execute risk overlays."""
+        raise NotImplementedError("attribution broker does not provide prices")
+
+    def get_ticks(self, asset: str, count: int) -> pl.DataFrame:
+        """Attribution does not execute risk overlays."""
+        raise NotImplementedError("attribution broker does not provide ticks")
+
+    async def buy(
+        self,
+        asset: str,
+        shares: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        raise NotImplementedError("attribution broker cannot trade")
+
+    async def buy_percent(
+        self,
+        asset: str,
+        percent: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        raise NotImplementedError("attribution broker cannot trade")
+
+    async def buy_amount(
+        self,
+        asset: str,
+        amount: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        raise NotImplementedError("attribution broker cannot trade")
+
+    async def sell(
+        self,
+        asset: str,
+        shares: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        raise NotImplementedError("attribution broker cannot trade")
+
+    async def sell_percent(
+        self,
+        asset: str,
+        percent: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        raise NotImplementedError("attribution broker cannot trade")
+
+    async def sell_amount(
+        self,
+        asset: str,
+        amount: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        raise NotImplementedError("attribution broker cannot trade")
+
+    async def trade_target_pct(
+        self,
+        asset: str,
+        target_pct: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        raise NotImplementedError("attribution broker cannot trade")
+
+    async def cancel_order(self, qt_oid: str) -> object:
+        raise NotImplementedError("attribution broker cannot cancel orders")
+
+    async def cancel_all_orders(self, side: object = None) -> int:
+        raise NotImplementedError("attribution broker cannot cancel orders")
 
 
 def _cache_version(strategy_cls: Any) -> str:
@@ -113,9 +229,7 @@ def backtest_range(portfolio: Any) -> tuple[datetime.date, datetime.date] | None
     return bt_start, end
 
 
-def load_holdings_at(
-    portfolio_id: str, signal_date: datetime.date
-) -> dict[str, Any]:
+def load_holdings_at(portfolio_id: str, signal_date: datetime.date) -> dict[str, Any]:
     """读取回测在决策日的持仓（用于还原当时的选股池）。
 
     Args:
@@ -181,19 +295,7 @@ def load_backtest_config(portfolio_id: str) -> dict[str, Any]:
     portfolio = db.get_portfolio(portfolio_id)
     if portfolio is None:
         return {}
-    info = getattr(portfolio, "info", "") or ""
-    if not info:
-        return {}
-    try:
-        payload = json.loads(info)
-    except (TypeError, ValueError):
-        return {}
-    if isinstance(payload, dict):
-        config = payload.get("config")
-        if isinstance(config, dict):
-            return config
-        return payload
-    return {}
+    return stored_strategy_config(getattr(portfolio, "info", "") or "")
 
 
 def explain_features(
@@ -237,16 +339,14 @@ def explain_features(
         return _EXPLAIN_FEATURE_CACHE[cache_key]
     try:
         strategy = strategy_cls(
-            _AttributionBroker(
-                load_holdings_at(portfolio_id, signal_date), bt_end
-            ),
+            _AttributionBroker(load_holdings_at(portfolio_id, signal_date), bt_end),
             config,
         )
         strategy._positions_by_date = load_positions_by_date(portfolio_id)
         explainer = getattr(strategy, "explain_features", None)
         if not callable(explainer):
             return None
-        result = explainer(asset, signal_date)
+        result = cast(list[tuple[str, float]] | None, explainer(asset, signal_date))
     except Exception:
         logger.exception(
             f"因子取值计算失败: portfolio={portfolio_id} asset={asset} signal={signal_date}"
@@ -281,7 +381,7 @@ def explain_prediction(
     if portfolio is None:
         return None
     strategy_cls = strategy_loader.load_from_cache().get(portfolio.name or "")
-    if not supports_attribution(strategy_cls):
+    if strategy_cls is None or not supports_attribution(strategy_cls):
         return None
     if bt_start is None or bt_end is None:
         rng = backtest_range(portfolio)
@@ -299,16 +399,14 @@ def explain_prediction(
         return _EXPLAIN_RESULT_CACHE[cache_key]
     try:
         strategy = strategy_cls(
-            _AttributionBroker(
-                load_holdings_at(portfolio_id, signal_date), bt_end
-            ),
+            _AttributionBroker(load_holdings_at(portfolio_id, signal_date), bt_end),
             config,
         )
         strategy._positions_by_date = load_positions_by_date(portfolio_id)
         explainer = getattr(strategy, "explain_prediction", None)
         if not callable(explainer):
             return None
-        result = explainer(asset, signal_date, bt_start, bt_end)
+        result = cast(dict[str, Any] | None, explainer(asset, signal_date, bt_start, bt_end))
     except Exception:
         logger.exception(
             f"归因计算失败: portfolio={portfolio_id} asset={asset} signal={signal_date}"

@@ -9,6 +9,9 @@ Targets specific missing branches:
 
 from __future__ import annotations
 
+from quantide.web.pages import strategy_metrics
+
+
 import datetime as dt
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -54,7 +57,7 @@ def test_build_series_payload_skips_trade_with_none_tm(monkeypatch):
     monkeypatch.setattr(strategy_mod.db, "query_assets", lambda pid: assets_df)
     monkeypatch.setattr(strategy_mod.db, "trades_all", lambda pid: trades_df)
     monkeypatch.setattr(
-        strategy_mod.daily_bars, "get_bars_in_range", lambda *a, **k: pl.DataFrame()
+        strategy_metrics.daily_bars, "get_bars_in_range", lambda *a, **k: pl.DataFrame()
     )
     out = _build_series_payload("p1", ["2024-01-01"])
     # Trade with None tm should not crash; trade_count should be 0
@@ -77,7 +80,7 @@ def test_build_series_payload_first_total_fallback_to_one(monkeypatch):
         "close": [10.0],
     })
     monkeypatch.setattr(
-        strategy_mod.daily_bars, "get_bars_in_range", lambda *a, **k: benchmark_df
+        strategy_metrics.daily_bars, "get_bars_in_range", lambda *a, **k: benchmark_df
     )
     # date_axis 2024-01-10 is beyond last_date 2024-01-01 -> total_series=[None]
     out = _build_series_payload("p1", ["2024-01-10"])

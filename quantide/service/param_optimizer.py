@@ -13,11 +13,13 @@ import itertools
 import random
 import threading
 import uuid
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field
 from multiprocessing import get_context
-from typing import Any
+from typing import Any, cast
 
+import pandas as pd
 from loguru import logger
 
 from quantide.core.enums import FrameType
@@ -50,6 +52,30 @@ OBJECTIVE_METRIC_KEYS = {
     "max_drawdown": "Max Drawdown",
 }
 MODES = ("grid", "random")
+
+
+def _append_monthly_returns(
+    month_last: dict[tuple[int, int], tuple[datetime.date, float]],
+    prev_total: float | None,
+    expected_month_ends: dict[tuple[int, int], datetime.date],
+    result: list[dict[str, Any]],
+) -> None:
+    """Append monthly returns."""
+    for key in sorted(month_last):
+        month_dt, month_total = month_last[key]
+        ret = 0.0
+        if prev_total:
+            ret = month_total / prev_total - 1.0
+        expected = expected_month_ends.get(key)
+        partial = bool(expected is not None and month_dt < expected)
+        result.append(
+            {
+                "month": f"{key[0]:04d}-{key[1]:02d}",
+                "ret": ret,
+                "partial": partial,
+            }
+        )
+        prev_total = month_total
 
 
 @dataclass
@@ -100,9 +126,7 @@ class OptimizationSpec:
         return OptimizationSpec(
             strategy_name=str(payload.get("strategy_name") or ""),
             base_config=dict(payload.get("base_config") or {}),
-            param_grid={
-                k: list(v) for k, v in (payload.get("param_grid") or {}).items()
-            },
+            param_grid={k: list(v) for k, v in (payload.get("param_grid") or {}).items()},
             start_date=datetime.date.fromisoformat(start) if start else None,
             end_date=datetime.date.fromisoformat(end) if end else None,
             objective=str(payload.get("objective") or "sharpe"),
@@ -133,7 +157,7 @@ def _split_date(
     return cut, end
 
 
-def parse_metric(value: Any) -> float:
+def parse_metric(value: object) -> float:
     """解析指标表中的字符串值（如 ``"26.53%"``）为浮点数。"""
     if value is None:
         return float("nan")
@@ -161,7 +185,7 @@ def objective_value(metrics: dict[str, Any], objective: str) -> float:
     return value
 
 
-def _metrics_to_dict(metrics_df: Any) -> dict[str, Any]:
+def _metrics_to_dict(metrics_df: pd.DataFrame | None) -> dict[str, Any]:
     """把指标表（索引为指标名、列为 Value）转成扁平字典。"""
     if metrics_df is None:
         return {}
@@ -224,31 +248,14 @@ def _monthly_returns(
     in_range = [
         (dt, total)
         for dt, total in rows
-        if (start_date is None or dt >= start_date)
-        and (end_date is None or dt <= end_date)
+        if (start_date is None or dt >= start_date) and (end_date is None or dt <= end_date)
     ]
     month_last: dict[tuple[int, int], tuple[datetime.date, float]] = {}
     for dt, total in in_range:
         month_last[(dt.year, dt.month)] = (dt, total)
 
-    expected_month_ends = _month_end_map()
-    prev_total = base_total
     result: list[dict[str, Any]] = []
-    for key in sorted(month_last):
-        month_dt, month_total = month_last[key]
-        ret = 0.0
-        if prev_total:
-            ret = month_total / prev_total - 1.0
-        expected = expected_month_ends.get(key)
-        partial = bool(expected is not None and month_dt < expected)
-        result.append(
-            {
-                "month": f"{key[0]:04d}-{key[1]:02d}",
-                "ret": ret,
-                "partial": partial,
-            }
-        )
-        prev_total = month_total
+    _append_monthly_returns(month_last, base_total, _month_end_map(), result)
     return result
 
 
@@ -261,9 +268,7 @@ def _month_end_map() -> dict[tuple[int, int], datetime.date]:
         if frames is None:
             return {}
         return {
-            (dt.year, dt.month): dt
-            for dt in frames.to_pylist()
-            if isinstance(dt, datetime.date)
+            (dt.year, dt.month): dt for dt in frames.to_pylist() if isinstance(dt, datetime.date)
         }
     except Exception:  # pragma: no cover - 日历未就绪
         return {}
@@ -281,41 +286,14 @@ def _run_combo(
     home_dir: str | None = None,
 ) -> dict[str, Any]:
     """跑一个参数组合，返回样本内/样本外指标。"""
-    from quantide.config.settings import get_data_home
-    from quantide.service.metrics import metrics as compute_metrics
-
-    data_home = home_dir or get_data_home()
-    init_data(data_home, init_db=False)
-
-    runner = BacktestRunner()
-    result = asyncio.run(
-        runner.run(
-            strategy_cls,
-            config,
-            start_date,
-            end_date,
-            FrameType(interval),
-            initial_cash,
-            db_path=":memory:",
-        )
+    portfolio_id = _optimization_backtest(
+        strategy_cls, config, start_date, end_date, interval, initial_cash, home_dir
     )
-    portfolio_id = result.get("portfolio_id")
     row: dict[str, Any] = {"portfolio_id": portfolio_id}
     if not portfolio_id:
         row["error"] = "回测未产出组合"
         return row
-    try:
-        in_sample = compute_metrics(
-            portfolio_id, start=start_date, end=in_sample_end
-        )
-        out_sample = compute_metrics(
-            portfolio_id, start=in_sample_end, end=end_date
-        )
-        in_dict = _metrics_to_dict(in_sample)
-        out_dict = _metrics_to_dict(out_sample)
-    except Exception as exc:  # pragma: no cover - 指标计算异常
-        logger.warning(f"指标计算失败: {exc}")
-        in_dict, out_dict = {}, {}
+    in_dict, out_dict = _combination_metrics(portfolio_id, start_date, in_sample_end, end_date)
     row["in_sample"] = {k: str(v) for k, v in in_dict.items()}
     row["out_sample"] = {k: str(v) for k, v in out_dict.items()}
     row["objective"] = objective_value(in_dict, objective)
@@ -341,11 +319,9 @@ def _worker(
     if strategy_cls is None:
         return {"error": f"策略不存在: {spec.strategy_name}"}
     assert spec.start_date is not None and spec.end_date is not None
-    in_sample_end, _ = _split_date(
-        spec.start_date, spec.end_date, spec.in_sample_ratio
-    )
+    in_sample_end, _ = _split_date(spec.start_date, spec.end_date, spec.in_sample_ratio)
     return _run_combo(
-        strategy_cls,
+        cast(type[BaseStrategy], strategy_cls),
         config,
         spec.start_date,
         spec.end_date,
@@ -380,7 +356,7 @@ def build_combinations(spec: OptimizationSpec) -> list[dict[str, Any]]:
     return combos
 
 
-def _terminate_workers(executor: Any) -> None:
+def _terminate_workers(executor: ProcessPoolExecutor) -> None:
     """终止仍在运行的 worker 进程（中断或超时时调用）。"""
     for process in list(getattr(executor, "_processes", {}).values()):
         try:
@@ -393,7 +369,7 @@ def _terminate_workers(executor: Any) -> None:
 class ParamOptimizer:
     """参数优化执行器（多进程 + 可中断）。"""
 
-    def __init__(self, spec: OptimizationSpec):
+    def __init__(self, spec: OptimizationSpec) -> None:
         self.spec = spec
         self._cancel = threading.Event()
 
@@ -401,12 +377,12 @@ class ParamOptimizer:
         """请求中断优化。"""
         self._cancel.set()
 
-    def _resolve_strategy(self) -> Any:
+    def _resolve_strategy(self) -> type[BaseStrategy] | None:
         """在父进程解析策略类（子进程通过引用导入，避免依赖数据库）。"""
         from quantide.service.discovery import strategy_loader
 
         strategies = strategy_loader.load_from_cache()
-        return strategies.get(self.spec.strategy_name)
+        return cast(type[BaseStrategy] | None, strategies.get(self.spec.strategy_name))
 
     @property
     def cancelled(self) -> bool:
@@ -415,7 +391,7 @@ class ParamOptimizer:
 
     def run(
         self,
-        on_progress: Any = None,
+        on_progress: Callable[[int, int, dict[str, Any]], None] | None = None,
     ) -> list[dict[str, Any]]:
         """执行搜索，返回每个组合的结果。
 
@@ -455,62 +431,78 @@ class ParamOptimizer:
         )
         stopped = False
         try:
-            futures = {}
-            for config in combinations:
-                if self._cancel.is_set():
-                    stopped = True
-                    break
-                futures[
-                    executor.submit(
-                        _worker,
-                        {
-                            "spec": spec.to_dict(),
-                            "config": config,
-                            "strategy_cls": strategy_cls,
-                        },
-                    )
-                ] = config
-            done = 0
-            pending = set(futures)
-            while pending:
-                finished, pending = wait(
-                    pending,
-                    timeout=1,
-                    return_when=FIRST_COMPLETED,
-                )
-                for future in finished:
-                    config = futures[future]
-                    done += 1
-                    try:
-                        result = future.result()
-                    except Exception as exc:
-                        logger.warning(f"参数组合失败 {config}: {exc}")
-                        result = {"error": str(exc)}
-                    result["params"] = {
-                        key: config.get(key) for key in spec.param_grid
-                    }
-                    result["config"] = config
-                    results.append(result)
-                    if on_progress is not None:
-                        on_progress(done, total, result)
-                if self._cancel.is_set():
-                    logger.info("参数优化已被中断")
-                    stopped = True
-                    break
-                if deadline is not None and datetime.datetime.now() > deadline:
-                    logger.info("参数优化达到时间预算，提前结束")
-                    stopped = True
-                    break
+            stopped = self._evaluate_combinations(
+                executor, strategy_cls, combinations, deadline, on_progress, results
+            )
         finally:
             if stopped:
                 _terminate_workers(executor)
             executor.shutdown(wait=not stopped, cancel_futures=stopped)
         return results
 
+    def _submit_combinations(
+        self,
+        executor: ProcessPoolExecutor,
+        strategy_cls: type[BaseStrategy],
+        combinations: list[dict[str, Any]],
+    ) -> dict[Future[dict[str, Any]], dict[str, Any]]:
+        futures = {}
+        for config in combinations:
+            if self._cancel.is_set():
+                break
+            future = executor.submit(
+                _worker,
+                {"spec": self.spec.to_dict(), "config": config, "strategy_cls": strategy_cls},
+            )
+            futures[future] = config
+        return futures
 
-def rank_results(
-    results: list[dict[str, Any]], objective: str
-) -> list[dict[str, Any]]:
+    def _evaluate_combinations(
+        self,
+        executor: ProcessPoolExecutor,
+        strategy_cls: type[BaseStrategy],
+        combinations: list[dict[str, Any]],
+        deadline: datetime.datetime | None,
+        on_progress: Callable[[int, int, dict[str, Any]], None] | None,
+        results: list[dict[str, Any]],
+    ) -> bool:
+        futures = self._submit_combinations(executor, strategy_cls, combinations)
+        done, pending = 0, set(futures)
+        while pending:
+            finished, pending = wait(pending, timeout=1, return_when=FIRST_COMPLETED)
+            for future in finished:
+                done += 1
+                result = self._future_result(future, futures[future])
+                results.append(result)
+                if on_progress is not None:
+                    on_progress(done, len(combinations), result)
+            if self._search_should_stop(deadline):
+                return True
+        return self._cancel.is_set()
+
+    def _future_result(
+        self, future: Future[dict[str, Any]], config: dict[str, Any]
+    ) -> dict[str, Any]:
+        try:
+            result = future.result()
+        except Exception as exc:
+            logger.warning(f"参数组合失败 {config}: {exc}")
+            result = {"error": str(exc)}
+        result["params"] = {key: config.get(key) for key in self.spec.param_grid}
+        result["config"] = config
+        return result
+
+    def _search_should_stop(self, deadline: datetime.datetime | None) -> bool:
+        if self._cancel.is_set():
+            logger.info("参数优化已被中断")
+            return True
+        if deadline is not None and datetime.datetime.now() > deadline:
+            logger.info("参数优化达到时间预算，提前结束")
+            return True
+        return False
+
+
+def rank_results(results: list[dict[str, Any]], objective: str) -> list[dict[str, Any]]:
     """按目标函数排序，并标记样本外明显劣化（疑似过拟合）。"""
     valid = [r for r in results if not r.get("error")]
     for row in valid:
@@ -536,3 +528,54 @@ def _is_overfit(objective: str, in_value: float, out_value: float) -> bool:
 def new_task_id() -> str:
     """生成任务 ID。"""
     return uuid.uuid4().hex
+
+
+def _optimization_backtest(
+    strategy_cls: type[BaseStrategy],
+    config: dict[str, Any],
+    start_date: datetime.date,
+    end_date: datetime.date,
+    interval: str,
+    initial_cash: float,
+    home_dir: str | None,
+) -> str | None:
+    """Run one isolated in-memory backtest in the worker process."""
+    from quantide.config.settings import get_data_home
+
+    data_home = home_dir or get_data_home()
+    init_data(data_home, init_db=False)
+
+    runner = BacktestRunner()
+    result = asyncio.run(
+        runner.run(
+            strategy_cls,
+            config,
+            start_date,
+            end_date,
+            FrameType(interval),
+            initial_cash,
+            db_path=":memory:",
+        )
+    )
+    portfolio_id = result.get("portfolio_id")
+    return portfolio_id
+
+
+def _combination_metrics(
+    portfolio_id: str,
+    start_date: datetime.date,
+    in_sample_end: datetime.date,
+    end_date: datetime.date,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Score the same portfolio on the configured sample split."""
+    from quantide.service.metrics import metrics as compute_metrics
+
+    try:
+        in_sample = compute_metrics(portfolio_id, start=start_date, end=in_sample_end)
+        out_sample = compute_metrics(portfolio_id, start=in_sample_end, end=end_date)
+        in_dict = _metrics_to_dict(in_sample)
+        out_dict = _metrics_to_dict(out_sample)
+    except Exception as exc:  # pragma: no cover - 指标计算异常
+        logger.warning(f"指标计算失败: {exc}")
+        in_dict, out_dict = {}, {}
+    return in_dict, out_dict

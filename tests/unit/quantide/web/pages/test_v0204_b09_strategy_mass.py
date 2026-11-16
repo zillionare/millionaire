@@ -8,6 +8,9 @@ _account_key / _runtime_to_row / _extract_params_from_info).
 
 from __future__ import annotations
 
+from quantide.web.pages import strategy_log_views
+
+
 import datetime as dt
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -120,9 +123,9 @@ def test_format_log_lines_appends_extra_when_present():
 def test_build_log_meta_returns_save_metadata_when_run_present():
     """[AC-NFR1101-01] _build_log_meta surfaces save_requested + saved path."""
     fake_run = SimpleNamespace(save_logs=True)
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
-         patch.object(strategy_mod, "saved_backtest_log_exists", return_value=True), \
-         patch.object(strategy_mod, "saved_backtest_log_path", return_value="/tmp/x.log"):
+    with patch.object(strategy_log_views, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_log_views, "saved_backtest_log_exists", return_value=True), \
+         patch.object(strategy_log_views, "saved_backtest_log_path", return_value="/tmp/x.log"):
         mock_mgr.get_backtest_run = MagicMock(return_value=fake_run)
         out = _build_log_meta("p1")
     assert out["save_requested"] is True

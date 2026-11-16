@@ -10,17 +10,34 @@ import datetime
 from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    A,
+    Div,
+    Option,
+    P,
+    Span,
+)
 
 # Use FastHTML's plain Label/Input for form elements to avoid MonsterUI's uk-label/uk-input styling
 from fasthtml.common import Label as _Label
 from fasthtml.common import Select as _Select
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H2,
+    H3,
+    Button,
+    Form,
+    Input,
+    UkIcon,
+)
+from starlette.requests import Request
 
 from quantide.config.settings import get_settings
 from quantide.data.models.app_state import AppState
 from quantide.data.sqlite import db
 from quantide.service.init_wizard import init_wizard
+from quantide.web.application import fast_app
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
@@ -29,6 +46,7 @@ system_datasource_app, rt = fast_app(hdrs=AppTheme.headers())
 
 
 # ========== 数据获取 ==========
+
 
 def _load_datasource_config() -> dict[str, Any]:
     """从数据库加载数据源配置"""
@@ -48,13 +66,13 @@ def _load_datasource_config() -> dict[str, Any]:
     settings = get_settings()
     return {
         "data_source": settings.data_source,
-        "tushare_token": settings.tushare_token if hasattr(settings, 'tushare_token') else "",
+        "tushare_token": settings.tushare_token if hasattr(settings, "tushare_token") else "",
         "epoch": settings.epoch,
         "history_years": 3,
     }
 
 
-def _get_data_status() -> dict:
+def _get_data_status() -> dict[str, Any]:
     """获取各数据类型的状态"""
     status = {
         "daily_bars": {"status": "unknown", "message": "未初始化", "count": 0},
@@ -115,7 +133,7 @@ def _get_data_status() -> dict:
     return status
 
 
-def _get_sync_history() -> list[dict]:
+def _get_sync_history() -> list[dict[str, Any]]:
     """获取最近同步记录"""
     try:
         rows = list(
@@ -131,6 +149,7 @@ def _get_sync_history() -> list[dict]:
 
 # ========== UI 组件 ==========
 
+
 def _build_status_badge(status: str) -> Span:
     """构建状态徽章"""
     if status == "ok":
@@ -142,7 +161,7 @@ def _build_status_badge(status: str) -> Span:
     return Span("⚪ 未知", cls="text-gray-500 font-medium")
 
 
-def _build_data_status_card(status: dict) -> Div:
+def _build_data_status_card(status: dict[str, Any]) -> Div:
     """构建数据状态卡片"""
     items = [
         ("日线数据", "daily_bars", "📊"),
@@ -197,7 +216,11 @@ def _build_config_card(config: dict[str, Any]) -> Div:
 
     epoch_str = ""
     if config.get("epoch"):
-        epoch_str = config["epoch"].strftime("%Y-%m-%d") if hasattr(config["epoch"], "strftime") else str(config["epoch"])
+        epoch_str = (
+            config["epoch"].strftime("%Y-%m-%d")
+            if hasattr(config["epoch"], "strftime")
+            else str(config["epoch"])
+        )
 
     return Div(
         Div(
@@ -208,7 +231,11 @@ def _build_config_card(config: dict[str, Any]) -> Div:
             Div(
                 _Label("数据源", cls="block text-sm font-medium text-gray-700 mb-1"),
                 _Select(
-                    Option("Tushare Pro", value="tushare", selected=str(config.get("data_source", "tushare")) == "tushare"),
+                    Option(
+                        "Tushare Pro",
+                        value="tushare",
+                        selected=str(config.get("data_source", "tushare")) == "tushare",
+                    ),
                     name="data_source",
                     cls="select select-bordered w-full",
                 ),
@@ -241,7 +268,13 @@ def _build_config_card(config: dict[str, Any]) -> Div:
                 cls="mb-4",
             ),
             Div(
-                Button("保存配置", type="submit", formaction="/system/datasource/save", formmethod="post", cls="btn btn-primary"),
+                Button(
+                    "保存配置",
+                    type="submit",
+                    formaction="/system/datasource/save",
+                    formmethod="post",
+                    cls="btn btn-primary",
+                ),
                 cls="flex justify-start",
             ),
         ),
@@ -249,7 +282,7 @@ def _build_config_card(config: dict[str, Any]) -> Div:
     )
 
 
-def _build_sync_history_card(history: list[dict]) -> Div:
+def _build_sync_history_card(history: list[dict[str, Any]]) -> Div:
     """构建同步记录卡片"""
     rows = []
     for record in history:
@@ -288,13 +321,14 @@ def _build_sync_history_card(history: list[dict]) -> Div:
 
 # ========== 路由 ==========
 
+
 def _render_page(
-    req,
+    req: Request,
     config: dict[str, Any],
     *,
     success_message: str | None = None,
     error_message: str | None = None,
-):
+) -> Any:
     data_status = _get_data_status()
     sync_history = _get_sync_history()
 
@@ -338,19 +372,19 @@ def _render_page(
         cls="p-8",
     )
 
-    layout.main_block = page_content
+    layout.set_main_block(page_content)
     return layout.render(req)
 
 
 @rt("/")
-async def index(req):
+async def index(req: Request) -> Any:
     """数据源页面"""
     config = _load_datasource_config()
     return _render_page(req, config)
 
 
 @rt("/save", methods=["POST"])
-async def save_config(req):
+async def save_config(req: Request) -> Any:
     """保存数据源配置"""
     form = await req.form()
     data_source = str(form.get("data_source", "tushare")).strip() or "tushare"
@@ -385,7 +419,7 @@ async def save_config(req):
 
 
 @rt("/sync")
-async def sync_data(req):
+async def sync_data(req: Request) -> Any:
     """触发数据同步"""
     from quantide.data.models.calendar import calendar as trade_calendar
     from quantide.data.models.daily_bars import daily_bars

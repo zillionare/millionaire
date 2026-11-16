@@ -25,6 +25,44 @@ from quantide.factors.alphatest import (
 )
 
 
+def test_tied_spearman_matches_independent_analytic_result():
+    from quantide.factors.alphatest import _spearman
+
+    x = np.repeat([0.0, 1.0], 50)
+    y = np.arange(100, dtype=float)
+    # Average ranks are 24.5 and 74.5; corr = 25 / sqrt((100**2 - 1) / 12).
+    expected = 25 / math.sqrt(9999 / 12)
+    assert _spearman(x, y) == pytest.approx(expected)
+    assert math.isnan(_spearman(np.ones(100), y))
+    assert math.isnan(_spearman(y, np.ones(100)))
+
+
+def test_batch_factors_keep_independent_missing_value_masks():
+    from quantide.factors.alphatest import study_factors
+
+    panel = _panel(n_days=10, n_assets=120).with_columns(pl.lit(None).cast(pl.Float64).alias("bad"))
+    reference = study_single_factor(panel, "f", 1)
+    good, bad = study_factors(panel, ["f", "bad"], 1)
+    assert good.rank_ic.mean == pytest.approx(reference.rank_ic.mean)
+    assert good.rank_ic.n_days == reference.rank_ic.n_days
+    assert good.rank_ic.n_days > 0
+    assert bad.rank_ic.n_days == 0
+
+
+def test_tied_factor_values_are_not_split_into_distinct_quantiles():
+    frame = pl.DataFrame(
+        {
+            "date": [dt.date(2024, 1, 2)] * 100,
+            "f": np.repeat([0.0, 1.0], 50),
+            "forward": np.arange(100, dtype=float),
+        }
+    )
+    buckets = decile_profile(frame, "f")
+    populated = [bucket for bucket in buckets if bucket.n_samples]
+    assert [(bucket.bucket, bucket.n_samples) for bucket in populated] == [(3, 50), (8, 50)]
+    assert [bucket.mean_forward for bucket in populated] == [24.5, 74.5]
+
+
 def _panel(
     n_days: int = 30,
     n_assets: int = 120,
@@ -139,12 +177,16 @@ def test_daily_rank_ic_detects_monotonic_relationship():
     """因子与前瞻收益正相关时 RankIC 接近 +1。"""
     panel = _panel(n_days=20, n_assets=150, noise=0.0001)
 
-    frame = ensure_trading_index(panel).with_columns(
-        [
-            forward_return_expr(1, "close").alias("forward"),
-            adjacent_trading_day_expr(1).alias("valid"),
-        ]
-    ).filter(pl.col("valid") & pl.col("forward").is_not_null())
+    frame = (
+        ensure_trading_index(panel)
+        .with_columns(
+            [
+                forward_return_expr(1, "close").alias("forward"),
+                adjacent_trading_day_expr(1).alias("valid"),
+            ]
+        )
+        .filter(pl.col("valid") & pl.col("forward").is_not_null())
+    )
 
     ics = daily_rank_ic(frame, "f")
 
@@ -171,12 +213,16 @@ def test_summarize_handles_empty():
 def test_decile_profile_is_monotonic_for_strong_signal():
     """强信号下，十分位越高平均前瞻收益越高。"""
     panel = _panel(n_days=20, n_assets=150, noise=0.0001)
-    frame = ensure_trading_index(panel).with_columns(
-        [
-            forward_return_expr(1, "close").alias("forward"),
-            adjacent_trading_day_expr(1).alias("valid"),
-        ]
-    ).filter(pl.col("valid") & pl.col("forward").is_not_null())
+    frame = (
+        ensure_trading_index(panel)
+        .with_columns(
+            [
+                forward_return_expr(1, "close").alias("forward"),
+                adjacent_trading_day_expr(1).alias("valid"),
+            ]
+        )
+        .filter(pl.col("valid") & pl.col("forward").is_not_null())
+    )
 
     buckets = decile_profile(frame, "f", buckets=10)
 
@@ -187,12 +233,16 @@ def test_decile_profile_is_monotonic_for_strong_signal():
 
 def test_yearly_rank_ic_splits_by_year():
     panel = _panel(n_days=40, n_assets=150, start=dt.date(2023, 12, 25))
-    frame = ensure_trading_index(panel).with_columns(
-        [
-            forward_return_expr(1, "close").alias("forward"),
-            adjacent_trading_day_expr(1).alias("valid"),
-        ]
-    ).filter(pl.col("valid") & pl.col("forward").is_not_null())
+    frame = (
+        ensure_trading_index(panel)
+        .with_columns(
+            [
+                forward_return_expr(1, "close").alias("forward"),
+                adjacent_trading_day_expr(1).alias("valid"),
+            ]
+        )
+        .filter(pl.col("valid") & pl.col("forward").is_not_null())
+    )
 
     by_year = yearly_rank_ic(frame, "f")
 

@@ -5,13 +5,16 @@
 
 import datetime
 from collections.abc import Callable, Iterable
+from typing import Any, cast
 
 import pandas as pd
 import tushare as ts
 from loguru import logger
 
 from quantide.config.settings import get_tushare_token
+from quantide.core.bar_schema import STANDARD_INDEX_BAR_COLUMNS
 from quantide.core.message import msg_hub
+from quantide.core.ports.data_fetcher import ErrorRecord
 
 
 def _ensure_tushare_token() -> None:
@@ -33,35 +36,35 @@ class TushareDataFetcher:
 
     def fetch_adjust_factor(
         self, dates: Iterable[datetime.date] | datetime.date
-    ) -> tuple[pd.DataFrame, list[list]]:
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
         return fetch_adjust_factor(dates)
 
     def fetch_bars(
         self, dates: Iterable[datetime.date] | datetime.date
-    ) -> tuple[pd.DataFrame, list[list]]:
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
         return fetch_bars(dates)
 
     def fetch_limit_price(
         self, dates: Iterable[datetime.date] | datetime.date
-    ) -> tuple[pd.DataFrame, list[list]]:
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
         return fetch_limit_price(dates)
 
     def fetch_st_info(
         self, dates: Iterable[datetime.date] | datetime.date
-    ) -> tuple[pd.DataFrame, list[list]]:
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
         return fetch_st_info(dates)
 
     def fetch_bars_ext(
         self,
         dates: Iterable[datetime.date] | datetime.date,
         phase_callback: Callable[[str], None] | None = None,
-    ) -> tuple[pd.DataFrame, list[list]]:
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
         return fetch_bars_ext(dates, phase_callback=phase_callback)
 
     def fetch_daily_basic(
         self,
         dates: Iterable[datetime.date] | datetime.date,
-    ) -> tuple[pd.DataFrame, list[list]]:
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
         return fetch_daily_basic(dates)
 
     def fetch_index_bars(
@@ -69,20 +72,20 @@ class TushareDataFetcher:
         index_codes: Iterable[str] | str,
         start_date: datetime.date,
         end_date: datetime.date,
-    ) -> tuple[pd.DataFrame, list[list]]:
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
         return fetch_index_bars(index_codes, start_date, end_date)
 
     def fetch_index_weights(
         self,
         index_codes: Iterable[str] | str,
         snapshot_dates: Iterable[datetime.date],
-    ) -> tuple[pd.DataFrame, list[list]]:
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
         return fetch_index_weights(index_codes, snapshot_dates)
 
 
 def _fetch_by_dates(
-    func_name: str, dates: Iterable[datetime.date] | datetime.date, **kwargs
-) -> tuple[pd.DataFrame, list[list]]:
+    func_name: str, dates: Iterable[datetime.date] | datetime.date, **kwargs: Any
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """按日期获取数据
 
     Args:
@@ -103,12 +106,11 @@ def _fetch_by_dates(
     fields = kwargs.pop("fields", None)
     _rename_as = kwargs.pop("rename_as", {})
     all_data = []
-    errors = []
+    errors: ErrorRecord = []
 
     for date in dates:
-        str_date = date.strftime("%Y%m%d")
         try:
-            df = func(trade_date=str_date, fields=fields, **kwargs)
+            df = func(trade_date=date.strftime("%Y%m%d"), fields=fields, **kwargs)
         except Exception as e:
             logger.error("调用 {} 时出错, {}", func_name, e)
             errors.append([func_name, date, f"调用{func_name}时出现异常"])
@@ -133,9 +135,7 @@ def _fetch_by_dates(
     if len(_rename_as) != 0:
         result = result.rename(columns=_rename_as)
 
-    result["date"] = pd.to_datetime(result["date"], format="%Y%m%d").astype(
-        "datetime64[ms]"
-    )
+    result["date"] = pd.to_datetime(result["date"], format="%Y%m%d").astype("datetime64[ms]")
     result = result.sort_values(by="date")
 
     return result, errors
@@ -153,7 +153,9 @@ def fetch_calendar(epoch: datetime.date) -> pd.DataFrame:
     pro = ts.pro_api()
 
     # 获取交易日历数据
-    df = pro.trade_cal(exchange="SSE", start_date=epoch.strftime("%Y%m%d"))
+    df = cast(
+        pd.DataFrame | None, pro.trade_cal(exchange="SSE", start_date=epoch.strftime("%Y%m%d"))
+    )
 
     if df is None or len(df) == 0:
         logger.warning("没有获取到交易日历数据")
@@ -180,9 +182,9 @@ def fetch_fina_audit(start: datetime.date, end: datetime.date) -> pd.DataFrame |
     """
     _ensure_tushare_token()
     pro = ts.pro_api()
-    all_data = []
+    all_data: list[pd.DataFrame] = []
 
-    df = pro.daily_basic()
+    df = cast(pd.DataFrame | None, pro.daily_basic())
     if df is None:
         logger.warning(f"在 {start} 到 {end} 之间，没有获取到任何财务审计意见数据")
         return None
@@ -190,10 +192,13 @@ def fetch_fina_audit(start: datetime.date, end: datetime.date) -> pd.DataFrame |
     securities = df["ts_code"].tolist()
 
     for sec in securities:
-        df = pro.fina_audit(
-            ts_code=sec,
-            start_date=start.strftime("%Y%m%d"),
-            end_date=end.strftime("%Y%m%d"),
+        df = cast(
+            pd.DataFrame | None,
+            pro.fina_audit(
+                ts_code=sec,
+                start_date=start.strftime("%Y%m%d"),
+                end_date=end.strftime("%Y%m%d"),
+            ),
         )
         if df is not None and len(df) > 0:
             all_data.append(df)
@@ -223,10 +228,10 @@ def fetch_dividend(start: datetime.date, end: datetime.date) -> pd.DataFrame:
     _ensure_tushare_token()
     pro = ts.pro_api()
     cols = "ts_code,trade_date,dv_ttm,total_mv,turnover_rate,pe_ttm"
-    dfs = []
+    dfs: list[pd.DataFrame] = []
     for dt in pd.bdate_range(start, end):
         dtstr = dt.strftime("%Y%m%d")
-        df = pro.daily_basic(trade_date=dtstr, fields=cols)
+        df = cast(pd.DataFrame | None, pro.daily_basic(trade_date=dtstr, fields=cols))
         if df is not None and len(df) > 0:
             dfs.append(df)
 
@@ -247,14 +252,14 @@ def fetch_dividend(start: datetime.date, end: datetime.date) -> pd.DataFrame:
     df = df.rename(columns={"trade_date": "date", "ts_code": "asset"})
 
     if not pd.api.types.is_datetime64_any_dtype(df["date"]):
-        df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", unit="ms")
+        df["date"] = pd.to_datetime(df["date"], format="%Y%m%d").astype("datetime64[ms]")
 
     return df
 
 
 def fetch_daily_basic(
     dates: Iterable[datetime.date] | datetime.date,
-) -> tuple[pd.DataFrame, list[list]]:
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """Fetch point-in-time market capitalization for universe filtering.
 
     Tushare returns ``total_mv`` / ``circ_mv`` in 10k CNY.  The values are kept
@@ -270,11 +275,10 @@ def fetch_daily_basic(
     dates = list(dates)
 
     frames: list[pd.DataFrame] = []
-    errors: list[list] = []
+    errors: ErrorRecord = []
     for index, date in enumerate(dates, start=1):
-        str_date = date.strftime("%Y%m%d")
         try:
-            df = pro.daily_basic(trade_date=str_date, fields=fields)
+            df = pro.daily_basic(trade_date=date.strftime("%Y%m%d"), fields=fields)
         except Exception as exc:
             logger.error("调用 daily_basic 时出错, {}", exc)
             errors.append(["daily_basic", date, f"调用daily_basic时出现异常: {exc}"])
@@ -311,12 +315,15 @@ def fetch_stock_list() -> pd.DataFrame | None:
     """
     _ensure_tushare_token()
     pro = ts.pro_api()
-    dfs = []
+    dfs: list[pd.DataFrame] = []
     for status in ("L", "D", "P"):
-        df = pro.stock_basic(
-            list_status=status,
-            exchange="",
-            fields="ts_code,name,cnspell,list_date,delist_date",
+        df = cast(
+            pd.DataFrame | None,
+            pro.stock_basic(
+                list_status=status,
+                exchange="",
+                fields="ts_code,name,cnspell,list_date,delist_date",
+            ),
         )
         if df is not None and len(df) > 0:
             dfs.append(df)
@@ -329,9 +336,7 @@ def fetch_stock_list() -> pd.DataFrame | None:
     cols = ["asset", "name", "pinyin", "list_date", "delist_date"]
 
     logger.info(f"获取股票列表成功，共 {len(df)} 条记录")
-    df = df.rename(
-        columns={"ts_code": "asset", "cnspell": "pinyin", "list_date": "list_date"}
-    )
+    df = df.rename(columns={"ts_code": "asset", "cnspell": "pinyin", "list_date": "list_date"})
 
     df["pinyin"] = df["pinyin"].str.upper()
     df["list_date"] = pd.to_datetime(df["list_date"]).dt.date
@@ -342,7 +347,7 @@ def fetch_stock_list() -> pd.DataFrame | None:
 
 def fetch_adjust_factor(
     dates: Iterable[datetime.date] | datetime.date,
-) -> tuple[pd.DataFrame, list[list]]:
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """获取指定交易日的复权因子
 
     因子以 adjust 字段返回
@@ -357,7 +362,7 @@ def fetch_adjust_factor(
 
 def fetch_bars(
     dates: Iterable[datetime.date] | datetime.date,
-) -> tuple[pd.DataFrame, list[list]]:
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """通过 tushare 接口，获取日线行情数据
 
     返回数据未复权，但包含了复权因子，因此可以增量获取叠加。返回数据为升序。
@@ -391,7 +396,7 @@ def _empty_st_info_frame() -> pd.DataFrame:
 
 def fetch_limit_price(
     dates: Iterable[datetime.date] | datetime.date,
-) -> tuple[pd.DataFrame, list[list]]:
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """通过 tushare 接口，获取涨跌停价格数据
 
     Args:
@@ -429,7 +434,7 @@ def fetch_limit_price(
 
 def fetch_st_info(
     dates: Iterable[datetime.date] | datetime.date,
-) -> tuple[pd.DataFrame, list[list]]:
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """通过 tushare 接口，获取 ST 股票数据
 
     Args:
@@ -454,13 +459,12 @@ def fetch_st_info(
     pro = ts.pro_api()
 
     all_data = []
-    errors = []
+    errors: ErrorRecord = []
 
     for date in valid_dates:
-        str_date = date.strftime("%Y%m%d")
         try:
             df = pro.stock_st(
-                trade_date=str_date,
+                trade_date=date.strftime("%Y%m%d"),
                 fields="trade_date,ts_code,name,type,type_name",
             )
         except Exception as e:
@@ -486,9 +490,7 @@ def fetch_st_info(
     if len(df) == 0:
         df = _empty_st_info_frame()
     else:
-        df["date"] = pd.to_datetime(df["date"], format="%Y%m%d").astype(
-            "datetime64[ms]"
-        )
+        df["date"] = pd.to_datetime(df["date"], format="%Y%m%d").astype("datetime64[ms]")
         df = df.sort_values(by=["date", "asset"]).reset_index(drop=True)
         # 接口仅返回当天为 ST 的资产，将这些行标记为 True
         df["is_st"] = pd.Series([True] * len(df), dtype="boolean")
@@ -500,7 +502,7 @@ def fetch_st_info(
 def fetch_bars_ext(
     dates: Iterable[datetime.date] | datetime.date,
     phase_callback: Callable[[str], None] | None = None,
-) -> tuple[pd.DataFrame, list[list]]:
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """获取日线行情、ST 和涨跌停价
 
     返回的 dataframe 将包含以下字段：
@@ -509,7 +511,7 @@ def fetch_bars_ext(
         dates (list[datetime.date] | datetime.date): 交易日
 
     Returns:
-        tuple[pd.DataFrame, list[list]]: 行情数据和错误信息
+        tuple[pd.DataFrame, ErrorRecord]: 行情数据和错误信息
     """
     if phase_callback:
         phase_callback("bars")
@@ -523,19 +525,15 @@ def fetch_bars_ext(
 
     if phase_callback:
         phase_callback("limit")
-    msg_hub.publish(
-        "fetch_data_progress", {"msg": "正在获取每日涨跌停限价信息..."}
-    )
+    msg_hub.publish("fetch_data_progress", {"msg": "正在获取每日涨跌停限价信息..."})
     limit, errors3 = fetch_limit_price(dates)
 
     if phase_callback:
         phase_callback("st")
-    msg_hub.publish(
-        "fetch_data_progress", {"msg": "正在获取 ST（特别处理） 信息..."}
-    )
+    msg_hub.publish("fetch_data_progress", {"msg": "正在获取 ST（特别处理） 信息..."})
     st, errors4 = fetch_st_info(dates)
 
-    errors = []
+    errors: ErrorRecord = []
     errors.extend(errors1)
     errors.extend(errors2)
     errors.extend(errors3)
@@ -581,7 +579,7 @@ def fetch_bars_ext(
     return df, errors
 
 
-def get_sector_info():
+def get_sector_info() -> pd.DataFrame | None:
     """获取板块信息"""
     pro = ts.pro_api()
     df = pro.index_basic(
@@ -590,21 +588,21 @@ def get_sector_info():
         category="SW",
         fields="ts_code,name,category",
     )
-    return df
+    return cast(pd.DataFrame | None, df)
 
 
-def get_industry_info():
+def get_industry_info() -> pd.DataFrame | None:
     """获取行业信息"""
     pro = ts.pro_api()
     df = pro.index_classify(src="SW")
-    return df
+    return cast(pd.DataFrame | None, df)
 
 
 def fetch_index_bars(
     index_codes: Iterable[str] | str,
     start_date: datetime.date,
     end_date: datetime.date,
-) -> tuple[pd.DataFrame, list[list]]:
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """获取指数日线行情。
 
     字段：date, index_code, open, high, low, close, volume, amount
@@ -615,7 +613,7 @@ def fetch_index_bars(
         end_date: 结束日。
 
     Returns:
-        tuple[pd.DataFrame, list[list]]: 行情数据与错误信息。
+        tuple[pd.DataFrame, ErrorRecord]: 行情数据与错误信息。
     """
     _ensure_tushare_token()
     pro = ts.pro_api()
@@ -623,7 +621,7 @@ def fetch_index_bars(
         index_codes = [index_codes]
 
     frames: list[pd.DataFrame] = []
-    errors: list[list] = []
+    errors: ErrorRecord = []
     for code in index_codes:
         try:
             df = pro.index_daily(
@@ -650,16 +648,7 @@ def fetch_index_bars(
     if not frames:
         return pd.DataFrame(), errors
     out = pd.concat(frames, ignore_index=True)
-    keep = [
-        "date",
-        "index_code",
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume",
-        "amount",
-    ]
+    keep = STANDARD_INDEX_BAR_COLUMNS
     for col in keep:
         if col not in out.columns:
             out[col] = pd.NA
@@ -670,7 +659,7 @@ def fetch_index_bars(
 def fetch_index_weights(
     index_codes: Iterable[str] | str,
     snapshot_dates: Iterable[datetime.date],
-) -> tuple[pd.DataFrame, list[list]]:
+) -> tuple[pd.DataFrame, ErrorRecord]:
     """按快照日逐期获取指数成分（Tushare index_weight）。
 
     **必须逐期调用**：``index_weight`` 的区间查询有 7000 行硬上限（滚动窗口），
@@ -683,7 +672,7 @@ def fetch_index_weights(
         snapshot_dates: 快照日列表。
 
     Returns:
-        tuple[pd.DataFrame, list[list]]: 成分数据与错误信息。
+        tuple[pd.DataFrame, ErrorRecord]: 成分数据与错误信息。
     """
     _ensure_tushare_token()
     pro = ts.pro_api()
@@ -691,13 +680,11 @@ def fetch_index_weights(
         index_codes = [index_codes]
 
     frames: list[pd.DataFrame] = []
-    errors: list[list] = []
+    errors: ErrorRecord = []
     for code in index_codes:
         for snapshot in snapshot_dates:
             try:
-                df = pro.index_weight(
-                    index_code=code, trade_date=snapshot.strftime("%Y%m%d")
-                )
+                df = pro.index_weight(index_code=code, trade_date=snapshot.strftime("%Y%m%d"))
             except Exception as exc:
                 logger.warning("获取指数成分失败 {} {}: {}", code, snapshot, exc)
                 errors.append(["index_weight", code, str(exc)])

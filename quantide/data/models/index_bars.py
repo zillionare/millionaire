@@ -6,6 +6,8 @@
 
 import polars as pl
 
+from quantide.core.bar_schema import bar_schema
+
 
 class IndexBars:
     """指数行情 schema marker。
@@ -14,13 +16,6 @@ class IndexBars:
     字段定义: symbol, date, open, high, low, close, volume, amount
     """
 
-    SCHEMA: dict[str, pl.DataType] = {
-        "sector_id": pl.Utf8,  # 存储列名 sector_id (非 symbol)
-        "date": pl.Date,
-        "open": pl.Float64,
-        "high": pl.Float64,
-        "low": pl.Float64,
-        "close": pl.Float64,
-        "volume": pl.Float64,
-        "amount": pl.Float64,
-    }
+    SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = bar_schema(
+        time_column="date", time_type=pl.Date, asset_column="sector_id", extended=False
+    )

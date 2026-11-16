@@ -20,6 +20,8 @@ from quantide.config.settings import (
     get_mail_server,
 )
 
+MailResult = tuple[dict[str, aiosmtplib.response.SMTPResponse], str]
+
 
 def mail_notify(
     subject: str | None = None,
@@ -27,7 +29,7 @@ def mail_notify(
     msg: EmailMessage | None = None,
     html: bool = False,
     receivers: list[str] | None = None,
-) -> Awaitable:
+) -> Awaitable[MailResult]:
     """发送邮件通知。
 
     发送者、接收者及邮件服务器等配置请通过系统设置配置
@@ -45,7 +47,8 @@ def mail_notify(
 
     ???+ Important
         必须在异步线程(即运行asyncio loop的线程）中调用此方法，否则会抛出异常。
-        此方法返回一个Awaitable，您可以等待它完成，也可以忽略返回值，此时它将作为一个后台任务执行，但完成的时间不确定。
+        此方法返回一个Awaitable，您可以等待它完成，也可以忽略返回值，
+        此时它将作为一个后台任务执行，但完成的时间不确定。
 
     Args:
         msg (EmailMessage, optional): [description]. Defaults to None.
@@ -92,7 +95,7 @@ def mail_notify(
 def send_mail(
     sender: str,
     receivers: list[str],
-    password: str,
+    password: str | None,
     msg: EmailMessage | None = None,
     host: str | None = None,
     port: int = 25,
@@ -101,14 +104,18 @@ def send_mail(
     subject: str | None = None,
     body: str | None = None,
     username: str | None = None,
-) -> Awaitable:
+) -> Awaitable[MailResult]:
     """发送邮件通知。
 
-    如果只发送简单的文本邮件，请使用 send_mail(sender, receivers, subject=subject, plain=plain)。如果要发送较复杂的带html和附件的邮件，请先调用compose()生成一个EmailMessage,然后再调用send_mail(sender, receivers, msg)来发送邮件。
+    如果只发送简单的文本邮件，请使用 send_mail(sender, receivers, subject=subject,
+    plain=plain)。如果要发送较复杂的带html和附件的邮件，
+    请先调用compose()生成一个EmailMessage,然后再调用send_mail(sender, receivers,
+    msg)来发送邮件。
 
     ???+ Important
         必须在异步线程(即运行asyncio loop的线程）中调用此方法，否则会抛出异常。
-        此方法返回一个Awaitable，您可以等待它完成，也可以忽略返回值，此时它将作为一个后台任务执行，但完成的时间不确定。
+        此方法返回一个Awaitable，您可以等待它完成，也可以忽略返回值，
+        此时它将作为一个后台任务执行，但完成的时间不确定。
 
     Args:
         sender (str): [description]
@@ -120,7 +127,8 @@ def send_mail(
         bcc (List[str], optional): [description]. Defaults to None.
         subject (str, optional): [description]. Defaults to None.
         plain (str, optional): [description]. Defaults to None.
-        username (str, optional): the username used to logon to mail server. if not provided, then `sender` is used.
+        username (str, optional): the username used to logon to mail server. if not provided,
+        then `sender` is used.
 
     Returns:
         发送消息的后台任务。您可以使用此返回句柄来取消任务。
@@ -155,9 +163,7 @@ def send_mail(
         host = sender.split("@")[-1]
 
     task = asyncio.create_task(
-        aiosmtplib.send(
-            msg, hostname=host, port=port, username=sender, password=password
-        )
+        aiosmtplib.send(msg, hostname=host, port=port, username=username, password=password)
     )
 
     return task
@@ -197,8 +203,6 @@ def compose(
 
         maintype, subtype = ctype.split("/", 1)
         with open(attachment, "rb") as f:
-            msg.add_attachment(
-                f.read(), maintype=maintype, subtype=subtype, filename=attachment
-            )
+            msg.add_attachment(f.read(), maintype=maintype, subtype=subtype, filename=attachment)
 
     return msg

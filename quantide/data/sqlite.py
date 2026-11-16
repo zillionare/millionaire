@@ -1,14 +1,19 @@
 """sqlite 数据库封装类及ORM。开启 wal和多线程访问模式。初始化数据库表。
 
-本模块定义了常用的数据模型，比如 Order, Trade, Position, Asset 等。同时还通过 Model class 实现了ORM。
+本模块定义了常用的数据模型，比如 Order, Trade, Position, Asset 等。同时还通过 Model class
+实现了ORM。
 
 ## 01 Model class 及数据库表定义
 
-sqlite_utils 赋予应用无须事先创建表结构的能力，但是，为了性能和数据类型精确性考虑，手动创建数据库表是更好的方式。
+sqlite_utils 赋予应用无须事先创建表结构的能力，但是，为了性能和数据类型精确性考虑，
+手动创建数据库表是更好的方式。
 
-Model class 自动将 dataclass 转换为数据库字段(schema)声明，从而可以用于创建数据库表结构（基于 sqlite_utils）。与 sqlalchemy 不同之处在于，我们利用 dataclass 的字段类型注解来自动推导数据库字段类型，而无须使用额外的语法。
+Model class 自动将 dataclass 转换为数据库字段(schema)声明，从而可以用于创建数据库表结构（基于
+sqlite_utils）。与 sqlalchemy 不同之处在于，我们利用 dataclass
+的字段类型注解来自动推导数据库字段类型，而无须使用额外的语法。
 
-具体的Entity 在继承 Entity 之后，可根据需要改写__post_init__方法，以完成数据库类型与 python 类型的转换。
+具体的Entity 在继承 Entity 之后，可根据需要改写__post_init__方法，以完成数据库类型与 python
+类型的转换。
 
 Example:
 ```python
@@ -28,27 +33,32 @@ get_*_by_*表明通过某个字段查询
 
 ## 并发和多线程安全
 
-数据库启用了 wal 模式，支持多进程、多线程并发读写。在高并发情况下，可能遇到 busy timeout 错误，此时需要进行重试，暂未实现。
+数据库启用了 wal 模式，支持多进程、多线程并发读写。在高并发情况下，可能遇到 busy timeout
+错误，此时需要进行重试，暂未实现。
 
-本方案实现了一个基于线程的连接池。每一个线程都有自己的数据库连接，因此不需要锁可以在多线程环境下并发执行。在使用时无须考虑申请和释放，直接使用 db 实例对象即可。
-
+本方案实现了一个基于线程的连接池。每一个线程都有自己的数据库连接，
+因此不需要锁可以在多线程环境下并发执行。在使用时无须考虑申请和释放，直接使用 db 实例对象即可。
 """
 
 import datetime
 import sqlite3
 import threading
+import uuid
 from collections.abc import Iterable
 from dataclasses import fields
 from pathlib import Path
 from typing import (
     Any,
     TypeVar,
+    cast,
 )
 
 import polars as pl
 import sqlite_utils as su
 
+from quantide.config.output_paths import external_runtime_path
 from quantide.core.singleton import singleton
+from quantide.data import portfolio_ledger
 from quantide.data.models.app_state import AppState
 from quantide.data.models.base import Entity, new_uuid_id
 from quantide.data.models.entities import (
@@ -65,22 +75,28 @@ from quantide.data.models.sync_task import DataSyncTask
 
 T = TypeVar("T")
 
+
 @singleton
 class SQLiteDB:
-    def __init__(self):
+    def __init__(self) -> None:
         # 每个线程都有自己的数据库连接
         self._thread_local = threading.local()
         self._lock = threading.RLock()
         self._connection_generation = 0
+        self._connections: set[sqlite3.Connection] = set()
         self.db_path: str = ""
         self._initialized = False
 
     def is_initialized_for(self, db_path: str | Path) -> bool:
-        next_path = str(Path(db_path).expanduser())
+        next_path = (
+            ":memory:" if str(db_path) == ":memory:" else str(external_runtime_path(db_path))
+        )
         return self._initialized and self.db_path == next_path and next_path != ":memory:"
 
-    def init(self, db_path: str | Path):
-        next_path = str(Path(db_path).expanduser())
+    def init(self, db_path: str | Path) -> None:
+        next_path = (
+            ":memory:" if str(db_path) == ":memory:" else str(external_runtime_path(db_path))
+        )
         with self._lock:
             if self.is_initialized_for(next_path):
                 return
@@ -96,18 +112,33 @@ class SQLiteDB:
             # 初始化数据库连接
             self.db_path = next_path
 
-            conn = sqlite3.connect(self.db_path)
-            db = su.Database(conn)
-
-            # 启用 WAL 模式提高并发读性能
-            if db_path != ":memory:":
-                db.enable_wal()
-
-            # 初始化表结构
-            self._init_tables(db)
-            conn.commit()
-            conn.close()
+            self._connection_uri = (
+                f"file:quantide-{uuid.uuid4().hex}?mode=memory&cache=shared"
+                if self.db_path == ":memory:"
+                else self.db_path
+            )
+            conn = self._open_connection()
+            db = self._initialize_connection(conn, db_path)
+            self._thread_local.conn = conn
+            self._thread_local.db = db
+            self._thread_local.generation = self._connection_generation
             self._initialized = True
+
+    def _initialize_connection(
+        self, connection: sqlite3.Connection, db_path: str | Path
+    ) -> su.Database:
+        try:
+            database = su.Database(connection)
+            if db_path != ":memory:":
+                database.enable_wal()  # type: ignore[no-untyped-call]
+            self._init_tables(database)
+            connection.commit()
+            connection.execute("PRAGMA foreign_keys = ON")
+            return database
+        except BaseException:
+            connection.close()
+            self._connections.discard(connection)
+            raise
 
     def _close_thread_connection(self) -> None:
         """Close the current thread's connection, if one is open."""
@@ -116,6 +147,7 @@ class SQLiteDB:
             try:
                 conn.close()
             finally:
+                self._connections.discard(conn)
                 del self._thread_local.conn
                 if hasattr(self._thread_local, "db"):
                     del self._thread_local.db
@@ -131,9 +163,7 @@ class SQLiteDB:
         """获取当前线程的数据库连接"""
         with self._lock:
             if not self._initialized:
-                raise RuntimeError(
-                    "SQLiteDB has not been initialized. Call init(db_path) first."
-                )
+                raise RuntimeError("SQLiteDB has not been initialized. Call init(db_path) first.")
 
             generation = self._connection_generation
             conn = getattr(self._thread_local, "conn", None)
@@ -142,14 +172,14 @@ class SQLiteDB:
                 and getattr(self._thread_local, "generation", None) == generation
                 and self._connection_is_alive(conn)
             ):
-                return self._thread_local.db
+                return cast(su.Database, self._thread_local.db)
 
             # A TestClient (and production ASGI servers) may handle a request
             # on a different thread from the one that initialized the app.
             # Rebind stale thread-local state instead of allowing a connection
             # from a previous app/config generation to leak into the request.
             self._close_thread_connection()
-            conn = sqlite3.connect(self.db_path, check_same_thread=True)
+            conn = self._open_connection()
 
             # 启用外键约束
             conn.execute("PRAGMA foreign_keys = ON")
@@ -158,7 +188,7 @@ class SQLiteDB:
             self._thread_local.db = su.Database(conn)
             self._thread_local.generation = generation
 
-            return self._thread_local.db
+            return cast(su.Database, self._thread_local.db)
 
     @staticmethod
     def _connection_is_alive(conn: sqlite3.Connection) -> bool:
@@ -169,24 +199,33 @@ class SQLiteDB:
             return False
         return True
 
-    def close(self) -> None:
-        """Close the current thread's connection.
+    def _open_connection(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(
+            self._connection_uri,
+            uri=self.db_path == ":memory:",
+            timeout=30,
+            check_same_thread=False,
+        )
+        self._connections.add(connection)
+        return connection
 
-        Other thread-owned connections are closed when those threads next
-        access the database after a rebind.  SQLite connections must be closed
-        by the thread that owns them.
+    def close(self) -> None:
+        """Close all connections after the owner has quiesced request/background workers.
+
+        Queries still use one connection per thread. Cross-thread close is enabled
+        solely so idle thread-pool connections cannot retain files after shutdown.
         """
         with self._lock:
+            for connection in tuple(self._connections):
+                connection.close()
+            self._connections.clear()
             self._close_thread_connection()
 
-    def _init_tables(self, db: su.Database):
-        """初始化表结构
-
-        在 sqlite_utils 中，创建表结构并非必须；但会导致sqlite-utils 无法准确判断类型。
-        """
+    def _init_tables(self, db: su.Database) -> None:
+        """Initialize declared tables, adding compatible columns and indexes in place."""
         self._drop_obsolete_market_tables(db)
-
-        for e in [
+        db.execute(portfolio_ledger.SNAPSHOT_SCHEMA)
+        for entity in (
             Order,
             Trade,
             Asset,
@@ -198,31 +237,25 @@ class SQLiteDB:
             StrategyInfo,
             AppState,
             DataSyncTask,
-        ]:
-            table = e.__table_name__
-            pk = e.__pk__
+        ):
+            self._ensure_entity_table(db, entity)
 
-            t: su.db.Table = db[table]  # type: ignore
-            schema = e.to_db_schema()
-            t.create(schema, pk=pk, if_not_exists=True)
-            for col, typ in schema.items():
-                if col not in t.columns_dict:
-                    # todo: use transform API?
-                    t.add_column(col, typ)
-
-            # 创建索引
-            if e.__indexes__ is not None:
-                indexes, is_unique = e.__indexes__
-                if indexes:  # 只在有索引字段时创建
-                    t.create_index(indexes, unique=is_unique, if_not_exists=True)
-
-            # 创建外键约束
-            if hasattr(e, "__foreign_keys__") and e.__foreign_keys__:
-                for fk in e.__foreign_keys__:
-                    if len(fk) == 3:  # (from_column, to_table, to_column)
-                        from_col, to_table, to_col = fk
-                        t.add_foreign_key(from_col, to_table, to_col, ignore=True)
-                        self._ensure_index_for_column(t, from_col)
+    def _ensure_entity_table(self, database: su.Database, entity: type[Entity]) -> None:
+        table = cast(su.db.Table, database[entity.__table_name__])
+        schema = entity.to_db_schema()
+        table.create(schema, pk=entity.__pk__, if_not_exists=True)
+        for column, kind in schema.items():
+            if column not in table.columns_dict:
+                table.add_column(column, kind)
+        if entity.__indexes__ is not None:
+            columns, unique = entity.__indexes__
+            if columns:
+                table.create_index(columns, unique=unique, if_not_exists=True)
+        for foreign_key in getattr(entity, "__foreign_keys__", ()) or ():
+            if len(foreign_key) == 3:
+                source, destination, column = foreign_key
+                table.add_foreign_key(source, destination, column, ignore=True)
+                self._ensure_index_for_column(table, source)
 
     @staticmethod
     def _ensure_index_for_column(table: su.db.Table, column: str) -> None:
@@ -242,11 +275,11 @@ class SQLiteDB:
         ):
             db.execute(f"DROP TABLE IF EXISTS {table_name}")
 
-    def __getitem__(self, table_name) -> su.db.Table:
+    def __getitem__(self, table_name: str) -> su.db.Table:
         """代理获取表对象"""
         return self.db[table_name]  # type: ignore
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """代理其他方法调用"""
         return getattr(self.db, name)
 
@@ -257,11 +290,9 @@ class SQLiteDB:
             positions: 持仓信息或持仓信息列表
         """
         if isinstance(positions, Position):
-            self["positions"].upsert(positions.to_dict(), pk=Position.__pk__)  # type: ignore
+            self["positions"].upsert(positions.to_dict(), pk=Position.__pk__)
         else:
-            self["positions"].upsert_all(
-                [p.to_dict() for p in positions], pk=Position.__pk__
-            )  # type: ignore
+            self["positions"].upsert_all([p.to_dict() for p in positions], pk=Position.__pk__)
 
     def replace_positions(
         self,
@@ -276,14 +307,17 @@ class SQLiteDB:
         picked up by the next history-fill run as a ghost holding.  Every date
         must therefore be written as a complete end-of-day snapshot.
         """
-        if isinstance(dt, datetime.datetime):
-            dt = dt.date()
-        self["positions"].delete_where(
-            "portfolio_id = ? AND dt = ?", (portfolio_id, str(dt))
-        )
-        items = list(positions)
-        if items:
-            self.upsert_positions(items)
+        portfolio_ledger.replace_positions(self.db.conn, portfolio_id, dt, positions)
+
+    def save_portfolio_snapshot(self, asset: Asset, positions: Iterable[Position]) -> None:
+        """Commit the complete account snapshot atomically."""
+        portfolio_ledger.save_snapshot(self.db.conn, asset, positions)
+
+    def save_paper_execution(
+        self, order: Order, trade: Trade, asset: Asset, positions: Iterable[Position]
+    ) -> None:
+        """Commit execution and account facts atomically."""
+        portfolio_ledger.save_execution(self.db.conn, order, trade, asset, positions)
 
     def get_positions(
         self, dt: datetime.date | None = None, portfolio_id: str | None = None
@@ -297,13 +331,26 @@ class SQLiteDB:
         if dt is not None:
             return self.query_positions(portfolio_id=portfolio_id, start=dt, end=dt)
 
-        # dt 为 None 时，使用子查询一次性获取最新日期的所有持仓
+        # Legacy nonempty snapshots participate until an explicit empty marker
+        # supersedes them. Each portfolio resolves its own latest date.
+        latest = (
+            "SELECT MAX(dt) FROM ("
+            "SELECT dt FROM position_snapshots WHERE portfolio_id = positions.portfolio_id "
+            "UNION ALL SELECT dt FROM positions AS prior "
+            "WHERE prior.portfolio_id = positions.portfolio_id)"
+        )
+        where = (
+            f"dt = ({latest})"
+            if portfolio_id
+            else (
+                "dt = (SELECT MAX(dt) FROM (SELECT dt FROM positions "
+                "UNION ALL SELECT dt FROM position_snapshots))"
+            )
+        )
+        params: list[Any] = []
         if portfolio_id:
-            where = "portfolio_id = ? AND dt = (SELECT MAX(dt) FROM positions WHERE portfolio_id = ?)"
-            params = [portfolio_id, portfolio_id]
-        else:
-            where = "dt = (SELECT MAX(dt) FROM positions)"
-            params = []
+            where += " AND portfolio_id = ?"
+            params.append(portfolio_id)
 
         rows = self["positions"].rows_where(where, params)
         df = pl.DataFrame(rows)
@@ -324,7 +371,7 @@ class SQLiteDB:
     ) -> pl.DataFrame:
         """根据 portfolio_id 和时间范围查询持仓信息"""
         where_clauses = []
-        params = []
+        params: list[Any] = []
 
         if portfolio_id:
             where_clauses.append("portfolio_id = ?")
@@ -354,7 +401,7 @@ class SQLiteDB:
         Returns:
             订单ID, 用于后续查询和更新。该订单 ID 为内部 id，而柜台或者第三方的 id。
         """
-        self["orders"].insert(order.to_dict(), pk=Order.__pk__)  # type: ignore
+        self["orders"].insert(order.to_dict(), pk=Order.__pk__)
         return order.qtoid
 
     def get_order_by_foid(self, foid: str | int) -> Order | None:
@@ -400,7 +447,8 @@ class SQLiteDB:
             portfolio_id: 指定组合 ID
         """
         if dt is not None:
-            return self.query_order_by_date(dt, portfolio_id)
+            result = self.query_order_by_date(dt, portfolio_id)
+            return result if result is not None else pl.DataFrame()
 
         return self.orders_all(portfolio_id)
 
@@ -420,7 +468,7 @@ class SQLiteDB:
             dt = dt.date()
 
         where = "tm >= ? and tm < ?"
-        params = [dt, dt + datetime.timedelta(days=1)]
+        params: list[Any] = [dt, dt + datetime.timedelta(days=1)]
 
         if portfolio_id:
             where += " and portfolio_id = ?"
@@ -445,7 +493,7 @@ class SQLiteDB:
         if isinstance(end, datetime.datetime):
             end = end.date()
         where = "tm >= ? and tm < ?"
-        params: list = [start, end + datetime.timedelta(days=1)]
+        params: list[Any] = [start, end + datetime.timedelta(days=1)]
         if portfolio_id:
             where += " and portfolio_id = ?"
             params.append(portfolio_id)
@@ -466,14 +514,14 @@ class SQLiteDB:
             return df.with_columns(pl.col("tm").cast(pl.Datetime))
         return df
 
-    def update_order(self, qtoid: str, **updates) -> None:
+    def update_order(self, qtoid: str, **updates: Any) -> None:
         """更新订单信息
 
         Args:
             oid: 订单ID
             kwupdatesargs: 更新的字段
         """
-        self["orders"].update(qtoid, updates)  # type: ignore
+        self["orders"].update(qtoid, updates)
 
     def insert_trades(self, trades: list[Trade] | Trade) -> None:
         """保存成交信息
@@ -486,7 +534,7 @@ class SQLiteDB:
         else:
             trades = trades
 
-        self["trades"].insert_all([trade.to_dict() for trade in trades], ignore=True)  # type: ignore
+        self["trades"].insert_all([trade.to_dict() for trade in trades], ignore=True)
 
     def insert_strategy_logs(self, logs: list[StrategyLog] | StrategyLog) -> None:
         """保存策略日志
@@ -497,7 +545,7 @@ class SQLiteDB:
         if isinstance(logs, StrategyLog):
             logs = [logs]
 
-        self["strategy_logs"].insert_all([log.to_dict() for log in logs], ignore=True)  # type: ignore
+        self["strategy_logs"].insert_all([log.to_dict() for log in logs], ignore=True)
 
     def insert_backtest_logs(
         self,
@@ -514,10 +562,13 @@ class SQLiteDB:
         self["backtest_logs"].insert_all(
             [log.to_dict() for log in logs],
             ignore=True,
-        )  # type: ignore
+        )
 
     def get_strategy_logs(
-        self, portfolio_id: str | None = None, start: datetime.date | None = None, end: datetime.date | None = None
+        self,
+        portfolio_id: str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
     ) -> pl.DataFrame:
         """获取策略日志
 
@@ -530,7 +581,7 @@ class SQLiteDB:
             策略日志 DataFrame
         """
         where_clauses = []
-        params = []
+        params: list[Any] = []
 
         if portfolio_id:
             where_clauses.append("portfolio_id = ?")
@@ -572,7 +623,7 @@ class SQLiteDB:
             回测日志 DataFrame。
         """
         where_clauses = []
-        params = []
+        params: list[Any] = []
 
         if portfolio_id:
             where_clauses.append("portfolio_id = ?")
@@ -613,9 +664,7 @@ class SQLiteDB:
         else:
             return Trade(**trades[0])
 
-    def query_trade(
-        self, qtoid: str | None = None, foid: str | None = None
-    ) -> pl.DataFrame | None:
+    def query_trade(self, qtoid: str | None = None, foid: str | None = None) -> pl.DataFrame | None:
         """通过 qtoid, foid 或者 tid查询成交
 
             Args:
@@ -633,9 +682,7 @@ class SQLiteDB:
                 filters.append(f"{param} = :{param}")
 
         if len(filters) == 0:
-            return pl.DataFrame(self["trades"].rows).with_columns(
-                pl.col("tm").cast(pl.Datetime)
-            )
+            return pl.DataFrame(self["trades"].rows).with_columns(pl.col("tm").cast(pl.Datetime))
 
         where_clause = " OR ".join(filters)
         rows = self["trades"].rows_where(where_clause, params)
@@ -675,7 +722,7 @@ class SQLiteDB:
             dt = dt.date()
 
         where = "tm >= ? and tm < ?"
-        params = [dt, dt + datetime.timedelta(days=1)]
+        params: list[Any] = [dt, dt + datetime.timedelta(days=1)]
 
         if portfolio_id:
             where += " and portfolio_id = ?"
@@ -700,7 +747,7 @@ class SQLiteDB:
         if isinstance(end, datetime.datetime):
             end = end.date()
         where = "tm >= ? and tm < ?"
-        params: list = [start, end + datetime.timedelta(days=1)]
+        params: list[Any] = [start, end + datetime.timedelta(days=1)]
         if portfolio_id:
             where += " and portfolio_id = ?"
             params.append(portfolio_id)
@@ -758,7 +805,7 @@ class SQLiteDB:
             portfolio_id: 组合(策略）ID，如果为 None 则不限制组合
         """
         where = None
-        params = []
+        params: list[Any] = []
         if portfolio_id:
             where = "portfolio_id = ?"
             params = [portfolio_id]
@@ -786,7 +833,7 @@ class SQLiteDB:
     ) -> pl.DataFrame:
         """根据 portfolio_id 和时间范围查询资产信息"""
         where_clauses = []
-        params = []
+        params: list[Any] = []
 
         if portfolio_id:
             where_clauses.append("portfolio_id = ?")
@@ -815,15 +862,15 @@ class SQLiteDB:
         """
         if isinstance(asset, Asset):
             assert asset.principal is not None, "资产信息中本金不能为空"
-            self["assets"].upsert(asset.to_dict(), pk=Asset.__pk__)  # type: ignore
+            self["assets"].upsert(asset.to_dict(), pk=Asset.__pk__)
         else:
             dicts = []
             for a in asset:
                 assert a.principal is not None, "资产信息中本金不能为空"
                 dicts.append(a.to_dict())
-            self["assets"].upsert_all(dicts, pk=Asset.__pk__)  # type: ignore
+            self["assets"].upsert_all(dicts, pk=Asset.__pk__)
 
-    def update_asset(self, dt: datetime.date, portfolio_id: str, **updates):
+    def update_asset(self, dt: datetime.date, portfolio_id: str, **updates: Any) -> None:
         """更新资产信息
 
         与 save_asset 不同，本方法允许单字段更新
@@ -831,11 +878,11 @@ class SQLiteDB:
         if isinstance(dt, datetime.datetime):
             dt = dt.date()
         row = {"portfolio_id": portfolio_id, "dt": dt, **updates}
-        self["assets"].upsert(row, pk=Asset.__pk__)  # type: ignore
+        self["assets"].upsert(row, pk=Asset.__pk__)
 
     def insert_portfolio(self, portfolio: Portfolio) -> None:
         """插入组合信息"""
-        self["portfolios"].insert(portfolio.to_dict(), pk=Portfolio.__pk__)  # type: ignore
+        self["portfolios"].insert(portfolio.to_dict(), pk=Portfolio.__pk__)
 
     def get_portfolio(self, portfolio_id: str) -> Portfolio | None:
         """获取组合信息"""
@@ -894,14 +941,11 @@ class SQLiteDB:
         df = pl.DataFrame(rows)
         if len(df) == 0:
             return pl.DataFrame()
-        # Convert date strings to date objects if necessary, though sqlite_utils might return strings
+        # Normalize dates returned as strings by sqlite-utils.
         # Polars handles string to date conversion if we cast
-        return df.with_columns([
-            pl.col("start").cast(pl.Date),
-            pl.col("end").cast(pl.Date)
-        ])
+        return df.with_columns([pl.col("start").cast(pl.Date), pl.col("end").cast(pl.Date)])
 
-    def update_portfolio(self, portfolio_id: str, **updates) -> None:
+    def update_portfolio(self, portfolio_id: str, **updates: Any) -> None:
         """更新组合信息
 
         Args:

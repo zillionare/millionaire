@@ -8,6 +8,21 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+from scripts.artifact_paths import artifact_root
+
+EXCLUDED_TOP_LEVEL = {
+    ".louke",
+    "tests",
+    "notebooks",
+    "data",
+    "dist",
+    "site",
+    "review",
+    "quality-reports",
+    "packaging",
+    "build",
+}
+
 # These are the private risk implementations removed from the CE tree. The
 # check is deliberately explicit so a future reintroduced file or persisted
 # private program ID fails the release job instead of silently shipping.
@@ -59,6 +74,11 @@ def _validate_artifact(path: Path) -> list[str]:
         return [f"{path.name}: cannot read artifact: {exc}"]
 
     for name, content in members:
+        parts = Path(name).parts
+        relative = parts if path.suffix == ".whl" else parts[1:]
+        if relative and relative[0] in EXCLUDED_TOP_LEVEL:
+            errors.append(f"{path.name}: development/generated content: {name}")
+            continue
         if any(Path(part).name in PRIVATE_RISK_PATH_PARTS for part in Path(name).parts):
             errors.append(f"{path.name}: private risk source path: {name}")
             continue
@@ -68,23 +88,20 @@ def _validate_artifact(path: Path) -> list[str]:
             continue
         match = PRIVATE_RISK_MARKER_RE.search(text)
         if match:
-            errors.append(
-                f"{path.name}: private risk ID marker {match.group(0)!r} in {name}"
-            )
+            errors.append(f"{path.name}: private risk ID marker {match.group(0)!r} in {name}")
     return errors
 
 
 def main() -> int:
     """Validate all wheel and source archives in a distribution directory."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("dist_dir", type=Path, nargs="?", default=Path("dist"))
+    parser.add_argument("dist_dir", type=Path, nargs="?", default=artifact_root() / "dist")
     args = parser.parse_args()
 
     artifacts = sorted(
         path
         for path in args.dist_dir.glob("*")
-        if path.suffix == ".whl"
-        or path.name.endswith((".tar.gz", ".tar.bz2", ".tar.xz"))
+        if path.suffix == ".whl" or path.name.endswith((".tar.gz", ".tar.bz2", ".tar.xz"))
     )
     if not artifacts:
         parser.error(f"no wheel or sdist found in {args.dist_dir}")

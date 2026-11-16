@@ -9,6 +9,15 @@ import pandas as pd
 import pyarrow.parquet as pq
 import pytest
 
+from scripts.artifact_paths import artifact_root
+
+# Isolate writes before importing application modules with import-time state.
+_test_work = artifact_root() / "work"
+_test_work.mkdir(parents=True, exist_ok=True)
+_test_profile = Path(tempfile.mkdtemp(prefix="pytest-profile-", dir=_test_work))
+os.environ["QUANTIDE_CONFIG_HOME"] = str(_test_profile / "config")
+os.environ["QUANTIDE_DATA_HOME"] = str(_test_profile / "market")
+
 from quantide.config.paths import normalize_data_home
 from quantide.config.settings import DEFAULT_TIMEZONE
 from quantide.data.sqlite import db as _db
@@ -59,7 +68,13 @@ def asset_dir():
         src = Path(__file__).parent / "assets"
         dst = Path(tmpdir) / "assets"
         shutil.copytree(src, dst)
-        stock_list_src = Path(__file__).resolve().parent.parent / "data" / "stock_list.parquet"
+        stock_list_src = (
+            Path(__file__).resolve().parent.parent
+            / "tests"
+            / "assets"
+            / "market_data"
+            / "stock_list.parquet"
+        )
         if stock_list_src.exists():
             shutil.copy2(stock_list_src, dst / "stock_list.parquet")
 

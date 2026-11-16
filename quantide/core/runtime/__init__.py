@@ -1,5 +1,7 @@
 """运行时基础模块导出."""
 
+from typing import Any
+
 from quantide.core.runtime.adapter_registry import AdapterRegistry, AdapterSpec
 from quantide.core.runtime.clock_bridge import BacktestClockAdapter, SystemClockAdapter
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
@@ -22,7 +24,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name in {"RuntimeMode", "RuntimeContext", "RuntimeBootstrap"}:
         from quantide.core.runtime.modes import (
             RuntimeBootstrap,

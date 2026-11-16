@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import datetime
 import inspect
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from quantide.core.enums import FrameType
 from quantide.core.ports.broker import ExecutionResult
+from quantide.core.strategy import RiskStrategy
 from quantide.service.data_readiness import DataReadinessMonitor
+from quantide.service.backtest_orders import BacktestOrders
 from quantide.service.runner import BacktestRunner, _BacktestNextOpenBrokerProxy
 from quantide.service.strategy_runtime import (
     NextOpenBarBrokerProxy,
@@ -15,6 +19,41 @@ from quantide.service.strategy_runtime import (
     StrategyRuntimeManager,
 )
 from quantide.service.strategy_tracking import TrackingStore
+
+
+def test_risk_strategy_cannot_be_started_as_independent_backtest(monkeypatch):
+    from quantide.service.strategy_runtime import strategy_loader
+
+    class ExampleRisk(RiskStrategy):
+        pass
+
+    monkeypatch.setattr(strategy_loader, "load_from_cache", lambda: {"Risk": ExampleRisk})
+    manager = StrategyRuntimeManager()
+    with pytest.raises(ValueError, match="风控策略不能作为独立策略运行"):
+        manager.create_backtest_runtime(
+            "portfolio", "Risk", {}, "1d", "2024-01-01", "2024-02-01", 10000
+        )
+
+
+@pytest.mark.asyncio
+async def test_target_percent_preserves_next_open_timing_for_both_directions():
+    buy, sell = AsyncMock(), AsyncMock()
+    broker = SimpleNamespace(
+        total_asset=lambda: 10000.0, _positions={}, buy_amount=buy, sell_amount=sell
+    )
+    tm = datetime.datetime(2024, 1, 2, 10, 30)
+    await BacktestOrders.trade_target_pct(
+        broker, "000001.SZ", 0.5, order_time=tm, timeout=2.0, fill_timing="next_open"
+    )
+    buy.assert_awaited_once_with("000001.SZ", 5000.0, 0, tm, 2.0, fill_timing="next_open")
+
+    broker._positions["000001.SZ"] = SimpleNamespace(mv=5000.0)
+    await BacktestOrders.trade_target_pct(
+        broker, "000001.SZ", 0.3, order_time=tm, timeout=2.0, fill_timing="next_open"
+    )
+    sell.assert_awaited_once_with(
+        "000001.SZ", 2000.0, 0, tm, 2.0, method="floor", fill_timing="next_open"
+    )
 
 
 class _DailyStrategy:
@@ -43,9 +82,7 @@ def test_strategy_interval_is_declared_and_conflicting_override_is_rejected():
         )
 
     with pytest.raises(ValueError, match="30m"):
-        BacktestRunner.validate_strategy_interval(
-            _ThirtyMinuteStrategy, {}, FrameType.DAY
-        )
+        BacktestRunner.validate_strategy_interval(_ThirtyMinuteStrategy, {}, FrameType.DAY)
 
 
 def test_runtime_spec_interval_must_match_strategy_definition():
@@ -61,9 +98,7 @@ def test_runtime_spec_interval_must_match_strategy_definition():
     }
 
     with pytest.raises(ValueError, match="interval"):
-        manager.validate_runtime_interval(
-            manager._runtime_specs["paper:p1:s1"], _DailyStrategy
-        )
+        manager.validate_runtime_interval(manager._runtime_specs["paper:p1:s1"], _DailyStrategy)
 
 
 def test_daily_readiness_requires_post_close_persisted_data_without_1505_assumption():
@@ -91,7 +126,9 @@ def test_daily_readiness_requires_post_close_persisted_data_without_1505_assumpt
                 }
             )
 
-    monitor = DataReadinessMonitor(daily_store=_Daily(), calendar=_Calendar(), recorder=lambda **_: None)
+    monitor = DataReadinessMonitor(
+        daily_store=_Daily(), calendar=_Calendar(), recorder=lambda **_: None
+    )
     assert not monitor.is_daily_ready(datetime.datetime(2026, 10, 27, 14, 59))
     assert monitor.is_daily_ready(datetime.datetime(2026, 10, 27, 15, 0))
 
@@ -124,9 +161,7 @@ def test_daily_readiness_rejects_previous_or_future_persisted_dates():
     monitor = DataReadinessMonitor(
         daily_store=_Daily(), calendar=_Calendar(), recorder=lambda **_: None
     )
-    assert not monitor.is_daily_ready(
-        datetime.datetime(2026, 10, 28, 9, 25), day=day
-    )
+    assert not monitor.is_daily_ready(datetime.datetime(2026, 10, 28, 9, 25), day=day)
 
     class _FutureDaily(_Daily):
         end = day + datetime.timedelta(days=1)
@@ -134,9 +169,7 @@ def test_daily_readiness_rejects_previous_or_future_persisted_dates():
     future_monitor = DataReadinessMonitor(
         daily_store=_FutureDaily(), calendar=_Calendar(), recorder=lambda **_: None
     )
-    assert not future_monitor.is_daily_ready(
-        datetime.datetime(2026, 10, 27, 15, 0)
-    )
+    assert not future_monitor.is_daily_ready(datetime.datetime(2026, 10, 27, 15, 0))
 
 
 def test_next_open_decision_does_not_replay_yesterday_after_restart(monkeypatch):
@@ -153,10 +186,7 @@ def test_next_open_decision_does_not_replay_yesterday_after_restart(monkeypatch)
     )
     manager = StrategyRuntimeManager()
 
-    assert (
-        manager._next_open_decision_day(datetime.datetime(2026, 10, 28, 9, 25))
-        is None
-    )
+    assert manager._next_open_decision_day(datetime.datetime(2026, 10, 28, 9, 25)) is None
 
 
 def test_persisted_runtime_without_interval_is_rejected():
@@ -186,6 +216,7 @@ async def test_next_open_processor_drains_persisted_intent(monkeypatch, tmp_path
 
     store = TrackingStore(tmp_path / "intents.db")
     monkeypatch.setattr(runtime_module, "tracking_store", store)
+    monkeypatch.setattr("quantide.service.runtime_proxies.tracking_store", store)
     store.enqueue_next_open_intent(
         runtime_id="paper:p1:s1",
         portfolio_id="p1",
@@ -226,13 +257,12 @@ async def test_next_open_processor_drains_persisted_intent(monkeypatch, tmp_path
 
 
 @pytest.mark.asyncio
-async def test_next_open_proxy_is_async_and_returns_empty_execution_result(
-    monkeypatch, tmp_path
-):
+async def test_next_open_proxy_is_async_and_returns_empty_execution_result(monkeypatch, tmp_path):
     import quantide.service.strategy_runtime as runtime_module
 
     store = TrackingStore(tmp_path / "proxy.db")
     monkeypatch.setattr(runtime_module, "tracking_store", store)
+    monkeypatch.setattr("quantide.service.runtime_proxies.tracking_store", store)
     proxy = NextOpenBrokerProxy(
         object(),
         runtime_id="paper:p1:s1",
@@ -302,15 +332,11 @@ async def test_backtest_next_open_proxy_flushes_at_following_open():
 
     open_time = datetime.datetime(2026, 10, 28, 9, 30)
     await proxy.flush(open_time)
-    assert calls == [
-        (("000001.SZ", 10000), {"order_time": open_time})
-    ]
+    assert calls == [(("000001.SZ", 10000), {"order_time": open_time})]
 
 
 @pytest.mark.asyncio
-async def test_30m_next_open_survives_restart_and_does_not_resubmit(
-    monkeypatch, tmp_path
-):
+async def test_30m_next_open_survives_restart_and_does_not_resubmit(monkeypatch, tmp_path):
     import quantide.service.strategy_runtime as runtime_module
 
     signal_bar = datetime.datetime(2026, 10, 27, 11, 30)
@@ -326,7 +352,10 @@ async def test_30m_next_open_survives_restart_and_does_not_resubmit(
     store_path = tmp_path / "30m-restart.db"
     store = TrackingStore(store_path)
     monkeypatch.setattr(runtime_module, "tracking_store", store)
+    monkeypatch.setattr("quantide.service.runtime_proxies.tracking_store", store)
     monkeypatch.setattr(runtime_module, "calendar", _Calendar)
+    monkeypatch.setattr("quantide.service.runtime_proxies.calendar", _Calendar)
+    monkeypatch.setattr("quantide.service.runtime_intents.calendar", _Calendar)
 
     first_proxy = NextOpenBarBrokerProxy(
         object(),
@@ -353,9 +382,7 @@ async def test_30m_next_open_survives_restart_and_does_not_resubmit(
     await second_proxy.buy_amount(
         "000001.SZ", 10000, order_time=datetime.datetime(2026, 10, 27, 12, 1)
     )
-    rows = reopened.list_next_open_intents(
-        runtime_id="paper:p1:s30", target_bar=target_bar
-    )
+    rows = reopened.list_next_open_intents(runtime_id="paper:p1:s30", target_bar=target_bar)
     assert len(rows) == 1
     assert rows[0]["target_bar"] == target_bar.isoformat(timespec="seconds")
 
@@ -393,12 +420,7 @@ async def test_30m_next_open_survives_restart_and_does_not_resubmit(
     restarted_manager._strategy_runtimes["paper:p1:s30"] = manager._strategy_runtimes[
         "paper:p1:s30"
     ]
-    assert (
-        await restarted_manager.process_next_open_30m_intents(
-            "paper:p1:s30", target_bar
-        )
-        == 0
-    )
+    assert await restarted_manager.process_next_open_30m_intents("paper:p1:s30", target_bar) == 0
     assert len(calls) == 1
 
 
@@ -410,6 +432,7 @@ async def test_30m_restart_fails_closed_for_ambiguous_inflight_intent(monkeypatc
 
     store = TrackingStore(tmp_path / "30m-inflight.db")
     monkeypatch.setattr(runtime_module, "tracking_store", store)
+    monkeypatch.setattr("quantide.service.runtime_proxies.tracking_store", store)
     intent = store.enqueue_next_open_intent(
         runtime_id="paper:p1:s30",
         portfolio_id="p1",
@@ -451,12 +474,8 @@ def test_30m_next_open_target_skips_lunch_and_overnight(monkeypatch):
     from quantide.service import strategy_runtime as runtime_module
 
     boundaries = {
-        datetime.datetime(2026, 10, 27, 11, 30): datetime.datetime(
-            2026, 10, 27, 13, 30
-        ),
-        datetime.datetime(2026, 10, 27, 15, 0): datetime.datetime(
-            2026, 10, 28, 10, 0
-        ),
+        datetime.datetime(2026, 10, 27, 11, 30): datetime.datetime(2026, 10, 27, 13, 30),
+        datetime.datetime(2026, 10, 27, 15, 0): datetime.datetime(2026, 10, 28, 10, 0),
     }
 
     class _Calendar:
@@ -467,6 +486,8 @@ def test_30m_next_open_target_skips_lunch_and_overnight(monkeypatch):
             return boundaries[moment]
 
     monkeypatch.setattr(runtime_module, "calendar", _Calendar)
+    monkeypatch.setattr("quantide.service.runtime_proxies.calendar", _Calendar)
+    monkeypatch.setattr("quantide.service.runtime_intents.calendar", _Calendar)
     assert StrategyRuntimeManager._next_eligible_30m_bar(
         datetime.datetime(2026, 10, 27, 11, 30)
     ) == datetime.datetime(2026, 10, 27, 13, 0)

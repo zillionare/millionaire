@@ -6,10 +6,20 @@ import polars as pl
 import pytest
 from fasthtml.common import Div, to_xml
 
+from quantide.core.enums import BrokerKind
 from quantide.data.models import Portfolio
 from quantide.factors import FEATURE_COLS
 from quantide.web.pages import strategy as strategy_page
+from quantide.web.pages import (
+    strategy_backtest_views,
+    strategy_deploy_views,
+    strategy_log_views,
+    strategy_metrics,
+    strategy_report_views,
+    strategy_trade_report,
+)
 from tests.e2e.support.system_settings_session import system_settings_e2e_session
+from tests.web_assets import script_sources
 
 
 class FakeRequest:
@@ -68,6 +78,8 @@ def test_strategy_index_page_omits_runtime_and_risk_panels(monkeypatch, db):
 
     assert 'id="risk-event-center"' not in html
     assert 'id="runtime-monitor"' not in html
+    assert "回测区间" not in html
+    assert "q-input--search" in html
 
 
 def test_scan_config_modal_describes_builtin_examples_and_setting_only(monkeypatch):
@@ -107,7 +119,7 @@ def test_strategy_index_page_explains_copy_entry(monkeypatch, db):
     html = to_xml(strategy_page.index(None, {"auth": "admin"}))
 
     assert "复制示例策略" in html
-    assert "内置示例已默认参与扫描" in html
+    assert "内置示例已自动加载" in html
     assert 'id="risk-event-center"' not in html
     assert 'id="runtime-monitor"' not in html
 
@@ -120,6 +132,7 @@ def test_strategy_index_page_renders_hash_toggle_for_backtest_list(monkeypatch, 
     )
 
     html = to_xml(strategy_page.index(None, {"auth": "admin"}))
+    html += script_sources(html)
 
     assert 'id="strategy-list-section"' in html
     assert 'id="backtest-list"' in html
@@ -142,6 +155,7 @@ def test_strategy_index_page_includes_modal_helper_script(monkeypatch, db):
     )
 
     html = to_xml(strategy_page.index(None, {"auth": "admin"}))
+    html += script_sources(html)
 
     assert "window.closeStrategyModal = clearModalContainer" in html
     assert "htmx:afterSwap" in html
@@ -259,8 +273,8 @@ def test_build_metrics_payload_normalizes_percent_metrics_and_current_keys(monke
             "Information Ratio",
         ],
     )
-    monkeypatch.setattr(strategy_page, "metrics", lambda *args, **kwargs: stats)
-    monkeypatch.setattr(strategy_page, "_build_benchmark_returns", lambda portfolio_id: None)
+    monkeypatch.setattr(strategy_metrics, "metrics", lambda *args, **kwargs: stats)
+    monkeypatch.setattr(strategy_metrics, "_build_benchmark_returns", lambda portfolio_id: None)
 
     payload = strategy_page._build_metrics_payload("demo")
 
@@ -291,8 +305,8 @@ def test_build_metrics_payload_normalizes_percent_metrics_and_current_keys(monke
 
 
 def test_build_metrics_payload_keeps_missing_metrics_empty(monkeypatch):
-    monkeypatch.setattr(strategy_page, "metrics", lambda *args, **kwargs: pd.DataFrame())
-    monkeypatch.setattr(strategy_page, "_build_benchmark_returns", lambda portfolio_id: None)
+    monkeypatch.setattr(strategy_metrics, "metrics", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(strategy_metrics, "_build_benchmark_returns", lambda portfolio_id: None)
 
     payload = strategy_page._build_metrics_payload("demo")
 
@@ -312,9 +326,9 @@ def test_build_metrics_payload_passes_benchmark_returns(monkeypatch):
         captured["baseline_returns"] = baseline_returns
         return pd.DataFrame({"Value": ["1.00"]}, index=["Sharpe Ratio"])
 
-    monkeypatch.setattr(strategy_page, "metrics", _fake_metrics)
+    monkeypatch.setattr(strategy_metrics, "metrics", _fake_metrics)
     monkeypatch.setattr(
-        strategy_page,
+        strategy_metrics,
         "_build_benchmark_returns",
         lambda portfolio_id: baseline_returns,
     )
@@ -327,7 +341,7 @@ def test_build_metrics_payload_passes_benchmark_returns(monkeypatch):
 
 def test_resolve_backtest_status_prefers_runtime_failure(monkeypatch):
     monkeypatch.setattr(
-        strategy_page,
+        strategy_metrics,
         "strategy_runtime_manager",
         SimpleNamespace(
             get_backtest_run=lambda portfolio_id: SimpleNamespace(
@@ -359,9 +373,9 @@ def test_build_backtest_rows_keeps_missing_metrics_blank(
             }
         ]
     )
-    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
-    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: pl.from_pandas(portfolios))
+    monkeypatch.setattr(strategy_backtest_views, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_backtest_views, "_strategy_version", lambda cls: "--")
     monkeypatch.setattr(
         strategy_page.strategy_runtime_manager,
         "backtest_deployment_modes",
@@ -376,8 +390,24 @@ def test_build_backtest_rows_keeps_missing_metrics_blank(
     assert 'href="/strategy/backtest/demo-pf"' in html
     assert 'hx-get="/strategy/backtest/demo-pf/deploy/paper/modal"' in html
     assert 'hx-get="/strategy/backtest/demo-pf/deploy/live/modal"' in html
-    assert 'btn btn-secondary btn-sm' in html
-    assert 'btn btn-primary btn-sm' not in html
+    assert "btn btn-secondary btn-sm" in html
+    assert "q-btn--paper" in html
+    assert "btn btn-primary btn-sm" not in html
+
+
+def test_build_backtest_name_cell_places_range_under_strategy_name() -> None:
+    html = to_xml(
+        strategy_page._build_backtest_name_cell(
+            "DualMAStrategy",
+            "demo-pf",
+            "2024-01-01",
+            "2024-01-31",
+        )
+    )
+
+    assert "DualMAStrategy" in html
+    assert "2024-01-01 ~ 2024-01-31" in html
+    assert "text-xs" in html
 
 
 def test_build_backtest_rows_keeps_paper_deploy_available_when_gateway_missing(
@@ -395,9 +425,9 @@ def test_build_backtest_rows_keeps_paper_deploy_available_when_gateway_missing(
             }
         ]
     )
-    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
-    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: pl.from_pandas(portfolios))
+    monkeypatch.setattr(strategy_backtest_views, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_backtest_views, "_strategy_version", lambda cls: "--")
     monkeypatch.setattr(
         strategy_page.strategy_runtime_manager,
         "backtest_deployment_modes",
@@ -433,9 +463,9 @@ def test_build_backtest_rows_disables_only_paper_deploy_when_runtime_missing(
             }
         ]
     )
-    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
-    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: pl.from_pandas(portfolios))
+    monkeypatch.setattr(strategy_backtest_views, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_backtest_views, "_strategy_version", lambda cls: "--")
     monkeypatch.setattr(
         strategy_page.strategy_runtime_manager,
         "backtest_deployment_modes",
@@ -472,9 +502,9 @@ def test_build_backtest_rows_renders_active_deployment_statuses(
             }
         ]
     )
-    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: strategy_page.pl.from_pandas(portfolios))
-    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_strategy_version", lambda cls: "--")
+    monkeypatch.setattr(strategy_page.db, "portfolios_all", lambda: pl.from_pandas(portfolios))
+    monkeypatch.setattr(strategy_backtest_views, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_backtest_views, "_strategy_version", lambda cls: "--")
     monkeypatch.setattr(
         strategy_page.strategy_runtime_manager,
         "backtest_deployment_modes",
@@ -496,11 +526,15 @@ def test_normalize_backtest_tab_falls_back_to_overview():
 
 
 def test_backtest_result_defaults_to_overview_only(monkeypatch):
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
-    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_build_date_axis", lambda portfolio_id: ["2024-01-02", "2024-01-03"])
     monkeypatch.setattr(
-        strategy_page,
+        strategy_report_views, "_resolve_backtest_status", lambda portfolio_id: ("finished", "")
+    )
+    monkeypatch.setattr(strategy_report_views, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(
+        strategy_report_views, "_build_date_axis", lambda portfolio_id: ["2024-01-02", "2024-01-03"]
+    )
+    monkeypatch.setattr(
+        strategy_report_views,
         "_build_series_payload",
         lambda portfolio_id, date_axis: {
             "date_axis": date_axis,
@@ -510,13 +544,19 @@ def test_backtest_result_defaults_to_overview_only(monkeypatch):
             "trade_count": [0, 1],
         },
     )
-    monkeypatch.setattr(strategy_page, "_build_trade_rows", lambda portfolio_id, limit=200: [])
-    monkeypatch.setattr(strategy_page, "_build_daily_positions", lambda portfolio_id: [])
-    monkeypatch.setattr(strategy_page, "_build_log_rows", lambda portfolio_id, limit=200: [])
+    monkeypatch.setattr(strategy_metrics, "_build_trade_rows", lambda portfolio_id, limit=200: [])
+    monkeypatch.setattr(strategy_report_views, "_build_daily_positions", lambda portfolio_id: [])
     monkeypatch.setattr(
-        strategy_page,
+        strategy_report_views, "_build_log_rows", lambda portfolio_id, limit=200: []
+    )
+    monkeypatch.setattr(
+        strategy_log_views,
         "_build_log_meta",
-        lambda portfolio_id: {"save_requested": False, "saved": False, "saved_path": "/tmp/demo.jsonl"},
+        lambda portfolio_id: {
+            "save_requested": False,
+            "saved": False,
+            "saved_path": "/tmp/demo.jsonl",
+        },
     )
 
     html = to_xml(strategy_page.backtest_result(FakePageRequest(), {"auth": "admin"}, "demo-pf"))
@@ -531,11 +571,13 @@ def test_backtest_result_defaults_to_overview_only(monkeypatch):
 
 
 def test_backtest_result_logs_tab_renders_only_log_panel(monkeypatch):
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
-    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_build_date_axis", lambda portfolio_id: [])
     monkeypatch.setattr(
-        strategy_page,
+        strategy_report_views, "_resolve_backtest_status", lambda portfolio_id: ("finished", "")
+    )
+    monkeypatch.setattr(strategy_report_views, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_report_views, "_build_date_axis", lambda portfolio_id: [])
+    monkeypatch.setattr(
+        strategy_report_views,
         "_build_series_payload",
         lambda portfolio_id, date_axis: {
             "date_axis": [],
@@ -545,10 +587,10 @@ def test_backtest_result_logs_tab_renders_only_log_panel(monkeypatch):
             "trade_count": [],
         },
     )
-    monkeypatch.setattr(strategy_page, "_build_trade_rows", lambda portfolio_id, limit=200: [])
-    monkeypatch.setattr(strategy_page, "_build_daily_positions", lambda portfolio_id: [])
+    monkeypatch.setattr(strategy_metrics, "_build_trade_rows", lambda portfolio_id, limit=200: [])
+    monkeypatch.setattr(strategy_report_views, "_build_daily_positions", lambda portfolio_id: [])
     monkeypatch.setattr(
-        strategy_page,
+        strategy_report_views,
         "_build_log_rows",
         lambda portfolio_id, limit=200: [
             {
@@ -561,9 +603,13 @@ def test_backtest_result_logs_tab_renders_only_log_panel(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        strategy_page,
+        strategy_log_views,
         "_build_log_meta",
-        lambda portfolio_id: {"save_requested": True, "saved": True, "saved_path": "/tmp/demo.jsonl"},
+        lambda portfolio_id: {
+            "save_requested": True,
+            "saved": True,
+            "saved_path": "/tmp/demo.jsonl",
+        },
     )
 
     html = to_xml(
@@ -585,16 +631,22 @@ def test_backtest_result_logs_tab_renders_only_log_panel(monkeypatch):
 
 
 def test_load_saved_backtest_log_panel_surfaces_read_error(monkeypatch):
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
     monkeypatch.setattr(
-        strategy_page,
+        strategy_log_views, "_resolve_backtest_status", lambda portfolio_id: ("finished", "")
+    )
+    monkeypatch.setattr(
+        strategy_log_views,
         "load_saved_backtest_logs",
         lambda portfolio_id, limit=200: (_ for _ in ()).throw(FileNotFoundError("未找到日志文件")),
     )
     monkeypatch.setattr(
-        strategy_page,
+        strategy_log_views,
         "_build_log_meta",
-        lambda portfolio_id: {"save_requested": True, "saved": False, "saved_path": "/tmp/demo.jsonl"},
+        lambda portfolio_id: {
+            "save_requested": True,
+            "saved": False,
+            "saved_path": "/tmp/demo.jsonl",
+        },
     )
 
     html = to_xml(strategy_page.load_saved_backtest_log_panel("demo-pf"))
@@ -741,9 +793,7 @@ def test_build_cheat_on_close_badge_uses_resolve_after_restart(monkeypatch):
 
     badge = strategy_page._build_cheat_on_close_badge("demo-pf")
     html = to_xml(badge)
-    assert "14:30" in html, (
-        f"重启后 badge 应展示持久化的 cheat_on_close_time, got {html}"
-    )
+    assert "14:30" in html, f"重启后 badge 应展示持久化的 cheat_on_close_time, got {html}"
     assert 'id="cheat_badge"' in html
     assert "hidden" not in (badge.attrs.get("cls") or "")
 
@@ -780,12 +830,14 @@ def test_delete_backtest_modal_renders_confirmation(monkeypatch):
         "get_portfolio",
         lambda portfolio_id: Portfolio(
             portfolio_id=portfolio_id,
-            kind=strategy_page.BrokerKind.BACKTEST,
+            kind=BrokerKind.BACKTEST,
             start="2024-01-01",
             name="DemoStrategy",
         ),
     )
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+    monkeypatch.setattr(
+        strategy_deploy_views, "_resolve_backtest_status", lambda portfolio_id: ("finished", "")
+    )
     monkeypatch.setattr(
         strategy_page.strategy_runtime_manager,
         "backtest_deployment_modes",
@@ -805,13 +857,15 @@ def test_delete_backtest_modal_renders_confirmation(monkeypatch):
 
 
 def test_delete_backtest_modal_disables_button_for_running_backtest(monkeypatch):
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("running", ""))
+    monkeypatch.setattr(
+        strategy_deploy_views, "_resolve_backtest_status", lambda portfolio_id: ("running", "")
+    )
     monkeypatch.setattr(
         strategy_page.db,
         "get_portfolio",
         lambda portfolio_id: Portfolio(
             portfolio_id=portfolio_id,
-            kind=strategy_page.BrokerKind.BACKTEST,
+            kind=BrokerKind.BACKTEST,
             start="2024-01-01",
             name="DemoStrategy",
         ),
@@ -829,13 +883,15 @@ def test_delete_backtest_modal_disables_button_for_running_backtest(monkeypatch)
 
 
 def test_delete_backtest_modal_warns_for_deployed_backtest(monkeypatch):
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+    monkeypatch.setattr(
+        strategy_deploy_views, "_resolve_backtest_status", lambda portfolio_id: ("finished", "")
+    )
     monkeypatch.setattr(
         strategy_page.db,
         "get_portfolio",
         lambda portfolio_id: Portfolio(
             portfolio_id=portfolio_id,
-            kind=strategy_page.BrokerKind.BACKTEST,
+            kind=BrokerKind.BACKTEST,
             start="2024-01-01",
             name="DemoStrategy",
         ),
@@ -855,9 +911,13 @@ def test_delete_backtest_modal_warns_for_deployed_backtest(monkeypatch):
 
 def test_delete_backtest_route_redirects_on_success(monkeypatch):
     monkeypatch.setattr(strategy_page.db, "delete_portfolio_cascade", lambda pid: None)
-    monkeypatch.setattr(strategy_page, "delete_saved_backtest_log", lambda pid: None)
-    monkeypatch.setattr(strategy_page.strategy_runtime_manager, "remove_backtest_run", lambda pid: None)
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
+    monkeypatch.setattr(strategy_deploy_views, "delete_saved_backtest_log", lambda pid: None)
+    monkeypatch.setattr(
+        strategy_page.strategy_runtime_manager, "remove_backtest_run", lambda pid: None
+    )
+    monkeypatch.setattr(
+        strategy_deploy_views, "_resolve_backtest_status", lambda portfolio_id: ("finished", "")
+    )
 
     response = strategy_page.delete_backtest_execute("demo-pf")
 
@@ -865,7 +925,9 @@ def test_delete_backtest_route_redirects_on_success(monkeypatch):
 
 
 def test_delete_backtest_route_rejects_running_backtest(monkeypatch):
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("running", ""))
+    monkeypatch.setattr(
+        strategy_deploy_views, "_resolve_backtest_status", lambda portfolio_id: ("running", "")
+    )
 
     html = to_xml(strategy_page.delete_backtest_execute("demo-pf"))
 
@@ -887,11 +949,13 @@ def test_build_backtest_action_cell_includes_delete_button(monkeypatch):
 
 def _trades_tab_page(monkeypatch, trade_rows, query=None):
     query = query or {"tab": "trades"}
-    monkeypatch.setattr(strategy_page, "_resolve_backtest_status", lambda portfolio_id: ("finished", ""))
-    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
-    monkeypatch.setattr(strategy_page, "_build_date_axis", lambda portfolio_id: [])
     monkeypatch.setattr(
-        strategy_page,
+        strategy_report_views, "_resolve_backtest_status", lambda portfolio_id: ("finished", "")
+    )
+    monkeypatch.setattr(strategy_report_views, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_report_views, "_build_date_axis", lambda portfolio_id: [])
+    monkeypatch.setattr(
+        strategy_report_views,
         "_build_series_payload",
         lambda portfolio_id, date_axis: {
             "date_axis": [],
@@ -901,11 +965,15 @@ def _trades_tab_page(monkeypatch, trade_rows, query=None):
             "trade_count": [],
         },
     )
-    monkeypatch.setattr(strategy_page, "_build_trade_pair_rows", lambda portfolio_id: trade_rows)
-    monkeypatch.setattr(strategy_page, "_build_daily_positions", lambda portfolio_id: [])
-    monkeypatch.setattr(strategy_page, "_build_log_rows", lambda portfolio_id, limit=200: [])
     monkeypatch.setattr(
-        strategy_page,
+        strategy_report_views, "_build_trade_pair_rows", lambda portfolio_id: trade_rows
+    )
+    monkeypatch.setattr(strategy_report_views, "_build_daily_positions", lambda portfolio_id: [])
+    monkeypatch.setattr(
+        strategy_report_views, "_build_log_rows", lambda portfolio_id, limit=200: []
+    )
+    monkeypatch.setattr(
+        strategy_log_views,
         "_build_log_meta",
         lambda portfolio_id: {"save_requested": False, "saved": False, "saved_path": ""},
     )
@@ -938,7 +1006,10 @@ def test_backtest_result_trades_tab_shows_pairs_with_pagination(monkeypatch):
     ]
     html = _trades_tab_page(monkeypatch, rows)
 
-    assert 'hx-get="/strategy/backtest/demo-pf/trade/kline/modal?buy_tid=tid-1&amp;sell_tid=tid-2"' in html
+    assert (
+        'hx-get="/strategy/backtest/demo-pf/trade/kline/modal?buy_tid=tid-1&amp;sell_tid=tid-2"'
+        in html
+    )
     assert 'hx-target="#modal-container"' in html
     assert "cursor-pointer" in html
     assert "金额(买入)" in html
@@ -974,7 +1045,7 @@ def test_backtest_result_trades_tab_paginates_pairs(monkeypatch):
 
 def test_trade_kline_modal_route_renders_chart(monkeypatch):
     monkeypatch.setattr(
-        strategy_page,
+        strategy_trade_report,
         "build_trade_kline_payload",
         lambda portfolio_id, buy_tid, sell_tid=None, panel="": {
             "asset": "002078.SZ",
@@ -1023,9 +1094,7 @@ def test_trade_kline_modal_route_renders_chart(monkeypatch):
                 "baseline": -0.1,
                 "rank": 3,
                 "cross_section": 100,
-                "features": [
-                    {"name": "bias_5", "value": -0.0229, "z": -1.16, "total": 0.05}
-                ],
+                "features": [{"name": "bias_5", "value": -0.0229, "z": -1.16, "total": 0.05}],
             },
             "sell_attribution": {
                 "asset": "002078.SZ",
@@ -1035,9 +1104,7 @@ def test_trade_kline_modal_route_renders_chart(monkeypatch):
                 "baseline": -0.1,
                 "rank": 88,
                 "cross_section": 100,
-                "features": [
-                    {"name": "bias_5", "value": 0.0311, "z": -1.2, "total": -0.06}
-                ],
+                "features": [{"name": "bias_5", "value": 0.0311, "z": -1.2, "total": -0.06}],
             },
             "available_panels": ["summary", "buy", "sell"],
             "active_panel": "summary",
@@ -1068,7 +1135,7 @@ def test_trade_kline_modal_route_renders_chart(monkeypatch):
 
 def test_trade_kline_modal_route_reports_missing_trade(monkeypatch):
     monkeypatch.setattr(
-        strategy_page,
+        strategy_trade_report,
         "build_trade_kline_payload",
         lambda portfolio_id, buy_tid, sell_tid=None, panel="": None,
     )
@@ -1123,7 +1190,7 @@ def test_trade_kline_modal_title_exposes_prev_next_arrows(monkeypatch):
 
     pairs = [_pair("buy-1", "sell-1"), _pair("buy-2", "sell-2"), _pair("buy-3", "sell-3")]
     monkeypatch.setattr(
-        strategy_page,
+        strategy_trade_report,
         "_ordered_trade_pairs",
         lambda portfolio_id: pairs,
     )
@@ -1142,6 +1209,8 @@ def test_trade_kline_modal_title_exposes_prev_next_arrows(monkeypatch):
 class _ModalDemoStrategy:
     """演示用策略：同时包含策略参数与交易参数。"""
 
+    SUPPORTS_FEATURE_SELECTION = True
+
     @staticmethod
     def default_config():
         return {
@@ -1155,8 +1224,8 @@ class _ModalDemoStrategy:
         }
 
 
-def test_backtest_modal_is_two_step_wizard_with_factor_selection(monkeypatch):
-    """回测弹窗为两步向导：参数 + 因子勾选。"""
+def test_backtest_modal_shows_feature_step_for_feature_strategy(monkeypatch):
+    """支持特征选择的策略显示参数、因子、风控三步。"""
     monkeypatch.setattr(
         strategy_page.strategy_loader,
         "load_from_cache",
@@ -1167,13 +1236,40 @@ def test_backtest_modal_is_two_step_wizard_with_factor_selection(monkeypatch):
 
     assert 'data-bt-step="1"' in html
     assert 'data-bt-step="2"' in html
+    assert 'data-bt-step="3"' in html
     assert "选择因子" in html
     # 因子勾选项：全部因子默认勾选
     assert html.count('name="param_features"') == len(FEATURE_COLS)
     assert 'value="bias_5"' in html
     # 步骤切换脚本
     assert "showBacktestStep" in html
+    assert "第 1 / 3 步" in html
     assert "下一步：选择因子" in html
+    assert "q-btn--outline-brand" in html
+    assert "开始运行" in html
+
+
+def test_backtest_modal_skips_feature_step_for_non_feature_strategy(monkeypatch):
+    """均线等不使用因子的策略只显示参数、风控两步。"""
+    from quantide.strategies.example.monthly_ma import MonthlyMAStrategy
+
+    monkeypatch.setattr(
+        strategy_page.strategy_loader,
+        "load_from_cache",
+        lambda: {"MonthlyMAStrategy": MonthlyMAStrategy},
+    )
+
+    html = to_xml(strategy_page.backtest_modal("MonthlyMAStrategy"))
+
+    assert 'data-bt-step="1"' in html
+    assert 'data-bt-step="2"' in html
+    assert 'data-bt-step="3"' not in html
+    assert "选择因子" not in html
+    assert 'name="param_features"' not in html
+    assert "第 1 / 2 步" in html
+    assert "下一步：选择风控" in html
+    assert "下一步：选择因子" not in html
+    assert "q-btn--outline-brand" in html
     assert "开始运行" in html
 
 
@@ -1197,6 +1293,7 @@ def test_parse_params_collects_repeated_feature_values():
 
 def test_parse_params_keeps_single_value_as_scalar():
     """单值字段仍然是标量。"""
+
     class _Form(dict):
         def getlist(self, key):
             return [self[key]]
@@ -1241,7 +1338,7 @@ def test_resolve_backtest_status_repairs_stale_running_state(monkeypatch):
         "get_portfolio",
         lambda portfolio_id: Portfolio(
             portfolio_id=portfolio_id,
-            kind=strategy_page.BrokerKind.BACKTEST,
+            kind=BrokerKind.BACKTEST,
             start="2024-01-02",
             end="2024-06-30",
             name="DemoStrategy",
@@ -1391,7 +1488,7 @@ def test_backtest_list_shows_only_changed_params(monkeypatch):
         "load_from_cache",
         lambda: {"DemoStrategy": _ModalDemoStrategy},
     )
-    monkeypatch.setattr(strategy_page, "_build_metrics_payload", lambda portfolio_id: {})
+    monkeypatch.setattr(strategy_backtest_views, "_build_metrics_payload", lambda portfolio_id: {})
 
     rows = strategy_page._build_backtest_rows({"DemoStrategy": _ModalDemoStrategy})
     html = str(rows[0])

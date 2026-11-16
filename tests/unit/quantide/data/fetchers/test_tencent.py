@@ -63,7 +63,7 @@ def _quote_line(
 def test_fetch_quote_snapshot_parses_price_limits_and_units():
     """实时快照解析：价格、涨跌停、成交额（万元→千元）。"""
     session = _FakeSession(quote_text=_quote_line())
-    fetcher = TencentDataFetcher(session=session)
+    fetcher = TencentDataFetcher(access_check=lambda: None, session=session)
 
     snapshot = fetcher.fetch_quote_snapshot(["600519.SH"])
 
@@ -86,7 +86,7 @@ def test_fetch_quote_snapshot_parses_price_limits_and_units():
 def test_fetch_quote_snapshot_skips_suspended_symbols():
     """停牌/无价格的标的应被跳过。"""
     session = _FakeSession(quote_text=_quote_line(price="0"))
-    fetcher = TencentDataFetcher(session=session)
+    fetcher = TencentDataFetcher(access_check=lambda: None, session=session)
     assert fetcher.fetch_quote_snapshot(["600519.SH"]) == {}
 
 
@@ -102,7 +102,7 @@ def test_fetch_minute_bars_maps_tencent_column_order():
             }
         }
     }
-    fetcher = TencentDataFetcher(session=_FakeSession(kline=kline))
+    fetcher = TencentDataFetcher(access_check=lambda: None, session=_FakeSession(kline=kline))
 
     frame, errors = fetcher.fetch_minute_bars(
         "600519.SH", period="30", count=320
@@ -132,7 +132,7 @@ def test_fetch_minute_bars_filters_date_range():
             }
         }
     }
-    fetcher = TencentDataFetcher(session=_FakeSession(kline=kline))
+    fetcher = TencentDataFetcher(access_check=lambda: None, session=_FakeSession(kline=kline))
     frame, _ = fetcher.fetch_minute_bars(
         "600519.SH",
         start_date=datetime.date(2024, 1, 1),
@@ -155,7 +155,7 @@ def test_fetch_index_bars_filters_and_labels_index_code():
             }
         }
     }
-    fetcher = TencentDataFetcher(session=_FakeSession(kline=kline))
+    fetcher = TencentDataFetcher(access_check=lambda: None, session=_FakeSession(kline=kline))
     frame, errors = fetcher.fetch_index_bars(
         ["000300.SH"], datetime.date(2024, 1, 1), datetime.date(2024, 1, 31)
     )

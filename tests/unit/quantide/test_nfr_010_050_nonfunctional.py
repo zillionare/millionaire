@@ -77,7 +77,7 @@ def test_nfr_030_paper_broker_module_single_responsibility():
 
     src_path = sim_broker.__file__
     assert src_path is not None
-    src = Path(src_path).read_text()
+    src = Path(src_path).read_text(encoding="utf-8")
     assert "class PaperBroker" in src
 
 
@@ -103,7 +103,8 @@ def test_nfr_050_paper_broker_uses_logger():
     """AC-NFR-050: PaperBroker 使用 logger (可观测性)."""
     from quantide.service import sim_broker
 
-    src = Path(sim_broker.__file__).read_text()
+    import inspect
+    src = inspect.getsource(sim_broker.PaperBroker._on_quote_update)
     assert "self.logger" in src or "logger" in src, "PaperBroker 应使用 logger 记录"
 
 
@@ -111,7 +112,7 @@ def test_nfr_050_base_strategy_uses_logger():
     """AC-NFR-050: Strategy 基类使用 logger."""
     from quantide.core import strategy as strat_mod
 
-    src = Path(strat_mod.__file__).read_text()
+    src = Path(strat_mod.__file__).read_text(encoding="utf-8")
     assert "logger" in src, "Strategy 基类应有 logger"
 
 
@@ -121,7 +122,7 @@ def test_nfr_010_performance_marker_exists():
 
     config_path = REPO_ROOT / "pyproject.toml"
     if config_path.exists():
-        content = config_path.read_text()
+        content = config_path.read_text(encoding="utf-8")
         assert "e2e_perf" in content or "performance" in content.lower() or True
 
 
@@ -138,5 +139,6 @@ def test_nfr_050_paper_broker_logs_trade():
     """AC-NFR-050: PaperBroker 成交时记录日志 (loguru)."""
     from quantide.service import sim_broker
 
-    src = Path(sim_broker.__file__).read_text()
+    import inspect
+    src = inspect.getsource(sim_broker.PaperBroker._on_quote_update)
     assert "trade" in src.lower() and ("log" in src.lower() or "logger" in src.lower())

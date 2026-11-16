@@ -1,0 +1,164 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Configure temporary artifacts
+        run: python -m scripts.artifact_paths --github-env
+      - name: Install pinned quality tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --group quality
+      - name: Verify the gates reject counterexamples
+        run: python -m unittest discover -s tests/quality -v
+      - name: Production quality gate
+        run: python -m scripts.check_quality
+      - name: Build user documentation strictly
+        run: |
+          python -m pip install "mkdocs>=1.2.3,<2.0.0" "mkdocs-material>=8.1.11,<10.0.0"
+          mkdocs build --strict --site-dir "${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/site"
+      - name: Upload quality evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/quality.json
+          if-no-files-found: error
+      - name: Verify clean checkout layout
+        run: python -m scripts.artifact_paths --check-layout
+
+  tests:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Configure temporary artifacts
+        run: python -m scripts.artifact_paths --github-env
+      - name: Isolate application configuration
+        shell: python
+        run: |
+          import os, pathlib
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              for key, name in [('XDG_CONFIG_HOME', 'config'), ('APPDATA', 'appdata'), ('QUANTIDE_DATA_HOME', 'data')]:
+                  print(f'{key}={root / ("quantide-" + name)}', file=output)
+      - name: Install macOS OpenMP runtime
+        if: runner.os == 'macOS'
+        run: |
+          if ! brew list --versions libomp; then
+            brew install libomp
+          fi
+      - name: Install build and offline test tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build==1.3.0 --group test
+      - name: Build and validate release artifacts
+        run: |
+          python -m build --outdir "${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/dist"
+          python -m scripts.validate_release_artifacts
+      - name: Install the built wheel with ML extra
+        shell: python
+        run: |
+          import os, pathlib, subprocess, sys
+          wheel = next((pathlib.Path(os.environ['MILLIONAIRE_ARTIFACTS_DIR']) / 'dist').glob('*.whl')).resolve()
+          subprocess.run([sys.executable, '-m', 'pip', 'install', f'{wheel}[ml30m]'], check=True)
+      - name: Smoke test installed CLI and app outside the source checkout
+        working-directory: ${{ runner.temp }}
+        run: |
+          millionaire --help
+          python -c "import lightgbm, polars_talib; from quantide.app_factory import create_app; create_app(enforce_single_instance=False)"
+      - name: Unit tests and 80 percent coverage gate (no external network)
+        run: >-
+          python -m pytest tests/unit --strict-markers
+          --disable-socket --allow-unix-socket --allow-hosts=127.0.0.1,::1,localhost
+          --timeout=60 -o faulthandler_timeout=90
+          --cov=quantide --cov-fail-under=80
+          --cov-report=term-missing --cov-report=xml:${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/coverage.xml
+          --cov-report=json:${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/coverage.json
+          --cov-report=html:${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/htmlcov
+          --junitxml=${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/unit.xml
+      - name: Upload test and coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ matrix.os }}
+          path: |
+            ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/unit.xml
+            ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/coverage.xml
+            ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/coverage.json
+            ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/htmlcov/
+          retention-days: 30
+      - name: Verify clean checkout layout
+        run: python -m scripts.artifact_paths --check-layout
+      - name: Retain the tested package for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.os }}
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  acceptance:
+    name: acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Configure temporary artifacts
+        run: python -m scripts.artifact_paths --github-env
+      - name: Install CE and offline test tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install '.[ml30m]' --group test
+      - name: CE accuracy acceptance (expected failures are real failures)
+        env:
+          XDG_CONFIG_HOME: ${{ runner.temp }}/quantide-acceptance-config
+          QUANTIDE_DATA_HOME: ${{ runner.temp }}/quantide-acceptance-data
+        run: >-
+          python -m pytest tests/e2e --strict-markers
+          -m 'e2e and release_gate and not private_only and not e2e_live_smoke'
+          --runxfail --timeout=60
+          --disable-socket --allow-unix-socket --allow-hosts=127.0.0.1,::1,localhost
+          --junitxml=${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/acceptance.xml
+      - name: Require nonempty passing acceptance, with no skips
+        run: python -m scripts.check_test_results ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/acceptance.xml
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-report
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/acceptance.xml
+      - name: Verify clean checkout layout
+        run: python -m scripts.artifact_paths --check-layout
+
+  installers:
+    needs: [tests, acceptance]
+    uses: ./.github/workflows/installers.yml

@@ -1,44 +1,60 @@
-"""基础的数据存储和缓存类。在提供了 fetcher 方法的前提下，能够自动从数据源获取数据，从而使得应用层无须操心本地数据是否全面。
+"""基础的数据存储和缓存类。在提供了 fetcher 方法的前提下，能够自动从数据源获取数据，
 
-需要与一个日历类一起使用。日历类的作用是，协助 fetcher 数据是否有缺失，是否要从远程获取。一般使用 alpha.data.models.calendar；但如果要处理的是财数据（或者任何在非交易日可能发布的数据，则子类需要将日历改写为自然日历，以使得 Calendar.get_trade_dates能返回自然日历。
+从而使得应用层无须操心本地数据是否全面。
+
+需要与一个日历类一起使用。日历类的作用是，协助 fetcher 数据是否有缺失，是否要从远程获取。
+一般使用 alpha.data.models.calendar；
+但如果要处理的是财数据（或者任何在非交易日可能发布的数据，则子类需要将日历改写为自然日历，
+以使得 Calendar.get_trade_dates能返回自然日历。
 """
+
+from __future__ import annotations
 
 import datetime
 import glob
-import inspect
+import hashlib
+import json
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 import pandas as pd
 import polars as pl
 from loguru import logger
 
 from quantide.config.settings import get_timezone
+from quantide.core.atomic_files import atomic_path, write_parquet
 from quantide.core.enums import FrameType
 from quantide.core.message import msg_hub
 from quantide.data.models.calendar import Calendar
+from quantide.data.store_lock import locked_store
+from quantide.data.stores.bounds import _as_date_bound as _as_date_bound
+from quantide.data.stores.bounds import _as_datetime_bound as _as_datetime_bound
+from quantide.data.stores.partitions import PartitionOperations
 
 
-def _as_datetime_bound(value: datetime.date | datetime.datetime) -> pl.Expr:
-    if isinstance(value, datetime.datetime):
-        return pl.lit(value)
-    return pl.lit(
-        datetime.datetime.combine(value, datetime.time.min),
-        dtype=pl.Datetime("ms"),
-    )
+def _scan_storage_range(
+    end: datetime.date | None, self: ParquetStorage, start: datetime.date | None
+) -> pl.LazyFrame | None:
+    """Scan storage range."""
+    if self._partition_by is None:
+        lf = self._scan_store(keep_partition_col=False)
+    else:
+        lf = self._scan_store_range(
+            start,
+            end,
+            keep_partition_col=False,
+        )
+        if lf is None:
+            lf = self._read_partition(
+                self._to_partition_key(start),
+                self._to_partition_key(end),
+                keep_partition_col=False,
+            )
+    return lf
 
 
-def _as_date_bound(value: datetime.date | datetime.datetime) -> pl.Expr:
-    if isinstance(value, datetime.datetime):
-        value = value.date()
-    return pl.lit(
-        datetime.datetime.combine(value, datetime.time.min),
-        dtype=pl.Date,
-    )
-
-
-class ParquetStorage:
+class ParquetStorage(PartitionOperations):
     """基于Parquet文件的统一数据存储类。
 
     被存储的数据必须有使用"asset" 和 "date"的组合作为惟一的键值，以区分数据。
@@ -57,12 +73,12 @@ class ParquetStorage:
         store_path: str | Path,
         calendar: Calendar,
         fetch_data_func: Callable[..., Any] | None = None,
-        error_handler: Callable[[list[list]], None] | None = None,
+        error_handler: Callable[[list[list[Any]]], None] | None = None,
         partition_by: Literal["year", "month", "day"] | None = None,
         partition_levels: tuple[Literal["year", "month", "day"], ...] | None = None,
         id_cols: list[str] | None = None,
         date_as_date: bool = False,
-    ):
+    ) -> None:
         """初始化ParquetStorage
 
         Args:
@@ -94,9 +110,7 @@ class ParquetStorage:
         if partition_by is not None or partition_levels is not None:
             if not self._store_path.exists():
                 self._store_path.mkdir(parents=True, exist_ok=True)
-            assert (
-                self._store_path.is_dir()
-            ), f"store_path {self._store_path} must be a directory"
+            assert self._store_path.is_dir(), f"store_path {self._store_path} must be a directory"
 
         self._fetch_data_func = fetch_data_func
         self._error_handler = error_handler or self.default_error_handler
@@ -132,7 +146,7 @@ class ParquetStorage:
             lf = self._scan_store(keep_partition_col=False)
             if lf is None:
                 return 0
-            return lf.select(pl.len()).collect().item()
+            return int(lf.select(pl.len()).collect().item())
         except Exception as e:
             logger.exception(e)
             logger.warning("ParquetStore读取{}失败", self._store_path)
@@ -155,14 +169,27 @@ class ParquetStorage:
             pattern = str(self._store_path / "**/*.parquet")
             if not glob.glob(pattern, recursive=True):
                 return None
-            lf = pl.scan_parquet(
-                self._store_path / "**/*.parquet", hive_partitioning=True
-            )
+            lf = pl.scan_parquet(self._store_path / "**/*.parquet", hive_partitioning=True)
             if not keep_partition_col:
                 lf = lf.select(pl.exclude(self._partition_by))
         return lf
 
-    def default_error_handler(self, errors: list[list]):
+    def rec_counts_per_date(
+        self, start: datetime.date | None = None, end: datetime.date | None = None
+    ) -> dict[datetime.date, int]:
+        """Count records by trading date through one implementation for every bar store."""
+        lazy = self._scan_store(keep_partition_col=False)
+        if lazy is None:
+            return {}
+        lazy = lazy.with_columns(pl.col("date").cast(pl.Date))
+        if start is not None:
+            lazy = lazy.filter(pl.col("date") >= start)
+        if end is not None:
+            lazy = lazy.filter(pl.col("date") <= end)
+        counts = lazy.group_by("date").agg(pl.len().alias("n")).collect()
+        return {day: int(count) for day, count in counts.iter_rows()}
+
+    def default_error_handler(self, errors: list[list[Any]]) -> None:
         """默认错误处理函数
 
         将抓取错误写入 failed_tasks 表，便于后续重试。
@@ -179,7 +206,7 @@ class ParquetStorage:
         else:
             return self._store_path.parent / f"{self.store_name}-dates.pq"
 
-    def _update_dates(self, new_dates: pl.Series):
+    def _update_dates(self, new_dates: pl.Series) -> None:
         """从文件中加载日期或更新日期范围
 
         Args:
@@ -195,22 +222,47 @@ class ParquetStorage:
 
         # 更新索引文件
         df = self._dates.to_frame("date")
-        df.write_parquet(self._dates_file_path())
+        write_parquet(df, self._dates_file_path())
 
-    def _collect_dates(self):
-        """初始化时，加载元数据"""
-        if self._dates_file_path().exists():
-            df = pl.read_parquet(self._dates_file_path())
-            self._dates = df["date"].cast(pl.Date)
-            # 如果缓存文件存在但为空，则回退到实时扫描，避免初始化为0
-            if len(self._dates) > 0:
-                return
+    def _storage_signature(self) -> str:
+        """Fingerprint every committed partition; detect additions, changes and deletions."""
+        paths = (
+            sorted(self._store_path.rglob("*.parquet"))
+            if self._partition_by is not None
+            else [self._store_path]
+        )
+        digest = hashlib.sha256()
+        for path in paths:
+            try:
+                stat = path.stat()
+            except FileNotFoundError:
+                continue
+            digest.update(f"{path}:{stat.st_size}:{stat.st_mtime_ns}\n".encode())
+        return digest.hexdigest()
 
+    def _cached_dates(self, signature: str) -> bool:
+        """Use the derived index only when it describes the current committed files."""
+        try:
+            marker = self._dates_file_path().with_suffix(".signature.json")
+            if json.loads(marker.read_text(encoding="utf-8"))["sha256"] != signature:
+                return False
+            dates = pl.read_parquet(self._dates_file_path())["date"].cast(pl.Date)
+            if dates.is_empty():
+                return False
+            self._dates = dates
+            return True
+        except (OSError, ValueError, KeyError, pl.exceptions.PolarsError):
+            return False
+
+    def _collect_dates(self) -> None:
+        """Rebuild stale or damaged derived indexes from the durable Parquet data."""
+        signature = self._storage_signature()
+        if self._cached_dates(signature):
+            return
         lf = self._scan_store(keep_partition_col=False)
         if lf is None:
             self._dates = pl.Series([], dtype=pl.Date)
         else:
-            # 业务数据中的 `date` 统一为 Datetime，但索引中的日期范围仍使用 Date
             self._dates = (
                 lf.select(pl.col("date").cast(pl.Date).alias("date"))
                 .unique()
@@ -218,372 +270,14 @@ class ParquetStorage:
                 .collect()
                 .to_series()
             )
-        df = self._dates.to_frame("date")
-        if len(df):
-            df.write_parquet(self._dates_file_path())
-
-    def _candidate_partition_files(
-        self, start: datetime.date | None, end: datetime.date | None
-    ) -> list[str]:
-        """按日期范围裁剪出需要读取的分区文件（读放大的关键）。
-
-        年+月两级分区时，查询一个季度只会打开 3-4 个文件，而不是全量文件。
-        """
-        if not self._store_path.exists():
-            return []
-        files: list[str] = []
-        if not self._partition_levels:
-            return sorted(str(f) for f in self._store_path.rglob("*.parquet"))
-
-        # 逐级遍历目录，只进入与日期范围相交的分支
-        def _walk(path: Path, depth: int, year: int | None) -> None:
-            if depth == len(self._partition_levels):
-                files.extend(str(f) for f in sorted(path.rglob("*.parquet")))
-                return
-            level = self._partition_levels[depth]
-            if not path.exists():
-                return
-            for child in sorted(path.iterdir()):
-                if not child.is_dir() or not child.name.startswith(f"{level}="):
-                    continue
-                value = child.name[len(level) + 1 :]
-                if not self._level_overlaps(level, value, start, end, year):
-                    continue
-                next_year = year
-                if level == "partition_key_year":
-                    try:
-                        next_year = int(value)
-                    except ValueError:
-                        next_year = None
-                _walk(child, depth + 1, next_year)
-
-        _walk(self._store_path, 0, None)
-        return files
-
-    def _level_overlaps(
-        self,
-        level: str,
-        value: str,
-        start: datetime.date | None,
-        end: datetime.date | None,
-        year: int | None = None,
-    ) -> bool:
-        """判断某个分区取值是否与日期范围相交。
-
-        ``year`` 为上层目录已确定的年份（两级分区时用于判断月份）。
-        """
-        if start is None and end is None:
-            return True
-        if level == "partition_key_year":
-            try:
-                level_year = int(value)
-            except ValueError:
-                return True
-            if start is not None and level_year < start.year:
-                return False
-            if end is not None and level_year > end.year:
-                return False
-            return True
-        if level == "partition_key_month":
-            try:
-                month = int(value)
-            except (TypeError, ValueError):
-                return True
-            level_year = year
-            if level_year is None:
-                try:
-                    year_s, month_s = value.split("-")
-                    level_year, month = int(year_s), int(month_s)
-                except (ValueError, AttributeError):
-                    return True
-            if start is not None and (level_year, month) < (start.year, start.month):
-                return False
-            if end is not None and (level_year, month) > (end.year, end.month):
-                return False
-            return True
-        if level == "partition_key_day":
-            try:
-                day = datetime.date.fromisoformat(value)
-            except ValueError:
-                return True
-            if start is not None and day < start:
-                return False
-            if end is not None and day > end:
-                return False
-            return True
-        return True
-
-    def _scan_store_range(
-        self,
-        start: datetime.date | None = None,
-        end: datetime.date | None = None,
-        keep_partition_col: bool = False,
-    ) -> pl.LazyFrame | None:
-        """按日期范围扫描（多级分区下只打开命中的文件）。"""
-        files = self._candidate_partition_files(start, end)
-        if not files:
-            return None
-        lf = pl.scan_parquet(files, hive_partitioning=True)
-        levels = self._partition_levels or (
-            (self._partition_by,) if self._partition_by else ()
-        )
-        if not keep_partition_col:
-            for level in levels:
-                if level in lf.collect_schema():
-                    lf = lf.select(pl.exclude(level))
-        return lf
-
-    def _read_partition(
-        self, start: Any = None, end: Any = None, keep_partition_col: bool = False
-    ) -> pl.LazyFrame | None:
-        lf = self._scan_store(keep_partition_col=True)
-        if lf is None:
-            return None
-
-        filters = []
-        if start is not None:
-            filters.append(pl.col(self._partition_by) >= start)
-        if end is not None:
-            filters.append(pl.col(self._partition_by) <= end)
-        if filters:
-            lf = lf.filter(pl.all_horizontal(filters))
-
-        if not keep_partition_col:
-            lf = lf.select(pl.exclude(self._partition_by))
-        return lf
-
-    def _ensure_partition_col(self, lf: pl.LazyFrame) -> pl.LazyFrame:
-        """补齐缺失的分区列（多级分区会补齐所有层级）。"""
-        schema = lf.collect_schema()
-        for level in self._partition_levels or (
-            (self._partition_by,) if self._partition_by else ()
-        ):
-            if level in schema:
-                continue
-            if level == "partition_key_year":
-                lf = lf.with_columns(
-                    pl.col("date").dt.year().cast(pl.Int64).alias(level)
-                )
-            elif level == "partition_key_month":
-                if self._partition_levels and len(self._partition_levels) > 1:
-                    # 两级及以上：年已在上层目录，这里只放月份
-                    lf = lf.with_columns(
-                        pl.col("date").dt.month().cast(pl.Int64).alias(level)
-                    )
-                else:
-                    lf = lf.with_columns(
-                        pl.col("date").dt.strftime("%Y-%m").alias(level)
-                    )
-            elif level == "partition_key_day":
-                lf = lf.with_columns(
-                    pl.col("date").dt.strftime("%Y-%m-%d").alias(level)
-                )
-        return lf
-
-    def _partition_value(self, level: str, v: datetime.date | datetime.datetime | None) -> Any:
-        """单个分区层级对应的取值。"""
-        if v is None:
-            return None
-        if level == "partition_key_year":
-            return v.year
-        if level == "partition_key_month":
-            if self._partition_levels and len(self._partition_levels) > 1:
-                return v.month
-            return v.strftime("%Y-%m")
-        if level == "partition_key_day":
-            return v.strftime("%Y-%m-%d")
-        return None
-
-    def _to_partition_key(self, v: datetime.date | datetime.datetime | None) -> Any:
-        if self._partition_by == "partition_key_year":
-            return v.year if v is not None else None
-        elif self._partition_by == "partition_key_month":
-            return v.strftime("%Y-%m") if v is not None else None
-        elif self._partition_by == "partition_key_day":
-            return v.strftime("%Y-%m-%d") if v is not None else None
-
-    def _partition_dirs(self, lf: pl.LazyFrame) -> list[tuple[tuple[str, ...], pl.LazyFrame]]:
-        """按分区层级组合，把数据切分成 (目录键元组, 数据) 的列表。
-
-        多级分区时目录形如 ``partition_key_year=2024/partition_key_month=03``。
-        """
-        levels = self._partition_levels or (self._partition_by,)
-        lf = self._ensure_partition_col(lf)
-        keys = (
-            lf.select([pl.col(level) for level in levels])
-            .unique()
-            .collect()
-            .rows()
-        )
-        groups: list[tuple[tuple[str, ...], pl.LazyFrame]] = []
-        for key in keys:
-            mask = pl.all_horizontal(
-                [
-                    pl.col(level) == value
-                    for level, value in zip(levels, key, strict=True)
-                ]
+        # A concurrent writer must not give an old index a new fingerprint.
+        if self._storage_signature() != signature:
+            raise RuntimeError(
+                "Storage changed while rebuilding date index; retry under store lock"
             )
-            groups.append((tuple(str(v) for v in key), lf.filter(mask)))
-        return groups
-
-    def _partition_path(self, key: tuple[str, ...]) -> Path:
-        """分区键元组对应的目录。"""
-        levels = self._partition_levels or (self._partition_by,)
-        path = self._store_path
-        for level, value in zip(levels, key, strict=True):
-            path = path / f"{level}={self._format_partition_value(level, value)}"
-        return path
-
-    def _format_partition_value(self, level: str, value: str) -> str:
-        """分区目录名的展示形式（月份补零便于排序）。"""
-        if level == "partition_key_month":
-            try:
-                return f"{int(value):02d}"
-            except (TypeError, ValueError):
-                return str(value)
-        return str(value)
-
-    def _read_partition_dir(self, path: Path) -> pl.LazyFrame | None:
-        """读取一个分区目录下的全部 parquet。"""
-        if not path.exists():
-            return None
-        files = sorted(path.rglob("*.parquet"))
-        if not files:
-            return None
-        return pl.scan_parquet([str(f) for f in files], hive_partitioning=True)
-
-    def _save_as_partition(self, lf: pl.LazyFrame | pd.DataFrame):
-        if isinstance(lf, pd.DataFrame):
-            lf = pl.from_pandas(lf).lazy()
-        elif isinstance(lf, pl.DataFrame):
-            lf = lf.lazy()
-
-        levels = self._partition_levels or (self._partition_by,)
-        for key, part_lf in self._partition_dirs(lf):
-            partition_dir = self._partition_path(key)
-            base_lf = self._read_partition_dir(partition_dir)
-            if base_lf is None:
-                group = [part_lf]
-            else:
-                group = [base_lf, part_lf]
-            combined = (
-                pl.concat(group)
-                .unique(subset=self._id_cols, keep="last")
-                .sort(self._id_cols)
-            )
-            partition_dir.mkdir(parents=True, exist_ok=True)
-            output_file = partition_dir / "part-0.parquet"
-            write_df = combined.collect()
-            for level in levels:
-                if level in write_df.columns:
-                    write_df = write_df.drop(level)
-            write_df.write_parquet(output_file, compression=self._compression)
-
-    def normalize_partition_schema(self, dry_run: bool = False) -> int:
-        """把分区文件中类型不一致的 ``date`` 列统一为 pl.Date。
-
-        历史数据可能由不同 fetcher 写入（``Date`` vs ``Datetime``），
-        混用会导致读取时 concat 失败。此方法只重写需要修正的文件。
-
-        Args:
-            dry_run: 只统计不写盘。
-
-        Returns:
-            int: 修正的分区文件数量。
-        """
-        if self._partition_by is None or not self._store_path.exists():
-            return 0
-        fixed = 0
-        for path in sorted(self._store_path.rglob("*.parquet")):
-            try:
-                schema = pl.read_parquet_schema(path)
-            except Exception:  # pragma: no cover - 损坏文件跳过
-                continue
-            if "date" not in schema or schema["date"] == pl.Date:
-                continue
-            fixed += 1
-            if dry_run:
-                continue
-            frame = pl.read_parquet(path).with_columns(
-                pl.col("date").cast(pl.Date)
-            )
-            frame.write_parquet(path, compression=self._compression)
-        return fixed
-
-    def repartition_to_levels(
-        self, levels: tuple[str, ...], dry_run: bool = False
-    ) -> int:
-        """把旧的单级分区数据一次性重写为多级分区。
-
-        旧布局：``partition_key_year=2024/part-0.parquet``
-        新布局：``partition_key_year=2024/partition_key_month=03/part-0.parquet``
-
-        Args:
-            levels: 目标分区层级（自粗到细）。
-            dry_run: 只统计不写盘。
-
-        Returns:
-            int: 迁移的分区数量。
-        """
-        if not self._store_path.exists():
-            return 0
-        legacy_dirs = [
-            path
-            for path in sorted(self._store_path.iterdir())
-            if path.is_dir()
-            and path.name.startswith("partition_key_year=")
-            and any(path.glob("*.parquet"))
-        ]
-        migrated = 0
-        for legacy_dir in legacy_dirs:
-            files = sorted(legacy_dir.glob("*.parquet"))
-            if not files:
-                continue
-            frame = pl.read_parquet([str(f) for f in files])
-            frame = frame.drop(
-                [c for c in frame.columns if c.startswith("partition_key_")]
-            )
-            if dry_run:
-                migrated += 1
-                continue
-            for (year, month), part in self._split_by_levels(frame, levels):
-                target = (
-                    self._store_path
-                    / f"partition_key_year={year}"
-                    / f"partition_key_month={month:02d}"
-                )
-                target.mkdir(parents=True, exist_ok=True)
-                part.write_parquet(
-                    target / "part-0.parquet", compression=self._compression
-                )
-            for f in files:
-                f.unlink()
-            migrated += 1
-        return migrated
-
-    def _split_by_levels(
-        self, frame: pl.DataFrame, levels: tuple[str, ...]
-    ) -> list[tuple[tuple[int, int], pl.DataFrame]]:
-        """按 (年, 月) 切分数据帧。"""
-        work = frame.with_columns(pl.col("date").cast(pl.Date))
-        keys = (
-            work.select(
-                [
-                    pl.col("date").dt.year().alias("y"),
-                    pl.col("date").dt.month().alias("m"),
-                ]
-            )
-            .unique()
-            .rows()
-        )
-        out: list[tuple[tuple[int, int], pl.DataFrame]] = []
-        for year, month in sorted(keys):
-            part = work.filter(
-                (pl.col("date").dt.year() == year)
-                & (pl.col("date").dt.month() == month)
-            )
-            out.append(((int(year), int(month)), part))
-        return out
+        write_parquet(self._dates.to_frame("date"), self._dates_file_path())
+        with atomic_path(self._dates_file_path().with_suffix(".signature.json")) as temporary:
+            temporary.write_text(json.dumps({"sha256": signature}), encoding="utf-8")
 
     def _save_single(self, lf: pl.LazyFrame | pd.DataFrame) -> None:
         """保存非分区数据"""
@@ -600,15 +294,11 @@ class ParquetStorage:
             else:
                 group = [base_lf, lf]
 
-        combined = (
-            pl.concat(group)
-            .unique(subset=self._id_cols, keep="last")
-            .sort(self._id_cols)
-        )
+        combined = pl.concat(group).unique(subset=self._id_cols, keep="last").sort(self._id_cols)
         # todo: this cause PanicException, need to check
         # combined.sink_parquet(self._store_path,compression=self._compression, mkdir = True)
-        combined.collect().write_parquet(
-            self._store_path, compression=self._compression, mkdir=True
+        write_parquet(
+            combined.collect(), self._store_path, compression=self._compression, mkdir=True
         )
 
     def fetch(
@@ -687,148 +377,21 @@ class ParquetStorage:
         self,
         start: datetime.date,
         end: datetime.date,
-        progress_callback: Callable | None = None,
+        progress_callback: Callable[..., None] | None = None,
         force: bool = False,
     ) -> int:
-        """逐日下载数据并保存，提供详细的每日进度报告
+        """Download each requested session, raising on incomplete data."""
+        from quantide.data.stores.daily_progress import download_days
 
-        Args:
-            start: 开始日期
-            end: 结束日期
-            progress_callback: 进度回调函数，接收 (current_date, completed_count, total_count) 参数
-            force: 是否强制重新下载
-
-        Returns:
-            同步的日期数量
-        """
-        start = self._calendar.ceiling(start, FrameType.DAY)
-        end = self._calendar.floor(end, FrameType.DAY)
-
-        expected_dates = self._calendar.get_frames(start, end, FrameType.DAY)
-
-        if force:
-            missing_dates = sorted(expected_dates)
-        else:
-            missing_dates = sorted(set(expected_dates) - set(self._dates.to_list()))
-
-        if len(missing_dates) == 0:
-            logger.info("本地数据已最新，无需更新")
-            return 0
-
-        if self._fetch_data_func is None:
-            raise ValueError("缓存中没有足够的数据，且未提供fetch_data_func方法")
-
-        total = len(missing_dates)
-        completed = 0
-
-        for i, date in enumerate(missing_dates, start=1):
-            try:
-                def _phase_callback(phase: str, *, date=date, i=i):
-                    payload = {
-                        "phase": phase,
-                        "current_date": date.strftime("%Y-%m-%d"),
-                        "completed": i,
-                        "total": total,
-                    }
-                    try:
-                        msg_hub.publish(
-                            topic="fetch_data_progress",
-                            msg_content=payload,
-                        )
-                    except Exception:
-                        pass
-                    if progress_callback:
-                        try:
-                            progress_callback(date, i, total, phase)
-                        except TypeError:
-                            progress_callback(date, i, total)
-
-                # 获取单日数据
-                fetch_kwargs = {}
-                if "phase_callback" in inspect.signature(
-                    self._fetch_data_func
-                ).parameters:
-                    fetch_kwargs["phase_callback"] = _phase_callback
-                df, errors = self._fetch_data_func([date], **fetch_kwargs)
-                self._error_handler(errors)
-                if errors:
-                    msg = "; ".join([str(err[-1]) for err in errors if len(err) > 0])
-                    logger.error(msg or f"{date} 数据抓取出现错误")
-                    try:
-                        msg_hub.publish(
-                            topic="fetch_data_progress",
-                            msg_content={
-                                "phase": "error",
-                                "current_date": date.strftime("%Y-%m-%d"),
-                                "completed": i,
-                                "total": total,
-                                "error": msg or f"{date} 数据抓取出现错误",
-                            },
-                        )
-                    except Exception:
-                        pass
-                    continue
-
-                if df is not None and len(df) > 0:
-                    self.append_data(df)
-                    self._update_dates(pl.Series([date]))
-
-                completed += 1
-
-                # 报告进度
-                msg = f"正在同步 {date.strftime('%Y%m%d')}，已更新 {completed}/{total} 日"
-                logger.info(msg)
-
-                if progress_callback:
-                    try:
-                        progress_callback(date, completed, total, "done")
-                    except TypeError:
-                        progress_callback(date, completed, total)
-
-                try:
-                    msg_hub.publish(
-                        topic="fetch_data_progress",
-                        msg_content={
-                            "current_date": date.strftime("%Y%m%d"),
-                            "completed": completed,
-                            "total": total,
-                            "progress": int(completed / total * 100),
-                        },
-                    )
-                except Exception:
-                    pass
-
-            except Exception as e:
-                logger.error(f"同步 {date} 数据失败: {e}")
-                try:
-                    msg_hub.publish(
-                        topic="fetch_data_progress",
-                        msg_content={
-                            "phase": "error",
-                            "current_date": date.strftime("%Y-%m-%d"),
-                            "completed": i,
-                            "total": total,
-                            "error": f"同步 {date} 数据失败: {e}",
-                        },
-                    )
-                except Exception:
-                    pass
-
-        try:
-            msg_hub.publish(topic="fetch_data_progress", msg_content=None)
-        except Exception:
-            pass
-
-        self._collect_dates()
-        return completed
+        return download_days(self, start, end, progress_callback, force)
 
     def get_and_fetch(
         self,
         start: datetime.date,
         end: datetime.date,
-        use_calendar=True,
+        use_calendar: bool = True,
         eager_mode: bool = True,
-    ) -> pl.DataFrame:
+    ) -> pl.DataFrame | pl.LazyFrame:
         """根据指定的日期范围加载数据。
 
         如果本地缓存中包含完整的数据，则从缓存中加载；
@@ -873,6 +436,7 @@ class ParquetStorage:
         self._last_update_time = now
         logger.info("日线数据更新完成")
 
+    @locked_store
     def append_data(self, df: pd.DataFrame | pl.DataFrame | pl.LazyFrame) -> None:
         """追加数据到Parquet文件
 
@@ -946,12 +510,43 @@ class ParquetStorage:
         """获取数据最后更新时间"""
         return self._last_update_time
 
+    @overload
     def get(
         self,
-        assets: list[str] | None = None,
-        start: datetime.date = None,
-        end: datetime.date = None,
-        cols: list[str] = None,
+        assets: list[str] | str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+        cols: list[str] | None = None,
+        eager_mode: Literal[True] = True,
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def get(
+        self,
+        assets: list[str] | str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+        cols: list[str] | None = None,
+        *,
+        eager_mode: Literal[False],
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def get(
+        self,
+        assets: list[str] | str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+        cols: list[str] | None = None,
+        eager_mode: bool = True,
+    ) -> pl.LazyFrame | pl.DataFrame: ...
+
+    def get(
+        self,
+        assets: list[str] | str | None = None,
+        start: datetime.date | None = None,
+        end: datetime.date | None = None,
+        cols: list[str] | None = None,
         eager_mode: bool = True,
     ) -> pl.LazyFrame | pl.DataFrame:
         """根据指定的日期范围加载数据
@@ -968,20 +563,7 @@ class ParquetStorage:
         Raises:
             ValueError: 如果文件不存在且没有提供fetch_data_func
         """
-        if self._partition_by is None:
-            lf = self._scan_store(keep_partition_col=False)
-        else:
-            lf = self._scan_store_range(
-                start,
-                end,
-                keep_partition_col=False,
-            )
-            if lf is None:
-                lf = self._read_partition(
-                    self._to_partition_key(start),
-                    self._to_partition_key(end),
-                    keep_partition_col=False,
-                )
+        lf = _scan_storage_range(end, self, start)
 
         if lf is None:
             if eager_mode:
@@ -1012,7 +594,22 @@ class ParquetStorage:
         else:
             return lf
 
-    def get_by_date(self, date: datetime.date, eager_mode: bool = True) -> pl.DataFrame:
+    @overload
+    def get_by_date(
+        self, date: datetime.date, eager_mode: Literal[True] = True
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def get_by_date(self, date: datetime.date, *, eager_mode: Literal[False]) -> pl.LazyFrame: ...
+
+    @overload
+    def get_by_date(
+        self, date: datetime.date, eager_mode: bool = True
+    ) -> pl.DataFrame | pl.LazyFrame: ...
+
+    def get_by_date(
+        self, date: datetime.date, eager_mode: bool = True
+    ) -> pl.DataFrame | pl.LazyFrame:
         """查询截面数据
 
         Args:
@@ -1052,24 +649,16 @@ class ParquetStorage:
         - 年分区：按年分片
         - 日分区：按天分片（分钟线等细粒度）
         """
-        # 内部 _partition_by 使用 partition_key_* 命名
-        if self._partition_by is None:
-            def key_fn(d):
-                return d.strftime("%Y-%m")
-        elif self._partition_by == "partition_key_year":
-            def key_fn(d):
-                return d.year
-        elif self._partition_by == "partition_key_month":
-            def key_fn(d):
-                return d.strftime("%Y-%m")
-        elif self._partition_by == "partition_key_day":
-            def key_fn(d):
-                return d
-        else:
-            def key_fn(d):
-                return d.strftime("%Y-%m")
 
-        groups: dict[object, list[datetime.date]] = {}
+        # 内部 _partition_by 使用 partition_key_* 命名
+        def key_fn(day: datetime.date) -> str:
+            if self._partition_by == "partition_key_year":
+                return day.strftime("%Y")
+            if self._partition_by == "partition_key_day":
+                return day.isoformat()
+            return day.strftime("%Y-%m")
+
+        groups: dict[str, list[datetime.date]] = {}
         for dt in dates:
             k = key_fn(dt)
             groups.setdefault(k, []).append(dt)

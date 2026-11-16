@@ -42,7 +42,7 @@ def page_header(
     return Div(left, Div(actions, cls="flex items-center gap-2"), cls="page__header")
 
 
-def card(*children: Any, padded: bool = True, cls: str = "", **attrs) -> Div:
+def card(*children: Any, padded: bool = True, cls: str = "", **attrs: Any) -> Div:
     """统一卡片容器。"""
     cls_list = ["card"]
     if padded:
@@ -59,7 +59,7 @@ def btn(
     size: str = "md",
     disabled: bool = False,
     icon: Any | None = None,
-    **attrs,
+    **attrs: Any,
 ) -> Button:
     """统一按钮。
 
@@ -79,9 +79,28 @@ def btn(
     return Button(*children, cls=" ".join(classes), disabled=disabled, **attrs)
 
 
-def icon_btn(icon: Any, *, label: str | None = None, variant: str = "secondary", **attrs) -> Button:
+def icon_btn(
+    icon: Any, *, label: str | None = None, variant: str = "secondary", **attrs: Any
+) -> Button:
     """图标按钮。"""
     return Button(icon, cls="q-btn q-btn--icon", **attrs)
+
+
+def subtle_icon_button(icon: Any, *, post_url: str, target: str, label: str) -> Button:
+    """Lightweight header action icon; no button chrome or full-width layout."""
+    return Button(
+        icon,
+        hx_post=post_url,
+        hx_target=target,
+        hx_swap="innerHTML",
+        cls=(
+            "inline-flex h-5 w-5 items-center justify-center p-0 "
+            "border-0 bg-transparent text-gray-500 transition-colors "
+            "hover:text-gray-900"
+        ),
+        title="立即更新",
+        aria_label=label,
+    )
 
 
 def input_(
@@ -92,7 +111,7 @@ def input_(
     value: Any | None = None,
     placeholder: str = "",
     required: bool = False,
-    **attrs,
+    **attrs: Any,
 ) -> Div:
     """表单输入框（带标签）。"""
     children = []
@@ -118,7 +137,7 @@ def select_(
     *,
     label: str | None = None,
     value: Any | None = None,
-    **attrs,
+    **attrs: Any,
 ) -> Div:
     """表单下拉框。"""
     from fasthtml.common import Option
@@ -128,10 +147,7 @@ def select_(
         children.append(Label(label, cls="q-label", **{"for": name}))
     children.append(
         Select(
-            *[
-                Option(text, value=str(v), selected=v == value or None)
-                for text, v in options
-            ],
+            *[Option(text, value=str(v), selected=v == value or None) for text, v in options],
             name=name,
             cls="q-input",
             **attrs,
@@ -145,7 +161,7 @@ def data_table(
     rows: list[list[Any]],
     *,
     cls: str = "",
-    **attrs,
+    **attrs: Any,
 ) -> Table:
     """统一数据表格。"""
     return Table(
@@ -156,7 +172,7 @@ def data_table(
     )
 
 
-def badge(label: str, *, variant: str = "neutral", **attrs) -> Span:
+def badge(label: str, *, variant: str = "neutral", **attrs: Any) -> Span:
     """状态徽章。"""
     cls = "q-badge" if variant == "neutral" else f"q-badge q-badge--{variant}"
     return Span(label, cls=cls, **attrs)
@@ -226,9 +242,7 @@ def tabs(
                     "hx_vals": f'{{"tab": "{key}"}}',
                 }
             )
-        children.append(
-            A(title, **attrs) if not hx_get else A(title, href="#", **attrs)
-        )
+        children.append(A(title, **attrs) if not hx_get else A(title, href="#", **attrs))
     return Div(*children, cls="q-tabs")
 
 
@@ -238,6 +252,7 @@ __all__ = [
     "card",
     "data_table",
     "icon_btn",
+    "subtle_icon_button",
     "input_",
     "modal",
     "page_header",

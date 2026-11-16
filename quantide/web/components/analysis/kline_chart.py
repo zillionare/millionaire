@@ -1,6 +1,14 @@
 """K线图组件 - 基于 Lightweight Charts"""
 
 from fasthtml.common import *
+from fasthtml.common import (
+    FT,
+    Button,
+    Div,
+    Script,
+)
+
+from quantide.web.theme import LIGHTWEIGHT_CHARTS_SRC
 
 
 class KlineChart:
@@ -16,7 +24,7 @@ class KlineChart:
         symbol: str = "",
         name: str = "",
         freq: str = "day",
-    ):
+    ) -> None:
         self.chart_id = chart_id
         self.js_id = chart_id.replace("-", "_")  # JavaScript 变量名不能包含 -
         self.height = height
@@ -177,8 +185,7 @@ class KlineChart:
 
     def render(self) -> FT:
         """渲染组件"""
-        # Lightweight Charts CDN
-        chart_lib = Script(src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js")
+        chart_lib = Script(src=LIGHTWEIGHT_CHARTS_SRC)
 
         # 图表容器
         chart_container = Div(
@@ -219,9 +226,10 @@ class KlineChart:
         buttons = []
         for freq, label in freqs:
             is_active = freq == current_freq
-            btn_cls = (
-                "px-3 py-1 text-sm rounded "
-                + ("bg-[#e41815] text-white" if is_active else "bg-gray-200 text-gray-700 hover:bg-gray-300")
+            btn_cls = "px-3 py-1 text-sm rounded " + (
+                "bg-[#e41815] text-white"
+                if is_active
+                else "bg-gray-200 text-gray-700 hover:bg-gray-300"
             )
             js_chart_id = chart_id.replace("-", "_")
             buttons.append(
@@ -236,7 +244,7 @@ class KlineChart:
         return Div(*buttons, cls="flex gap-2")
 
     @staticmethod
-    def ma_buttons(chart_id: str, ma_periods: list[int] = None) -> FT:
+    def ma_buttons(chart_id: str, ma_periods: list[int] | None = None) -> FT:
         """渲染均线切换按钮"""
         if ma_periods is None:
             ma_periods = [5, 10, 20, 60]
@@ -245,8 +253,7 @@ class KlineChart:
         js_chart_id = chart_id.replace("-", "_")
         for period in ma_periods:
             btn_cls = (
-                "px-2 py-1 text-xs rounded border "
-                "border-gray-300 text-gray-600 hover:bg-gray-100"
+                "px-2 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
             )
             buttons.append(
                 Button(

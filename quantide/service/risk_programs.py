@@ -19,9 +19,7 @@ from quantide.service.risk_overlay import CompositeRiskOverlay
 RISK_PROGRAMS_KEY = "risk_programs"
 ALLOW_SAME_BAR_REPURCHASE_KEY = "allow_same_bar_repurchase"
 
-RiskCompatibility = Callable[
-    [type[BaseStrategy] | None, FrameType | str], bool
-]
+RiskCompatibility = Callable[[type[BaseStrategy] | None, FrameType | str], bool]
 OverlayFactory = Callable[[dict[str, Any]], Any]
 LiveStrategyFactory = Callable[[Any, dict[str, Any]], Any]
 
@@ -74,9 +72,7 @@ class RiskProgramRegistry:
     def __init__(self) -> None:
         self._adapters: dict[str, RiskProgramAdapter] = {}
 
-    def register(
-        self, adapter: RiskProgramAdapter, *, replace: bool = False
-    ) -> RiskProgramAdapter:
+    def register(self, adapter: RiskProgramAdapter, *, replace: bool = False) -> RiskProgramAdapter:
         if not isinstance(adapter, RiskProgramAdapter):
             raise TypeError("risk program adapter must be a RiskProgramAdapter")
         program_id = str(adapter.id).strip()
@@ -132,7 +128,10 @@ def available_risk_programs(
     frame_type: FrameType | str = FrameType.DAY,
 ) -> list[dict[str, Any]]:
     """List explicitly registered adapters compatible with the host/bar type."""
-    return [adapter.metadata() for adapter in risk_program_registry.adapters(host_strategy_cls, frame_type)]
+    return [
+        adapter.metadata()
+        for adapter in risk_program_registry.adapters(host_strategy_cls, frame_type)
+    ]
 
 
 def _available_by_id(
@@ -140,8 +139,7 @@ def _available_by_id(
     frame_type: FrameType | str,
 ) -> dict[str, dict[str, Any]]:
     return {
-        str(item["id"]): item
-        for item in available_risk_programs(host_strategy_cls, frame_type)
+        str(item["id"]): item for item in available_risk_programs(host_strategy_cls, frame_type)
     }
 
 
@@ -160,6 +158,32 @@ def unavailable_risk_program_ids(
         if program_id and program_id not in available and program_id not in result:
             result.append(program_id)
     return result
+
+
+def _normalize_risk_item(
+    item: Any, index: int, available: dict[str, dict[str, Any]], seen: set[str]
+) -> tuple[int, int, dict[str, Any]]:
+    if isinstance(item, str):
+        item = {"id": item, "params": {}}
+    if not isinstance(item, dict):
+        raise ValueError("risk_programs 项必须是对象")
+    program_id = str(item.get("id") or "").strip()
+    if program_id not in available:
+        raise ValueError(f"不可用的回测风控程序: {program_id or '<empty>'}")
+    if program_id in seen:
+        raise ValueError(f"回测风控程序重复选择: {program_id}")
+    seen.add(program_id)
+    params = item.get("params") or {}
+    if not isinstance(params, dict):
+        raise ValueError(f"风控程序 {program_id} 的参数必须是对象")
+    defaults = available[program_id]["params"]
+    effective_params = dict(defaults)
+    effective_params.update(params)
+    try:
+        priority = int(item.get("priority", index))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"风控程序 {program_id} 的优先级无效") from exc
+    return priority, index, {"id": program_id, "params": effective_params}
 
 
 def normalize_risk_programs(
@@ -183,35 +207,10 @@ def normalize_risk_programs(
     normalized: list[tuple[int, int, dict[str, Any]]] = []
     seen: set[str] = set()
     for index, item in enumerate(selected):
-        if isinstance(item, str):
-            item = {"id": item, "params": {}}
-        if not isinstance(item, dict):
-            raise ValueError("risk_programs 项必须是对象")
-        program_id = str(item.get("id") or "").strip()
-        if program_id not in available:
-            raise ValueError(f"不可用的回测风控程序: {program_id or '<empty>'}")
-        if program_id in seen:
-            raise ValueError(f"回测风控程序重复选择: {program_id}")
-        seen.add(program_id)
-        params = item.get("params") or {}
-        if not isinstance(params, dict):
-            raise ValueError(f"风控程序 {program_id} 的参数必须是对象")
-        defaults = available[program_id]["params"]
-        effective_params = dict(defaults)
-        effective_params.update(params)
-        try:
-            priority = int(item.get("priority", index))
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"风控程序 {program_id} 的优先级无效") from exc
-        normalized.append(
-            (priority, index, {"id": program_id, "params": effective_params})
-        )
+        normalized.append(_normalize_risk_item(item, index, available, seen))
 
     normalized.sort(key=lambda row: (row[0], row[1]))
-    return [
-        {**item, "priority": priority}
-        for priority, (_, _, item) in enumerate(normalized)
-    ]
+    return [{**item, "priority": priority} for priority, (_, _, item) in enumerate(normalized)]
 
 
 def risk_program_names(
@@ -226,11 +225,7 @@ def risk_program_names(
     for item in selected or []:
         program_id = str(item.get("id") if isinstance(item, dict) else item)
         metadata = available.get(program_id)
-        names.append(
-            str(metadata["name"])
-            if metadata is not None
-            else f"不可用（{program_id}）"
-        )
+        names.append(str(metadata["name"]) if metadata is not None else f"不可用（{program_id}）")
     return names
 
 
@@ -255,9 +250,7 @@ def build_backtest_risk_overlay(
         return None
     return CompositeRiskOverlay(
         overlays,
-        allow_same_bar_repurchase=bool(
-            config.get(ALLOW_SAME_BAR_REPURCHASE_KEY, True)
-        ),
+        allow_same_bar_repurchase=bool(config.get(ALLOW_SAME_BAR_REPURCHASE_KEY, True)),
     )
 
 
@@ -299,7 +292,11 @@ def build_live_risk_strategies(
     """Instantiate explicitly selected live adapters or declared host overlays."""
     if RISK_PROGRAMS_KEY not in config:
         adapter = _declared_live_adapter(strategy_cls, frame_type)
-        if adapter is None or not _legacy_live_enabled(strategy_cls, config):
+        if (
+            adapter is None
+            or adapter.live_strategy_factory is None
+            or not _legacy_live_enabled(strategy_cls, config)
+        ):
             return []
         return [adapter.live_strategy_factory(broker, dict(config))]
     selected = normalize_risk_programs(
@@ -312,7 +309,5 @@ def build_live_risk_strategies(
         adapter = risk_program_registry.get(str(item["id"]))
         if adapter is None or adapter.live_strategy_factory is None:
             raise ValueError(f"风控程序缺少实时适配器: {item['id']}")
-        strategies.append(
-            adapter.live_strategy_factory(broker, dict(item["params"]))
-        )
+        strategies.append(adapter.live_strategy_factory(broker, dict(item["params"])))
     return strategies

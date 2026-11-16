@@ -1,8 +1,9 @@
 from pathlib import Path
 
-from quantide.config.paths import get_app_db_path
+from quantide.config.paths import get_app_db_path, normalize_data_home
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
+from quantide.data.models.daily_basic import daily_basic
 from quantide.data.models.minute_bars import minute_bars
 from quantide.data.models.stocks import stock_list
 from quantide.data.sqlite import db
@@ -46,14 +47,14 @@ def get_minute_bars_store() -> MinuteBarsStore:
 
 
 def init_data(
-    home: str | Path,
+    home: str | Path | None = None,
     init_db: bool = True,
     db_path: str | Path | None = None,
 ) -> None:
     """初始化数据层对象：stocklist、calendar、daily_bars、index_bars、index_weight、limit_price。
 
     Args:
-        home (str | Path | None): 指定行情数据主目录。
+        home (str | Path | None): 指定行情目录；留空读取配置，再退回系统临时目录。
         init_db (bool): 是否初始化数据库。默认为True。
         db_path (str | Path | None): sqlite 数据库路径。未指定时使用固定配置目录。
 
@@ -62,7 +63,16 @@ def init_data(
     """
     global _index_bars_store, _index_weight_store, _limit_price_store, _minute_bars_store
 
-    home_dir = Path(home).expanduser()
+    if init_db:
+        target = Path(db_path).expanduser() if db_path is not None else get_app_db_path()
+        if not db.is_initialized_for(target):
+            db.init(target)
+
+    if not str(home or "").strip():
+        from quantide.config.settings import get_data_home
+
+        home = get_data_home()
+    home_dir = Path(normalize_data_home(home))
     home_dir.mkdir(parents=True, exist_ok=True)
     calendar_path = home_dir / "data/calendar.parquet"
     stocklist_path = home_dir / "data/stock_list.parquet"
@@ -80,6 +90,7 @@ def init_data(
 
     calendar.load(calendar_path)
     stock_list.load(stocklist_path)
+    daily_basic.connect(home_dir / "data/daily_basic.parquet").load()
 
     daily_bars.connect(str(daily_bars_path), str(calendar_path))
     _index_bars_store = IndexBarsStore(str(index_bars_path), calendar)
@@ -87,8 +98,3 @@ def init_data(
     _limit_price_store = LimitPriceStore(str(limit_price_path), calendar)
     _minute_bars_store = MinuteBarsStore(str(minute_bars_path), calendar)
     minute_bars.connect(_minute_bars_store)
-
-    if init_db:
-        target_db_path = Path(db_path).expanduser() if db_path is not None else get_app_db_path()
-        if not db.is_initialized_for(target_db_path):
-            db.init(target_db_path)

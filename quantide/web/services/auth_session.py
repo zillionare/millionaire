@@ -146,9 +146,7 @@ def login(
         LoginResult, 成功时 redirect_to 为 /dashboard.
     """
     user = user_loader(username)
-    if user is None or not authenticate(
-        username, password, user.get("password_hash")
-    ):
+    if user is None or not authenticate(username, password, user.get("password_hash")):
         return LoginResult(
             success=False,
             redirect_to="/login",

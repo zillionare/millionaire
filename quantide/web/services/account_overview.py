@@ -14,9 +14,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from quantide.web.services.account_models import AccountFacts
+
 
 @dataclass
-class AccountOverviewRow:
+class AccountOverviewRow(AccountFacts):
     """账户总览行 (interfaces.md §4.2).
 
     Attributes:
@@ -34,17 +36,6 @@ class AccountOverviewRow:
         is_total_live: 是否为实盘总账户行.
     """
 
-    account_id: str
-    account_name: str
-    mode: str
-    strategy_id: str | None
-    total_assets: float
-    available_cash: float
-    market_value: float
-    account_pnl: float
-    daily_pnl: float
-    hidden: bool
-    status: str
     is_total_live: bool = False
 
 

@@ -32,6 +32,20 @@ from quantide.web.pages.data_market import (
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
+async def test_verify_runs_the_data_check_and_displays_result():
+    result = {"assets": 1, "missing": 0, "invalid": 0, "examples": []}
+    with patch("quantide.service.data_verification.verify_daily_history", return_value=result) as check:
+        response = await dm_mod.do_verify(
+            {"start_year": "2024", "end_year": "2024", "assets": "000001.sz"}
+        )
+    check.assert_called_once_with(
+        datetime.date(2024, 1, 1), datetime.date(2024, 12, 31), ["000001.SZ"]
+    )
+    assert "已校验 1 个标的" in str(response)
+    assert "校验未完成" not in str(response)
+
+
 def test_overview_tab_size_in_gb_branch():
     """size_bytes > 1GB -> 'GB' formatting branch."""
     with patch.object(dm_mod, "daily_bars") as mock_bars, \
@@ -100,37 +114,16 @@ def _fake_service(ok=True, status="done", error=""):
     service = MagicMock()
     service.create_task.return_value = SimpleNamespace(task_id="task-1")
     service.run.return_value = ok
-    service.get_task.return_value = SimpleNamespace(status=status, error=error)
+    service.get_task.return_value = SimpleNamespace(status=status, error=error, progress=25, message="working")
     return service
 
-
-def _capture_on_progress(
-    start_date=datetime.date(2024, 1, 1),
-    end_date=datetime.date(2024, 6, 30),
-):
-    """Run _run_market_sync and capture the _on_progress callback."""
-    captured = {}
-
-    def fake_subscribe(topic, cb):
-        captured["cb"] = cb
-
-    service = _fake_service()
-    with patch.object(dm_mod, "msg_hub") as mock_hub, \
-         patch("quantide.service.data_sync.data_sync_service", service):
-        mock_hub.subscribe = MagicMock(side_effect=fake_subscribe)
-        mock_hub.unsubscribe = MagicMock()
-        asyncio.run(_run_market_sync(start_date, end_date))
-    return captured.get("cb"), service
 
 
 @pytest.mark.asyncio
 async def test_run_market_sync_success_sets_completed():
     """Successful sync -> progress=100, completed=True."""
     service = _fake_service()
-    with patch.object(dm_mod, "msg_hub") as mock_hub, \
-         patch("quantide.service.data_sync.data_sync_service", service):
-        mock_hub.subscribe = MagicMock()
-        mock_hub.unsubscribe = MagicMock()
+    with patch("quantide.service.data_sync.data_sync_service", service):
         await _run_market_sync(
             datetime.date(2024, 1, 1), datetime.date(2024, 6, 30)
         )
@@ -142,10 +135,8 @@ async def test_run_market_sync_success_sets_completed():
 @pytest.mark.asyncio
 async def test_run_market_sync_exception_sets_error():
     """asyncio.to_thread raises -> exception caught, error set."""
-    with patch.object(dm_mod, "msg_hub") as mock_hub, \
+    with patch("quantide.service.data_sync.data_sync_service", _fake_service()), \
          patch("asyncio.to_thread", new=AsyncMock(side_effect=RuntimeError("sync err"))):
-        mock_hub.subscribe = MagicMock()
-        mock_hub.unsubscribe = MagicMock()
         await _run_market_sync(
             datetime.date(2024, 1, 1), datetime.date(2024, 6, 30)
         )
@@ -158,10 +149,7 @@ async def test_run_market_sync_exception_sets_error():
 async def test_run_market_sync_failed_task_sets_error():
     """服务返回失败 -> error 使用任务错误信息。"""
     service = _fake_service(ok=False, status="failed", error="boom")
-    with patch.object(dm_mod, "msg_hub") as mock_hub, \
-         patch("quantide.service.data_sync.data_sync_service", service):
-        mock_hub.subscribe = MagicMock()
-        mock_hub.unsubscribe = MagicMock()
+    with patch("quantide.service.data_sync.data_sync_service", service):
         await _run_market_sync(
             datetime.date(2024, 1, 1), datetime.date(2024, 6, 30)
         )
@@ -169,48 +157,22 @@ async def test_run_market_sync_failed_task_sets_error():
     assert _sync_status["completed"] is False
 
 
-def test_on_progress_non_dict_payload_returns_early():
-    """Non-dict payload -> early return."""
-    cb, _ = _capture_on_progress()
-    assert cb is not None
-    cb("not a dict")
-    cb(None)
-    cb(42)
-
-
-def test_on_progress_error_payload_sets_status_error():
-    """Payload with 'error' key -> _sync_status['error'] set, return."""
-    cb, _ = _capture_on_progress()
-    cb({"error": "boom"})
-    assert _sync_status["error"] == "boom"
-
-
-def test_on_progress_progress_payload_updates_status():
-    """Payload with stage/progress/message -> progress + message updated."""
-    cb, _ = _capture_on_progress()
-    cb({"stage": "daily_bars", "progress": 50, "message": "正在同步 daily_bars..."})
-    assert _sync_status["progress"] == 50
-    assert "daily_bars" in _sync_status["message"]
-    assert "正在同步" in _sync_status["message"]
-
-
-def test_on_progress_done_payload_marks_completed():
-    """stage=done -> progress=100, completed=True。"""
-    cb, _ = _capture_on_progress()
-    _sync_status["completed"] = False
-    cb({"stage": "done", "progress": 100, "completed": True, "message": "同步完成"})
-    assert _sync_status["completed"] is True
-    assert _sync_status["progress"] == 100
+def test_progress_ignores_missing_task_and_never_infers_completion():
+    from types import SimpleNamespace
+    _sync_status.update(progress=0, completed=False)
+    dm_mod._market_task_progress(None)
+    assert _sync_status["progress"] == 0
+    dm_mod._market_task_progress(SimpleNamespace(progress=100, message="stage done"))
+    assert _sync_status["progress"] == 99
+    assert _sync_status["message"] == "stage done"
+    assert not _sync_status["completed"]
 
 
 @pytest.mark.asyncio
 async def test_run_market_sync_creates_task_with_range_and_index_codes():
     """同步任务应带上日期范围与指数代码。"""
     service = _fake_service()
-    with patch.object(dm_mod, "msg_hub") as mock_hub, \
-         patch("quantide.service.data_sync.data_sync_service", service):
-        mock_hub.subscribe = MagicMock()
-        mock_hub.unsubscribe = MagicMock()
+    with patch("quantide.service.data_sync.data_sync_service", service):
         await _run_market_sync(
             datetime.date(2024, 1, 2),
             datetime.date(2024, 1, 5),

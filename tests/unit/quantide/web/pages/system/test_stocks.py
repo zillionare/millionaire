@@ -1,17 +1,18 @@
 """系统维护 - 股票列表页面测试"""
 
-from starlette.testclient import TestClient
-
 import pytest
+from starlette.testclient import TestClient
 
 
 @pytest.fixture(scope="module")
 def client():
     """创建测试客户端"""
     from quantide.app_factory import create_app
+    from tests.e2e.support.auth_fixture import sign_in_test_admin
 
     app = create_app(enforce_single_instance=False)
     with TestClient(app) as c:
+        sign_in_test_admin(c)
         yield c
 
 
@@ -45,6 +46,21 @@ class TestStocksPage:
         """输入框配置了 200ms 防抖"""
         resp = client.get("/system/stocks/", follow_redirects=True)
         assert "delay:200ms" in resp.text
+
+    def test_stocks_search_input_uses_full_width(self, client):
+        """搜索框使用整行宽度，不再限制为 max-w-md。"""
+        resp = client.get("/system/stocks/", follow_redirects=True)
+        assert 'name="q"' in resp.text
+        assert "input input-bordered w-full" in resp.text
+
+    def test_stocks_update_is_header_icon_button(self, client):
+        """立即更新按钮改为标题栏右侧图标按钮。"""
+        resp = client.get("/system/stocks/", follow_redirects=True)
+        assert 'hx-post="/system/stocks/sync"' in resp.text
+        assert 'title="立即更新"' in resp.text
+        assert "立即更新</button>" not in resp.text
+        assert "inline-flex h-5 w-5" in resp.text
+        assert "uk-btn" not in resp.text
 
     def test_search_api_digits(self, client):
         """搜索 API - 全数字匹配代码开头"""

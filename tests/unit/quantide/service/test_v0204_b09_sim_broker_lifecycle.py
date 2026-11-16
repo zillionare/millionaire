@@ -20,6 +20,7 @@ import pytest
 
 import quantide.service.sim_broker as sb_mod
 from quantide.service.sim_broker import PaperBroker
+from quantide.service import paper_history
 
 
 def _make_broker() -> PaperBroker:
@@ -71,7 +72,7 @@ def test_previous_trade_date_uses_calendar_when_available(monkeypatch: pytest.Mo
     today = dt.date(2024, 6, 17)
     expected = dt.date(2024, 6, 14)
     monkeypatch.setattr(
-        sb_mod.calendar, "day_shift", lambda d, n: expected if d == today and n == -1 else d
+        paper_history.calendar, "day_shift", lambda d, n: expected if d == today and n == -1 else d
     )
     assert broker._previous_trade_date(today) == expected
 
@@ -84,7 +85,7 @@ def test_previous_trade_date_falls_back_on_calendar_error(monkeypatch: pytest.Mo
     def _raise(*_args, **_kwargs):
         raise RuntimeError("calendar not loaded")
 
-    monkeypatch.setattr(sb_mod.calendar, "day_shift", _raise)
+    monkeypatch.setattr(paper_history.calendar, "day_shift", _raise)
     assert broker._previous_trade_date(today) == today - dt.timedelta(days=1)
 
 
@@ -108,7 +109,7 @@ def test_resolve_history_end_date_pre_930_uses_previous_trade_date(
     broker = _make_broker()
     end_dt = dt.datetime(2024, 6, 17, 9, 15)
     expected = dt.date(2024, 6, 14)
-    monkeypatch.setattr(sb_mod.calendar, "day_shift", lambda d, n: expected if n == -1 else d)
+    monkeypatch.setattr(paper_history.calendar, "day_shift", lambda d, n: expected if n == -1 else d)
     assert broker._resolve_history_end_date(end_dt) == expected
 
 
@@ -122,7 +123,7 @@ def test_resolve_history_end_date_pre_930_falls_back_on_calendar_error(
     def _raise(*_args, **_kwargs):
         raise RuntimeError("calendar not loaded")
 
-    monkeypatch.setattr(sb_mod.calendar, "day_shift", _raise)
+    monkeypatch.setattr(paper_history.calendar, "day_shift", _raise)
     assert broker._resolve_history_end_date(end_dt) == dt.date(2024, 6, 16)
 
 

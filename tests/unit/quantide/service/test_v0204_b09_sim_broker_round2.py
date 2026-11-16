@@ -253,7 +253,7 @@ def test_persist_updates_logs_and_reraises_on_db_error(monkeypatch):
     def _boom(*_args, **_kwargs):
         raise RuntimeError("db write failed")
 
-    monkeypatch.setattr(sb_mod.db, "replace_positions", _boom)
+    monkeypatch.setattr(sb_mod.db, "save_portfolio_snapshot", _boom)
     with pytest.raises(RuntimeError, match="db write failed"):
         broker._persist_updates({"000001.SZ"})
 

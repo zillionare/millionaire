@@ -706,6 +706,7 @@ def test_to_trade_dict_conversion(broker) -> None:
     assert isinstance(t, Trade)
     assert t.tid == "t1"
     assert t.asset == "a"
+    assert t.side == OrderSide.BUY
     assert t.portfolio_id == broker.portfolio_id
 
 

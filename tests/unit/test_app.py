@@ -14,6 +14,8 @@ def test_module_entrypoint_defers_app_creation_until_server_import(monkeypatch):
     original_app_module = sys.modules.pop("quantide.app", None)
     original_main_module = sys.modules.get("__main__")
     monkeypatch.delenv("QUANTIDE_HOST", raising=False)
+    monkeypatch.setattr("quantide.config.server_address.effective_address",
+                        lambda: ("127.0.0.1", 8130))
 
     def fake_create_app(*args, **kwargs):
         created.append({"args": args, "kwargs": kwargs})
@@ -21,7 +23,7 @@ def test_module_entrypoint_defers_app_creation_until_server_import(monkeypatch):
 
     def fake_serve(*, appname=None, **kwargs):
         assert appname == "quantide.app"
-        assert kwargs == {"host": "127.0.0.1"}
+        assert kwargs == {"host": "127.0.0.1", "port": 8130}
         assert created == []
 
         module = importlib.import_module(appname)

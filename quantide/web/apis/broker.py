@@ -5,15 +5,16 @@
 
 import datetime
 import json
+from typing import Any, cast
 
-from fasthtml.common import fast_app
+from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 
 from quantide.config.branding import get_runtime_version
 from quantide.config.settings import get_settings
 from quantide.core.enums import FrameType
 from quantide.core.errors import TradeError, TradeErrors
-from quantide.data.models import Asset
+from quantide.core.strategy import BaseStrategy
 from quantide.service.discovery import strategy_loader
 from quantide.service.param_optimizer import (
     OptimizationSpec,
@@ -21,6 +22,8 @@ from quantide.service.param_optimizer import (
     rank_results,
 )
 from quantide.service.runner import BacktestRunner
+from quantide.web.application import fast_app
+from quantide.web.components.account_summary import build_asset_overview as build_asset_overview
 
 app, rt = fast_app()
 
@@ -32,20 +35,33 @@ import numpy as np
 ver = get_runtime_version()
 
 
-def build_asset_overview(asset: Asset) -> dict:
-    pnl = asset.total - asset.principal
-    ppnl = pnl / asset.principal if asset.principal else 0.0
-    return {
-        "total": asset.total,
-        "cash": asset.cash,
-        "frozen_cash": asset.frozen_cash,
-        "market_value": asset.market_value,
-        "pnl": pnl,
-        "pnl_pct": ppnl,
-    }
+async def _request_json(request: Request) -> dict[str, Any]:
+    """Read a JSON payload through both FastHTML's and Starlette's request shapes."""
+    payload = getattr(request, "json", None)
+    if callable(payload):
+        payload = await payload()
+    return payload if isinstance(payload, dict) else {}
 
 
-def _get_broker(req):
+def _request_args(request: Request) -> Any:
+    """Keep compatibility with the legacy broker API's request.args fallback."""
+    args = getattr(request, "args", None)
+    return args if args is not None else request.query_params
+
+
+def _request_token(request: Request) -> Any:
+    return getattr(request, "token", None) or request.headers.get("token")
+
+
+def _legacy_accounts(request: Request) -> Any:
+    context = getattr(request.app, "ctx", None)
+    accounts = getattr(context, "accounts", None)
+    if accounts is None:
+        raise RuntimeError("legacy broker accounts are unavailable")
+    return accounts
+
+
+def _get_broker(req: Request) -> Any:
     reg = req.scope.get("registry")
     if reg is None:
         return None
@@ -64,7 +80,7 @@ def _get_broker(req):
     return reg.get(default[0], default[1])
 
 
-def _require_broker(req):
+def _require_broker(req: Request) -> Any:
     broker = _get_broker(req)
     if broker is None:
         raise RuntimeError("broker not found")
@@ -76,13 +92,13 @@ def _backtest_requires_bid_time(bid_time: datetime.datetime | None) -> bool:
 
 
 @rt("/status")
-async def status(request):
+async def status(request: Request) -> Any:
     """获取当前服务状态"""
     return {"status": "ok", "listen": request.url, "version": ver}
 
 
 @rt("/start_backtest", methods=["POST"])
-async def start_backtest(req):
+async def start_backtest(req: Request) -> Any:
     """启动回测
 
     启动回测时，将为接下来的回测创建一个新的账户。
@@ -107,12 +123,12 @@ async def start_backtest(req):
 
     """
     broker = _require_broker(req)
-    params = req.json or {}
+    params = await _request_json(req)
     return broker.start_backtest(params)
 
 
 @rt("/stop_backtest", methods=["POST"])
-async def stop_backtest(req):
+async def stop_backtest(req: Request) -> Any:
     """结束回测
 
     结束回测后，账户将被冻结，此后将不允许进行任何操作
@@ -125,7 +141,7 @@ async def stop_backtest(req):
 
 
 @rt("/accounts", methods=["GET"])
-async def list_accounts(req):
+async def list_accounts(req: Request) -> Any:
     """只在回测模式下有效？"""
     broker = _require_broker(req)
     return broker.list_accounts()
@@ -133,13 +149,13 @@ async def list_accounts(req):
 
 @rt("/buy", methods=["POST"])
 async def buy(
-    req,
+    req: Request,
     asset: str,
     price: int | float,
     shares: int | float,
     bid_time: datetime.datetime | None = None,
     timeout: float = 0.5,
-):
+) -> Any:
     broker = _require_broker(req)
 
     if _backtest_requires_bid_time(bid_time):
@@ -156,12 +172,12 @@ async def buy(
 
 @rt("/buy_percent", methods=["POST"])
 async def buy_percent(
-    req,
+    req: Request,
     asset: str,
     percent: float,
     bid_time: datetime.datetime | None = None,
     timeout: float = 0.5,
-):
+) -> Any:
     broker = _require_broker(req)
     if _backtest_requires_bid_time(bid_time):
         return Response("bid_time must be provided", status_code=400)
@@ -174,13 +190,13 @@ async def buy_percent(
 
 @rt("/buy_amount", methods=["POST"])
 async def buy_amount(
-    req,
+    req: Request,
     asset: str,
     amount: int | float,
     price: int | float | None = None,
     bid_time: datetime.datetime | None = None,
     timeout: float = 0.5,
-):
+) -> Any:
     broker = _require_broker(req)
     if _backtest_requires_bid_time(bid_time):
         return Response("bid_time must be provided", status_code=400)
@@ -190,13 +206,13 @@ async def buy_amount(
 
 @rt("/sell", methods=["POST"])
 async def sell(
-    req,
+    req: Request,
     asset: str,
     price: int | float,
     shares: int | float,
     bid_time: datetime.datetime | None = None,
     timeout: float = 0.5,
-):
+) -> Any:
     broker = _require_broker(req)
     if _backtest_requires_bid_time(bid_time):
         return Response("bid_time must be provided", status_code=400)
@@ -212,12 +228,12 @@ async def sell(
 
 @rt("/sell_percent", methods=["POST"])
 async def sell_percent(
-    req,
+    req: Request,
     asset: str,
     percent: float,
     bid_time: datetime.datetime | None = None,
     timeout: float = 0.5,
-):
+) -> Any:
     broker = _require_broker(req)
     if _backtest_requires_bid_time(bid_time):
         return Response("bid_time must be provided", status_code=400)
@@ -230,13 +246,13 @@ async def sell_percent(
 
 @rt("/sell_amount", methods=["POST"])
 async def sell_amount(
-    req,
+    req: Request,
     asset: str,
     amount: int | float,
     price: int | float | None = None,
     bid_time: datetime.datetime | None = None,
     timeout: float = 0.5,
-):
+) -> Any:
     broker = _require_broker(req)
     if _backtest_requires_bid_time(bid_time):
         return Response("bid_time must be provided", status_code=400)
@@ -245,19 +261,20 @@ async def sell_amount(
 
 
 @rt("/positions", methods=["GET"])
-async def positions(req, asset: str, date: datetime.date | None = None):
+async def positions(req: Request, asset: str, date: datetime.date | None = None) -> Any:
     broker = _require_broker(req)
     return broker.get_position(asset, date)
 
 
 @rt("/account_info", methods=["GET"])
-async def account_info(req, asset: str, date: datetime.date | None = None):
+async def account_info(req: Request, asset: str, date: datetime.date | None = None) -> Any:
     """获取账户信息
 
     Args:
         request Request: 以args方式传入，包含以下字段
 
-            - date: 日期，格式为YYYY-MM-DD,待获取账户信息的日期，如果为空，则意味着取当前日期的账户信息
+            - date: 日期，格式为YYYY-MM-DD,待获取账户信息的日期，如果为空，
+            则意味着取当前日期的账户信息
 
     Returns:
         Response: 结果以binary方式返回。结果为一个dict，其中包含以下字段：
@@ -272,14 +289,15 @@ async def account_info(req, asset: str, date: datetime.date | None = None):
         - market_value: 股票市值
         - pnl: 盈亏(绝对值)
         - ppnl: 盈亏(百分比)，即pnl/principal
-        - positions: 当前持仓，dtype为[backtest.trade.datatypes.position_dtype][]的numpy structured array
+        - positions: 当前持仓，dtype为[backtest.trade.datatypes.position_dtype][]的numpy
+        structured array
     """
     broker = _require_broker(req)
     return broker.get_account_info(asset, date)
 
 
 @rt("/metrics", methods=["GET"])
-async def metrics(request):
+async def metrics(request: Request) -> Any:
     """获取回测的评估指标信息
 
     Args:
@@ -293,9 +311,10 @@ async def metrics(request):
         Response: 结果以binary方式返回,参考[backtest.trade.broker.Broker.metrics][]
 
     """
-    start = request.args.get("start")
-    end = request.args.get("end")
-    request.args.get("baseline")
+    args = _request_args(request)
+    start = args.get("start")
+    end = args.get("end")
+    args.get("baseline")
 
     if start:
         start = arrow.get(start).date()
@@ -305,7 +324,7 @@ async def metrics(request):
 
 
 @rt("/bills", methods=["GET"])
-async def bills(request):
+async def bills(request: Request) -> Any:
     """获取交易记录
 
     Returns:
@@ -320,7 +339,7 @@ async def bills(request):
 
 
 @rt("/accounts", methods=["DELETE"])
-async def delete_accounts(request):
+async def delete_accounts(request: Request) -> Any:
     """删除账户
 
     当提供了账户名`name`和token（通过headers传递)时，如果name与token能够匹配，则删除`name`账户。
@@ -330,8 +349,8 @@ async def delete_accounts(request):
             - name, 待删除的账户名。如果为空，且提供了admin token，则删除全部账户。
 
     """
-    account_to_delete = request.args.get("name", None)
-    accounts = request.app.ctx.accounts
+    account_to_delete = _request_args(request).get("name", None)
+    accounts = _legacy_accounts(request)
 
     if account_to_delete is None:
         broker = _require_broker(request)
@@ -346,7 +365,7 @@ async def delete_accounts(request):
 
 
 @rt("/assets", methods=["GET"])
-async def get_assets(request):
+async def get_assets(request: Request) -> Any:
     """获取账户资产信息
 
     本方法主要为绘制资产收益曲线提供数据。
@@ -358,18 +377,19 @@ async def get_assets(request):
             - end: 日期，格式为YYYY-MM-DD,待获取账户信息的日期，如果为空，则取最后交易日
 
     Returns:
-        Response: 从`start`到`end`期间的账户资产信息，结果以binary方式返回,参考[backtest.trade.datatypes.rich_assets_dtype][]
-
+        Response: 从`start`到`end`期间的账户资产信息，
+        结果以binary方式返回,参考[backtest.trade.datatypes.rich_assets_dtype][]
     """
     broker = _require_broker(request)
 
-    start = request.args.get("start")
+    args = _request_args(request)
+    start = args.get("start")
     if start:
         start = arrow.get(start).date()
     else:
         start = broker.bt_start
 
-    end = request.args.get("end")
+    end = args.get("end")
     if end:
         end = arrow.get(end).date()
     else:
@@ -378,19 +398,17 @@ async def get_assets(request):
     filter = np.argwhere(
         (broker._assets["date"] >= start) & (broker._assets["date"] <= end)
     ).flatten()
-    return Response(
-        pickle.dumps(broker._assets[filter]), media_type="application/octet-stream"
-    )
+    return Response(pickle.dumps(broker._assets[filter]), media_type="application/octet-stream")
 
 
 @rt("/asset_overview", methods=["GET"])
-async def asset_overview(request):
+async def asset_overview(request: Request) -> Any:
     broker = _require_broker(request)
     return build_asset_overview(broker.asset)
 
 
 @rt("/save_backtest", methods=["POST"])
-async def save_backtest(request):
+async def save_backtest(request: Request) -> Any:
     """在回测结束后，保存回测相关参数及数据。
 
     通过本接口，可以保存以下数据供之后查阅：
@@ -410,7 +428,7 @@ async def save_backtest(request):
     Returns:
         Response: 成功时，通过response.text返回名字。此后可以此名字来存取状态。
     """
-    params = request.json or {}
+    params = await _request_json(request)
     if "name_prefix" not in params:
         raise TradeError(TradeErrors.ERROR_BAD_PARAMS, "name_prefix must be specified")
 
@@ -419,17 +437,15 @@ async def save_backtest(request):
     baseline = params.get("baseline")
     desc = params.get("desc")
 
-    token = request.token
-    accounts = request.app.ctx.accounts
+    token = _request_token(request)
+    accounts = _legacy_accounts(request)
 
-    name = await accounts.save_backtest(
-        name_prefix, strategy_params, token, baseline, desc
-    )
+    name = await accounts.save_backtest(name_prefix, strategy_params, token, baseline, desc)
     return PlainTextResponse(name)
 
 
 @rt("/load_backtest", methods=["GET"])
-async def load_backtest(request):
+async def load_backtest(request: Request) -> Any:
     """通过名字获取回测状态
 
     Args:
@@ -437,26 +453,25 @@ async def load_backtest(request):
 
         - name: save_backtest时返回的名字
     """
-    name = request.args.get("name", None)
+    name = _request_args(request).get("name", None)
     if name is None:
-        raise TradeError(
-            TradeErrors.ERROR_BAD_PARAMS, "name of the backtest is required"
-        )
+        raise TradeError(TradeErrors.ERROR_BAD_PARAMS, "name of the backtest is required")
 
-    token = request.token
-    accounts = request.app.ctx.accounts
+    token = _request_token(request)
+    accounts = _legacy_accounts(request)
 
     return JSONResponse(accounts.load_backtest(name, token))
 
+
 @rt("/strategies", methods=["GET"])
-async def list_strategies(req):
+async def list_strategies(req: Request) -> Any:
     """GET /broker/strategies -> interfaces.md §3.1 schema."""
     import json
 
     info_list = strategy_loader.list_strategies()
     builtin_dir = strategy_loader.get_builtin_scan_directory()
 
-    strategies = []
+    strategies: list[dict[str, Any]] = []
     for info in info_list:
         try:
             default_config = json.loads(info.params) if info.params else {}
@@ -465,23 +480,25 @@ async def list_strategies(req):
 
         is_builtin = bool(info.file_path and info.file_path.startswith(builtin_dir))
 
-        strategies.append({
-            "strategy_id": f"{info.module_path}.{info.name}",
-            "name": info.name,
-            "description": info.description or "",
-            "strategy_type": info.strategy_type or "independent",
-            "module": info.module_path or "",
-            "is_builtin": is_builtin,
-            "default_config": default_config,
-            "skipped_reasons": [],
-        })
+        strategies.append(
+            {
+                "strategy_id": f"{info.module_path}.{info.name}",
+                "name": info.name,
+                "description": info.description or "",
+                "strategy_type": info.strategy_type or "independent",
+                "module": info.module_path or "",
+                "is_builtin": is_builtin,
+                "default_config": default_config,
+                "skipped_reasons": [],
+            }
+        )
 
-    # diagnostics 暂固定 []: enumerate_strategies() 的真实填充待 PR2/3 (接口契约见 interfaces.md §2.4).
+    # Diagnostics currently follows the empty-list protocol contract.
     return {"strategies": strategies, "diagnostics": []}
 
 
 @rt("/grid_search/run", methods=["POST"])
-async def run_grid_search_job(req):
+async def run_grid_search_job(req: Request) -> Any:
     """启动网格搜索"""
     try:
         params = await req.json()
@@ -489,13 +506,8 @@ async def run_grid_search_job(req):
         params = {}
 
     strategy_name = params.get("strategy_name")
-    base_config = params.get("base_config", {})
-    param_grid = params.get("param_grid", {})
     start_date = params.get("start_date")
     end_date = params.get("end_date")
-    interval = params.get("interval", "1d")
-    initial_cash = params.get("initial_cash", 1_000_000)
-    max_workers = params.get("max_workers", None)
 
     strategies = strategy_loader.load_from_cache()
 
@@ -512,17 +524,17 @@ async def run_grid_search_job(req):
 
     spec = OptimizationSpec(
         strategy_name=strategy_name,
-        base_config=base_config,
-        param_grid=param_grid,
+        base_config=params.get("base_config", {}),
+        param_grid=params.get("param_grid", {}),
         start_date=start,
         end_date=end,
         objective=params.get("objective", "sharpe"),
         in_sample_ratio=params.get("in_sample_ratio", 0.7),
         mode=params.get("mode", "grid"),
         n_random=params.get("n_random", 20),
-        max_workers=max_workers or 4,
-        interval=interval,
-        initial_cash=initial_cash,
+        max_workers=params.get("max_workers", None) or 4,
+        interval=params.get("interval", "1d"),
+        initial_cash=params.get("initial_cash", 1000000),
     )
 
     try:
@@ -538,7 +550,7 @@ async def run_grid_search_job(req):
 
 
 @rt("/backtest/run", methods=["POST"])
-async def run_backtest_job(req):
+async def run_backtest_job(req: Request) -> Any:
     """启动新的回测任务"""
     try:
         params = await req.json()
@@ -546,12 +558,8 @@ async def run_backtest_job(req):
         params = {}
 
     strategy_name = params.get("strategy_name")
-    config = params.get("config", {})
     start_date = params.get("start_date")
     end_date = params.get("end_date")
-    interval = params.get("interval", "1d")
-    initial_cash = params.get("initial_cash", 1_000_000)
-    portfolio_id = params.get("portfolio_id")
 
     strategies = strategy_loader.load_from_cache()
 
@@ -571,13 +579,13 @@ async def run_backtest_job(req):
     runner = BacktestRunner()
     try:
         result = await runner.run(
-            strategy_cls=strategy_cls,
-            config=config,
+            strategy_cls=cast(type[BaseStrategy], strategy_cls),
+            config=params.get("config", {}),
             start_date=start,
             end_date=end,
-            frame_type=FrameType(interval),
-            initial_cash=initial_cash,
-            portfolio_id=portfolio_id
+            frame_type=FrameType(params.get("interval", "1d")),
+            initial_cash=params.get("initial_cash", 1000000),
+            portfolio_id=params.get("portfolio_id"),
         )
         return result
     except Exception as e:

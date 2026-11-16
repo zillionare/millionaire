@@ -4,6 +4,7 @@ import datetime
 from collections.abc import Iterable
 
 from quantide.core.enums import FrameType
+from quantide.core.market_time import market_now
 from quantide.core.ports import ClockPort
 from quantide.data.models.calendar import calendar
 
@@ -13,7 +14,7 @@ class SystemClockAdapter(ClockPort):
 
     def now(self) -> datetime.datetime:
         """返回当前系统时间."""
-        return datetime.datetime.now()
+        return market_now()
 
     def set_now(self, tm: datetime.datetime) -> None:
         """设置当前时间."""
@@ -32,13 +33,13 @@ class SystemClockAdapter(ClockPort):
 class BacktestClockAdapter(ClockPort):
     """回测时钟适配器."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化回测时钟."""
         self._now: datetime.datetime | None = None
 
     def now(self) -> datetime.datetime:
         """返回当前时钟时间."""
-        return self._now or datetime.datetime.now()
+        return self._now or market_now()
 
     def set_now(self, tm: datetime.datetime) -> None:
         """设置当前时间."""

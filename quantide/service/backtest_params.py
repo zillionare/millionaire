@@ -53,12 +53,10 @@ def _values_equal(left: Any, right: Any) -> bool:
         return abs(float(left) - float(right)) <= max(1e-9, abs(float(right)) * 1e-6)
     if isinstance(left, (list, tuple, set)) and isinstance(right, (list, tuple, set)):
         return sorted(str(item) for item in left) == sorted(str(item) for item in right)
-    return left == right
+    return bool(left == right)
 
 
-def changed_params(
-    config: dict[str, Any], defaults: dict[str, Any]
-) -> dict[str, Any]:
+def changed_params(config: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
     """返回与默认值不同的参数。
 
     Args:
@@ -86,9 +84,7 @@ def changed_params(
     return changed
 
 
-def format_changed_params(
-    config: dict[str, Any], defaults: dict[str, Any]
-) -> str:
+def format_changed_params(config: dict[str, Any], defaults: dict[str, Any]) -> str:
     """格式化"仅显示被修改的参数"的文本。
 
     Args:

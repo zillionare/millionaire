@@ -14,11 +14,6 @@ def db():
     return MagicMock()
 
 
-@pytest.fixture
-def repo(db):
-    return UserRepository(db=db)
-
-
 def test_count_by_role_empty(repo):
     """[AC-FR1501-06] When no users, returns zeros."""
     repo.users = MagicMock()
@@ -73,6 +68,13 @@ def test_search_users_by_email_query(repo):
     repo.list_all = MagicMock(return_value=[u1, u2])
     got = repo.search_users(query="bob@x", role=None, active=None)
     assert u2 in got
+
+
+def test_search_users_tolerates_missing_names_and_email(repo):
+    missing = MagicMock(username=None, email=None, role="user", active=True)
+    match = MagicMock(username="alice", email=None, role="user", active=True)
+    repo.list_all = MagicMock(return_value=[missing, match])
+    assert repo.search_users(query="ali") == [match]
 
 
 def test_search_users_by_role(repo):

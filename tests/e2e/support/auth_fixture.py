@@ -51,3 +51,17 @@ def ensure_test_admin(
         if not repo.update(existing.id, password=password):
             raise RuntimeError("failed to update explicit test admin password")
     return repo.get_by_username(username)
+
+
+def sign_in_test_admin(client):
+    """Authenticate page-unit clients using their isolated administrator."""
+    from unittest.mock import patch
+
+    from quantide.service.init_wizard import init_wizard
+
+    ensure_test_admin()
+    with patch.object(init_wizard, "is_initialized", return_value=True):
+        response = client.post('/auth/login', data={'username': TEST_ADMIN_USERNAME,
+                                                   'password': TEST_ADMIN_PASSWORD},
+                               follow_redirects=False)
+    assert response.status_code == 303

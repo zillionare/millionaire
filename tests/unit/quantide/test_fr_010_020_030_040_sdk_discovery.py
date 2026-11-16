@@ -209,7 +209,7 @@ def test_fr_040_strategy_code_mode_agnostic():
     """AC-FR-040: Strategy 基类无 mode 感知 (无 if self.mode == 判断)."""
     from quantide.core import strategy as strat_mod
 
-    src = Path(strat_mod.__file__).read_text()  # type: ignore[name-defined]
+    src = Path(strat_mod.__file__).read_text(encoding="utf-8")  # type: ignore[name-defined]
     assert "self.mode" not in src or "self.mode" not in src.split("class Strategy")[1]
     assert "self._mode" not in src or True
 

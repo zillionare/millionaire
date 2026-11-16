@@ -4,15 +4,13 @@
 """
 
 import datetime
-import time
+import json
 from collections import defaultdict
 from typing import Any
 
 import polars as pl
-from loguru import logger
 
 from quantide.core.enums import (
-    BidType,
     BrokerKind,
     FrameType,
     OrderSide,
@@ -20,32 +18,50 @@ from quantide.core.enums import (
     Topics,
 )
 from quantide.core.errors import (
-    InsufficientCash,
-    InsufficientPosition,
     LimitPrice,
-    NonMultipleOfLotSize,
-    PriceOutOfLimit,
-    TradingHaltedError,
 )
+from quantide.core.market_time import market_now
 from quantide.core.message import msg_hub
+from quantide.core.order_identity import client_order_id
 from quantide.core.ports import MarketDataPort
 from quantide.core.ports.broker import ExecutionResult
-from quantide.data.helper import qfq_adjustment
+from quantide.core.ports.clock import ClockPort
 from quantide.data.models import Asset, Order, Portfolio, Position, Trade
-from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
 from quantide.service.abstract_broker import AbstractBroker
+from quantide.service.bar_access import BarViewFacade
 from quantide.service.bar_views import LiveBarView
 from quantide.service.market_data_hub import market_data_hub
+from quantide.service.paper_history import PaperHistory
+from quantide.service.paper_matching import PaperMatching
+from quantide.service.paper_orders import PaperOrders
+from quantide.service.reference_prices import quote_prices
 
 
-class PaperBroker(AbstractBroker):
+class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, AbstractBroker):
     """仿真交易 Broker。
 
     PaperBroker 模拟真实的交易环境，订阅实时行情，并在本地进行撮合。
     它维护自己的账户状态（现金、持仓），并将交易记录保存到数据库。
     """
+
+    supports_idempotent_orders = True
+
+    def find_order_by_client_id(self, identity: str) -> Order | None:
+        """Return an accepted order after restart without submitting it again."""
+        order = db.get_order(identity)
+        if order is not None and order.portfolio_id != self.portfolio_id:
+            raise ValueError("Order identity belongs to another portfolio")
+        return order
+
+    def _existing_order_result(self) -> ExecutionResult | None:
+        identity = client_order_id.get()
+        if not identity or self.find_order_by_client_id(identity) is None:
+            return None
+        fills = db.query_trade(qtoid=identity)
+        trades = [] if fills is None else [Trade(**row) for row in fills.to_dicts()]
+        return ExecutionResult(qt_oid=identity, trades=trades)
 
     def __init__(
         self,
@@ -62,7 +78,8 @@ class PaperBroker(AbstractBroker):
         market_value_update_interval: float = 10.0,
         market_data: MarketDataPort | None = None,
         auction_epsilon: float = 0.001,
-    ):
+        clock: ClockPort | None = None,
+    ) -> None:
         """初始化 PaperBroker。
 
         Args:
@@ -97,16 +114,20 @@ class PaperBroker(AbstractBroker):
         self._last_mv_update_time = 0.0
         self._market_data = market_data
         self._auction_epsilon = float(auction_epsilon)
-        self._bar_view = LiveBarView(bars=daily_bars, market_data=market_data, today_func=self._get_today)
+        self._bar_view = LiveBarView(
+            bars=daily_bars, market_data=market_data, today_func=self._get_today
+        )
         self._stamp_tax = stamp_tax
         self._transfer_fee = transfer_fee
         self._min_commission = min_commission
         self._slippage = slippage
         self._dry_run = dry_run
-        self._dry_run_signals: list[dict] = []
+        self._dry_run_signals: list[dict[str, Any]] = []
         self._limits: dict[str, dict[str, float]] = {}
         self._clock: datetime.datetime | None = None
+        self._clock_port = clock
         self._closed = False
+        self._restore_fee_config()
 
         # 初始化或加载状态
         self._init_or_sync_state()
@@ -146,6 +167,7 @@ class PaperBroker(AbstractBroker):
         market_value_update_interval: float = 10.0,
         market_data: MarketDataPort | None = None,
         auction_epsilon: float = 0.001,
+        clock: ClockPort | None = None,
     ) -> "PaperBroker":
         """创建新的 PaperBroker 实例。
 
@@ -164,8 +186,7 @@ class PaperBroker(AbstractBroker):
         Returns:
             PaperBroker 实例
         """
-        pf = db.get_portfolio(portfolio_id)
-        if pf:
+        if db.get_portfolio(portfolio_id):
             raise RuntimeError(f"Portfolio {portfolio_id} already exists. Use load().")
 
         broker = cls(
@@ -181,6 +202,7 @@ class PaperBroker(AbstractBroker):
             market_value_update_interval=market_value_update_interval,
             market_data=market_data,
             auction_epsilon=auction_epsilon,
+            clock=clock,
         )
 
         return broker
@@ -190,6 +212,7 @@ class PaperBroker(AbstractBroker):
         cls,
         portfolio_id: str,
         market_data: MarketDataPort | None = None,
+        clock: ClockPort | None = None,
     ) -> "PaperBroker":
         """加载已存在的 PaperBroker 实例。
 
@@ -212,6 +235,24 @@ class PaperBroker(AbstractBroker):
             portfolio_name=pf.name or portfolio_id,
             info=pf.info or "",
             market_data=market_data,
+            clock=clock,
+        )
+
+    def _restore_fee_config(self) -> None:
+        table = db["paper_broker_settings"]
+        table.create({"portfolio_id": str, "config": str}, pk="portfolio_id", if_not_exists=True)
+        rows = list(table.rows_where("portfolio_id=?", (self.portfolio_id,)))
+        if rows:
+            config = json.loads(rows[0]["config"])
+            for name, value in config.items():
+                setattr(self, "_" + name, float(value))
+        self._save_fee_config()
+
+    def _save_fee_config(self) -> None:
+        names = ("commission", "stamp_tax", "transfer_fee", "min_commission", "slippage")
+        config = {name: getattr(self, "_" + name) for name in names}
+        db["paper_broker_settings"].upsert(
+            {"portfolio_id": self.portfolio_id, "config": json.dumps(config)}, pk="portfolio_id"
         )
 
     def apply_fee_config(
@@ -234,8 +275,9 @@ class PaperBroker(AbstractBroker):
             self._min_commission = float(min_commission)
         if slippage is not None:
             self._slippage = float(slippage)
+        self._save_fee_config()
 
-    def _on_limit_update(self, data: dict):
+    def _on_limit_update(self, data: dict[str, Any]) -> None:
         """涨跌停更新回调。
 
         SimBroker 通过 MarketDataHub 获取实时涨跌停数据。
@@ -247,25 +289,12 @@ class PaperBroker(AbstractBroker):
             for asset, limits in data.items():
                 if isinstance(limits, dict):
                     self._limits[asset] = {
-                        "up": float(
-                            limits.get("up", limits.get("up_limit", 0)) or 0
-                        ),
-                        "down": float(
-                            limits.get("down", limits.get("down_limit", 0)) or 0
-                        ),
+                        "up": float(limits.get("up", limits.get("up_limit", 0)) or 0),
+                        "down": float(limits.get("down", limits.get("down_limit", 0)) or 0),
                     }
 
     def get_prices(self, assets: list[str]) -> dict[str, float]:
-        """Return the latest price for risk strategies in paper mode."""
-        result: dict[str, float] = {}
-        for asset in assets:
-            quote = self._get_quote(asset)
-            if not quote:
-                continue
-            price = float(quote.get("lastPrice", 0) or 0)
-            if price > 0:
-                result[asset] = price
-        return result
+        return quote_prices(assets, self._get_quote)
 
     def _get_quote(self, asset: str) -> dict[str, Any] | None:
         """获取行情快照."""
@@ -295,9 +324,7 @@ class PaperBroker(AbstractBroker):
         """集合竞价的限价（竞价价 × (1+eps)）。"""
         from quantide.service.execution_clock import execution_clock
 
-        return execution_clock.auction_price_limit(
-            price, epsilon=self._auction_epsilon
-        )
+        return execution_clock.auction_price_limit(price, epsilon=self._auction_epsilon)
 
     def _reject_at_limit(self, asset: str, side: OrderSide) -> None:
         """Paper 不允许在涨停买入 / 跌停卖出（下单阶段直接拒绝）。"""
@@ -351,28 +378,9 @@ class PaperBroker(AbstractBroker):
         try:
             from quantide.data.models.daily_bars import daily_bars
 
-            return daily_bars.get_trade_price_limits(
-                asset, self._get_today()
-            )
+            return daily_bars.get_trade_price_limits(asset, self._get_today())
         except Exception:  # pragma: no cover - 数据层未就绪
             return 0.0, 0.0
-
-    def get_bars_range(
-        self,
-        assets: list[str] | None,
-        start_dt: datetime.datetime | datetime.date,
-        end_dt: datetime.datetime | datetime.date | None = None,
-        adjust: str | None = None,
-        include_forming_bar: bool = True,
-    ) -> pl.DataFrame:
-        """批量日线；日频策略据此拿到今日 forming bar。"""
-        return self._bar_view.get_bars_range(
-            assets,
-            start_dt,
-            end_dt,
-            adjust=adjust,
-            include_forming_bar=include_forming_bar,
-        )
 
     def get_history(
         self,
@@ -397,197 +405,19 @@ class PaperBroker(AbstractBroker):
                 end_dt 早于今日时此参数无效。
         """
         # 委托给 LiveBarView：已完成日线/分钟线来自存储，forming bar 来自行情订阅中心。
-        return self._bar_view.get_history(
-            asset, count, end_dt, frame_type, include_forming_bar
-        )
-
-    def _previous_trade_date(self, today: datetime.date) -> datetime.date:
-        """返回 today 的前一个交易日（基于 calendar 优先，fallback 自然日 -1）。"""
-        try:
-            return calendar.day_shift(today, -1)
-        except Exception:
-            return today - datetime.timedelta(days=1)
-
-    def _get_history_bars(
-        self,
-        asset: str,
-        count: int,
-        end_date: datetime.date,
-        frame_type: str,
-    ) -> pl.DataFrame:
-        """统一的 history 数据源获取（market_data 优先，回落 daily_bars）。
-
-        返**未复权**的原始 bars（``adjust`` 列保留原始因子）。复权由
-        :func:`quantide.data.helper.qfq_adjustment` 在 ``get_history`` 末尾
-        或 :meth:`_concat_with_forming` 中**统一**应用一次，避免双重复权。
-        """
-        if self._market_data is not None and hasattr(self._market_data, "get_history"):
-            return self._market_data.get_history(asset, count, end_date, frame_type)
-
-        if self._market_data is not None and hasattr(self._market_data, "get_bars"):
-            return self._market_data.get_bars(
-                n=count,
-                end=end_date,
-                assets=[asset],
-                adjust=None,
-                eager_mode=True,
-            )
-
-        if getattr(daily_bars, "_store", None) is not None:
-            return daily_bars.get_bars(
-                n=count,
-                end=end_date,
-                assets=[asset],
-                adjust=None,
-                eager_mode=True,
-            )
-
-        return self._empty_history_frame()
-
-    def _should_attach_forming_bar(
-        self,
-        end_date: datetime.date,
-        end_dt: datetime.datetime | None,
-    ) -> bool:
-        """end_date 落在今日且不是凌晨 9:30 之前才挂 forming bar。"""
-        if end_date != self._get_today():
-            return False
-        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
-            return False
-        return True
-
-    def _extract_forming_bar(
-        self, asset: str, end_date: datetime.date
-    ) -> dict[str, Any] | None:
-        """从 MarketDataHub 拿今日 forming bar（若没有则返回 None）。"""
-        bar = market_data_hub.get_daily_bar(asset)
-        if bar is None:
-            return None
-        bar_dt = bar.get("dt")
-        if hasattr(bar_dt, "date"):
-            bar_dt = bar_dt.date()
-        if bar_dt != end_date:
-            return None
-        return bar
-
-    @staticmethod
-    def _concat_with_forming(
-        hist: pl.DataFrame, forming: dict[str, Any], count: int
-    ) -> pl.DataFrame:
-        """把 forming bar（dict）拼到 history 末尾，裁剪到 count 行，并应用 qfq_adjustment.
-
-        forming 行的 4 个补齐字段（#43）：
-        - ``adjust`` ← hist 今日行的 adjust 因子（未复权）
-        - ``is_st`` ← hist 今日行的 is_st
-        - ``up_limit`` / ``down_limit`` ← ``MarketDataHub``（highest priority）
-
-        合并后整体调 ``qfq_adjustment``（``quantide/data/helper.py:8`` 现成函数）
-        把 hist 历史的 OHLCV 按今日 adjust 因子调整到前复权；forming 行的
-        adjust=今日/latest, 所以 close 不变。``adjust`` 列最终 = 1.0。
-        """
-        forming_clean: dict[str, Any] = dict(forming)
-        if "frame" in forming_clean and not isinstance(
-            forming_clean["frame"], (datetime.date, datetime.datetime)
-        ):
-            forming_clean.pop("frame")
-        hist_date_col = "frame" if "frame" in hist.columns else (
-            "date" if "date" in hist.columns else None
-        )
-        if hist_date_col is None:
-            return hist
-        if "dt" in forming_clean and "dt" != hist_date_col:
-            dt_value = forming_clean.pop("dt")
-            if isinstance(dt_value, datetime.date) and not isinstance(
-                dt_value, datetime.datetime
-            ):
-                dt_value = datetime.datetime.combine(dt_value, datetime.time.min)
-            forming_clean[hist_date_col] = dt_value
-
-        if hist.is_empty():
-            return hist
-
-        today_adjust = hist["adjust"][-1] if "adjust" in hist.columns else 1.0
-        today_is_st = bool(hist["is_st"][-1]) if "is_st" in hist.columns else False
-        down_limit, up_limit = market_data_hub.get_limits(
-            forming_clean.get("asset", "")
-        )
-        today_up_limit = up_limit or None
-        today_down_limit = down_limit or None
-
-        for col, val in (
-            ("adjust", today_adjust),
-            ("is_st", today_is_st),
-            ("up_limit", today_up_limit),
-            ("down_limit", today_down_limit),
-        ):
-            if col in hist.columns and col not in forming_clean:
-                forming_clean[col] = val
-
-        for col in hist.columns:
-            if col not in forming_clean:
-                forming_clean[col] = None
-        forming_clean = {k: v for k, v in forming_clean.items() if k in hist.columns}
-        forming_df = pl.DataFrame([forming_clean])
-        for col in hist.columns:
-            if col in forming_df.columns and hist.schema[col] != forming_df.schema[col]:
-                try:
-                    forming_df = forming_df.with_columns(
-                        pl.col(col).cast(hist.schema[col]).alias(col)
-                    )
-                except Exception:
-                    forming_df = forming_df.drop(col)
-        merged = pl.concat([hist, forming_df.select(hist.columns)], how="vertical")
-        if "asset" in merged.columns:
-            merged = merged.unique(subset=[hist_date_col, "asset"], keep="last")
-        else:
-            merged = merged.unique(subset=[hist_date_col], keep="last")
-        merged = merged.sort(hist_date_col)
-        if len(merged) > count:
-            merged = merged.tail(count)
-
-        if "adjust" in merged.columns:
-            merged = qfq_adjustment(merged, adj_factor_col="adjust", eager_mode=True)
-
-        return merged
-
-    def _resolve_history_end_date(
-        self,
-        end_dt: datetime.datetime | None,
-    ) -> datetime.date:
-        end_date = self.as_date(end_dt) if end_dt else self._get_today()
-        if isinstance(end_dt, datetime.datetime) and end_dt.time() <= datetime.time(9, 30):
-            try:
-                return calendar.day_shift(end_date, -1)
-            except Exception:
-                return end_date - datetime.timedelta(days=1)
-        return end_date
-
-    def _empty_history_frame(self) -> pl.DataFrame:
-        return pl.DataFrame(
-            schema={
-                "date": pl.Date,
-                "asset": pl.Utf8,
-                "open": pl.Float64,
-                "high": pl.Float64,
-                "low": pl.Float64,
-                "close": pl.Float64,
-                "volume": pl.Float64,
-                "amount": pl.Float64,
-                "adjust": pl.Float64,
-                "is_st": pl.Boolean,
-                "up_limit": pl.Float64,
-                "down_limit": pl.Float64,
-            }
-        )
+        return self._bar_view.get_history(asset, count, end_dt, frame_type, include_forming_bar)
 
     def set_clock(self, dt: datetime.datetime | None) -> None:
         """设置当前仿真时钟。"""
         self._clock = dt
 
     def _now(self) -> datetime.datetime:
-        return self._clock or datetime.datetime.now()
+        if self._clock is not None:
+            return self._clock
+        clock = getattr(self, "_clock_port", None)
+        return clock.now() if clock is not None else market_now()
 
-    def _validate_data_consistency(self):
+    def _validate_data_consistency(self) -> None:
         """校验数据一致性。
 
         检查数据库中的 portfolio, asset, position 记录是否一致。
@@ -602,30 +432,37 @@ class PaperBroker(AbstractBroker):
         if pf is None:
             if asset is not None:
                 raise RuntimeError(
-                    f"Data Inconsistency: Portfolio {self.portfolio_id} missing but has asset records. Please clean up the database."
+                    "Data Inconsistency: Portfolio "
+                    f"{self.portfolio_id}"
+                    " missing but has asset records. Please clean up the database."
                 )
             if not positions_df.is_empty():
                 raise RuntimeError(
-                    f"Data Inconsistency: Portfolio {self.portfolio_id} missing but has position records. Please clean up the database."
+                    "Data Inconsistency: Portfolio "
+                    f"{self.portfolio_id}"
+                    " missing but has position records. Please clean up the database."
                 )
         else:
             if asset is None:
                 raise RuntimeError(
-                    f"Data Inconsistency: Portfolio {self.portfolio_id} exists but has no asset records. Please clean up the database."
+                    "Data Inconsistency: Portfolio "
+                    f"{self.portfolio_id}"
+                    " exists but has no asset records. Please clean up the database."
                 )
 
     def _get_today(self) -> datetime.date:
         """获取当前日期。
 
         设计意图：
-        虽然可以直接使用 datetime.date.today()，但在测试场景中，我们经常需要模拟“过去”或“未来”的时间点
-        来验证跨日逻辑（如持仓结算、隔夜单处理）。使用 freezegun 等库 mock 底层时间模块容易导致
+        虽然可以直接使用 datetime.date.today()，但在测试场景中，
+        我们经常需要模拟“过去”或“未来”的时间点
+        来验证跨日逻辑（如持仓结算、隔夜单处理）。使用 freezegun 等库 mock
+        底层时间模块容易导致
         asyncio、Redis 客户端等依赖时间的组件出现死锁或行为异常。
-        因此，这里封装一个专用的方法，以便在测试中通过 patch 简单安全地 mock 日期，而不影响系统其他部分。
+        因此，这里封装一个专用的方法，以便在测试中通过 patch 简单安全地 mock 日期，
+        而不影响系统其他部分。
         """
-        if self._clock is not None:
-            return self._clock.date()
-        return datetime.date.today()
+        return self._now().date()
 
     def _is_halted(self, asset: str) -> bool:
         """FR-170: 判定 asset 是否停牌 (volume == 0).
@@ -639,7 +476,7 @@ class PaperBroker(AbstractBroker):
         snap = self._market_data.snapshot([asset]).get(asset)
         if snap is None:
             return False
-        return snap.volume == 0
+        return bool(snap.volume == 0)
 
     @staticmethod
     def _floor_lot_size(shares: float) -> int:
@@ -650,16 +487,28 @@ class PaperBroker(AbstractBroker):
         """
         return (int(shares) // 100) * 100
 
-    def settle_t1(self) -> None:
-        """T+1 结算: 当日买入的 in-transit 持仓 (shares > avail) 在 day_end 后转为 avail (FR-160).
+    def _settle_previous_sessions(self) -> None:
+        """Recover T+1 availability even when the process missed the closing job."""
+        today = self._get_today()
+        with self._lock:
+            for position in self._positions.values():
+                if position.dt < today:
+                    position.avail = position.shares
+                    position.dt = today
 
-        维护 avail (可卖) + shares (总持仓) 分别记账; 调用此方法 (一般 day_end scheduler 触发) 把当日 buy 的 in-transit shares 转入 avail.
+    def settle_t1(self) -> None:
+        """T+1 结算: 当日买入的 in-transit 持仓 (shares > avail) 在 day_end 后转为 avail
+
+        (FR-160).
+
+        维护 avail (可卖) + shares (总持仓) 分别记账; 调用此方法 (一般 day_end scheduler
+        触发) 把当日 buy 的 in-transit shares 转入 avail.
         """
         for _asset, pos in self._positions.items():
             if pos.shares > pos.avail:
                 pos.avail = pos.shares
 
-    def _init_or_sync_state(self):
+    def _init_or_sync_state(self) -> None:
         """初始化或同步账户状态。
 
         如果在数据库中找不到对应的 portfolio，则创建新的。
@@ -690,21 +539,13 @@ class PaperBroker(AbstractBroker):
             self._principal = asset.principal
         else:
             # 初始化资产
-            asset = Asset(
-                portfolio_id=self.portfolio_id,
-                dt=self._get_today(),
-                principal=self._principal,
-                cash=self._principal,
-                frozen_cash=0,
-                market_value=0,
-                total=self._principal,
-            )
+            asset = Asset.initial(self.portfolio_id, self._get_today(), self._principal)
             db.upsert_asset(asset)
             self._cash = self._principal
 
         # 同步持仓
         # 注意：这里需要加载最新的持仓，而不是所有历史记录
-        # db.get_positions(dt=None) 会自动返回最新日期的持仓（如果今天有记录则返回今天，否则返回最近一天）
+        # 按最新完整快照恢复，包括显式空仓快照。
         positions_df = db.get_positions(dt=None, portfolio_id=self.portfolio_id)
 
         if not positions_df.is_empty():
@@ -712,14 +553,32 @@ class PaperBroker(AbstractBroker):
                 pos = Position(**row)
                 self._positions[pos.asset] = pos
 
+        self._settle_previous_sessions()
         self._reconcile_position_costs_from_trades()
+        self._restore_active_orders()
+
+    def _restore_active_orders(self) -> None:
+        """Rebuild the matching queue from committed order and fill facts."""
+        orders = db.orders_all(portfolio_id=self.portfolio_id)
+        if orders is None or orders.is_empty():
+            return
+        active = {
+            OrderStatus.UNREPORTED,
+            OrderStatus.WAIT_REPORTING,
+            OrderStatus.REPORTED,
+            OrderStatus.PART_SUCC,
+        }
+        for row in orders.to_dicts():
+            order = Order(**row)
+            if order.status not in active or order.filled >= order.shares:
+                continue
+            self._active_orders[order.asset].append(order)
+            fills = db.query_trade(qtoid=order.qtoid)
+            if fills is not None and not fills.is_empty():
+                self._order_trades[order.qtoid] = [Trade(**item) for item in fills.to_dicts()]
 
     def _reconcile_position_costs_from_trades(self) -> None:
-        """按成交历史重算持仓成本价（含买入手续费）。
-
-        仅当按成交推算的股数与当前持仓一致时才覆盖，避免历史成交不完整
-        的账户被错误改写。
-        """
+        """Restore fee-inclusive costs only when the full trade history agrees with holdings."""
         if not self._positions:
             return
         try:
@@ -732,52 +591,13 @@ class PaperBroker(AbstractBroker):
             trades = trades.sort("tm")
         except Exception:
             pass
+        from quantide.data.trade_costs import position_costs
 
-        state: dict[str, tuple[float, float]] = {}
-        for row in trades.iter_rows(named=True):
-            asset = str(row.get("asset") or "")
-            if not asset:
-                continue
-            raw_side = row.get("side")
-            if isinstance(raw_side, OrderSide):
-                side = raw_side
-            else:
-                try:
-                    side = OrderSide(int(raw_side))
-                except Exception:
-                    text = str(raw_side).strip().upper()
-                    side = (
-                        OrderSide.BUY
-                        if text in {"BUY", "1"}
-                        else (OrderSide.SELL if text in {"SELL", "-1"} else OrderSide.UNKNOWN)
-                    )
-            shares, avg_cost = state.get(asset, (0.0, 0.0))
-            qty = float(row.get("shares") or 0)
-            if qty <= 0:
-                continue
-            if side == OrderSide.BUY:
-                total_cost = (
-                    shares * avg_cost
-                    + float(row.get("amount") or 0)
-                    + float(row.get("fee") or 0)
-                )
-                shares += qty
-                avg_cost = total_cost / shares if shares > 0 else 0.0
-            elif side == OrderSide.SELL:
-                shares -= qty
-                if shares <= 0:
-                    shares = 0.0
-                    avg_cost = 0.0
-            state[asset] = (shares, avg_cost)
-
-        for asset, pos in self._positions.items():
-            shares, avg_cost = state.get(asset, (0.0, 0.0))
-            if (
-                shares > 0
-                and avg_cost > 0
-                and abs(shares - float(pos.shares)) <= 1e-6
-            ):
-                pos.price = avg_cost
+        costs = position_costs(trades.iter_rows(named=True))
+        for asset, position in self._positions.items():
+            shares, average = costs.get(asset, (0.0, 0.0))
+            if shares > 0 and average > 0 and abs(shares - float(position.shares)) <= 1e-6:
+                position.price = average
 
     @property
     def total_assets(self) -> float:
@@ -802,863 +622,7 @@ class PaperBroker(AbstractBroker):
     def principal(self) -> float:
         return self._principal
 
-    def _on_quote_update(self, data: dict):
-        """行情更新回调，执行撮合逻辑。
-
-        本方法将在 MessageHub 线程中运行。更新持仓市值，并尝试撮合待处理订单。
-        兼容发布者的 ``price`` 与网关的 ``lastPrice`` 两种键名。
-        """
-        data = self._normalize_quotes(data)
-        try:
-            with self._lock:
-                if self._closed:
-                    return
-                self._update_positions_market_value(data)
-
-                if not self._active_orders:
-                    return
-
-                traded_assets = set()
-                # 遍历所有待处理订单的资产
-                # 使用 list() 复制 keys，因为可能会在迭代中修改字典
-                for asset in list(self._active_orders.keys()):
-                    if asset in data:
-                        self._match_orders_for_asset(asset, data[asset], traded_assets)
-
-                if traded_assets:
-                    self._persist_updates(traded_assets)
-        except Exception as e:
-            logger.exception(e)
-
-    @staticmethod
-    def _normalize_quotes(data: dict) -> dict:
-        """把不同来源的快照统一成 ``lastPrice`` 键。"""
-        if not data:
-            return {}
-        normalized: dict[str, dict] = {}
-        for asset, raw in data.items():
-            if not isinstance(raw, dict):
-                continue
-            price = raw.get("lastPrice")
-            if price is None:
-                price = raw.get("price")
-            if price is None:
-                continue
-            try:
-                value = float(price)
-            except (TypeError, ValueError):
-                continue
-            if value <= 0:
-                continue
-            item = dict(raw)
-            item["lastPrice"] = value
-            normalized[str(asset)] = item
-        return normalized
-
-    def _update_positions_market_value(self, data: dict):
-        """更新内存中的持仓市值 (仅用于内存计算，不触发写库)。
-
-        # todo: 如果存在性能问题，也许可以通过 polars 向量化操作来优化？这可能取决于有多少个资产
-        """
-        current_time = time.time()
-        if current_time - self._last_mv_update_time < self._market_value_update_interval:
-            return
-
-        self._last_mv_update_time = current_time
-
-        for asset, pos in self._positions.items():
-            quote = data.get(asset)
-            if quote:
-                last_price = quote.get("lastPrice", 0)
-                if last_price > 0:
-                    pos.mv = pos.shares * last_price
-                    pos.profit = pos.mv - (pos.shares * pos.price)
-
-    def _match_orders_for_asset(self, asset: str, quote: dict, traded_assets: set):
-        """撮合指定资产的订单。"""
-        orders = self._active_orders[asset]
-        # 初始化剩余成交量
-        # 如果 quote 中没有 volume 字段，则假设成交量无限大
-        remaining_shares = float('inf')
-        if "volume" in quote:
-            remaining_shares = quote["volume"] * 100
-
-        remaining_orders = []
-        for order in orders:
-            if remaining_shares <= 0:
-                remaining_orders.append(order)
-                continue
-
-            matched_shares, trade = self._try_match(order, quote, available_shares_limit=remaining_shares)
-
-            if matched_shares > 0 and trade:
-                remaining_shares -= matched_shares
-                self._handle_trade_execution(order, trade, asset, quote, traded_assets)
-
-                if order.filled >= order.shares:
-                    self._handle_order_completion(order)
-                else:
-                    self._handle_order_partial(order)
-                    remaining_orders.append(order)
-            else:
-                remaining_orders.append(order)
-
-        if not remaining_orders:
-            del self._active_orders[asset]
-        else:
-            self._active_orders[asset] = remaining_orders
-
-    def _handle_trade_execution(self, order: Order, trade: Trade, asset: str, quote: dict, traded_assets: set):
-        """处理单次成交逻辑。"""
-        # 撮合成功（部分或全部）
-        order.filled += trade.shares
-        self._order_trades[order.qtoid].append(trade)
-
-        # 立即持久化成交记录
-        db.insert_trades(trade)
-
-        # 应用成交到内存状态 (Cash, Shares, Cost)
-        self._apply_trade_to_portfolio(trade)
-
-        # 因为持仓数量变了，立即更新内存中的 MV 和 Profit
-        pos = self._positions.get(asset)
-        if pos:
-            pos.mv = pos.shares * quote["lastPrice"]
-            pos.profit = pos.mv - (pos.shares * pos.price)
-            traded_assets.add(asset)
-
-    def _handle_order_completion(self, order: Order):
-        """处理订单完全成交。"""
-        order.status = OrderStatus.SUCCEEDED
-        # 更新 Order 状态到 DB
-        db.update_order(order.qtoid, status=order.status.value, filled=order.filled)
-
-        # 唤醒等待的协程，返回所有成交记录
-        all_trades = self._order_trades.pop(order.qtoid)
-        self.awake(order.qtoid, ExecutionResult(qt_oid=order.qtoid, trades=all_trades))
-
-    def _handle_order_partial(self, order: Order):
-        """处理订单部分成交。"""
-        order.status = OrderStatus.PART_SUCC
-        # 更新 Order 状态到 DB
-        db.update_order(order.qtoid, status=order.status.value, filled=order.filled)
-
-    def _persist_updates(self, traded_assets: set):
-        """持久化持仓和资产信息。"""
-        try:
-            today = self._get_today()
-
-            # 1. 持久化 Positions。按完整快照写入，避免已清仓标的残留在当天记录中。
-            for p in self._positions.values():
-                p.dt = today
-            db.replace_positions(
-                self.portfolio_id, today, list(self._positions.values())
-            )
-
-            # 2. 持久化 Asset (Cash)
-            # 计算当前总市值
-            market_value = sum(p.mv for p in self._positions.values())
-            asset = Asset(
-                portfolio_id=self.portfolio_id,
-                dt=today,
-                principal=self._principal,
-                cash=self._cash,
-                frozen_cash=0, # 简化处理，暂不追踪冻结资金
-                market_value=market_value,
-                total=self._cash + market_value
-            )
-            db.upsert_asset(asset)
-        except Exception as e:
-            logger.exception(f"ERROR in _persist_updates: {e}")
-            raise
-
-    def _try_match(self, order: Order, quote: dict, available_shares_limit: float = float('inf')) -> tuple[float, Trade | None]:
-        """尝试撮合单个订单。
-
-        检查价格、涨跌停限制等条件，如果满足则生成成交记录。
-        如果 quote 中包含 volume 字段（单位：手），则限制成交数量。
-
-        Args:
-            order: 待撮合的订单
-            quote: 该资产的最新行情
-            available_shares_limit: 可用成交量限制（股）。默认为无限大。
-
-        Returns:
-            (matched_shares, trade) 元组。
-            matched_shares > 0 表示撮合成功的部分或全部数量。
-            matched_shares == 0 表示撮合失败。
-            trade 为生成的成交记录，如果 matched_shares == 0 则为 None。
-        """
-        last_price = quote.get("lastPrice", 0)
-        if last_price <= 0:
-            return 0.0, None
-
-        # 回测/Paper 不允许涨停买入、跌停卖出（实盘由网关决定）
-        down_limit, up_limit = self._get_price_limits(order.asset)
-        if order.side == OrderSide.BUY and up_limit > 0 and last_price >= up_limit:
-            return 0.0, None
-        if order.side == OrderSide.SELL and down_limit > 0 and last_price <= down_limit:
-            return 0.0, None
-
-        # 价格判断
-        if order.bid_type == BidType.FIXED:
-            if order.side == OrderSide.BUY and order.price < last_price:
-                return 0.0, None
-            if order.side == OrderSide.SELL and order.price > last_price:
-                return 0.0, None
-            # 限价单成交价逻辑：
-            # 买入：如果 last_price <= price，以 last_price 成交（更优价）
-            # 卖出：如果 last_price >= price，以 last_price 成交
-
-        # 集合竞价成交：限价单按「竞价价 × (1+eps)」撮合，
-        # 成交价取竞价价本身（集合竞价以单一价格成交）。
-        if self._in_auction(last_price):
-            auction_limit = self._auction_limit_price(last_price)
-            if order.side == OrderSide.BUY and order.price > 0:
-                # Paper/实盘不限制涨停买入：竞价价已在涨停价时，
-                # 允许以涨停价（而非涨停价×1.001）参与撮合。
-                _, up_limit = self._get_price_limits(order.asset)
-                at_up_limit = up_limit > 0 and last_price >= up_limit - 1e-9
-                if not at_up_limit and order.price < auction_limit - 1e-9:
-                    return 0.0, None
-            match_price = last_price
-            if self._slippage > 0:
-                direction = 1 if order.side == OrderSide.BUY else -1
-                match_price = round(last_price * (1.0 + self._slippage * direction), 4)
-        else:
-            match_price = last_price
-            if self._slippage > 0:
-                direction = 1 if order.side == OrderSide.BUY else -1
-                match_price = round(last_price * (1.0 + self._slippage * direction), 4)
-
-        # 计算成交数量
-        needed_shares = order.shares - order.filled
-
-        # 限制成交量
-        matched_shares = min(needed_shares, available_shares_limit)
-
-        if matched_shares <= 0:
-            return 0.0, None
-
-        # 生成成交记录
-        trade = Trade(
-            portfolio_id=self.portfolio_id,
-            tid=f"t_{order.qtoid}_{int(order.filled + matched_shares)}", # 简单生成 tid
-            qtoid=order.qtoid,
-            foid="",
-            asset=order.asset,
-            shares=matched_shares,
-            price=match_price,
-            amount=match_price * matched_shares,
-            tm=order.tm or self._now(),
-            side=order.side,
-            cid="",
-            fee=0 # 暂不计算手续费
-        )
-        # 计算手续费
-        trade.fee = self._calculate_fee(trade.amount, order.side)
-        return matched_shares, trade
-
-    def _calculate_fee(self, amount: float, side: OrderSide) -> float:
-        """计算手续费 (FR-180).
-
-        Args:
-            amount: 成交金额
-            side: 订单方向
-
-        Returns:
-            fee = 佣金 (max(5.0, amount * commission)) + 印花税 (仅卖方, amount * stamp_tax)
-        """
-        commission = max(self._min_commission, amount * self._commission)
-        transfer = amount * self._transfer_fee
-        stamp = amount * self._stamp_tax if side == OrderSide.SELL else 0.0
-        return commission + transfer + stamp
-
-    def _apply_trade_to_portfolio(self, trade: Trade):
-        """应用成交到投资组合（仅更新内存状态）。
-
-        更新现金、持仓数量、持仓成本。
-        注意：不更新市值（MV）和盈亏，也不负责数据库同步。
-
-        Args:
-            trade: 成交记录
-        """
-        today = self._get_today()
-
-        if trade.side == OrderSide.BUY:
-            self._cash -= (trade.amount + trade.fee)
-            if trade.asset in self._positions:
-                pos = self._positions[trade.asset]
-                # 更新成本价（含买入手续费）
-                new_shares = pos.shares + trade.shares
-                if new_shares > 0:
-                    total_cost = pos.shares * pos.price + trade.amount + trade.fee
-                    pos.price = total_cost / new_shares
-                pos.shares = new_shares
-                # T+1: avail 不变
-            else:
-                # 新建持仓（成本价含买入手续费）
-                pos = Position(
-                    portfolio_id=self.portfolio_id,
-                    dt=today,
-                    asset=trade.asset,
-                    shares=trade.shares,
-                    price=(trade.amount + trade.fee) / trade.shares,
-                    avail=0, # T+1
-                    mv=trade.amount, # 此时成交额即为市值
-                    profit=0.0,
-                )
-                self._positions[trade.asset] = pos
-        else:
-            self._cash += (trade.amount - trade.fee)
-            if trade.asset in self._positions:
-                pos = self._positions[trade.asset]
-                pos.shares -= trade.shares
-                pos.avail -= trade.shares # Reduce avail immediately
-
-                if pos.shares <= 0:
-                    del self._positions[trade.asset]
-                # 注意：卖出不影响剩余持仓的成本价 (pos.price)
-
-    async def buy(
-        self,
-        asset: str,
-        shares: int | float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-    ) -> ExecutionResult:
-        """买入指令。
-
-        Args:
-            asset: 资产代码
-            shares: 买入数量
-            price: 买入价格，0 表示市价
-            order_time: 下单时间
-            timeout: 超时时间（秒）
-
-        Returns:
-            成交结果. dry-run 模式下返回空 ExecutionResult, 信号记录到 _dry_run_signals.
-
-        Raises:
-            InsufficientCash: 资金不足
-        """
-        if self._dry_run:
-            self._dry_run_signals.append({
-                "side": OrderSide.BUY,
-                "asset": asset,
-                "shares": shares,
-                "price": price,
-                "tm": order_time or self._now(),
-            })
-            return ExecutionResult(qt_oid="dry-run", trades=[])
-
-        if shares % 100 != 0:
-            floored = self._floor_lot_size(shares)
-            if floored <= 0:
-                raise NonMultipleOfLotSize(asset, shares)
-            shares = floored
-
-        if price != 0:
-            down_limit, up_limit = self._get_price_limits(asset)
-            if up_limit > 0 and down_limit > 0:
-                if price > up_limit or price < down_limit:
-                    raise PriceOutOfLimit(asset, price, down_limit, up_limit)
-        self._reject_at_limit(asset, OrderSide.BUY)
-
-        if self._is_halted(asset):
-            raise TradingHaltedError(asset)
-
-        est_price = price
-        if est_price == 0:
-            _, up_limit = self._get_price_limits(asset)
-            est_price = up_limit
-            # 如果 up_limit 为 0 (无涨跌停限制，如新股)，则使用 lastPrice 估算
-            if est_price <= 0:
-                quote = self._get_quote(asset)
-                if quote:
-                    est_price = quote.get("lastPrice", 0)
-
-        if est_price > 0:
-            est_amount = est_price * shares
-            est_cost = est_amount + self._calculate_fee(est_amount, OrderSide.BUY)
-            if est_cost > self._cash:
-                raise InsufficientCash(asset, est_cost, self._cash)
-
-        # 2. 创建订单
-        order = Order(
-            portfolio_id=self.portfolio_id,
-            asset=asset,
-            price=price,
-            shares=shares,
-            side=OrderSide.BUY,
-            bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
-            tm=order_time or self._now(),
-        )
-        db.insert_order(order)
-
-        # 3. 加入等待队列
-        with self._lock:
-            self._active_orders[asset].append(order)
-
-        # 4. 等待结果
-        # 使用父类 AbstractBroker 的 wait 方法，它会返回 (result, cost_time)
-        res, _ = await self.wait(order.qtoid, timeout)
-
-        if res is None:
-            # 超时，返回已有的部分成交记录（如果有）
-            partial_trades = self._order_trades.get(order.qtoid, [])
-            return ExecutionResult(qt_oid=order.qtoid, trades=list(partial_trades))
-        return res
-
-    async def sell(
-        self,
-        asset: str,
-        shares: int | float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-    ) -> ExecutionResult:
-        """卖出指令。
-
-        Args:
-            asset: 资产代码
-            shares: 卖出数量
-            price: 卖出价格，0 表示市价
-            order_time: 下单时间
-            timeout: 超时时间（秒）
-
-        Returns:
-            成交结果. dry-run 模式下返回空 ExecutionResult, 信号记录到 _dry_run_signals.
-
-        Raises:
-            InsufficientPosition: 持仓不足
-            NonMultipleOfLotSize: 卖出数量不符合手数限制（非清仓时）
-        """
-        if self._dry_run:
-            self._dry_run_signals.append({
-                "side": OrderSide.SELL,
-                "asset": asset,
-                "shares": shares,
-                "price": price,
-                "tm": order_time or self._now(),
-            })
-            return ExecutionResult(qt_oid="dry-run", trades=[])
-
-        # 1. 检查持仓
-        if asset not in self._positions:
-            raise InsufficientPosition(security=asset, amount=shares)
-        pos = self._positions[asset]
-        self._validate_sell_shares(pos, shares)
-
-        if price != 0:
-            down_limit, up_limit = self._get_price_limits(asset)
-            if up_limit > 0 and down_limit > 0:
-                if price > up_limit or price < down_limit:
-                    raise PriceOutOfLimit(asset, price, down_limit, up_limit)
-        self._reject_at_limit(asset, OrderSide.SELL)
-
-        # 2. 创建订单
-        order = Order(
-            portfolio_id=self.portfolio_id,
-            asset=asset,
-            price=price,
-            shares=shares,
-            side=OrderSide.SELL,
-            bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
-            tm=order_time or self._now(),
-        )
-        db.insert_order(order)
-
-        with self._lock:
-            self._active_orders[asset].append(order)
-
-        res, _ = await self.wait(order.qtoid, timeout)
-        if res is None:
-            # 超时，返回已有的部分成交记录（如果有）
-            partial_trades = self._order_trades.get(order.qtoid, [])
-            return ExecutionResult(qt_oid=order.qtoid, trades=list(partial_trades))
-        return res
-
-    async def buy_percent(
-        self,
-        asset: str,
-        percent: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-    ) -> ExecutionResult:
-        """按总资产比例买入。
-
-        Args:
-            asset: 资产代码
-            percent: 目标比例 (0.0 - 1.0)
-            price: 买入价格，0 表示市价
-            order_time: 下单时间
-            timeout: 超时时间（秒）
-
-        Returns:
-            成交结果
-        """
-        # 计算数量
-        quote = self._get_quote(asset)
-        if not quote:
-             return ExecutionResult.empty()
-
-        if price > 0:
-            p = price
-        else:
-            _, up_limit = self._get_price_limits(asset)
-            p = up_limit or quote.get("lastPrice", 0)
-        if p <= 0:
-            return ExecutionResult.empty()
-
-        # 使用总资产计算
-        target_value = self.total_assets * percent
-
-        shares = int(target_value / p / 100) * 100
-        if shares == 0:
-             return ExecutionResult.empty()
-
-        return await self.buy(asset, shares, price, order_time, timeout)
-
-    async def buy_amount(
-        self,
-        asset: str,
-        amount: int | float,
-        price: int | float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-    ) -> ExecutionResult:
-        """按金额买入。
-
-        Args:
-            asset: 资产代码
-            amount: 买入金额
-            price: 买入价格，0 表示市价
-            order_time: 下单时间
-            timeout: 超时时间（秒）
-
-        Returns:
-            成交结果
-        """
-        quote = self._get_quote(asset)
-        if not quote and price == 0:
-             return ExecutionResult.empty()
-
-        if price > 0:
-            p = price
-        else:
-            _, up_limit = self._get_price_limits(asset)
-            p = up_limit or quote.get("lastPrice", 0)
-        if p <= 0:
-             return ExecutionResult.empty()
-
-        shares = int(amount / p / 100) * 100
-        if shares == 0:
-             return ExecutionResult.empty()
-
-        return await self.buy(asset, shares, price, order_time, timeout)
-
-    async def sell_percent(
-        self,
-        asset: str,
-        percent: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-    ) -> ExecutionResult:
-        """按持仓比例卖出。
-
-        Args:
-            asset: 资产代码
-            percent: 卖出比例 (0.0 - 1.0)。如果 >= 0.9999 则视为清仓。
-            price: 卖出价格，0 表示市价
-            order_time: 下单时间
-            timeout: 超时时间（秒）
-
-        Returns:
-            成交结果
-        """
-        if asset not in self._positions:
-            return ExecutionResult.empty()
-
-        pos = self._positions[asset]
-        # 如果是 1.0 (100%)，则是清仓
-        if percent >= 0.9999:
-            shares = pos.shares
-        else:
-            shares = int(pos.shares * percent / 100) * 100
-
-        if shares == 0:
-            return ExecutionResult.empty()
-
-        return await self.sell(asset, shares, price, order_time, timeout)
-
-    async def sell_amount(
-        self,
-        asset: str,
-        amount: int | float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-    ) -> ExecutionResult:
-        """按金额卖出。
-
-        Args:
-            asset: 资产代码
-            amount: 卖出金额
-            price: 卖出价格，0 表示市价
-            order_time: 下单时间
-            timeout: 超时时间（秒）
-
-        Returns:
-            成交结果
-        """
-        quote = self._get_quote(asset)
-        if not quote and price == 0:
-             return ExecutionResult.empty()
-
-        if price > 0:
-            p = price
-        else:
-            down_limit, _ = self._get_price_limits(asset)
-            p = down_limit or quote.get("lastPrice", 0)
-        if p <= 0:
-             return ExecutionResult.empty()
-
-        shares = int(amount / p / 100) * 100
-        if shares == 0:
-            # 如果金额不足1手，是否尝试卖出1手？通常不。
-            # 但是如果 amount 很大导致 shares > pos.shares，sell 方法会检查并抛出异常
-            return ExecutionResult.empty()
-
-        return await self.sell(asset, shares, price, order_time, timeout)
-
-    async def trade_target_pct(
-        self,
-        asset: str,
-        target_pct: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-    ) -> ExecutionResult:
-        """调整持仓至目标比例。
-
-        如果当前比例低于目标，则买入；如果高于目标，则卖出。
-
-        Args:
-            asset: 资产代码
-            target_pct: 目标持仓占总资产的比例 (0.0 - 1.0)
-            price: 交易价格，0 表示市价
-            order_time: 下单时间
-            timeout: 超时时间（秒）
-
-        Returns:
-            成交结果
-        """
-        quote = self._get_quote(asset)
-        if not quote and price == 0:
-             return ExecutionResult.empty()
-
-        # 计算当前价值和目标价值应该统一使用参考价格（通常是 lastPrice）
-        # 只有在计算买入/卖出数量时，为了保守起见，才可能使用 limit price
-        ref_price = price
-        if ref_price == 0:
-            ref_price = quote.get("lastPrice", 0)
-            if ref_price <= 0:
-                # Fallback to limit price if lastPrice is invalid
-                down_limit, up_limit = self._get_price_limits(asset)
-                # 如果没有 lastPrice，尝试使用涨停价作为参考
-                ref_price = up_limit if up_limit > 0 else 0
-
-        if ref_price <= 0:
-             return ExecutionResult.empty()
-
-        total = self.total_assets
-        target_val = total * target_pct
-
-        current_val = 0.0
-        if asset in self._positions:
-            current_val = self._positions[asset].shares * ref_price
-
-        diff = target_val - current_val
-
-        if diff > 0:
-            # 买入
-            return await self.buy_amount(asset, diff, price, order_time, timeout)
-        elif diff < 0:
-            # 卖出
-            # 注意：sell_amount 会向下取整 100 股。
-            # 如果 diff 很小，可能不交易。
-            # 如果希望精确清仓，可能需要特殊处理 sell_percent(0) 的情况?
-            # trade_target_pct(0) -> sell all.
-            if target_pct < 0.0001:
-                return await self.sell_percent(asset, 1.0, order_time, timeout)
-            return await self.sell_amount(asset, -diff, price, order_time, timeout)
-        else:
-            return ExecutionResult.empty()
-
-    async def cancel_order(self, qt_oid: str):
-        """取消订单。
-
-        Args:
-            qt_oid: 订单 ID (Quantide Order ID)
-        """
-        with self._lock:
-            # 查找并移除
-            found = False
-            for asset, orders in self._active_orders.items():
-                for i, order in enumerate(orders):
-                    if order.qtoid == qt_oid:
-                        # 从列表中移除
-                        orders.pop(i)
-                        found = True
-
-                        # 更新状态
-                        if order.filled > 0:
-                            order.status = OrderStatus.PARTSUCC_CANCEL
-                        else:
-                            order.status = OrderStatus.CANCELED
-
-                        order.status_msg = "Canceled by user"
-                        db.update_order(qt_oid, status=order.status.value, status_msg="Canceled by user", filled=order.filled)
-
-                        # 唤醒等待者（如果还在等待）
-                        all_trades = self._order_trades.pop(qt_oid, [])
-                        self.awake(qt_oid, ExecutionResult(qt_oid=qt_oid, trades=all_trades))
-                        break
-                if found:
-                    if not orders:
-                        del self._active_orders[asset]
-                    break
-
-            if found:
-                return
-
-            # 服务重启后待处理订单不在内存中；允许按持久化记录撤单。
-            stored = db.get_order(qt_oid)
-            if stored is None or stored.portfolio_id != self.portfolio_id:
-                return
-            if stored.status not in {
-                OrderStatus.UNREPORTED,
-                OrderStatus.WAIT_REPORTING,
-                OrderStatus.REPORTED,
-                OrderStatus.PART_SUCC,
-            }:
-                return
-            if stored.filled > 0:
-                stored.status = OrderStatus.PARTSUCC_CANCEL
-            else:
-                stored.status = OrderStatus.CANCELED
-            stored.status_msg = "Canceled by user"
-            db.update_order(
-                qt_oid,
-                status=stored.status.value,
-                status_msg=stored.status_msg,
-                filled=stored.filled,
-            )
-
-    async def cancel_all_orders(self, side: OrderSide | None = None):
-        """取消所有订单。
-
-        Args:
-            side: 订单方向。如果指定，则只取消该方向的订单；否则取消所有订单。
-        """
-        with self._lock:
-            assets_to_remove = []
-            for asset, orders in self._active_orders.items():
-                remaining = []
-                for order in orders:
-                    if side is None or order.side == side:
-                        # Cancel
-                        if order.filled > 0:
-                            order.status = OrderStatus.PARTSUCC_CANCEL
-                        else:
-                            order.status = OrderStatus.CANCELED
-
-                        order.status_msg = "Canceled by user"
-                        db.update_order(order.qtoid, status=order.status.value, status_msg="Canceled by user", filled=order.filled)
-
-                        all_trades = self._order_trades.pop(order.qtoid, [])
-                        self.awake(order.qtoid, ExecutionResult(qt_oid=order.qtoid, trades=all_trades))
-                    else:
-                        remaining.append(order)
-
-                if not remaining:
-                    assets_to_remove.append(asset)
-                else:
-                    self._active_orders[asset] = remaining
-
-            for asset in assets_to_remove:
-                del self._active_orders[asset]
-
-    async def on_day_open(self, limits: dict[str, dict[str, float]] | None = None):
-        """开盘处理。
-
-        Args:
-            limits: 涨跌停限制 {asset: {'up': float, 'down': float}}
-        """
-        # 仿真 broker 实时从 quote 获取 limit，此处暂不需要特殊处理
-        pass
-
-    async def on_day_close(self, close_prices: dict[str, float] | None = None):
-        """收盘后处理：生成资产快照，并清理未完成订单。
-
-        Args:
-            close_prices: 收盘价 {asset: price}
-        """
-        # 1. 撤销所有未完成订单
-        # 盘后自动撤单
-        await self.cancel_all_orders()
-
-        # 清理可能残留的 early results
-        if hasattr(self, "_early_results"):
-            self._early_results.clear()
-
-        with self._lock:
-            today = self._get_today()
-
-            # Sync positions with latest prices
-            snapshot_positions = []
-            market_value = 0.0
-
-            for asset, pos in self._positions.items():
-                pos.dt = today
-
-                price = 0
-                if close_prices and asset in close_prices:
-                    price = close_prices[asset]
-                else:
-                    # Try live quote or fallback to cost
-                    quote = self._get_quote(asset)
-                    price = quote.get("lastPrice", 0) if quote else 0
-                    if price <= 0:
-                        price = pos.price
-
-                pos.mv = pos.shares * price
-                pos.profit = (price - pos.price) * pos.shares
-
-                # T+1 结算：收盘后，所有持仓在下一交易日均可用
-                pos.avail = pos.shares
-
-                snapshot_positions.append(pos)
-                market_value += pos.mv
-
-            db.replace_positions(self.portfolio_id, today, snapshot_positions)
-
-            # Update Asset
-            total_asset = self._cash + market_value
-            asset_record = Asset(
-                portfolio_id=self.portfolio_id,
-                dt=today,
-                principal=self._principal,
-                cash=self._cash,
-                frozen_cash=0,
-                market_value=market_value,
-                total=total_asset
-            )
-            db.upsert_asset(asset_record)
+        # 注意：卖出不影响剩余持仓的成本价 (pos.price)
 
 
 SimulationBroker = PaperBroker

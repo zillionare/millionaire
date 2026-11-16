@@ -14,6 +14,10 @@ Covers missing branches:
 
 from __future__ import annotations
 
+from quantide.web.pages import strategy_metrics
+from quantide.web.pages import strategy_scanning
+
+
 import asyncio
 import datetime as dt
 from types import SimpleNamespace
@@ -74,7 +78,7 @@ def test_build_series_payload_appends_none_when_dt_beyond_last_date(monkeypatch)
         "close": [10.0, 10.5],
     })
     monkeypatch.setattr(
-        strategy_mod.daily_bars, "get_bars_in_range", lambda *a, **k: benchmark_df
+        strategy_metrics.daily_bars, "get_bars_in_range", lambda *a, **k: benchmark_df
     )
     # date_axis beyond last asset row (2024-01-05).
     date_axis = ["2024-01-01", "2024-01-05", "2024-01-10"]
@@ -97,7 +101,7 @@ def test_build_series_payload_benchmark_exception_yields_empty_df(monkeypatch):
     def _boom(*a, **k):
         raise RuntimeError("bars err")
 
-    monkeypatch.setattr(strategy_mod.daily_bars, "get_bars_in_range", _boom)
+    monkeypatch.setattr(strategy_metrics.daily_bars, "get_bars_in_range", _boom)
     out = _build_series_payload("p1", ["2024-01-01"])
     assert out["benchmark"] == [None]
 
@@ -366,7 +370,7 @@ async def test_save_scan_config_generic_exception_logs_and_returns_error_modal(m
     monkeypatch.setattr(strategy_mod.strategy_loader, "set_scan_directory", lambda d: None)
     # Force the directory normalization to pass by patching _normalize_scan_directory.
     monkeypatch.setattr(
-        strategy_mod,
+        strategy_scanning,
         "_normalize_scan_directory",
         lambda d: (d, MagicMock()),
     )

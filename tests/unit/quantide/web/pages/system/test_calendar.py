@@ -11,9 +11,11 @@ from starlette.testclient import TestClient
 def client():
     """创建测试客户端"""
     from quantide.app_factory import create_app
+    from tests.e2e.support.auth_fixture import sign_in_test_admin
 
     app = create_app(enforce_single_instance=False)
     with TestClient(app) as c:
+        sign_in_test_admin(c)
         yield c
 
 
@@ -53,7 +55,7 @@ class TestCalendarPage:
     def test_calendar_has_layout(self, client):
         """页面包含布局元素（header, sidebar）"""
         resp = client.get("/system/calendar/", follow_redirects=True)
-        assert "<title>" in resp.text.lower()
+        assert '<title id="page-title">' in resp.text
         assert "<nav" in resp.text.lower()
         assert "<aside" in resp.text.lower()
 
@@ -74,10 +76,20 @@ class TestCalendarPage:
         assert "交易日历" in resp.text
 
     def test_calendar_navigation_links(self, client):
-        """页面包含导航链接"""
+        """页面包含导航链接，并使用中性边框按钮。"""
         resp = client.get("/system/calendar/?year=2024&month=6", follow_redirects=True)
         assert "year=2023" in resp.text  # 上一年
         assert "year=2025" in resp.text  # 下一年
+        assert "q-btn q-btn--sm" in resp.text
+        assert "btn btn-sm btn-outline" not in resp.text
+
+    def test_calendar_update_is_header_icon_button(self, client):
+        """立即更新按钮为标题栏右侧的轻量图标按钮。"""
+        resp = client.get("/system/calendar/?year=2024&month=6", follow_redirects=True)
+        assert 'aria-label="立即更新交易日历"' in resp.text
+        assert 'hx-post="/system/calendar/sync"' in resp.text
+        assert "inline-flex h-5 w-5" in resp.text
+        assert "uk-btn" not in resp.text
 
     def test_calendar_selectors_auto_submit(self, client):
         """年月选择器变更后自动提交"""
@@ -117,7 +129,7 @@ class TestGetCalendarData:
         assert by_date[datetime.date(2024, 6, 9)]["is_trading"] is False
 
     def test_empty_data_does_not_mark_everyday_closed(self, trade_calendar_data):
-        """issue #25 复现：_data 为 None 时，不应该整月都被标为休市。"""
+        """Issue #25 复现：_data 为 None 时，不应该整月都被标为休市。"""
         from quantide.web.pages.system.calendar import _get_calendar_data
 
         trade_calendar_data._data = None
@@ -170,32 +182,30 @@ class TestCalendarStaleBanner:
     def test_banner_appears_when_data_is_stale(self, trade_calendar_data):
         """数据陈旧时页面显示 warning 横幅。"""
         from quantide.app_factory import create_app
+        from tests.e2e.support.auth_fixture import sign_in_test_admin
 
         app = create_app(enforce_single_instance=False)
         with TestClient(app) as c:
+            sign_in_test_admin(c)
             trade_calendar_data._data = _make_calendar_table(
                 datetime.date(2024, 1, 1), datetime.date(2024, 12, 31)
             )
-            resp = c.get(
-                "/system/calendar/?year=2025&month=6", follow_redirects=True
-            )
+            resp = c.get("/system/calendar/?year=2025&month=6", follow_redirects=True)
         assert resp.status_code == 200
         assert "2024-01-01 ~ 2024-12-31" in resp.text
-        assert "「立即更新」" in resp.text
+        assert "刷新图标" in resp.text
 
     def test_banner_absent_when_data_covers_month(self, trade_calendar_data):
         """数据覆盖所选月份时，warning 横幅不出现。"""
         from quantide.app_factory import create_app
+        from tests.e2e.support.auth_fixture import sign_in_test_admin
 
         app = create_app(enforce_single_instance=False)
         with TestClient(app) as c:
+            sign_in_test_admin(c)
             trade_calendar_data._data = _make_calendar_table(
                 datetime.date(2024, 1, 1), datetime.date(2024, 12, 31)
             )
-            resp = c.get(
-                "/system/calendar/?year=2024&month=6", follow_redirects=True
-            )
+            resp = c.get("/system/calendar/?year=2024&month=6", follow_redirects=True)
         assert resp.status_code == 200
         assert "2024-01-01 ~ 2024-12-31" not in resp.text
-
-

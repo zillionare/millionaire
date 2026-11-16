@@ -1,0 +1,398 @@
+{
+  "unit": {
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "1",
+        "failures": "2",
+        "skipped": "3",
+        "tests": "4554",
+        "time": "277.087",
+        "timestamp": "2026-11-02T10:17:16.267804+09:00",
+        "hostname": "mini-one.local"
+      }
+    ],
+    "issues": [
+      {
+        "kind": "skipped",
+        "test": "tests.unit.quantide.core.test_fr_012_live_strategy.TestMultiFrameData::test_synthetic_30m_fixture_exists",
+        "message": "synthetic 30m fixture not generated; run generate_synthetic.py; tracker: .dev/memory/26-06-22.md#L1"
+      },
+      {
+        "kind": "failure",
+        "test": "tests.unit.quantide.web.pages.system.test_v0204_b08_datasource::test_ds_sync_data",
+        "message": "Failed: Timeout (>60.0s) from pytest-timeout."
+      },
+      {
+        "kind": "error",
+        "test": "tests.unit.quantide.web.pages.test_v0204_b08_data_market::test_do_update_valid_date",
+        "message": "failed on teardown with \"Failed: Timeout (>60.0s) from pytest-timeout.\""
+      },
+      {
+        "kind": "skipped",
+        "test": "tests.unit.quantide.web.pages.test_v0204_b08_strategy_helpers::test_empty_history_frame",
+        "message": "GatewayBroker not importable without live app context"
+      },
+      {
+        "kind": "skipped",
+        "test": "tests.unit.quantide.web.pages.test_v0204_b08_strategy_helpers::test_gateway_broker_basic",
+        "message": "GatewayBroker not importable without live app context"
+      },
+      {
+        "kind": "failure",
+        "test": "tests.unit.quantide.web.pages.test_v0204_b08_trade_main_helpers::test_build_asset_stats_for_empty_asset",
+        "message": "Failed: Timeout (>60.0s) from pytest-timeout."
+      }
+    ]
+  },
+  "e2e": {
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "1",
+        "tests": "6",
+        "time": "13.375",
+        "timestamp": "2026-11-02T10:18:48.717705+09:00",
+        "hostname": "mini-one.local"
+      }
+    ],
+    "issues": [
+      {
+        "kind": "skipped",
+        "test": "tests.e2e.paper.test_dual_ma_accuracy::test_dual_ma_paper_matches_accuracy_contract",
+        "message": "P3 待 PR3 重写: 当前调 PaperBroker._on_limit_update / _on_quote_update 私有方法 + patch.object(PaperBroker, '_get_today'), 违反 test-plan §5.4.6 边界铁律 (不得通过 mock.patch 内部符号 / 不得调私有方法). 重写需要 PaperBroker 暴露公开的 on_quote / on_limit 公开 API (PR2 范畴) + 配合 VirtualClock + make_paper_runtime. tracker: .dev/memory/26-06-22.md"
+      }
+    ]
+  },
+  "clone_scan": {
+    "settings": {
+      "min_lines": 10,
+      "min_tokens": 70,
+      "format": "python"
+    },
+    "statistics": {
+      "clones": 44,
+      "duplicatedLines": 839,
+      "duplicatedTokens": 4832,
+      "lines": 63572,
+      "newClones": 0,
+      "newDuplicatedLines": 0,
+      "percentage": 1.3197634178569182,
+      "percentageTokens": 1.4432152158849252,
+      "sources": 195,
+      "tokens": 334808
+    },
+    "pairs": [
+      {
+        "first": "core/runtime/gateway_broker.py",
+        "first_start": 129,
+        "second": "service/sim_broker.py",
+        "second_start": 368,
+        "lines": 18
+      },
+      {
+        "first": "core/runtime/gateway_broker.py",
+        "first_start": 248,
+        "second": "service/sim_broker.py",
+        "second_start": 557,
+        "lines": 27
+      },
+      {
+        "first": "core/runtime/gateway_broker.py",
+        "first_start": 413,
+        "second": "core/runtime/gateway_broker.py",
+        "second_start": 782,
+        "lines": 21
+      },
+      {
+        "first": "core/runtime/gateway_broker.py",
+        "first_start": 476,
+        "second": "core/runtime/gateway_broker.py",
+        "second_start": 845,
+        "lines": 21
+      },
+      {
+        "first": "core/runtime/gateway_broker.py",
+        "first_start": 497,
+        "second": "core/runtime/gateway_broker.py",
+        "second_start": 866,
+        "lines": 22
+      },
+      {
+        "first": "data/models/calendar.py",
+        "first_start": 311,
+        "second": "data/models/calendar.py",
+        "second_start": 330,
+        "lines": 13
+      },
+      {
+        "first": "data/models/calendar.py",
+        "first_start": 311,
+        "second": "data/models/calendar.py",
+        "second_start": 349,
+        "lines": 13
+      },
+      {
+        "first": "data/models/daily_bars.py",
+        "first_start": 109,
+        "second": "data/stores/index_bars.py",
+        "second_start": 120,
+        "lines": 11
+      },
+      {
+        "first": "data/models/entities.py",
+        "first_start": 96,
+        "second": "data/models/entities.py",
+        "second_start": 121,
+        "lines": 13
+      },
+      {
+        "first": "data/sqlite.py",
+        "first_start": 325,
+        "second": "data/sqlite.py",
+        "second_start": 787,
+        "lines": 17
+      },
+      {
+        "first": "data/sqlite.py",
+        "first_start": 442,
+        "second": "data/sqlite.py",
+        "second_start": 697,
+        "lines": 11
+      },
+      {
+        "first": "data/sqlite.py",
+        "first_start": 531,
+        "second": "data/sqlite.py",
+        "second_start": 573,
+        "lines": 18
+      },
+      {
+        "first": "data/sqlite.py",
+        "first_start": 678,
+        "second": "data/sqlite.py",
+        "second_start": 703,
+        "lines": 14
+      },
+      {
+        "first": "data/stores/index_bars.py",
+        "first_start": 116,
+        "second": "data/stores/minute_bars.py",
+        "second_start": 119,
+        "lines": 16
+      },
+      {
+        "first": "data/utils/resampler.py",
+        "first_start": 31,
+        "second": "data/utils/resampler.py",
+        "second_start": 74,
+        "lines": 20
+      },
+      {
+        "first": "service/backtest_broker.py",
+        "first_start": 838,
+        "second": "service/backtest_broker.py",
+        "second_start": 1275,
+        "lines": 17
+      },
+      {
+        "first": "service/strategy_runtime.py",
+        "first_start": 239,
+        "second": "service/strategy_runtime.py",
+        "second_start": 319,
+        "lines": 18
+      },
+      {
+        "first": "service/strategy_runtime.py",
+        "first_start": 1502,
+        "second": "service/strategy_runtime.py",
+        "second_start": 1546,
+        "lines": 11
+      },
+      {
+        "first": "service/strategy_tasks.py",
+        "first_start": 249,
+        "second": "service/strategy_tasks.py",
+        "second_start": 355,
+        "lines": 11
+      },
+      {
+        "first": "service/strategy_tasks.py",
+        "first_start": 306,
+        "second": "service/strategy_tasks.py",
+        "second_start": 381,
+        "lines": 16
+      },
+      {
+        "first": "strategies/example/ml_momentum_reversal.py",
+        "first_start": 1713,
+        "second": "strategies/example/ml_momentum_reversal.py",
+        "second_start": 1827,
+        "lines": 14
+      },
+      {
+        "first": "web/apis/analysis/kline.py",
+        "first_start": 80,
+        "second": "web/apis/analysis/kline.py",
+        "second_start": 116,
+        "lines": 15
+      },
+      {
+        "first": "web/apis/analysis/kline.py",
+        "first_start": 171,
+        "second": "web/apis/analysis/kline.py",
+        "second_start": 255,
+        "lines": 39
+      },
+      {
+        "first": "web/apis/analysis/kline.py",
+        "first_start": 171,
+        "second": "web/apis/analysis/kline.py",
+        "second_start": 330,
+        "lines": 17
+      },
+      {
+        "first": "web/apis/analysis/kline.py",
+        "first_start": 212,
+        "second": "web/apis/analysis/kline.py",
+        "second_start": 301,
+        "lines": 21
+      },
+      {
+        "first": "web/apis/broker.py",
+        "first_start": 158,
+        "second": "web/apis/broker.py",
+        "second_start": 214,
+        "lines": 15
+      },
+      {
+        "first": "web/pages/accounts.py",
+        "first_start": 260,
+        "second": "web/pages/accounts.py",
+        "second_start": 564,
+        "lines": 18
+      },
+      {
+        "first": "web/pages/accounts.py",
+        "first_start": 330,
+        "second": "web/pages/accounts.py",
+        "second_start": 542,
+        "lines": 21
+      },
+      {
+        "first": "web/pages/data_market.py",
+        "first_start": 425,
+        "second": "web/pages/data_stocks.py",
+        "second_start": 223,
+        "lines": 24
+      },
+      {
+        "first": "web/pages/history_orders.py",
+        "first_start": 14,
+        "second": "web/pages/history_positions.py",
+        "second_start": 19,
+        "lines": 23
+      },
+      {
+        "first": "web/pages/history_orders.py",
+        "first_start": 14,
+        "second": "web/pages/history_trades.py",
+        "second_start": 14,
+        "lines": 38
+      },
+      {
+        "first": "web/pages/history_orders.py",
+        "first_start": 103,
+        "second": "web/pages/history_trades.py",
+        "second_start": 95,
+        "lines": 16
+      },
+      {
+        "first": "web/pages/home.py",
+        "first_start": 97,
+        "second": "web/pages/live.py",
+        "second_start": 63,
+        "lines": 43
+      },
+      {
+        "first": "web/pages/home.py",
+        "first_start": 141,
+        "second": "web/pages/live.py",
+        "second_start": 106,
+        "lines": 18
+      },
+      {
+        "first": "web/pages/home.py",
+        "first_start": 161,
+        "second": "web/pages/live.py",
+        "second_start": 124,
+        "lines": 43
+      },
+      {
+        "first": "web/pages/home.py",
+        "first_start": 269,
+        "second": "web/pages/live.py",
+        "second_start": 231,
+        "lines": 26
+      },
+      {
+        "first": "web/pages/home.py",
+        "first_start": 810,
+        "second": "web/pages/live.py",
+        "second_start": 509,
+        "lines": 11
+      },
+      {
+        "first": "web/pages/live.py",
+        "first_start": 504,
+        "second": "web/pages/paper.py",
+        "second_start": 469,
+        "lines": 18
+      },
+      {
+        "first": "web/pages/paper.py",
+        "first_start": 328,
+        "second": "web/pages/paper.py",
+        "second_start": 487,
+        "lines": 13
+      },
+      {
+        "first": "web/pages/strategy.py",
+        "first_start": 3767,
+        "second": "web/pages/strategy.py",
+        "second_start": 3835,
+        "lines": 19
+      },
+      {
+        "first": "web/pages/system/risk_events.py",
+        "first_start": 14,
+        "second": "web/pages/system/runtime_monitor.py",
+        "second_start": 15,
+        "lines": 12
+      },
+      {
+        "first": "web/pages/system/stocks.py",
+        "first_start": 113,
+        "second": "web/pages/system/stocks.py",
+        "second_start": 226,
+        "lines": 15
+      },
+      {
+        "first": "web/pages/trade_lightning.py",
+        "first_start": 96,
+        "second": "web/pages/trade_main.py",
+        "second_start": 452,
+        "lines": 21
+      },
+      {
+        "first": "web/pages/trade_main.py",
+        "first_start": 2592,
+        "second": "web/pages/trade_main.py",
+        "second_start": 2614,
+        "lines": 11
+      }
+    ]
+  }
+}

@@ -14,13 +14,13 @@ from quantide.data.models.base import Entity
 
 #: 同步阶段（按顺序执行）
 SYNC_STAGES: tuple[str, ...] = (
-    "calendar",       # 交易日历
-    "stock_list",     # 证券主数据
-    "daily_bars",     # 个股日线（复权/ST/涨跌停合并）
-    "daily_basic",    # 市值/换手
-    "index_bars",     # 指数日线
-    "index_weight",   # 指数成分（PIT）
-    "minute_bars",    # 30 分钟线（baostock 历史 + 腾讯增量）
+    "calendar",  # 交易日历
+    "stock_list",  # 证券主数据
+    "daily_bars",  # 个股日线（复权/ST/涨跌停合并）
+    "daily_basic",  # 市值/换手
+    "index_bars",  # 指数日线
+    "index_weight",  # 指数成分（PIT）
+    "minute_bars",  # 30 分钟线（baostock 历史 + 腾讯增量）
 )
 
 #: 任务状态

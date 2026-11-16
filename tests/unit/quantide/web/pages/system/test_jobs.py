@@ -1,5 +1,7 @@
 """系统设置 - 定时任务页面测试"""
 
+from unittest.mock import patch
+
 from starlette.testclient import TestClient
 
 import pytest
@@ -9,10 +11,15 @@ import pytest
 def client():
     """创建测试客户端"""
     from quantide.app_factory import create_app
+    from tests.e2e.support.auth_fixture import sign_in_test_admin
 
-    app = create_app(enforce_single_instance=False)
-    with TestClient(app) as c:
-        yield c
+    # A late-afternoon app boot can schedule immediate historical catch-up.
+    # This page contract must not start a real data-provider request.
+    with patch("quantide.service.maintenance.maintain_data", return_value="offline page test"):
+        app = create_app(enforce_single_instance=False)
+        with TestClient(app) as c:
+            sign_in_test_admin(c)
+            yield c
 
 
 class TestJobsPage:
@@ -39,7 +46,7 @@ class TestJobsPage:
         """页面包含定时任务内容"""
         resp = client.get("/system/jobs/", follow_redirects=True)
         assert "定时任务" in resp.text
-        assert "日线数据同步" in resp.text
+        assert "每日数据维护" in resp.text
 
     def test_jobs_has_table(self, client):
         """页面包含任务表格"""

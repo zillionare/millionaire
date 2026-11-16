@@ -1,36 +1,29 @@
-# MLMomentumReversalStrategy decision contract
+# MLMomentumReversalStrategy 决策合同
 
-`MLMomentumReversalStrategy` is a daily cross-sectional selector.  On each
-decision date its target portfolio is exactly the current `top_k` selection:
+`MLMomentumReversalStrategy` 是日线截面选股策略。每个决策日的目标组合就是当日的
+`top_k` 选择：
 
-1. a holding that is still in `top_k` is kept;
-2. an available holding absent from `top_k` is fully sold and realized; and
-3. every selected asset that is not held is bought.
+1. 仍在 `top_k` 中的持仓保留；
+2. 不在 `top_k` 中的可用持仓全部卖出并实现收益；
+3. 每个入选但尚未持有的证券买入。
 
-The strategy does not use fixed holding days, price barriers, or any
-built-in risk program. Generic `RiskStrategy` and the backtest risk-overlay
-framework remain available for strategies that explicitly opt into a
-host-registered adapter.
+策略不使用固定持有天数、价格障碍或任何内置风险程序。通用 `RiskStrategy` 和回测
+风险叠加框架仍可供显式选择宿主注册适配器的策略使用。
 
-## Training target
+## 训练标签
 
-The model is supervised with the explicitly named
-`future_n_trading_day_close_return` target:
+模型使用显式命名的 `future_n_trading_day_close_return` 标签：
 
 ```text
-close[t + N trading days] / close[t] - 1
+close[t + N 个交易日] / close[t] - 1
 ```
 
-The target is created only inside model training.  Training input is cut off
-strictly before the signal date, so the signal-day row cannot use a future
-close.  `future_return_horizon` controls `N` for this label; it is a modeling
-parameter and does not define a sell or holding policy.
+标签只在模型训练内部创建。训练输入严格截断在信号日之前，因此信号日的行不能使用
+未来收盘价。`future_return_horizon` 控制该标签的 `N`；它是建模参数，不定义卖出或
+持有规则。
 
-## CE packaging note
+## CE 打包说明
 
-CE retains the generic `RiskStrategy` interface and backtest risk-overlay
-framework, but contains no private risk-program implementation. Private
-learner packages register their own adapters through the generic risk-program
-registry when installed. With no registered adapters, risk selection is empty;
-persisted IDs that cannot be resolved are unavailable/blocked rather than
-silently replaced.
+CE 保留通用 `RiskStrategy` 接口和回测风险叠加框架，但不包含任何私有风险程序实现。
+私有学习包安装后通过通用风险程序注册表注册自己的适配器。没有注册适配器时，风险选择
+为空；无法解析的持久化 ID 会显示为不可用/阻断，而不是静默替换。

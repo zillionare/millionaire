@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from quantide.web.pages import strategy_backtest_views
+from quantide.web.pages import strategy_deployment
+from quantide.web.pages import strategy_log_views
+from quantide.web.pages import strategy_metrics
+from quantide.web.pages import strategy_scanning
+
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -17,7 +24,7 @@ from quantide.web.pages.strategy import (
 @pytest.fixture(autouse=True)
 def private_edition_strategy_cases(monkeypatch, private_edition_feature_override):
     """Exercise shared live-deployment helpers as private-edition cases."""
-    monkeypatch.setattr(strategy_mod, "supports_live_trading", lambda: True)
+    monkeypatch.setattr('quantide.config.features.get_runtime_edition', lambda: 'zillionaire')
 
 
 def test_build_date_axis_with_portfolio():
@@ -26,9 +33,9 @@ def test_build_date_axis_with_portfolio():
     fake_portfolio.start = __import__("datetime").date(2024, 1, 1)
     fake_portfolio.end = __import__("datetime").date(2024, 6, 30)
 
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.get_portfolio = MagicMock(return_value=fake_portfolio)
-        with patch.object(strategy_mod, "calendar") as mock_cal:
+        with patch.object(strategy_metrics, "calendar") as mock_cal:
             mock_cal.get_frames = MagicMock(return_value=[
                 __import__("datetime").date(2024, 1, 1),
                 __import__("datetime").date(2024, 1, 2),
@@ -43,9 +50,9 @@ def test_build_date_axis_no_portfolio_no_end():
     fake_portfolio.start = __import__("datetime").date(2024, 1, 1)
     fake_portfolio.end = None
 
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.get_portfolio = MagicMock(return_value=fake_portfolio)
-        with patch.object(strategy_mod, "calendar") as mock_cal:
+        with patch.object(strategy_metrics, "calendar") as mock_cal:
             mock_cal.get_frames = MagicMock(return_value=[
                 __import__("datetime").date(2024, 1, 1),
             ])
@@ -63,10 +70,10 @@ def test_build_date_axis_no_portfolio_use_assets():
         ]
     })
 
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.get_portfolio = MagicMock(return_value=None)
         mock_db.query_assets = MagicMock(return_value=fake_assets)
-        with patch.object(strategy_mod, "calendar") as mock_cal:
+        with patch.object(strategy_metrics, "calendar") as mock_cal:
             mock_cal.get_frames = MagicMock(return_value=[
                 __import__("datetime").date(2024, 1, 1),
                 __import__("datetime").date(2024, 1, 5),
@@ -78,7 +85,7 @@ def test_build_date_axis_no_portfolio_no_assets():
     """[AC-NFR1101-01] Returns empty list when no portfolio and no assets."""
     fake_assets = pl.DataFrame()  # empty
 
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.get_portfolio = MagicMock(return_value=None)
         mock_db.query_assets = MagicMock(return_value=fake_assets)
         _build_date_axis("p1")
@@ -91,7 +98,7 @@ def test_build_date_axis_no_portfolio_no_assets():
 
 def test_build_series_payload_no_assets():
     """[AC-NFR1101-01] When no assets, returns placeholder payload."""
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=pl.DataFrame())
         out = _build_series_payload("p1", date_axis=["2024-01-01"])
     assert out["total"] == [None]
@@ -101,7 +108,7 @@ def test_build_series_payload_no_assets():
 def test_build_series_payload_no_date_axis():
     """[AC-NFR1101-01] When no date_axis, returns empty placeholder."""
     fake_assets = pl.DataFrame({"dt": [__import__("datetime").date(2024, 1, 1)]})
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
         out = _build_series_payload("p1", date_axis=[])
     assert out["total"] == []
@@ -118,7 +125,7 @@ def test_build_series_payload_with_assets():
         "total": [100.0, 110.0],
         "benchmark_total": [100.0, 105.0],
     })
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
         out = _build_series_payload("p1", date_axis=["2024-01-01", "2024-01-02"])
     assert "total" in out
@@ -135,7 +142,7 @@ from quantide.web.pages.strategy import _build_benchmark_returns
 
 def test_build_benchmark_returns_no_assets():
     """[AC-NFR1101-01] When no assets, returns None."""
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=pl.DataFrame())
         out = _build_benchmark_returns("p1")
     assert out is None
@@ -144,9 +151,9 @@ def test_build_benchmark_returns_no_assets():
 def test_build_benchmark_returns_daily_bars_exception():
     """[AC-NFR1101-01] When daily_bars.get_bars_in_range raises, returns None."""
     fake_assets = pl.DataFrame({"dt": [__import__("datetime").date(2024, 1, 1)]})
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
-        with patch.object(strategy_mod, "daily_bars") as mock_dbars:
+        with patch.object(strategy_metrics, "daily_bars") as mock_dbars:
             mock_dbars.get_bars_in_range = MagicMock(side_effect=Exception("boom"))
             out = _build_benchmark_returns("p1")
     assert out is None
@@ -156,9 +163,9 @@ def test_build_benchmark_returns_empty_dataframe():
     """[AC-NFR1101-01] When daily_bars returns empty df, returns None."""
     import datetime
     fake_assets = pl.DataFrame({"dt": [datetime.date(2024, 1, 1)]})
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
-        with patch.object(strategy_mod, "daily_bars") as mock_dbars:
+        with patch.object(strategy_metrics, "daily_bars") as mock_dbars:
             mock_dbars.get_bars_in_range = MagicMock(return_value=pl.DataFrame())
             out = _build_benchmark_returns("p1")
     assert out is None
@@ -180,9 +187,9 @@ def test_build_benchmark_returns_with_data():
         ],
         "close": [100.0, 110.0],
     })
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
-        with patch.object(strategy_mod, "daily_bars") as mock_dbars:
+        with patch.object(strategy_metrics, "daily_bars") as mock_dbars:
             mock_dbars.get_bars_in_range = MagicMock(return_value=fake_bars)
             out = _build_benchmark_returns("p1")
     assert out is not None
@@ -200,8 +207,8 @@ def test_build_metrics_payload_with_stats():
     """[AC-NFR1101-01] Build metrics from a normal stats DataFrame."""
     import pandas as pd
     fake_df = pd.DataFrame({"v": [1.0]}, index=["Sharpe Ratio"])
-    with patch.object(strategy_mod, "metrics") as mock_metrics, \
-         patch.object(strategy_mod, "_build_benchmark_returns", return_value=None):
+    with patch.object(strategy_metrics, "metrics") as mock_metrics, \
+         patch.object(strategy_metrics, "_build_benchmark_returns", return_value=None):
         mock_metrics.return_value = fake_df
         out = _build_metrics_payload("p1")
     assert "annual_return" in out
@@ -225,8 +232,8 @@ from quantide.web.pages.strategy import (
 
 def test_resolve_backtest_status_no_run_no_portfolio():
     """[AC-NFR1101-01] No run, no portfolio → ('missing', '未找到回测记录。')."""
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
-         patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_metrics, "db") as mock_db:
         mock_mgr.get_backtest_run = MagicMock(return_value=None)
         mock_db.get_portfolio = MagicMock(return_value=None)
         status, err = _resolve_backtest_status("p1")
@@ -238,8 +245,8 @@ def test_resolve_backtest_status_running():
     """[AC-NFR1101-01] When portfolio.status is True, status='running'."""
     fake_portfolio = MagicMock()
     fake_portfolio.status = True
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
-         patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_metrics, "db") as mock_db:
         mock_mgr.get_backtest_run = MagicMock(return_value=None)
         mock_db.get_portfolio = MagicMock(return_value=fake_portfolio)
         status, err = _resolve_backtest_status("p1")
@@ -251,8 +258,8 @@ def test_resolve_backtest_status_finished():
     """[AC-NFR1101-01] When portfolio.status is False, status='finished'."""
     fake_portfolio = MagicMock()
     fake_portfolio.status = False
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
-         patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_metrics, "db") as mock_db:
         mock_mgr.get_backtest_run = MagicMock(return_value=None)
         mock_db.get_portfolio = MagicMock(return_value=fake_portfolio)
         status, err = _resolve_backtest_status("p1")
@@ -264,7 +271,7 @@ def test_resolve_backtest_status_run_running():
     fake_run = MagicMock()
     fake_run.status = "running"
     fake_run.error = None
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr:
+    with patch.object(strategy_metrics, "strategy_runtime_manager") as mock_mgr:
         mock_mgr.get_backtest_run = MagicMock(return_value=fake_run)
         status, err = _resolve_backtest_status("p1")
     assert status == "running"
@@ -277,8 +284,8 @@ def test_resolve_backtest_status_run_unknown():
     fake_run.error = "x"
     fake_portfolio = MagicMock()
     fake_portfolio.status = False
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
-         patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_metrics, "db") as mock_db:
         mock_mgr.get_backtest_run = MagicMock(return_value=fake_run)
         mock_db.get_portfolio = MagicMock(return_value=fake_portfolio)
         status, err = _resolve_backtest_status("p1")
@@ -292,7 +299,7 @@ def test_resolve_backtest_status_run_unknown():
 
 def test_build_trade_rows_empty():
     """[AC-NFR1101-01] When db.trades_all is empty, returns []."""
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.trades_all = MagicMock(return_value=pl.DataFrame())
         out = _build_trade_rows("p1")
     assert out == []
@@ -311,7 +318,7 @@ def test_build_trade_rows_with_data():
         "amount": [1000.0],
         "fee": [1.0],
     })
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.trades_all = MagicMock(return_value=fake_trades)
         out = _build_trade_rows("p1")
     assert len(out) == 1
@@ -330,7 +337,7 @@ def test_build_trade_rows_side_int():
         "amount": [1000.0],
         "fee": [1.0],
     })
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.trades_all = MagicMock(return_value=fake_trades)
         out = _build_trade_rows("p1")
     assert out[0]["side_value"] == 1
@@ -349,7 +356,7 @@ def test_build_trade_rows_side_sell():
         "amount": [1000.0],
         "fee": [1.0],
     })
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.trades_all = MagicMock(return_value=fake_trades)
         out = _build_trade_rows("p1")
     assert out[0]["side"] == "卖出"
@@ -362,7 +369,7 @@ def test_build_trade_rows_side_sell():
 
 def test_build_daily_positions_empty():
     """[AC-NFR1101-01] test_build_daily_positions_empty."""
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.snapshot_all = MagicMock(return_value=pl.DataFrame())
         out = _build_daily_positions("p1")
     assert isinstance(out, list)
@@ -370,7 +377,7 @@ def test_build_daily_positions_empty():
 
 def test_build_daily_summary_empty():
     """[AC-NFR1101-01] test_build_daily_summary_empty."""
-    with patch.object(strategy_mod, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.snapshot_all = MagicMock(return_value=pl.DataFrame())
         out = _build_daily_summary("p1")
     assert isinstance(out, list)
@@ -432,16 +439,16 @@ def test_normalize_scan_directory_relative_path_raises():
         _normalize_scan_directory("relative/path")
 
 
-def test_normalize_scan_directory_nonexistent_raises():
+def test_normalize_scan_directory_nonexistent_raises(tmp_path):
     """[AC-NFR1101-01] test_normalize_scan_directory_nonexistent_raises."""
     with pytest.raises(FileNotFoundError, match="不存在"):
-        _normalize_scan_directory("/definitely/does/not/exist/12345")
+        _normalize_scan_directory(str(tmp_path / "missing"))
 
 
-def test_normalize_scan_directory_path_is_file():
+def test_normalize_scan_directory_path_is_file(tmp_path):
     """[AC-NFR1101-01] When path is a file, raises NotADirectoryError."""
     import os
-    tmp_file = "/tmp/scan_test_file"
+    tmp_file = str(tmp_path / "scan_test_file")
     with open(tmp_file, "w") as f:
         f.write("test")
     try:
@@ -645,7 +652,7 @@ from quantide.web.pages.strategy import (
 @pytest.mark.asyncio
 async def test_save_scan_config_invalid_dir():
     """When directory doesn't exist, returns config modal with error."""
-    with patch.object(strategy_mod_alias, "_config_modal_html") as mock_modal:
+    with patch.object(strategy_scanning, "_config_modal_html") as mock_modal:
         mock_modal.return_value = "config-error"
         req = MagicMock()
         req.form = AsyncMock(return_value={"scan-dir-input": "/nonexistent/dir/12345"})
@@ -656,8 +663,8 @@ async def test_save_scan_config_invalid_dir():
 @pytest.mark.asyncio
 async def test_save_scan_config_generic_exception():
     """When unexpected exception, returns error modal."""
-    with patch.object(strategy_mod_alias, "_config_modal_html") as mock_modal, \
-         patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+    with patch.object(strategy_scanning, "_config_modal_html") as mock_modal, \
+         patch.object(strategy_scanning, "strategy_loader") as mock_loader:
         mock_modal.return_value = "generic-error"
         mock_loader.set_scan_directory = MagicMock(side_effect=Exception("boom"))
         req = MagicMock()
@@ -723,28 +730,28 @@ from quantide.web.pages.strategy import (
 )
 
 
-def test_backtest_modal_unknown_strategy():
+def test_backtest_modal_unknown_strategy_original_733():
     """[AC-NFR1101-01] Returns 'Strategy not found' for unknown."""
-    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+    with patch.object(strategy_backtest_views, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={})
         out = backtest_modal("missing")
     assert out == "Strategy not found"
 
 
-def test_backtest_modal_known_strategy():
+def test_backtest_modal_known_strategy_original_741():
     """[AC-NFR1101-01] When strategy found, returns modal Div with form."""
     fake_cls = MagicMock()
     fake_cls.PARAMS = {"x": 1, "y": "hello"}
-    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+    with patch.object(strategy_backtest_views, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={"TestStrat": fake_cls})
         out = backtest_modal("TestStrat")
     assert out is not None
 
 
-def test_backtest_modal_no_params():
+def test_backtest_modal_no_params_original_751():
     """[AC-NFR1101-01] When strategy has no PARAMS attr, treats as empty dict."""
     fake_cls = MagicMock(spec=[])  # no PARAMS
-    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+    with patch.object(strategy_backtest_views, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={"TestStrat": fake_cls})
         out = backtest_modal("TestStrat")
     assert out is not None
@@ -1005,7 +1012,7 @@ from quantide.web.pages.strategy import (
 
 def test_build_log_meta_no_run():
     """[AC-NFR1101-01] When no run, returns empty metadata."""
-    with patch.object(strategy_mod_alias, "strategy_runtime_manager") as mock_mgr:
+    with patch.object(strategy_log_views, "strategy_runtime_manager") as mock_mgr:
         mock_mgr.get_backtest_run = MagicMock(return_value=None)
         out = _build_log_meta("p1")
     assert out["save_requested"] is False
@@ -1017,7 +1024,7 @@ def test_build_log_meta_with_run_save_logs():
     """[AC-NFR1101-01] test_build_log_meta_with_run_save_logs."""
     fake_run = MagicMock()
     fake_run.save_logs = True
-    with patch.object(strategy_mod_alias, "strategy_runtime_manager") as mock_mgr:
+    with patch.object(strategy_log_views, "strategy_runtime_manager") as mock_mgr:
         mock_mgr.get_backtest_run = MagicMock(return_value=fake_run)
         out = _build_log_meta("p1")
     assert out["save_requested"] is True
@@ -1075,8 +1082,8 @@ def test_build_series_payload_with_benchmark():
         "date": [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
         "close": [100.0, 105.0],
     })
-    with patch.object(strategy_mod_alias, "db") as mock_db, \
-         patch.object(strategy_mod_alias, "daily_bars") as mock_dbars:
+    with patch.object(strategy_metrics, "db") as mock_db, \
+         patch.object(strategy_metrics, "daily_bars") as mock_dbars:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
         mock_dbars.get_bars_in_range = MagicMock(return_value=fake_bars)
         out = _build_series_payload("p1", date_axis=["2024-01-01", "2024-01-02"])
@@ -1100,8 +1107,8 @@ def test_build_series_payload_with_trades():
         "amount": [1000.0],
         "fee": [1.0],
     })
-    with patch.object(strategy_mod_alias, "db") as mock_db, \
-         patch.object(strategy_mod_alias, "daily_bars") as mock_dbars:
+    with patch.object(strategy_metrics, "db") as mock_db, \
+         patch.object(strategy_metrics, "daily_bars") as mock_dbars:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
         mock_dbars.get_bars_in_range = MagicMock(return_value=pl.DataFrame())
         mock_db.trades_all = MagicMock(return_value=fake_trades)
@@ -1132,7 +1139,7 @@ def test_build_daily_positions_with_data():
         "mv": [1000.0],
         "profit": [50.0],
     })
-    with patch.object(strategy_mod_alias, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.positions_all = MagicMock(return_value=fake_pos)
         out = _build_daily_positions("p1")
     assert len(out) == 1
@@ -1151,7 +1158,7 @@ def test_build_daily_summary_with_data():
         "cash": [50.0, 50.0],
         "market_value": [50.0, 60.0],
     })
-    with patch.object(strategy_mod_alias, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
         out = _build_daily_summary("p1")
     assert len(out) == 2
@@ -1172,7 +1179,7 @@ def test_build_daily_summary_zero_prev_total():
         "cash": [0.0, 50.0],
         "market_value": [0.0, 50.0],
     })
-    with patch.object(strategy_mod_alias, "db") as mock_db:
+    with patch.object(strategy_metrics, "db") as mock_db:
         mock_db.query_assets = MagicMock(return_value=fake_assets)
         out = _build_daily_summary("p1")
     assert out[1]["daily_return"] == 0.0
@@ -1180,7 +1187,7 @@ def test_build_daily_summary_zero_prev_total():
 
 def test_backtest_modal_unknown_strategy():
     """[AC-NFR1101-01] Returns 'Strategy not found' for unknown."""
-    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+    with patch.object(strategy_backtest_views, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={})
         out = backtest_modal("missing")
     assert out == "Strategy not found"
@@ -1190,7 +1197,7 @@ def test_backtest_modal_known_strategy():
     """[AC-NFR1101-01] When strategy found, returns modal Div with form."""
     fake_cls = MagicMock()
     fake_cls.PARAMS = {"x": 1, "y": "hello"}
-    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+    with patch.object(strategy_backtest_views, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={"TestStrat": fake_cls})
         out = backtest_modal("TestStrat")
     assert out is not None
@@ -1199,7 +1206,7 @@ def test_backtest_modal_known_strategy():
 def test_backtest_modal_no_params():
     """[AC-NFR1101-01] When strategy has no PARAMS attr, treats as empty dict."""
     fake_cls = MagicMock(spec=[])  # no PARAMS
-    with patch.object(strategy_mod_alias, "strategy_loader") as mock_loader:
+    with patch.object(strategy_backtest_views, "strategy_loader") as mock_loader:
         mock_loader.load_from_cache = MagicMock(return_value={"TestStrat": fake_cls})
         out = backtest_modal("TestStrat")
     assert out is not None
@@ -1313,7 +1320,7 @@ from quantide.web.pages.strategy import _load_backtest_run_config
 
 def test_load_backtest_run_config_no_run():
     """[AC-NFR1101-01] When no run, returns ({}, None)."""
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr:
+    with patch.object(strategy_deployment, "strategy_runtime_manager") as mock_mgr:
         mock_mgr.get_backtest_run_or_resolve = MagicMock(return_value=None)
         cfg, default = _load_backtest_run_config("p1")
     assert cfg == {}
@@ -1327,8 +1334,8 @@ def test_load_backtest_run_config_with_run():
     fake_run.strategy_name = "MyStrat"
     fake_cls = MagicMock()
     fake_cls.default_config = MagicMock(return_value={"default": 1})
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
-         patch.object(strategy_mod, "strategy_loader") as mock_loader:
+    with patch.object(strategy_deployment, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_deployment, "strategy_loader") as mock_loader:
         mock_mgr.get_backtest_run_or_resolve = MagicMock(return_value=fake_run)
         mock_loader.load_from_cache = MagicMock(return_value={"MyStrat": fake_cls})
         cfg, default = _load_backtest_run_config("p1")
@@ -1342,8 +1349,8 @@ def test_load_backtest_run_config_no_default_config():
     fake_run.config = {"k": "v"}
     fake_run.strategy_name = "MyStrat"
     fake_cls = MagicMock(spec=[])  # no default_config attr
-    with patch.object(strategy_mod, "strategy_runtime_manager") as mock_mgr, \
-         patch.object(strategy_mod, "strategy_loader") as mock_loader:
+    with patch.object(strategy_deployment, "strategy_runtime_manager") as mock_mgr, \
+         patch.object(strategy_deployment, "strategy_loader") as mock_loader:
         mock_mgr.get_backtest_run_or_resolve = MagicMock(return_value=fake_run)
         mock_loader.load_from_cache = MagicMock(return_value={"MyStrat": fake_cls})
         cfg, default = _load_backtest_run_config("p1")

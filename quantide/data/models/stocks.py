@@ -1,6 +1,7 @@
 import datetime
 import random
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import polars as pl
@@ -8,6 +9,7 @@ from loguru import logger
 
 from quantide.config.dev_stubs import dev_stubs_enabled
 from quantide.config.settings import get_timezone
+from quantide.core.atomic_files import atomic_path
 from quantide.core.singleton import singleton
 from quantide.data.fetchers.registry import get_data_fetcher
 
@@ -16,7 +18,7 @@ from quantide.data.fetchers.registry import get_data_fetcher
 class StockList:
     """管理证券列表、更新和查询"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._path: str | Path = ""
         self._data = pl.DataFrame()
         self._last_update_time: datetime.datetime | None = None
@@ -75,7 +77,8 @@ class StockList:
         """保存股票列表"""
         self._data = pl.from_pandas(df)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_parquet(self.path, index=False)
+        with atomic_path(self.path) as temporary:
+            df.to_parquet(temporary, index=False)
         self._last_update_time = datetime.datetime.now(get_timezone())
 
     def update(self, df: pd.DataFrame | None = None) -> None:
@@ -103,7 +106,7 @@ class StockList:
         if isinstance(list_date, datetime.datetime):
             list_date = list_date.date()
 
-        return max(0, (date - list_date).days)
+        return max(0, (date - cast(datetime.date, list_date)).days)
 
     def get_delist_date(self, asset: str) -> datetime.date | None:
         """获取股票的退市日期
@@ -113,11 +116,11 @@ class StockList:
         Returns:
             datetime.date: 退市日期
         """
-        return self.data.filter(pl.col("asset") == asset).item(0, "delist_date")
+        return cast(
+            datetime.date | None, self.data.filter(pl.col("asset") == asset).item(0, "delist_date")
+        )
 
-    def fuzzy_search(
-        self, query: str, id_only: bool = True
-    ) -> pd.DataFrame | list[str]:
+    def fuzzy_search(self, query: str, id_only: bool = True) -> pd.DataFrame | list[str]:
         """根据输入模式进行模糊搜索。
 
         搜索规则：
@@ -140,9 +143,7 @@ class StockList:
         q = query.strip()
 
         # 提取 symbol（不含后缀的代码）
-        tmp = self.data.with_columns(
-            pl.col("asset").str.split(".").list.get(0).alias("symbol")
-        )
+        tmp = self.data.with_columns(pl.col("asset").str.split(".").list.get(0).alias("symbol"))
 
         # 判断输入类型
         is_all_digits = q.isdigit()
@@ -161,9 +162,7 @@ class StockList:
             result = tmp.filter(pl.col("pinyin").str.to_uppercase().str.starts_with(q_upper))
         else:
             # 混合输入：匹配代码或名称
-            result = tmp.filter(
-                pl.col("symbol").str.contains(q) | pl.col("name").str.contains(q)
-            )
+            result = tmp.filter(pl.col("symbol").str.contains(q) | pl.col("name").str.contains(q))
 
         if id_only:
             return result["asset"].to_list()
@@ -178,7 +177,7 @@ class StockList:
         Returns:
             str: 股票名称
         """
-        return self.data.filter(pl.col("asset") == asset).item(0, "name")
+        return cast(str, self.data.filter(pl.col("asset") == asset).item(0, "name"))
 
     def get_pinyin(self, asset: str) -> str:
         """获取股票拼音
@@ -188,13 +187,15 @@ class StockList:
         Returns:
             str: 股票拼音
         """
-        return self.data.filter(pl.col("asset") == asset).item(0, "pinyin")
+        return cast(str, self.data.filter(pl.col("asset") == asset).item(0, "pinyin"))
 
     def is_st(self, asset: str | list[str], date: datetime.date) -> bool:
         """在指定日期个股是否为 st。"""
         from quantide.data.models.daily_bars import daily_bars
 
-        record = daily_bars.get_bars_in_range(date, date, asset)
+        record = daily_bars.get_bars_in_range(
+            date, date, [asset] if isinstance(asset, str) else asset
+        )
         if len(record):
             return bool(record.item(0, "is_st"))
 

@@ -21,6 +21,7 @@ import polars as pl
 import pytest
 
 import quantide.core.runtime.gateway_broker as gb_mod
+import quantide.core.runtime.gateway_legacy as legacy_gb_mod
 from quantide.core.enums import OrderSide
 from quantide.core.ports import AssetView, OrderRequest, PositionView
 from quantide.core.runtime.gateway_broker import (
@@ -62,7 +63,7 @@ def test_get_history_applies_qfq_when_no_forming_bar_and_adjust_present():
     end_dt = dt.datetime(2024, 1, 2, 10, 0)
     with patch.object(wrapper, "_resolve_history_end_date", return_value=dt.date(2024, 1, 2)), \
          patch.object(wrapper, "_provider_get_bars", return_value=hist) as mock_get, \
-         patch.object(gb_mod, "qfq_adjustment", side_effect=lambda df, **kw: df) as mock_qfq:
+         patch.object(legacy_gb_mod, "qfq_adjustment", side_effect=lambda df, **kw: df) as mock_qfq:
         result = wrapper.get_history("A", 5, end_dt, "1d", include_forming_bar=False)
     mock_get.assert_called_once()
     mock_qfq.assert_called_once()

@@ -137,7 +137,7 @@ def test_get_scan_directories_includes_user_when_different(loader, monkeypatch) 
 
     dirs = loader.get_scan_directories()
     assert loader.get_builtin_scan_directory() in dirs
-    assert "/different/path" in dirs
+    assert str(Path("/different/path").resolve()) in dirs
 
 
 def test_get_scan_directories_skips_user_when_same_as_builtin(loader, monkeypatch) -> None:
@@ -402,7 +402,7 @@ def test_get_scan_sources_with_user_dir_different_from_builtin(loader, monkeypat
     sources = loader._get_scan_sources()
     assert len(sources) == 2
     assert any(s.directory == loader._builtin_example_dir for s in sources)
-    assert any(str(s.directory) == "/user/strategies" for s in sources)
+    assert any(s.directory == Path("/user/strategies").resolve() for s in sources)
 
 
 def test_get_scan_sources_with_user_dir_equal_to_builtin(loader, monkeypatch) -> None:

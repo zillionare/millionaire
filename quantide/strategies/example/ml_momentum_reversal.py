@@ -1,27 +1,16 @@
-"""A股动量与趋势反转机器学习选股策略 (LightGBM 截面排序).
-
-Universe selection:
-- ``market_cap_trim`` (default): drop the largest and smallest 5% by
-  point-in-time ``total_mv``, then drop suspended/ST stocks.  All remaining
-  stocks are eligible.  Market cap comes from ``~/.quantide/data/daily_basic.parquet``.
-- ``liquidity``: legacy top-N by 20-day mean amount.
-- In backtest, the universe is re-selected every ``universe_rebalance_days``
-  (default 20) trading days; this bounds the cost of refetching the feature
-  panel while avoiding a fixed full-period universe.
-"""
+"""A-share ML momentum/reversal example strategy."""
 
 from __future__ import annotations
 
 import datetime
 import hashlib
 import pickle
-from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
-import numpy as np
 import polars as pl
 
 from quantide.core.enums import FrameType
+from quantide.core.ports.broker import StrategyBroker
 from quantide.core.strategy import BaseStrategy
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
@@ -30,664 +19,145 @@ from quantide.data.models.stocks import stock_list
 from quantide.factors.alpha import (
     FACTOR_VERSION,
     FEATURE_COLS,
-    _zscore_1d,
     compute_alpha_features,
     standardize_features,
 )
 from quantide.factors.catalog import resolve_feature_selection
 from quantide.service.model_store import ModelArtifact, model_key, model_store
-
-try:
-    import lightgbm as lgb
-
-    _HAS_LIGHTGBM = True
-except ImportError:  # pragma: no cover
-    lgb = None  # type: ignore[assignment]
-    _HAS_LIGHTGBM = False
-
-#: 流水线版本（策略源码哈希）：策略逻辑变化时归因缓存自动失效
-PIPELINE_VERSION: str = hashlib.sha1(Path(__file__).read_bytes()).hexdigest()[:12]
-
-def _bars_fingerprint() -> tuple[Any, ...]:
-    """行情数据的轻量指纹（数据更新后使面板缓存失效）。"""
-    try:
-        return (
-            daily_bars.end,
-            daily_bars.total_dates,
-            daily_bars.last_update_time,
-        )
-    except Exception:  # pragma: no cover - 数据层未就绪
-        return ()
-
-
-#: 因子面板缓存（键：选池规格 + 因子集 + 信号日 + 持仓 + 数据指纹）。
-#: 只保留最近 2 个面板：单个面板约 2000 只 × 80 天 × 45 列 ≈ 55MB，
-#: 上限 2 份把常驻内存压在 ~110MB。命中场景：同一进程内重复回测、
-#: 以及归因回放反复请求同一面板。
-_PANEL_CACHE: dict[tuple[Any, ...], pl.DataFrame] = {}
-_PANEL_CACHE_MAX = 2
-
-#: 未来收盘收益标签缓存（键：面板键 + 训练历史范围 + 标签前瞻期）。
-#: 只存标签的三列（date/asset/future_n_trading_day_close_return），训练特征始终从当前标准化面板拼回，
-#: 避免为每个因子集在缓存中保留一份大面板。
-_LABEL_CACHE: dict[tuple[Any, ...], pl.DataFrame] = {}
-_LABEL_CACHE_MAX = 6
-
-#: 归因用的模型缓存（按训练参数 + 因子集 + 截面日 + 持仓键控）
-_EXPLAIN_MODEL_CACHE: dict[tuple[Any, ...], tuple[Any, str]] = {}
-
-#: 归因用的截面缓存（只保留当前这一条：约 2000 行、1MB）
-_EXPLAIN_CROSS_SECTION_CACHE: dict[tuple[Any, ...], pl.DataFrame] = {}
-
-
-def _parse_custom_assets(config: dict[str, Any]) -> list[str] | None:
-    """Extract custom asset list from strategy config if specified."""
-    raw = config.get("symbols") or config.get("universe") or config.get("symbol")
-    if raw is None:
-        return None
-    if isinstance(raw, str):
-        items = [s.strip() for s in raw.split(",") if s.strip()]
-        return items or None
-    if isinstance(raw, (list, tuple, set)):
-        items = [str(s).strip() for s in raw if str(s).strip()]
-        return items or None
-    return None
-
-
-def _coerce_date(
-    dt: datetime.date | datetime.datetime | str | None,
-) -> datetime.date | None:
-    """Convert date/datetime/ISO-string into ``datetime.date``."""
-    if dt is None:
-        return None
-    if isinstance(dt, datetime.datetime):
-        return dt.date()
-    if isinstance(dt, datetime.date):
-        return dt
-    if isinstance(dt, str):
-        s = dt.strip()
-        if not s:
-            return None
-        return datetime.date.fromisoformat(s[:10])
-    return None
-
-
-def _future_return_horizon(config: dict[str, Any], default: int = 3) -> int:
-    """Resolve the model label horizon without treating it as an exit rule."""
-    raw = config.get("future_return_horizon")
-    if raw is None:
-        raw = config.get("horizon", default)
-    return max(1, int(raw))
-
-
-def _ensure_data_connected() -> bool:
-    """Connect local daily_bars/calendar/stock_list if not yet initialized."""
-    if getattr(daily_bars, "_initialized", False):
-        return True
-    default_home = Path("~/.quantide").expanduser()
-    cal_path = default_home / "data" / "calendar.parquet"
-    bars_path = default_home / "data" / "bars" / "daily"
-    stocks_path = default_home / "data" / "stock_list.parquet"
-    basic_path = default_home / "data" / "daily_basic.parquet"
-    if not cal_path.exists() or not bars_path.exists():
-        return False
-    try:
-        calendar.load(cal_path)
-        if stocks_path.exists():
-            stock_list.load(stocks_path)
-        daily_bars.connect(bars_path, cal_path)
-        if basic_path.exists():
-            daily_basic.load(basic_path)
-        return True
-    except Exception:
-        return False
+from quantide.strategies.example._ml_explanation import MLExplanation
+from quantide.strategies.example._ml_rebalance import MLRebalance
+from quantide.strategies.example._ml_selection import SelectionOptions
+from quantide.strategies.example._ml_support import (
+    _EXPLAIN_CROSS_SECTION_CACHE as _EXPLAIN_CROSS_SECTION_CACHE,
+)
+from quantide.strategies.example._ml_support import (
+    _EXPLAIN_MODEL_CACHE as _EXPLAIN_MODEL_CACHE,
+)
+from quantide.strategies.example._ml_support import (
+    _HAS_LIGHTGBM as _HAS_LIGHTGBM,
+)
+from quantide.strategies.example._ml_support import (
+    _INDEX_POOL_CACHE as _INDEX_POOL_CACHE,
+)
+from quantide.strategies.example._ml_support import (
+    _LABEL_CACHE as _LABEL_CACHE,
+)
+from quantide.strategies.example._ml_support import (
+    _LABEL_CACHE_MAX as _LABEL_CACHE_MAX,
+)
+from quantide.strategies.example._ml_support import (
+    _PANEL_CACHE as _PANEL_CACHE,
+)
+from quantide.strategies.example._ml_support import (
+    _PANEL_CACHE_MAX as _PANEL_CACHE_MAX,
+)
+from quantide.strategies.example._ml_support import (
+    _bars_fingerprint as _bars_fingerprint,
+)
+from quantide.strategies.example._ml_support import (
+    _cap_universe as _cap_universe,
+)
+from quantide.strategies.example._ml_support import (
+    _coerce_date as _coerce_date,
+)
+from quantide.strategies.example._ml_support import (
+    _describe_kline_pattern as _describe_kline_pattern,
+)
+from quantide.strategies.example._ml_support import (
+    _describe_moving_average_signal as _describe_moving_average_signal,
+)
+from quantide.strategies.example._ml_support import (
+    _describe_signal_reason as _describe_signal_reason,
+)
+from quantide.strategies.example._ml_support import (
+    _ensure_data_connected as _ensure_data_connected,
+)
+from quantide.strategies.example._ml_support import (
+    _filter_liquid_universe as _filter_liquid_universe,
+)
+from quantide.strategies.example._ml_support import (
+    _filter_universe as _filter_universe,
+)
+from quantide.strategies.example._ml_support import (
+    _fit_ml_model as _fit_ml_model,
+)
+from quantide.strategies.example._ml_support import (
+    _format_candidate_rows as _format_candidate_rows,
+)
+from quantide.strategies.example._ml_support import (
+    _future_return_horizon as _future_return_horizon,
+)
+from quantide.strategies.example._ml_support import (
+    _index_pit_universe as _index_pit_universe,
+)
+from quantide.strategies.example._ml_support import (
+    _parse_custom_assets as _parse_custom_assets,
+)
+from quantide.strategies.example._ml_support import _pipeline_version
+from quantide.strategies.example._ml_support import (
+    _ranked_prediction_result as _ranked_prediction_result,
+)
+from quantide.strategies.example._ml_support import (
+    _resolve_explanation_training_windows as _resolve_explanation_training_windows,
+)
+from quantide.strategies.example._ml_support import (
+    _resolve_stock_name as _resolve_stock_name,
+)
+from quantide.strategies.example._ml_support import (
+    _retrain_replay_model as _retrain_replay_model,
+)
+from quantide.strategies.example._ml_support import (
+    _score_cross_section as _score_cross_section,
+)
+from quantide.strategies.example._ml_support import (
+    _stable_universe_rank as _stable_universe_rank,
+)
+from quantide.strategies.example._ml_support import (
+    _training_return_labels as _training_return_labels,
+)
+from quantide.strategies.example._ml_support import (
+    compute_future_close_return_labels as compute_future_close_return_labels,
+)
+from quantide.strategies.example._ml_support import (
+    lgb as lgb,
+)
 
 
-def _resolve_stock_name(asset: str) -> str:
-    """Resolve human-readable stock name with fallback to asset code."""
-    try:
-        if stock_list.size > 0:
-            name = stock_list.get_name(asset)
-            if name:
-                return str(name)
-    except Exception:
-        pass
-    return asset
-
-
-def compute_future_close_return_labels(
-    df: pl.DataFrame, horizon: int = 3
-) -> pl.DataFrame:
-    """Attach a supervised future close-return target to a daily-bar panel.
-
-    ``horizon`` counts rows within each asset's sorted daily-bar history, so it
-    represents trading days rather than calendar days.  The target is used only
-    when fitting the model; it is never consulted by the daily exit policy.
-    Rows without a complete forward window remain null.  Callers must pass a
-    history frame cut off at the signal date when training, which leaves the
-    signal-day target null and prevents lookahead at decision time.
-    """
-    horizon = max(1, int(horizon))
-    if df.is_empty():
-        return df.with_columns(
-            pl.lit(None, dtype=pl.Float64).alias(
-                "future_n_trading_day_close_return"
-            )
-        )
-
-    ordered = df.sort(["asset", "date"])
-    close = pl.col("close").cast(pl.Float64)
-    future_close = close.shift(-horizon).over("asset")
-    return ordered.with_columns(
-        pl.when(future_close.is_not_null() & (close != 0.0))
-        .then(future_close / close - 1.0)
-        .otherwise(pl.lit(None, dtype=pl.Float64))
-        .alias("future_n_trading_day_close_return")
+def _cache_backtest_feature_panel(
+    self: MLMomentumReversalStrategy,
+    raw_panel: pl.DataFrame,
+    signal_date: datetime.date,
+    fetch_end: datetime.date,
+    panel_key: tuple[Any, ...],
+) -> None:
+    """Compute and cache the normalized feature panel for the backtest window."""
+    stock_meta = stock_list.data if stock_list.size > 0 else None
+    feat_panel = compute_alpha_features(raw_panel, stock_meta=stock_meta)
+    self._cached_norm_panel = standardize_features(
+        feat_panel, self.selected_features or FEATURE_COLS
     )
+    self._panel_start = signal_date
+    self._panel_end = fetch_end
+    is_live = getattr(self.broker, "_bt_start", None) is None
+    if not is_live:
+        if len(_PANEL_CACHE) >= _PANEL_CACHE_MAX:
+            _PANEL_CACHE.pop(next(iter(_PANEL_CACHE)))
+        _PANEL_CACHE[panel_key] = self._cached_norm_panel
 
 
-def _fit_ml_model(
-    hist_df: pl.DataFrame,
-    train_window: int = 45,
-    horizon: int = 3,
-    use_lightgbm: bool = True,
-    feature_cols: list[str] | None = None,
-    label_cache_key: tuple[Any, ...] | None = None,
-) -> tuple[Any, str]:
-    """Train the ranking model strictly on leak-free historical samples.
-
-    The target is the future ``horizon``-trading-day close return computed from
-    ``hist_df``. The caller MUST still filter the training frame strictly before
-    the signal date; this function does not define or implement an exit rule.
-
-    Args:
-        hist_df: 截至信号日的标准化特征面板。
-        train_window: 训练窗口（交易日）。
-        horizon: future close-return label's forward trading-day count.
-        use_lightgbm: True 用 LightGBM，False 用岭回归。
-        feature_cols: 参与训练的因子；为空表示全部因子。
-        label_cache_key: 稳定的面板内容键；相同训练历史的标签可跨训练复用。
-
-    Returns:
-        tuple: (模型, 引擎名)。
-    """
-    selected_features = tuple(feature_cols or FEATURE_COLS)
-    z_cols = [f"{c}_z" for c in selected_features]
-
-    # A cache key is optional because callers without a stable panel identity
-    # must not cache by ``id(hist_df)``: once that frame is released, Python can
-    # reuse its id for a different panel.  Labels do not depend on the selected
-    # features, so feature_cols intentionally stays out of this key.  The
-    # current normalized feature columns are joined below on every invocation.
-    label_key = None
-    if label_cache_key is not None:
-        history_key = (
-            hist_df.height,
-            hist_df["date"].min(),
-            hist_df["date"].max(),
-            hist_df["asset"].n_unique(),
-        )
-        label_key = (
-            tuple(label_cache_key),
-            history_key,
-            int(horizon),
-        )
-
-    labels = _LABEL_CACHE.get(label_key) if label_key is not None else None
-    if labels is None:
-        labels = compute_future_close_return_labels(
-            hist_df.select(["date", "asset", "close"]), horizon=horizon
-        ).select(["date", "asset", "future_n_trading_day_close_return"])
-        if label_key is not None:
-            if len(_LABEL_CACHE) >= _LABEL_CACHE_MAX:
-                _LABEL_CACHE.pop(next(iter(_LABEL_CACHE)))
-            _LABEL_CACHE[label_key] = labels
-
-    # Labels may be reused across feature subsets, but the normalized inputs
-    # must always come from the caller's historical frame.  This keeps feature
-    # selection correct and limits the cached object to the small label table.
-    labeled = hist_df.select(["date", "asset", *z_cols]).join(
-        labels, on=["date", "asset"], how="inner"
-    )
-    valid_train = labeled.filter(
-        pl.col("future_n_trading_day_close_return").is_not_null()
-        & pl.col("future_n_trading_day_close_return").is_finite()
-    )
-    if valid_train.is_empty():
-        raise RuntimeError("训练样本不足：没有可用的未来收盘收益标签")
-
-    train_dates = valid_train["date"].unique().sort().tail(max(5, train_window))
-    valid_train = valid_train.filter(pl.col("date").is_in(train_dates.to_list()))
-    if valid_train.is_empty():
-        raise RuntimeError("训练样本不足：训练窗口内没有可用的标签")
-
-    n_assets = valid_train["asset"].n_unique()
-    if n_assets > 1:
-        valid_train = valid_train.with_columns(
-            (
-                pl.col("future_n_trading_day_close_return").rank().over("date")
-                / pl.len().over("date").clip(lower_bound=1)
-                - 0.5
-            ).alias("label_y")
-        )
-    else:
-        valid_train = valid_train.with_columns(
-            (
-                pl.col("future_n_trading_day_close_return").clip(-0.2, 0.2) * 2.5
-            ).alias("label_y")
-        )
-
-    x_train = (
-        valid_train.select(z_cols)
-        .fill_null(0.0)
-        .fill_nan(0.0)
-        .to_numpy()
-        .astype(np.float64)
-    )
-    y_train = (
-        valid_train["label_y"]
-        .fill_null(0.0)
-        .fill_nan(0.0)
-        .to_numpy()
-        .astype(np.float64)
-    )
-
-    if use_lightgbm and _HAS_LIGHTGBM and len(x_train) >= 30:
-        min_child = max(5, min(20, len(x_train) // 10))
-        model = lgb.LGBMRegressor(
-            n_estimators=50,
-            max_depth=4,
-            num_leaves=15,
-            learning_rate=0.05,
-            min_child_samples=min_child,
-            subsample_for_bin=5000,
-            random_state=42,
-            verbosity=-1,
-            n_jobs=1,
-        )
-        model.fit(x_train, y_train)
-        return model, "LightGBM"
-
-    if len(x_train) >= 8:
-        n_feat = x_train.shape[1]
-        reg = 10.0 * np.eye(n_feat, dtype=np.float64)
-        ridge_w = np.linalg.solve(x_train.T @ x_train + reg, x_train.T @ y_train)
-        return ridge_w, "Prior-Ridge"
-
-    return None, "Prior-Ridge"
+PIPELINE_VERSION = _pipeline_version(__file__)
 
 
-def _score_cross_section(
-    pred_df: pl.DataFrame,
-    model: Any,
-    model_engine: str,
-    feature_cols: list[str] | None = None,
-) -> np.ndarray:
-    """预测目标日截面的模型得分（截面 z-score，不含任何手工先验）。"""
-    cols = feature_cols or FEATURE_COLS
-    if pred_df.is_empty():
-        return np.array([], dtype=np.float64)
-
-    z_cols = [f"{c}_z" for c in cols]
-    x_pred = (
-        pred_df.select(z_cols)
-        .fill_null(0.0)
-        .fill_nan(0.0)
-        .to_numpy()
-        .astype(np.float64)
-    )
-
-    if model is None:
-        raise RuntimeError("模型不可用，无法计算截面得分")
-
-    if model_engine == "LightGBM" and hasattr(model, "predict"):
-        raw_pred = np.asarray(model.predict(x_pred), dtype=np.float64)
-        return _zscore_1d(raw_pred) if len(x_pred) > 1 else raw_pred
-
-    if isinstance(model, np.ndarray):
-        ridge_pred = x_pred @ model
-        return _zscore_1d(ridge_pred) if len(x_pred) > 1 else ridge_pred
-
-    raise RuntimeError(f"未知的模型引擎: {model_engine}")
-
-
-def _describe_kline_pattern(row: dict[str, Any]) -> str:
-    """Generate a human-readable candlestick/trend pattern tag for a stock."""
-    low_open_bull = float(row.get("low_open_bull") or 0.0)
-    overnight_gap = float(row.get("overnight_gap") or 0.0)
-    intraday_ret = float(row.get("intraday_ret") or 0.0)
-    ma20_bounce = float(row.get("ma20_support_bounce") or 0.0)
-    lower_shadow = float(row.get("lower_shadow") or 0.0)
-    ret_1d = float(row.get("ret_1d") or 0.0)
-    vol_ratio = float(row.get("vol_ratio_5_20") or 1.0)
-    intra_vs_over = float(row.get("intraday_vs_overnight_5d") or 0.0)
-    clv_flow = float(row.get("clv_money_flow") or 0.0)
-    rev_shrink = float(row.get("rev_5d_shrink_vol") or 0.0)
-    ma_align = float(row.get("ma_alignment") or 0.0)
-    ma20_slope = float(row.get("ma20_slope") or 0.0)
-
-    if low_open_bull > 0.0004 or (overnight_gap < -0.004 and intraday_ret > 0.012):
-        return "低开阳线弱转强"
-    if ma20_bounce > 0.5:
-        return "均线回踩支撑"
-    if lower_shadow >= 0.42 and intraday_ret >= -0.005:
-        return "长下影探底"
-    if ret_1d >= 0.035 and vol_ratio >= 1.15:
-        return "放量突破动量"
-    if intra_vs_over > 0.025 and clv_flow > 0.15:
-        return "日内主力推升"
-    if rev_shrink > 0.015 and intraday_ret > 0.0:
-        return "缩量回调企稳"
-    if ma_align >= 0.66 and ma20_slope > 0.0:
-        return "多头趋势稳健"
-    return "量价共振向上"
-
-
-def _describe_signal_reason(row: dict[str, Any]) -> str:
-    """Build a concise 3-part explanation string for the selected stock."""
-    parts: list[str] = []
-
-    rs20 = float(row.get("rs_board_20d") or 0.0)
-    rs5 = float(row.get("rs_board_5d") or 0.0)
-    if abs(rs20) >= abs(rs5) or rs20 > 0:
-        parts.append(f"板块超额{rs20 * 100:+.1f}%")
-    else:
-        parts.append(f"5日超额{rs5 * 100:+.1f}%")
-
-    ma20_bounce = float(row.get("ma20_support_bounce") or 0.0)
-    ma20_slope = float(row.get("ma20_slope") or 0.0)
-    ma_align = float(row.get("ma_alignment") or 0.0)
-    sharpe_mom = float(row.get("sharpe_mom_20d") or 0.0)
-    if ma20_bounce > 0.5:
-        parts.append("MA20回踩支撑")
-    elif ma20_slope > 0.0:
-        parts.append(f"MA20斜率向上({ma20_slope * 100:+.1f}%)")
-    elif ma_align >= 0.66:
-        parts.append("均线多头排列")
-    else:
-        parts.append(f"夏普动量{sharpe_mom:+.2f}")
-
-    clv_flow = float(row.get("clv_money_flow") or 0.0)
-    intra_vs_over = float(row.get("intraday_vs_overnight_5d") or 0.0)
-    resilience = float(row.get("downside_resilience") or 0.0)
-    if clv_flow > 0.0:
-        parts.append("日内资金净流入")
-    elif intra_vs_over > 0.0:
-        parts.append("盘中主力承接")
-    elif resilience > 0.0:
-        parts.append("逆市抗跌韧性")
-    else:
-        parts.append("短线反转修复")
-
-    return " | ".join(parts)
-
-
-def _format_candidate_rows(
-    scored_df: pl.DataFrame,
-    target_date: datetime.date,
-    model_engine: str,
-    limit: int,
-) -> list[dict[str, Any]]:
-    """Format top-N scored rows into UI & strategy selection dicts."""
-    if scored_df.is_empty():
-        return []
-
-    # Eligibility is applied before ranking and ``limit`` is only an upper
-    # bound.  An all-ineligible cross-section must not be repopulated with
-    # locked-at-limit names just to fill top_k.
-    eligibility = pl.lit(True)
-    if "volume" in scored_df.columns:
-        eligibility = eligibility & (pl.col("volume").fill_null(0) > 0)
-    if "is_st" in scored_df.columns:
-        eligibility = eligibility & ~pl.col("is_st").fill_null(False)
-    if "up_limit" in scored_df.columns:
-        eligibility = eligibility & ~(
-            (pl.col("up_limit") > 0)
-            & (pl.col("close") >= pl.col("up_limit") * 0.999)
-        )
-    tradable = scored_df.filter(eligibility)
-
-    ranked = tradable.sort(["ml_score", "asset"], descending=[True, False]).head(limit)
-    date_str = target_date.isoformat()
-
-    results: list[dict[str, Any]] = []
-    for idx, row in enumerate(ranked.iter_rows(named=True), start=1):
-        asset = str(row["asset"])
-        close_val = float(row.get("close") or 0.0)
-        ma_bounce = float(row.get("ma20_support_bounce") or 0.0)
-        ma_align = float(row.get("ma_alignment") or 0.0)
-        ma20_slp = float(row.get("ma20_slope") or 0.0)
-        ma_support_val = round(
-            ma_bounce + 0.5 * ma_align + 5.0 * max(ma20_slp, 0.0), 4
-        )
-        results.append(
-            {
-                "rank": idx,
-                "asset": asset,
-                "name": _resolve_stock_name(asset),
-                "board": str(row.get("board") or "其他"),
-                "close": round(close_val, 4),
-                "ret_1d": round(float(row.get("ret_1d") or 0.0), 4),
-                "ret_5d": round(float(row.get("ret_5d") or 0.0), 4),
-                "ret_20d": round(float(row.get("ret_20d") or 0.0), 4),
-                "ml_score": round(float(row.get("ml_score") or 0.0), 4),
-                "rs_board_20d": round(float(row.get("rs_board_20d") or 0.0), 4),
-                "ma_support": ma_support_val,
-                "kline_pattern": _describe_kline_pattern(row),
-                "signal_reason": _describe_signal_reason(row),
-                "as_of_date": date_str,
-                "model_engine": model_engine,
-            }
-        )
-    return results
-
-
-def _stable_universe_rank(asset: str, mode: str) -> str:
-    """返回资产的稳定随机序（与调仓日无关，仅依赖代码与模式）。
-
-    Args:
-        asset: 证券代码。
-        mode: 选池模式。
-
-    Returns:
-        str: 十六进制哈希串，可直接用于排序。
-    """
-    digest = hashlib.blake2b(
-        f"{mode}:{asset}".encode(), digest_size=8
-    ).hexdigest()
-    return digest
-
-
-_INDEX_POOL_CACHE: dict[tuple[tuple[str, ...], datetime.date], set[str]] = {}
-
-
-def _index_pit_universe(
-    target_date: datetime.date,
-    codes: list[str] | None,
-) -> set[str]:
-    """读取指数成分 PIT 快照（按代码+日期缓存）。"""
-    codes = [str(c).strip() for c in (codes or []) if str(c).strip()]
-    if not codes:
-        codes = ["000300.SH", "000905.SH", "000852.SH"]
-    key = (tuple(codes), target_date)
-    cached = _INDEX_POOL_CACHE.get(key)
-    if cached is not None:
-        return cached
-    pool: set[str] = set()
-    try:
-        from quantide.data import get_index_weight_store
-
-        store = get_index_weight_store()
-        for code in codes:
-            try:
-                frame = store.constituents(code, target_date, include_weight=False)
-            except Exception:
-                continue
-            if frame is not None and not frame.is_empty() and "con_code" in frame.columns:
-                pool.update(frame["con_code"].to_list())
-    except Exception:
-        pool = set()
-    if len(_INDEX_POOL_CACHE) >= 256:
-        _INDEX_POOL_CACHE.clear()
-    _INDEX_POOL_CACHE[key] = pool
-    return pool
-
-
-def _cap_universe(
-    cap: pl.DataFrame,
-    universe_size: int,
-    holdings: list[str] | None,
-    mode: str,
-) -> list[str]:
-    """按稳定哈希把可选池精确裁剪到 universe_size（持仓优先保留）。"""
-    assets = sorted(cap["asset"].unique().to_list())
-    if universe_size > 0 and len(assets) > universe_size:
-        held = [a for a in (holdings or []) if a in set(assets)]
-        ranked = sorted(
-            [a for a in assets if a not in set(held)],
-            key=lambda asset: _stable_universe_rank(asset, mode),
-        )
-        picked = held + ranked[: max(0, universe_size - len(held))]
-        cap = cap.filter(pl.col("asset").is_in(picked))
-    return sorted(cap["asset"].unique().to_list())
-
-
-def _filter_universe(
-    bars_df: pl.DataFrame,
-    target_date: datetime.date,
-    universe_size: int,
-    mode: str = "market_cap_trim",
-    trim_pct: float = 0.05,
-    holdings: list[str] | None = None,
-    index_codes: list[str] | None = None,
-) -> list[str]:
-    """Select the tradable universe on ``target_date``.
-
-    ``market_cap_trim`` first removes the largest and smallest ``trim_pct`` of
-    the cross-section by ``total_mv``, then removes suspended and ST stocks
-    from the remaining set.  The current holdings are always kept (as long as
-    they are still eligible) so they can be ranked and sold by the alpha rule
-    instead of being force-exited as "未入池"; the remaining slots are filled
-    by a per-asset stable hash (exact size, no rotation with the rebalance
-    date, uncorrelated with market cap; ``universe_size <= 0`` means no cap).
-    ``liquidity`` keeps the legacy top-N by 20-day mean amount.
-    ``index_pit`` restricts the pool to index constituents as of
-    ``target_date`` (point-in-time, no look-ahead); it falls back to
-    ``market_cap_trim`` when the constituent store has no coverage.
-    """
-    on_date = bars_df.filter(pl.col("date") == target_date)
-    if on_date.is_empty():
-        return []
-
-    cols = set(on_date.columns)
-
-    def _drop_st_names(frame: pl.DataFrame) -> pl.DataFrame:
-        if frame.is_empty() or stock_list.size == 0:
-            return frame
-        if "name" not in stock_list.data.columns:
-            return frame
-        try:
-            st_names = set(
-                stock_list.data.filter(
-                    pl.col("name").str.to_uppercase().str.contains("ST")
-                    | pl.col("name").str.contains("退")
-                )["asset"].to_list()
-            )
-            if st_names:
-                return frame.filter(~pl.col("asset").is_in(st_names))
-        except Exception:
-            pass
-        return frame
-
-    if mode == "index_pit":
-        pool = _index_pit_universe(target_date, index_codes)
-        if pool:
-            cap = on_date.filter(pl.col("asset").is_in(pool))
-            cap = cap.filter(pl.col("volume") > 0)
-            if "is_st" in cols:
-                cap = cap.filter(~pl.col("is_st").fill_null(False))
-            cap = _drop_st_names(cap)
-            if cap.is_empty():
-                return []
-            return _cap_universe(
-                cap, universe_size, holdings, mode
-            )
-        # 成分数据缺失时退回市值裁剪，避免策略失效。
-        mode = "market_cap_trim"
-
-    if mode == "market_cap_trim" and "total_mv" in cols:
-        cap = on_date.filter(
-            (pl.col("close") > 0)
-            & pl.col("total_mv").is_not_null()
-            & (pl.col("total_mv") > 0)
-        )
-        if cap.height > 0:
-            # 按数量精确剔除两端各 trim_pct，避免 quantile 插值导致多剔除。
-            cap = cap.sort(["total_mv", "asset"])
-            n_trim = int(cap.height * trim_pct)
-            if n_trim > 0:
-                cap = cap.slice(n_trim, max(0, cap.height - 2 * n_trim))
-            # 市值裁剪后再排除停牌、ST。
-            cap = cap.filter(pl.col("volume") > 0)
-            if "is_st" in cols:
-                cap = cap.filter(~pl.col("is_st").fill_null(False))
-            cap = _drop_st_names(cap)
-            # 选池：先放入当前持仓（仍合格的），其余按「每资产稳定哈希」补足：
-            # - 规模精确等于 universe_size；
-            # - 持仓一定在池内 → 不会被「未入池」强卖，可按排名正常卖出；
-            # - 非持仓成员的顺序与调仓日无关 → 不会整池轮换；
-            # - 与市值大小无关，避免市值偏置。
-            return _cap_universe(cap, universe_size, holdings, mode)
-
-    cond = (pl.col("close") > 0) & (pl.col("volume") > 0)
-    if "is_st" in cols:
-        cond = cond & (~pl.col("is_st").fill_null(False))
-    eligible = on_date.filter(cond)
-    eligible = _drop_st_names(eligible)
-    if eligible.is_empty():
-        return []
-
-    assets = eligible["asset"].unique().to_list()
-    if universe_size <= 0 or len(assets) <= universe_size:
-        return sorted(assets)
-
-    recent_dates = bars_df["date"].unique().sort().tail(20).to_list()
-    amt_expr = (
-        pl.col("amount")
-        if "amount" in cols
-        else (pl.col("volume") * pl.col("close"))
-    )
-    top_liquid = (
-        bars_df.filter(
-            pl.col("date").is_in(recent_dates)
-            & pl.col("asset").is_in(assets)
-        )
-        .group_by("asset")
-        .agg(amt_expr.mean().alias("avg_amt"))
-        .sort(["avg_amt", "asset"], descending=[True, False])
-        .head(universe_size)
-    )
-    return top_liquid["asset"].to_list()
-
-
-def _filter_liquid_universe(
-    bars_df: pl.DataFrame,
-    target_date: datetime.date,
-    universe_size: int,
-) -> list[str]:
-    """Backward-compatible liquidity-only universe filter."""
-    return _filter_universe(
-        bars_df, target_date, universe_size, mode="liquidity"
-    )
-
-
-class MLMomentumReversalStrategy(BaseStrategy):
+class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
     """A股动量与趋势反转机器学习选股策略 (LightGBM 截面排序)"""
 
+    _pipeline_version = PIPELINE_VERSION
     VERSION = "v1.0.0"
     BAR_INTERVAL = "1d"
     #: 声明本策略支持逐次预测归因（web 层据此动态加载 SHAP 面板）
     ATTRIBUTION = "shap"
+    #: 声明回测向导应展示“选择因子”步骤。
+    SUPPORTS_FEATURE_SELECTION = True
     PARAMS: dict[str, Any] = {
         "top_k": 5,
         "universe_size": 2000,
@@ -711,50 +181,33 @@ class MLMomentumReversalStrategy(BaseStrategy):
         """Return default strategy parameters."""
         return dict(MLMomentumReversalStrategy.PARAMS)
 
-    def __init__(self, broker: Any, config: dict[str, Any] | None = None) -> None:
+    def __init__(self, broker: StrategyBroker, config: dict[str, Any] | None = None) -> None:
         merged = {**self.default_config(), **(config or {})}
-        if (
-            config
-            and "future_return_horizon" not in config
-            and "horizon" in config
-        ):
+        if config and "future_return_horizon" not in config and "horizon" in config:
             merged["future_return_horizon"] = config["horizon"]
         super().__init__(broker, merged)
         self.top_k = max(1, int(self.config.get("top_k", 5)))
-        self.universe_size = max(
-            self.top_k, int(self.config.get("universe_size", 2000))
-        )
-        self.universe_mode = str(
-            self.config.get("universe_mode", "market_cap_trim")
-        ).strip()
+        self.universe_size = max(self.top_k, int(self.config.get("universe_size", 2000)))
+        self.universe_mode = str(self.config.get("universe_mode", "market_cap_trim")).strip()
         self.index_pool_codes = list(
-            self.config.get("index_pool_codes")
-            or ["000300.SH", "000905.SH", "000852.SH"]
+            self.config.get("index_pool_codes") or ["000300.SH", "000905.SH", "000852.SH"]
         )
-        self.live_min_quote_coverage = float(
-            self.config.get("live_min_quote_coverage", 0.90)
-        )
+        self.live_min_quote_coverage = float(self.config.get("live_min_quote_coverage", 0.90))
         self.market_cap_trim_pct = min(
             0.5,
             max(0.0, float(self.config.get("market_cap_trim_pct", 0.05))),
         )
-        self.universe_rebalance_days = max(
-            1, int(self.config.get("universe_rebalance_days", 20))
-        )
+        self.universe_rebalance_days = max(1, int(self.config.get("universe_rebalance_days", 20)))
         self.train_window = max(10, int(self.config.get("train_window", 45)))
-        self.future_return_horizon = _future_return_horizon(
-            config or self.config
-        )
+        self.future_return_horizon = _future_return_horizon(config or self.config)
         self.retrain_days = max(1, int(self.config.get("retrain_days", 5)))
         self.use_lightgbm = bool(self.config.get("use_lightgbm", True))
-        self.selected_features: list[str] = resolve_feature_selection(
-            self.config.get("features")
-        )
+        self.selected_features: list[str] = resolve_feature_selection(self.config.get("features"))
         self.custom_assets = _parse_custom_assets(self.config)
         #: dry-run 影子模式：只加载模型，不训练
         self._shadow_mode = bool(self.config.get("_shadow_mode", False))
 
-        self._model: Any = None
+        self._model: object | None = None
         self._model_engine: str = "LightGBM" if self.use_lightgbm else "Prior-Ridge"
         #: 模型持久化键（策略名 + 模型相关配置哈希），回测/仿真/实盘共用
         self._model_key = model_key(self.__class__.__name__, self.config)
@@ -837,7 +290,7 @@ class MLMomentumReversalStrategy(BaseStrategy):
 
     def _save_model_artifact(
         self,
-        model: Any,
+        model: object | None,
         engine: str,
         training_frame: pl.DataFrame,
         *,
@@ -906,18 +359,13 @@ class MLMomentumReversalStrategy(BaseStrategy):
             return False
         self._model = model
         self._model_engine = engine
-        self._save_model_artifact(
-            model, engine, train_df, effective_from=day
-        )
+        self._save_model_artifact(model, engine, train_df, effective_from=day)
         self._model_pending = False
         # 启动阶段构建的面板只用于训练；14:57 必须用最新 forming bar 重建。
         self._cached_norm_panel = None
         self._panel_start = None
         self._panel_end = None
-        self.log(
-            f"模型已就绪: train_end={self._model_train_end} effective={day} "
-            f"engine={engine}"
-        )
+        self.log(f"模型已就绪: train_end={self._model_train_end} effective={day} engine={engine}")
         return True
 
     def train_model_for_day(self, as_of: datetime.date) -> bool:
@@ -951,9 +399,7 @@ class MLMomentumReversalStrategy(BaseStrategy):
         self._cached_norm_panel = None
         self._panel_start = None
         self._panel_end = None
-        self.log(
-            f"模型已重训: train_end={as_of} effective={next_day} engine={engine}"
-        )
+        self.log(f"模型已重训: train_end={as_of} effective={next_day} engine={engine}")
         return True
 
     @classmethod
@@ -974,100 +420,40 @@ class MLMomentumReversalStrategy(BaseStrategy):
             List of top-K ranked stock dictionaries with scores and explanations.
         """
         cfg = {**cls.default_config(), **(config or {})}
-        if (
-            config
-            and "future_return_horizon" not in config
-            and "horizon" in config
-        ):
+        if config and "future_return_horizon" not in config and "horizon" in config:
             cfg["future_return_horizon"] = config["horizon"]
-        top_k = max(1, int(cfg.get("top_k", 5)))
-        universe_size = max(top_k, int(cfg.get("universe_size", 2000)))
-        train_window = max(10, int(cfg.get("train_window", 45)))
-        future_return_horizon = _future_return_horizon(config or cfg)
-        use_lightgbm = bool(cfg.get("use_lightgbm", True))
-        universe_mode = str(
-            cfg.get("universe_mode", "market_cap_trim")
-        ).strip()
-        market_cap_trim_pct = min(
-            0.5, max(0.0, float(cfg.get("market_cap_trim_pct", 0.05)))
-        )
-        custom_assets = _parse_custom_assets(cfg)
-        req_date = _coerce_date(as_of_date)
-
+        options = SelectionOptions.from_config(cfg, config, as_of_date)
         if bars_df is None:
-            if not _ensure_data_connected():
-                return []
-            store_end = (
-                getattr(daily_bars, "max_date", None)
-                or getattr(daily_bars, "end", None)
-                or getattr(calendar, "end", None)
-                or datetime.date(2024, 12, 31)
-            )
-            query_end = req_date or store_end
-            if isinstance(store_end, datetime.date) and query_end > store_end:
-                query_end = store_end
-            lookback = max(train_window + 30, 75)
-            raw_df = daily_bars.get_bars(
-                n=lookback,
-                end=query_end,
-                assets=custom_assets,
-                adjust=None,
-                eager_mode=True,
-            )
-            assert isinstance(raw_df, pl.DataFrame)
-            bars_df = raw_df
-
+            bars_df = _load_selection_bars(options)
         if bars_df.is_empty():
             return []
-
         panel = bars_df.with_columns(pl.col("date").cast(pl.Date))
-        if custom_assets:
-            panel = panel.filter(pl.col("asset").is_in(custom_assets))
-        if req_date is not None:
-            panel = panel.filter(pl.col("date") <= req_date)
+        if options.custom_assets:
+            panel = panel.filter(pl.col("asset").is_in(options.custom_assets))
+        if options.as_of is not None:
+            panel = panel.filter(pl.col("date") <= options.as_of)
         if panel.is_empty():
             return []
-
-        target_date: datetime.date = panel["date"].max()  # type: ignore[assignment]
-        if custom_assets:
+        target_date = cast(datetime.date, panel["date"].max())
+        if options.custom_assets:
             candidates = sorted(panel["asset"].unique().to_list())
         else:
             panel = daily_basic.attach(panel)
             candidates = _filter_universe(
                 panel,
                 target_date,
-                universe_size,
-                mode=universe_mode,
-                trim_pct=market_cap_trim_pct,
+                options.universe_size,
+                mode=options.universe_mode,
+                trim_pct=options.trim_pct,
                 index_codes=cfg.get("index_pool_codes"),
             )
         if not candidates:
             return []
-
-        panel = panel.filter(pl.col("asset").is_in(candidates))
-        stock_meta = stock_list.data if stock_list.size > 0 else None
-        feature_cols = resolve_feature_selection(cfg.get("features")) or FEATURE_COLS
-        feat_df = compute_alpha_features(panel, stock_meta=stock_meta)
-        norm_df = standardize_features(feat_df, feature_cols)
-
-        model, model_engine = _fit_ml_model(
-            norm_df,
-            train_window=train_window,
-            horizon=future_return_horizon,
-            use_lightgbm=use_lightgbm,
-            feature_cols=feature_cols,
-        )
-        cross_df = norm_df.filter(pl.col("date") == target_date)
-        if cross_df.is_empty():
-            return []
-
-        scores = _score_cross_section(cross_df, model, model_engine, feature_cols)
-        scored_df = cross_df.with_columns(pl.Series("ml_score", scores))
-        return _format_candidate_rows(
-            scored_df,
+        return _rank_selection_panel(
+            panel.filter(pl.col("asset").is_in(candidates)),
             target_date,
-            model_engine,
-            top_k,
+            options,
+            cfg.get("features"),
         )
 
     def _resolve_signal_date(self, tm: datetime.datetime) -> datetime.date:
@@ -1090,12 +476,9 @@ class MLMomentumReversalStrategy(BaseStrategy):
             list[str]: 持仓代码（已排序）。
         """
         if as_of is not None and self._positions_by_date:
-            latest: datetime.date | None = None
-            for day in self._positions_by_date:
-                if day <= as_of and (latest is None or day > latest):
-                    latest = day
-            if latest is not None:
-                return sorted(self._positions_by_date[latest])
+            eligible = [day for day in self._positions_by_date if day <= as_of]
+            if eligible:
+                return sorted(self._positions_by_date[max(eligible)])
         positions = getattr(self.broker, "positions", None) or {}
         held: list[str] = []
         for asset, position in positions.items():
@@ -1178,9 +561,7 @@ class MLMomentumReversalStrategy(BaseStrategy):
         """面板窗口结束信号日。"""
         bt_end_attr = getattr(self.broker, "_bt_end", None)
         bt_end_date = _coerce_date(bt_end_attr) or signal_date
-        rebalance_end = calendar.shift(
-            signal_date, self.universe_rebalance_days, FrameType.DAY
-        )
+        rebalance_end = calendar.shift(signal_date, self.universe_rebalance_days, FrameType.DAY)
         return max(signal_date, min(rebalance_end, bt_end_date))
 
     def _load_bars(
@@ -1199,18 +580,19 @@ class MLMomentumReversalStrategy(BaseStrategy):
         broker = self.broker
         if hasattr(broker, "get_bars_range"):
             try:
-                return broker.get_bars_range(
-                    assets,
-                    start,
-                    end,
-                    adjust=None,
-                    include_forming_bar=include_forming_bar,
+                return cast(
+                    pl.DataFrame,
+                    broker.get_bars_range(
+                        assets,
+                        start,
+                        end,
+                        adjust=None,
+                        include_forming_bar=include_forming_bar,
+                    ),
                 )
             except TypeError:  # 兼容未实现该参数的 broker
-                return broker.get_bars_range(assets, start, end, adjust=None)
-        return daily_bars.get_bars_in_range(
-            start, end, assets=assets, adjust=None, eager_mode=True
-        )
+                return cast(pl.DataFrame, broker.get_bars_range(assets, start, end, adjust=None))
+        return daily_bars.get_bars_in_range(start, end, assets=assets, adjust=None, eager_mode=True)
 
     def _ensure_backtest_panel(self, signal_date: datetime.date) -> None:
         """Pre-fetch and compute causal feature panel covering the backtest window.
@@ -1260,11 +642,7 @@ class MLMomentumReversalStrategy(BaseStrategy):
             latest_init_dt: datetime.date = init_bars["date"].max()  # type: ignore[assignment]
             init_bars = daily_basic.attach(init_bars)
             if "total_mv" in init_bars.columns:
-                fill_cols = [
-                    col
-                    for col in ("total_mv", "circ_mv")
-                    if col in init_bars.columns
-                ]
+                fill_cols = [col for col in ("total_mv", "circ_mv") if col in init_bars.columns]
                 init_bars = init_bars.sort(["asset", "date"]).with_columns(
                     [pl.col(col).forward_fill().over("asset") for col in fill_cols]
                 )
@@ -1292,18 +670,7 @@ class MLMomentumReversalStrategy(BaseStrategy):
             self._cached_norm_panel = pl.DataFrame()
             return
 
-        stock_meta = stock_list.data if stock_list.size > 0 else None
-        feat_panel = compute_alpha_features(raw_panel, stock_meta=stock_meta)
-        self._cached_norm_panel = standardize_features(
-            feat_panel, self.selected_features or FEATURE_COLS
-        )
-        self._panel_start = signal_date
-        self._panel_end = fetch_end
-        is_live = getattr(self.broker, "_bt_start", None) is None
-        if not is_live:
-            if len(_PANEL_CACHE) >= _PANEL_CACHE_MAX:
-                _PANEL_CACHE.pop(next(iter(_PANEL_CACHE)))
-            _PANEL_CACHE[panel_key] = self._cached_norm_panel
+        _cache_backtest_feature_panel(self, raw_panel, signal_date, fetch_end, panel_key)
 
     def _training_slice(self, panel: pl.DataFrame, signal_date: datetime.date) -> pl.DataFrame:
         """训练用面板：剔除今日 forming bar，避免用盘中价污染前瞻标签。"""
@@ -1311,328 +678,138 @@ class MLMomentumReversalStrategy(BaseStrategy):
             return panel
         return panel.filter(pl.col("date") < signal_date)
 
-    def _explain_cache_keys(
-        self, signal_date: datetime.date, build_signal: datetime.date | None = None
-    ) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
-        """构造归因缓存的键。
-
-        Args:
-            signal_date: 决策日。
-
-        Returns:
-            tuple: (截面缓存键, 模型缓存键)。
-        """
-        base = (
-            PIPELINE_VERSION,
-            FACTOR_VERSION,
-            self.train_window,
-            self.future_return_horizon,
-            self.universe_size,
-            self.universe_mode,
-            round(self.market_cap_trim_pct, 6),
-            tuple(self.selected_features or FEATURE_COLS),
-            tuple(self._held_assets()),
-            signal_date,
-            build_signal or signal_date,
-        )
-        return base, base + (self.use_lightgbm,)
-
     # ---------------- 精确归因：回放回测的选池/训练节奏 ----------------
 
-    def _backtest_bar_dates(
-        self, bt_start: datetime.date, bt_end: datetime.date
-    ) -> list[datetime.date]:
-        """回测逐日推进的 bar 日期序列（交易日）。"""
-        try:
-            frames = calendar.get_frames(bt_start, bt_end, FrameType.DAY)
-        except Exception:
-            return []
-        return [f for f in frames if isinstance(f, datetime.date)]
-
-    def _replay_panel_builds(
-        self, bt_start: datetime.date, bt_end: datetime.date
-    ) -> list[tuple[datetime.date, datetime.date]]:
-        """回放回测过程中每次重建因子面板的 (构建信号日, 窗口结束信号日)。
-
-        面板按 ``universe_rebalance_days`` 刷新一次，因此选股池在两次刷新之间
-        保持不变；归因必须用同一个构建日，才能复现当时的选池。
-        """
-        builds: list[tuple[datetime.date, datetime.date]] = []
-        window_end: datetime.date | None = None
-        for bar_date in self._backtest_bar_dates(bt_start, bt_end):
+    def _pull_factor_frames(self, tm: datetime.datetime) -> list[pl.DataFrame]:
+        """Pull factor frames."""
+        assets = self.custom_assets or [str(self.config.get("symbol", "000001.SZ"))]
+        frames: list[pl.DataFrame] = []
+        lookback = max(self.train_window + 30, 65)
+        for asset in assets:
             try:
-                signal_date = calendar.day_shift(bar_date, -1)
+                hist = self.get_bars(asset, lookback, tm, "1d")
             except Exception:
                 continue
-            if window_end is None or signal_date > window_end:
-                rebalance_end = calendar.shift(
-                    signal_date, self.universe_rebalance_days, FrameType.DAY
-                )
-                window_end = max(signal_date, min(rebalance_end, bt_end))
-                builds.append((signal_date, window_end))
-        return builds
+            if isinstance(hist, pl.DataFrame) and not hist.is_empty():
+                if "asset" not in hist.columns:
+                    hist = hist.with_columns(pl.lit(asset).alias("asset"))
+                frames.append(hist)
+        return frames
 
-    def _replay_context(
-        self,
-        target_signal: datetime.date,
-        bt_start: datetime.date,
-        bt_end: datetime.date,
-    ) -> tuple[datetime.date, datetime.date, datetime.date]:
-        """定位某信号日在回测中对应的面板构建日与最近一次模型重训。
+    def _rank_small_universe(
+        self, tm: datetime.datetime, is_live: bool
+    ) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, int]]:
+        """Pull and rank a small explicitly configured stock universe."""
+        # 轻量路径：不走 2000 只成分股的面板，直接按需拉取少量标的的日线，
+        # 现场算因子并打分。适用两种情形：
+        #   1) 全局行情数据层未就绪（单测 / 独立脚本 / 数据未连接），
+        #      此时只能通过 get_bars 取数；
+        #   2) 配置显式指定了 <=10 只标的（symbols / universe / symbol），
+        #      拉少量标的比构建整面板更省。
+        # 注意：本路径与回测路径必须保持同样的重训节奏（按交易日），
+        # 否则实盘行为与回测不一致。
+        frames = self._pull_factor_frames(tm)
+        if not frames:
+            return [], {}, {}
 
-        Args:
-            target_signal: 目标信号日（成交日的前一交易日）。
-            bt_start: 回测起始交易日。
-            bt_end: 回测结束交易日。
+        panel = pl.concat(frames, how="diagonal_relaxed").with_columns(pl.col("date").cast(pl.Date))
+        if panel.height < 5:
+            return [], {}, {}
 
-        Returns:
-            tuple: (目标截面所用面板的构建信号日, 重训所用面板的构建信号日,
-            重训的信号日)。
-        """
-        builds = self._replay_panel_builds(bt_start, bt_end)
-
-        def _build_for(signal_date: datetime.date) -> datetime.date:
-            for build_signal, window_end in builds:
-                if build_signal <= signal_date <= window_end:
-                    return build_signal
-            return signal_date
-
-        target_build = _build_for(target_signal)
-
-        bar_dates = self._backtest_bar_dates(bt_start, bt_end)
-        refit_signal = target_signal
-        refit_build = target_build
-        for index, bar_date in enumerate(bar_dates):
-            try:
-                signal_date = calendar.day_shift(bar_date, -1)
-            except Exception:
-                continue
-            if signal_date > target_signal:
-                break
-            position = index + 1
-            if (position - 1) % max(1, self.retrain_days) == 0:
-                refit_signal = signal_date
-                refit_build = _build_for(signal_date)
-        return target_build, refit_build, refit_signal
-
-    def _explain_cross_section(
-        self, signal_date: datetime.date, build_signal: datetime.date | None = None
-    ) -> pl.DataFrame:
-        """取归因用的目标日截面（只缓存当前这一条）。
-
-        整张因子面板约 160k 行、100MB，不做缓存；这里只缓存目标日截面
-        （约 2000 行、1MB），够「同一次交易在特征页与 SHAP 页之间切换」
-        不重复计算；换一笔交易则重新计算。
-
-        Args:
-            signal_date: 决策日。
-
-        Returns:
-            pl.DataFrame: 目标日截面（含原始因子与 z 因子）；可能为空。
-        """
-        build_signal = build_signal or signal_date
-        cross_key, _ = self._explain_cache_keys(signal_date, build_signal)
-        cached = _EXPLAIN_CROSS_SECTION_CACHE.get(cross_key)
-        if cached is not None:
-            return cached
-        self._ensure_backtest_panel(build_signal)
-        panel = self._cached_norm_panel
-        if panel is None or panel.is_empty():
-            return pl.DataFrame()
-        target_date = panel.filter(pl.col("date") <= pl.lit(signal_date))["date"].max()
-        if target_date is None:
-            return pl.DataFrame()
-        keep = ["date", "asset", "close"] + [
-            c for c in (self.selected_features or FEATURE_COLS)
-        ] + [f"{c}_z" for c in (self.selected_features or FEATURE_COLS)]
-        cross = panel.filter(pl.col("date") == target_date).select(
-            [c for c in keep if c in panel.columns]
-        )
-        _EXPLAIN_CROSS_SECTION_CACHE.clear()
-        _EXPLAIN_CROSS_SECTION_CACHE[cross_key] = cross
-        return cross
-
-    def _attribution_model(
-        self, target_date: datetime.date, build_signal: datetime.date | None = None
-    ) -> tuple[Any, str]:
-        """取（或训练）归因所需的模型，按决策日缓存。
-
-        模型缓存键含流水线版本、因子版本、训练参数、因子集与当时持仓；
-        命中即复用，未命中时临时构建训练面板（不常驻）。
-
-        Args:
-            target_date: 截面日。
-
-        Returns:
-            tuple: (模型, 引擎名)。
-        """
-        build_signal = build_signal or target_date
-        _, key = self._explain_cache_keys(target_date, build_signal)
-        cached = _EXPLAIN_MODEL_CACHE.get(key)
-        if cached is not None:
-            return cached
-        self._ensure_backtest_panel(build_signal)
-        panel = self._cached_norm_panel
-        if panel is None or panel.is_empty():
-            raise RuntimeError("归因面板为空，无法训练模型")
-        hist = panel.filter(pl.col("date") <= pl.lit(target_date))
-        if hist.is_empty():
-            raise RuntimeError("归因训练数据为空")
-        model, engine = _fit_ml_model(
-            hist,
-            train_window=self.train_window,
-            horizon=self.future_return_horizon,
-            use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or FEATURE_COLS,
-            label_cache_key=self._panel_cache_key(build_signal),
-        )
-        if len(_EXPLAIN_MODEL_CACHE) >= 8:
-            _EXPLAIN_MODEL_CACHE.pop(next(iter(_EXPLAIN_MODEL_CACHE)))
-        _EXPLAIN_MODEL_CACHE[key] = (model, engine)
-        return model, engine
-
-    def explain_features(
-        self, asset: str, signal_date: datetime.date
-    ) -> list[tuple[str, float]] | None:
-        """返回该资产在决策日的因子取值（与模型输入同源）。
-
-        使用策略自己的面板（同一选股池、同一复权口径），因此展示的数值就是
-        模型当时看到的值。
-
-        Args:
-            asset: 证券代码。
-            signal_date: 决策日。
-
-        Returns:
-            list | None: (因子名, 取值) 列表；数据不足时返回 ``None``。
-        """
-        try:
-            cross = self._explain_cross_section(signal_date)
-        except Exception:
-            return None
-        if cross is None or cross.is_empty():
-            return None
-        row = cross.filter(pl.col("asset") == asset)
-        if row.is_empty():
-            return None
-        values = row.row(0, named=True)
-        result: list[tuple[str, float]] = []
-        for col in FEATURE_COLS:
-            value = values.get(col)
-            if value is None:
-                continue
-            try:
-                result.append((col, float(value)))
-            except (TypeError, ValueError):
-                continue
-        return result or None
-
-    def explain_prediction(
-        self,
-        asset: str,
-        signal_date: datetime.date,
-        bt_start: datetime.date | None = None,
-        bt_end: datetime.date | None = None,
-    ) -> dict[str, Any] | None:
-        """返回该资产在决策日的最终得分归因。
-
-        最终得分就是模型输出（截面 z-score），不含任何手工先验。模型部分用
-        LightGBM 自带的 TreeSHAP（``pred_contrib=True``）给出逐特征贡献，
-        基线 + 贡献之和可精确还原该股票的截面得分。
-
-        Args:
-            asset: 证券代码。
-            signal_date: 决策日（信号日，即成交日的前一交易日）。
-            bt_start: 回测起始交易日；给出时按回测节奏回放选池与训练，得到与
-                当次决策完全一致的截面与模型。
-            bt_end: 回测结束交易日。
-
-        Returns:
-            dict | None: 归因结果；数据不足或资产不在截面内时返回 ``None``。
-        """
-        build_signal: datetime.date | None = None
-        refit_build: datetime.date | None = None
-        refit_signal: datetime.date | None = None
-        if bt_start is not None and bt_end is not None:
-            try:
-                build_signal, refit_build, refit_signal = self._replay_context(
-                    signal_date, bt_start, bt_end
-                )
-            except Exception:
-                build_signal = refit_build = refit_signal = None
-        try:
-            cross = self._explain_cross_section(signal_date, build_signal)
-        except Exception:
-            return None
-        if cross is None or cross.is_empty():
-            return None
-
-        target_date = cross["date"][0]
-        assets = cross["asset"].to_list()
-        if asset not in assets:
-            return None
-        index = assets.index(asset)
-
-        model, engine = self._attribution_model(
-            refit_signal or target_date, refit_build or build_signal
-        )
         feature_cols = self.selected_features or FEATURE_COLS
-        z_cols = [f"{c}_z" for c in feature_cols]
-        x = (
-            cross.select(z_cols)
-            .fill_null(0.0)
-            .fill_nan(0.0)
-            .to_numpy()
-            .astype(np.float64)
-        )
-        z_row = x[index]
-
-        contrib = np.zeros(len(feature_cols), dtype=np.float64)
-        baseline = 0.0
-        if engine == "LightGBM" and hasattr(model, "predict"):
-            raw = np.asarray(model.predict(x), dtype=np.float64)
-            shap = np.asarray(model.predict(x, pred_contrib=True), dtype=np.float64)
-            std_raw = float(np.std(raw)) + 1e-6
-            contrib = shap[index][:-1] / std_raw
-            baseline = (float(shap[index][-1]) - float(np.mean(raw))) / std_raw
-            scores = _zscore_1d(raw)
-        elif isinstance(model, np.ndarray):
-            ridge_raw = x @ model
-            std_ridge = float(np.std(ridge_raw)) + 1e-6
-            contrib = (z_row * model) / std_ridge
-            baseline = (0.0 - float(np.mean(ridge_raw))) / std_ridge
-            scores = _zscore_1d(ridge_raw)
-        else:
-            return None
-
-        final_score = float(scores[index])
-        order = sorted(range(len(assets)), key=lambda i: (-scores[i], assets[i]))
-        rank = order.index(index) + 1
-
-        raw_values = cross.row(index, named=True)
-        features = []
-        for col_index, col in enumerate(feature_cols):
-            raw_value = raw_values.get(col)
-            features.append(
-                {
-                    "name": col,
-                    "value": None if raw_value is None else float(raw_value),
-                    "z": float(z_row[col_index]),
-                    "total": float(contrib[col_index]),
-                }
+        feat_df = compute_alpha_features(panel)
+        norm_df = standardize_features(feat_df, feature_cols)
+        target_date: datetime.date = norm_df["date"].max()  # type: ignore[assignment]
+        if is_live and self._model is None:
+            self._load_model_from_store(target_date)
+            if self._model is None:
+                self._model_pending = True
+                if self._model_due_logged != target_date:
+                    self._model_due_logged = target_date
+                    self.log(
+                        "模型未就绪，等待后台重训；本次不交易",
+                        level="WARNING",
+                    )
+                return [], {}, {}
+        if not is_live and self._should_retrain(target_date):
+            train_df = norm_df.filter(pl.col("date") < target_date)
+            self._model, self._model_engine = _fit_ml_model(
+                train_df,
+                train_window=self.train_window,
+                horizon=self.future_return_horizon,
+                use_lightgbm=self.use_lightgbm,
+                feature_cols=feature_cols,
             )
-        features.sort(key=lambda item: abs(item["total"]), reverse=True)
+            self._save_model_artifact(
+                self._model,
+                self._model_engine,
+                train_df,
+                effective_from=target_date,
+            )
+        model, engine = self._model, self._model_engine
+        if model is None:
+            return [], {}, {}
+        cross_df = norm_df.filter(pl.col("date") == target_date)
+        return _ranked_prediction_result(
+            cross_df, model, engine, feature_cols, target_date, self.top_k
+        )
 
-        return {
-            "asset": asset,
-            "date": target_date,
-            "engine": engine,
-            "score": final_score,
-            "baseline": float(baseline),
-            "rank": int(rank),
-            "cross_section": len(assets),
-            "features": features,
+    def _refresh_live_rank_model(self, signal_date: datetime.date) -> bool:
+        """Refresh the persisted model without retraining in a live decision callback."""
+        # 后台任务可能已写入新模型；决策前重新解析一次最新 artifact。
+        self._load_model_from_store(signal_date)
+        if self._model is None:
+            self._model_pending = True
+            if self._model_due_logged != signal_date:
+                self._model_due_logged = signal_date
+                self.log(
+                    "模型未就绪，等待后台重训；本次不交易",
+                    level="WARNING",
+                )
+            return False
+        if self._model_due(signal_date) and self._model_due_logged != signal_date:
+            self._model_due_logged = signal_date
+            self.log(
+                "模型已到重训周期，继续使用当前模型直至后台更新",
+                level="WARNING",
+            )
+        return True
+
+    def _missing_rank_data(self, day: datetime.date, message: str, severity: str) -> bool:
+        self._data_missing = True
+        if self._last_data_missing_log != day:
+            self._last_data_missing_log = day
+            self.log(message, level=severity)
+        return False
+
+    def _live_panel_ready(
+        self, hist_slice: pl.DataFrame, target_date: datetime.date, today: datetime.date
+    ) -> bool:
+        """Require today's bars for holdings and the configured universe coverage."""
+        if target_date != today:
+            return self._missing_rank_data(
+                today, f"实盘行情缺失：今日({today}) 无行情，最新 {target_date}，不交易", "WARNING"
+            )
+        rows = hist_slice.filter(pl.col("date") == today)
+        held = {
+            asset
+            for asset, position in self.broker.positions.items()
+            if float(getattr(position, "shares", 0) or 0) > 0
         }
+        present = set(rows["asset"].to_list())
+        missing = sorted(asset for asset in held if asset not in present)
+        if missing:
+            return self._missing_rank_data(
+                today, f"实盘行情缺失：持仓 {missing} 今日无行情，不交易", "ERROR"
+            )
+        coverage = len(present) / max(1, len(self._live_universe_assets or []))
+        if coverage < self.live_min_quote_coverage:
+            return self._missing_rank_data(
+                today,
+                f"实盘行情覆盖不足：{coverage:.1%} < {self.live_min_quote_coverage:.0%}，不交易",
+                "ERROR",
+            )
+        return True
 
     def _rank_for_bar(
         self, tm: datetime.datetime
@@ -1644,90 +821,7 @@ class MLMomentumReversalStrategy(BaseStrategy):
         )
 
         if use_pull_bars:
-            # 轻量路径：不走 2000 只成分股的面板，直接按需拉取少量标的的日线，
-            # 现场算因子并打分。适用两种情形：
-            #   1) 全局行情数据层未就绪（单测 / 独立脚本 / 数据未连接），
-            #      此时只能通过 get_bars 取数；
-            #   2) 配置显式指定了 <=10 只标的（symbols / universe / symbol），
-            #      拉少量标的比构建整面板更省。
-            # 注意：本路径与回测路径必须保持同样的重训节奏（按交易日），
-            # 否则实盘行为与回测不一致。
-            assets = self.custom_assets or [
-                str(self.config.get("symbol", "000001.SZ"))
-            ]
-            frames: list[pl.DataFrame] = []
-            lookback = max(self.train_window + 30, 65)
-            for asset in assets:
-                try:
-                    hist = self.get_bars(asset, lookback, tm, "1d")
-                except Exception:
-                    continue
-                if isinstance(hist, pl.DataFrame) and not hist.is_empty():
-                    if "asset" not in hist.columns:
-                        hist = hist.with_columns(pl.lit(asset).alias("asset"))
-                    frames.append(hist)
-
-            if not frames:
-                return [], {}, {}
-
-            panel = pl.concat(frames, how="diagonal_relaxed").with_columns(
-                pl.col("date").cast(pl.Date)
-            )
-            if panel.height < 5:
-                return [], {}, {}
-
-            feature_cols = self.selected_features or FEATURE_COLS
-            feat_df = compute_alpha_features(panel)
-            norm_df = standardize_features(feat_df, feature_cols)
-            target_date: datetime.date = norm_df["date"].max()  # type: ignore[assignment]
-            if is_live and self._model is None:
-                self._load_model_from_store(target_date)
-                if self._model is None:
-                    self._model_pending = True
-                    if self._model_due_logged != target_date:
-                        self._model_due_logged = target_date
-                        self.log(
-                            "模型未就绪，等待后台重训；本次不交易",
-                            level="WARNING",
-                        )
-                    return [], {}, {}
-            if not is_live and self._should_retrain(target_date):
-                train_df = norm_df.filter(pl.col("date") < target_date)
-                self._model, self._model_engine = _fit_ml_model(
-                    train_df,
-                    train_window=self.train_window,
-                    horizon=self.future_return_horizon,
-                    use_lightgbm=self.use_lightgbm,
-                    feature_cols=feature_cols,
-                )
-                self._save_model_artifact(
-                    self._model,
-                    self._model_engine,
-                    train_df,
-                    effective_from=target_date,
-                )
-            model, engine = self._model, self._model_engine
-            if model is None:
-                return [], {}, {}
-            cross_df = norm_df.filter(pl.col("date") == target_date)
-            scores = _score_cross_section(cross_df, model, engine, feature_cols)
-            scored_df = cross_df.with_columns(pl.Series("ml_score", scores)).sort(
-                ["ml_score", "asset"], descending=[True, False]
-            )
-            price_map = {
-                str(r["asset"]): float(r["close"])
-                for r in scored_df.select(["asset", "close"]).iter_rows(named=True)
-            }
-            full_ranks = {
-                str(a): i for i, a in enumerate(scored_df["asset"].to_list(), start=1)
-            }
-            ranked = _format_candidate_rows(
-                scored_df,
-                target_date,
-                engine,
-                self.top_k,
-            )
-            return ranked, price_map, full_ranks
+            return self._rank_small_universe(tm, is_live)
 
         signal_date = self._resolve_signal_date(tm)
         self._ensure_backtest_panel(signal_date)
@@ -1738,80 +832,12 @@ class MLMomentumReversalStrategy(BaseStrategy):
         if hist_slice.is_empty():
             return [], {}, {}
 
-        target_date = hist_slice["date"].max()  # type: ignore[assignment]
-        if is_live:
-            today = signal_date
-            if target_date != today:
-                self._data_missing = True
-                if self._last_data_missing_log != today:
-                    self._last_data_missing_log = today
-                    self.log(
-                        f"实盘行情缺失：今日({today}) 无行情，最新 {target_date}，不交易",
-                        level="WARNING",
-                    )
-                return [], {}, {}
-            today_rows = hist_slice.filter(pl.col("date") == today)
-            held = {
-                a
-                for a, p in self.broker.positions.items()
-                if float(getattr(p, "shares", 0) or 0) > 0
-            }
-            present = set(today_rows["asset"].to_list())
-            missing_held = sorted(a for a in held if a not in present)
-            if missing_held:
-                self._data_missing = True
-                if self._last_data_missing_log != today:
-                    self._last_data_missing_log = today
-                    self.log(
-                        f"实盘行情缺失：持仓 {missing_held} 今日无行情，不交易",
-                        level="ERROR",
-                    )
-                return [], {}, {}
-            coverage = len(present) / max(1, len(self._live_universe_assets or []))
-            if coverage < self.live_min_quote_coverage:
-                self._data_missing = True
-                if self._last_data_missing_log != today:
-                    self._last_data_missing_log = today
-                    self.log(
-                        f"实盘行情覆盖不足：{coverage:.1%} < {self.live_min_quote_coverage:.0%}，不交易",
-                        level="ERROR",
-                    )
-                return [], {}, {}
-        if is_live:
-            # 后台任务可能已写入新模型；决策前重新解析一次最新 artifact。
-            self._load_model_from_store(signal_date)
-            if self._model is None:
-                self._model_pending = True
-                if self._model_due_logged != signal_date:
-                    self._model_due_logged = signal_date
-                    self.log(
-                        "模型未就绪，等待后台重训；本次不交易",
-                        level="WARNING",
-                    )
-                return [], {}, {}
-            if self._model_due(signal_date) and self._model_due_logged != signal_date:
-                self._model_due_logged = signal_date
-                self.log(
-                    "模型已到重训周期，继续使用当前模型直至后台更新",
-                    level="WARNING",
-                )
-        if not is_live and self._should_retrain(signal_date):
-            training_df = self._training_slice(hist_slice, signal_date)
-            self._model, self._model_engine = _fit_ml_model(
-                training_df,
-                train_window=self.train_window,
-                    horizon=self.future_return_horizon,
-                    use_lightgbm=self.use_lightgbm,
-                feature_cols=self.selected_features or FEATURE_COLS,
-                label_cache_key=self._panel_cache_key(signal_date),
-            )
-            self._save_model_artifact(
-                self._model,
-                self._model_engine,
-                training_df,
-                effective_from=signal_date,
-            )
-            self._mark_retrained()
+        target_date = cast(datetime.date, hist_slice["date"].max())
+        if is_live and not self._live_panel_ready(hist_slice, target_date, signal_date):
+            return [], {}, {}
+        if is_live and not self._refresh_live_rank_model(signal_date):
+            return [], {}, {}
+        _retrain_replay_model(hist_slice, is_live, self, signal_date)
 
         cross_df = hist_slice.filter(
             (pl.col("date") == target_date)
@@ -1822,26 +848,14 @@ class MLMomentumReversalStrategy(BaseStrategy):
         if cross_df.is_empty():
             return [], {}, {}
 
-        scores = _score_cross_section(
-            cross_df, self._model, self._model_engine, self.selected_features or FEATURE_COLS
-        )
-        scored_df = cross_df.with_columns(pl.Series("ml_score", scores)).sort(
-            ["ml_score", "asset"], descending=[True, False]
-        )
-        price_map = {
-            str(r["asset"]): float(r["close"])
-            for r in scored_df.select(["asset", "close"]).iter_rows(named=True)
-        }
-        full_ranks = {
-            str(a): i for i, a in enumerate(scored_df["asset"].to_list(), start=1)
-        }
-        ranked = _format_candidate_rows(
-            scored_df,
-            target_date,
+        return _ranked_prediction_result(
+            cross_df,
+            self._model,
             self._model_engine,
+            self.selected_features or FEATURE_COLS,
+            target_date,
             self.top_k,
         )
-        return ranked, price_map, full_ranks
 
     async def on_bar(self, tm: datetime.datetime) -> None:
         """Rebalance to today's top-K selection.
@@ -1873,67 +887,56 @@ class MLMomentumReversalStrategy(BaseStrategy):
             return
 
         target_assets = {str(item["asset"]) for item in ranked[: self.top_k]}
-        sold_assets: set[str] = set()
+        sold_assets = await self._sell_non_targets(current_positions, target_assets, tm)
+        await self._buy_target_candidates(ranked, sold_assets, tm)
 
-        # The target set is the sole exit rule.  There is no fixed holding
-        # period or separate price/time exit in this strategy.
-        for asset, pos in current_positions.items():
-            if asset in target_assets:
-                continue
-            avail = (
-                int(pos.avail)
-                if hasattr(pos, "avail")
-                else int(getattr(pos, "shares", 0))
-            )
-            if avail <= 0:
-                continue
-            try:
-                await self.broker.sell(asset, avail, price=0, order_time=tm)
-                sold_assets.add(str(asset))
-                self.log(f"[卖出] {asset} 数量={avail} 原因=不在今日Top-{self.top_k}")
-            except Exception as exc:
-                self.log(
-                    f"[卖出跳过] {asset} 无法成交: {exc}",
-                    level="WARNING",
-                )
 
-        # Buy selected, currently unheld assets into the slots freed above.
-        held_assets = {
-            a
-            for a, p in self.broker.positions.items()
-            if float(getattr(p, "shares", 0) or 0) > 0
-        }
-        held_assets -= sold_assets
-        empty_slots = self.top_k - len(held_assets)
-        if empty_slots <= 0 or float(self.broker.cash) <= 1000.0:
-            return
+def _load_selection_bars(options: SelectionOptions) -> pl.DataFrame:
+    """Load only the lookback visible at the requested signal date."""
+    if not _ensure_data_connected():
+        return pl.DataFrame()
+    store_end = (
+        getattr(daily_bars, "max_date", None)
+        or getattr(daily_bars, "end", None)
+        or getattr(calendar, "end", None)
+        or datetime.date(2024, 12, 31)
+    )
+    end = options.as_of or store_end
+    if isinstance(store_end, datetime.date):
+        end = min(end, store_end)
+    frame = daily_bars.get_bars(
+        n=max(options.train_window + 30, 75),
+        end=end,
+        assets=options.custom_assets,
+        adjust=None,
+        eager_mode=True,
+    )
+    assert isinstance(frame, pl.DataFrame)
+    return frame
 
-        buy_candidates = [
-            item
-            for item in ranked[: self.top_k]
-            if item["asset"] not in held_assets
-        ][:empty_slots]
 
-        if not buy_candidates:
-            return
-
-        alloc_per_slot = (float(self.broker.cash) * 0.98) / empty_slots
-        for cand in buy_candidates:
-            alloc_cash = min(alloc_per_slot, float(self.broker.cash) * 0.98)
-            if alloc_cash <= 500.0:
-                continue
-            try:
-                res = await self.broker.buy_amount(
-                    cand["asset"], alloc_cash, price=0, order_time=tm
-                )
-                if getattr(res, "trades", None) or res is not None:
-                    self.log(
-                        f"[买入] {cand['asset']}({cand['name']}) "
-                        f"排名=#{cand['rank']} ML得分={cand['ml_score']:.3f} "
-                        f"形态={cand['kline_pattern']} | {cand['signal_reason']}"
-                    )
-            except Exception as exc:
-                self.log(
-                    f"[买入跳过] {cand['asset']} 无法成交: {exc}",
-                    level="WARNING",
-                )
+def _rank_selection_panel(
+    panel: pl.DataFrame,
+    target_date: datetime.date,
+    options: SelectionOptions,
+    selected_features: list[str] | None,
+) -> list[dict[str, Any]]:
+    """Compute, fit and rank a fixed candidate panel."""
+    stock_meta = stock_list.data if stock_list.size > 0 else None
+    features = resolve_feature_selection(selected_features) or FEATURE_COLS
+    normalized = standardize_features(
+        compute_alpha_features(panel, stock_meta=stock_meta), features
+    )
+    model, engine = _fit_ml_model(
+        normalized,
+        train_window=options.train_window,
+        horizon=options.horizon,
+        use_lightgbm=options.use_lightgbm,
+        feature_cols=features,
+    )
+    cross = normalized.filter(pl.col("date") == target_date)
+    if cross.is_empty():
+        return []
+    scores = _score_cross_section(cross, model, engine, features)
+    scored = cross.with_columns(pl.Series("ml_score", scores))
+    return _format_candidate_rows(scored, target_date, engine, options.top_k)

@@ -1,8 +1,17 @@
 import copy
 import inspect
+from typing import Any, TypedDict
 
 from fasthtml.common import *
+from fasthtml.common import (
+    H1,
+    Div,
+    Main,
+    P,
+    Title,
+)
 from monsterui.all import *
+from starlette.requests import Request
 
 from quantide.config.branding import get_branding
 from quantide.config.features import supports_live_trading
@@ -10,26 +19,45 @@ from quantide.core.enums import BrokerKind
 from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
 from quantide.service.strategy_runtime import strategy_runtime_manager
+from quantide.web.services.trade_accounts import listed_account
 
 from ..components.header import header_component
 from ..components.sidebar import sidebar_component
 from .base import BaseLayout
 
+
+class AlertContext(TypedDict):
+    unread_count: int
+    risk_summary: dict[str, int]
+    recent_risk_events: list[dict[str, Any]]
+    runtime_summary: dict[str, int]
+
+
 HOME_MENU = [
     {
         "title": "概览",
         "url": "/",
-        "icon_path": "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+        ("icon_path"): (
+            "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 "
+            "1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+        ),
     },
     {
         "title": "账号管理",
         "url": "/system/accounts",
-        "icon_path": "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+        ("icon_path"): (
+            "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 "
+            "0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 "
+            "012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        ),
     },
     {
         "title": "交易记录",
         "url": "/trade/records",
-        "icon_path": "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+        ("icon_path"): (
+            "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 "
+            "01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+        ),
     },
 ]
 
@@ -38,59 +66,194 @@ SYSTEM_MAINTENANCE_MENU = [
         "title": "数据维护",
         "icon": "database",
         "children": [
-            {"title": "交易日历", "url": "/system/calendar", "icon_path": "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"},
-            {"title": "股票列表", "url": "/system/stocks", "icon_path": "M4 6h16M4 10h16M4 14h16M4 18h16"},
-            {"title": "行情数据", "url": "/system/market", "icon_path": "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"},
+            {
+                "title": "交易日历",
+                "url": "/system/calendar",
+                ("icon_path"): (
+                    "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 "
+                    "00-2 2v12a2 2 0 002 2z"
+                ),
+            },
+            {
+                "title": "股票列表",
+                "url": "/system/stocks",
+                "icon_path": "M4 6h16M4 10h16M4 14h16M4 18h16",
+            },
+            {
+                "title": "行情数据",
+                "url": "/system/market",
+                ("icon_path"): (
+                    "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 "
+                    "0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 "
+                    "0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                ),
+            },
             {"title": "实时行情", "url": "/system/realtime", "icon_path": "M3 12h4l3 8 4-16 3 8h4"},
-            {"title": "因子台账", "url": "/system/alpha-ledger", "icon_path": "M3 3v18h18M7 15l3-4 3 3 5-7"},
         ],
     },
     {
         "title": "系统设置",
         "icon": "settings",
         "children": [
-            {"title": "账号管理", "url": "/system/accounts", "icon_path": "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"},
-            {"title": "定时任务", "url": "/system/jobs", "icon_path": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"},
-            {"title": "交易网关", "url": "/system/gateway", "icon_path": "M13 10V3L4 14h7v7l9-11h-7z"},
-            {"title": "数据源", "url": "/system/datasource", "icon_path": "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"},
+            {
+                "title": "账号管理",
+                "url": "/system/accounts",
+                ("icon_path"): (
+                    "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 "
+                    "0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 "
+                    "0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                ),
+            },
+            {
+                "title": "服务访问",
+                "url": "/system/network",
+                "icon_path": "M4 4h16v12H4zM8 20h8m-4-4v4",
+            },
+            {
+                "title": "定时任务",
+                "url": "/system/jobs",
+                "icon_path": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+            },
+            {
+                "title": "交易网关",
+                "url": "/system/gateway",
+                "icon_path": "M13 10V3L4 14h7v7l9-11h-7z",
+            },
+            {
+                "title": "数据源",
+                "url": "/system/datasource",
+                ("icon_path"): (
+                    "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 "
+                    "4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 "
+                    "4s-8-1.79-8-4"
+                ),
+            },
         ],
     },
     {
         "title": "运行保障",
         "icon": "shield",
         "children": [
-            {"title": "风险事件中心", "url": "/system/risk-events", "icon_path": "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"},
-            {"title": "运行时监控", "url": "/system/runtime-monitor", "icon_path": "M3 5h18M3 12h18M3 19h18"},
+            {
+                "title": "风险事件中心",
+                "url": "/system/risk-events",
+                ("icon_path"): (
+                    "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 "
+                    "4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                ),
+            },
+            {
+                "title": "运行时监控",
+                "url": "/system/runtime-monitor",
+                "icon_path": "M3 5h18M3 12h18M3 19h18",
+            },
         ],
     },
 ]
 
 TRADING_MENU = [
     {"title": "下单", "url": "/trade", "icon_path": "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"},
-    {"title": "历史持仓", "url": "/trade/positions/history", "icon_path": "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"},
-    {"title": "历史委托", "url": "/trade/orders/history", "icon_path": "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"},
-    {"title": "历史成交", "url": "/trade/records/history", "icon_path": "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"},
+    {
+        "title": "历史持仓",
+        "url": "/trade/positions/history",
+        "icon_path": "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+    },
+    {
+        "title": "历史委托",
+        "url": "/trade/orders/history",
+        ("icon_path"): (
+            "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 "
+            "0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+        ),
+    },
+    {
+        "title": "历史成交",
+        "url": "/trade/records/history",
+        ("icon_path"): (
+            "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 "
+            "01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+        ),
+    },
 ]
 
 MARKET_MENU = [
-    {"title": "股票列表", "url": "/system/stocks", "icon_path": "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"},
-    {"title": "自选股", "url": "/system/watchlist", "icon_path": "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"},
+    {
+        "title": "股票列表",
+        "url": "/system/stocks",
+        ("icon_path"): (
+            "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 "
+            "0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 "
+            "012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        ),
+    },
+    {
+        "title": "自选股",
+        "url": "/system/watchlist",
+        ("icon_path"): (
+            "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 "
+            "00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 "
+            "1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 "
+            "0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 "
+            "00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 "
+            "00.951-.69l1.519-4.674z"
+        ),
+    },
 ]
 
 STRATEGY_MENU = [
-    {"title": "策略列表", "url": "/strategy", "icon_path": "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"},
-    {"title": "回测管理", "url": "/strategy/backtest", "icon_path": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"},
+    {
+        "title": "策略列表",
+        "url": "/strategy",
+        ("icon_path"): (
+            "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 "
+            "0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+        ),
+    },
+    {
+        "title": "回测管理",
+        "url": "/strategy/backtest",
+        "icon_path": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+    },
     {"title": "实盘运行", "url": "/trade/live", "icon_path": "M13 10V3L4 14h7v7l9-11h-7z"},
 ]
 
 ANALYSIS_MENU = [
-    {"title": "分析导航", "url": "/analysis", "icon_path": "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"},
-    {"title": "收益分析", "url": "/analysis/returns", "icon_path": "M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"},
-    {"title": "风险分析", "url": "/analysis/risk", "icon_path": "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"},
-    {"title": "交易统计", "url": "/analysis/trades", "icon_path": "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"},
+    {
+        "title": "分析导航",
+        "url": "/analysis",
+        ("icon_path"): (
+            "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 "
+            "0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 "
+            "012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        ),
+    },
+    {
+        "title": "收益分析",
+        "url": "/analysis/returns",
+        ("icon_path"): (
+            "M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
+        ),
+    },
+    {
+        "title": "风险分析",
+        "url": "/analysis/risk",
+        ("icon_path"): (
+            "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 "
+            "4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        ),
+    },
+    {
+        "title": "交易统计",
+        "url": "/analysis/trades",
+        ("icon_path"): (
+            "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 "
+            "0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 "
+            "012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        ),
+    },
 ]
 
-SIDEBAR_MENUS = {
+SIDEBAR_MENUS: dict[str, list[dict[str, Any]]] = {
     "首页": HOME_MENU,
     "系统维护": SYSTEM_MAINTENANCE_MENU,
     "数据管理": SYSTEM_MAINTENANCE_MENU,
@@ -103,7 +266,8 @@ SIDEBAR_MENUS = {
 }
 
 STATIC_HEADER_ITEMS: list[dict[str, object]] = [
-    {"title": "策略", "url": "/strategy"},
+    {"title": "因子", "url": "/factors", "boost": True},
+    {"title": "策略", "url": "/strategy", "boost": True},
     {"title": "系统维护", "url": "/system"},
     {"title": "实盘", "url": "/trade/live/"},
 ]
@@ -116,7 +280,7 @@ def _build_paper_entry(req: object | None = None) -> dict[str, object]:
     - 1 账户：单按钮，跳 `/trade/paper/?account_id=<id>`
     - 2+ 账户：带 `children` 列表，浏览器原生 `<details>` 渲染下拉
     """
-    sims: list[dict] = []
+    sims: list[dict[str, Any]] = []
     reg = None
     if req is not None:
         reg = getattr(req, "scope", {}).get("registry")
@@ -177,11 +341,11 @@ def build_header_menu(trade_enabled: bool, req: object | None = None) -> list[di
 HEADER_MENU = STATIC_HEADER_ITEMS
 
 
-def _without_live_items(items: list[dict]) -> list[dict]:
+def _without_live_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Remove private-edition live entries from a copied menu tree."""
     if supports_live_trading():
         return items
-    filtered: list[dict] = []
+    filtered: list[dict[str, Any]] = []
     for item in items:
         if item.get("title") in {"实盘", "实盘运行", "交易网关"}:
             continue
@@ -208,20 +372,23 @@ def _is_htmx_request(req: object | None) -> bool:
 class MainLayout(BaseLayout):
     """主页面布局，包含 header 和 sidebar。"""
 
-    def __init__(self, title: str | None = None, user: str | None = None):
+    def __init__(self, title: str | None = None, user: str | None = None) -> None:
         branding = get_branding()
         resolved_title = title or f"{branding.product_name} 系统"
         super().__init__(page_title=resolved_title)
         self.title = resolved_title
         self.user = user
-        self.header_accounts: list[dict] = []
-        self.active_account: dict | None = None
+        self.header_accounts: list[dict[str, Any]] = []
+        self.active_account: dict[str, Any] | None = None
         self.header_active = ""
         self.header_menu = _without_live_items(copy.deepcopy(HEADER_MENU))
-        self.sidebar_menu: list[dict] | None = None
+        self.sidebar_menu: list[dict[str, Any]] | None = None
+        self.sidebar_search: str | None = None
         self._sidebar_active_url: str = "/"
+        self._main_block_override: Any = None
+        self.content_max_width = "max-w-[1280px]"
 
-    def set_sidebar_active(self, url: str):
+    def set_sidebar_active(self, url: str) -> None:
         """设置当前高亮的 sidebar 菜单项。"""
         self._sidebar_active_url = url
 
@@ -244,6 +411,8 @@ class MainLayout(BaseLayout):
         url = str(self._sidebar_active_url or "").strip()
         title = str(self.title or "")
 
+        if url.startswith("/factors"):
+            return "因子"
         if url.startswith("/data") or url.startswith("/system"):
             return "系统维护"
         if url.startswith("/strategy") or "策略" in title:
@@ -257,7 +426,7 @@ class MainLayout(BaseLayout):
 
         return ""
 
-    def _get_sidebar_menu(self) -> list[dict]:
+    def _get_sidebar_menu(self) -> list[dict[str, Any]]:
         """根据当前选中的一级菜单获取对应的 sidebar 菜单。"""
         menu_source = self.sidebar_menu
         if menu_source is None:
@@ -280,7 +449,7 @@ class MainLayout(BaseLayout):
             return False
         return bool(status.get("simulation"))
 
-    def _build_alert_context(self) -> dict[str, object]:
+    def _build_alert_context(self) -> AlertContext:
         """构建 header 告警中心上下文。"""
         try:
             risk_summary = strategy_runtime_manager.risk_summary()
@@ -302,7 +471,7 @@ class MainLayout(BaseLayout):
             "runtime_summary": runtime_summary,
         }
 
-    def _resolve_accounts(self) -> tuple[list[dict], dict | None]:
+    def _resolve_accounts(self) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         """解析 header 账户摘要。"""
         accounts = list(self.header_accounts)
         active_account = self.active_account
@@ -317,87 +486,111 @@ class MainLayout(BaseLayout):
         for kind in kinds:
             for info in reg.list_by_kind(kind):
                 account = {
-                    "id": info.get("id"),
-                    "name": info.get("name") or info.get("id"),
-                    "kind": kind.value,
-                    "label": "实盘" if kind == BrokerKind.QMT else "仿真",
-                    "status": info.get("status", False),
-                    "is_live": kind == BrokerKind.QMT,
+                    **listed_account(kind, info),
                     "switch_url": f"/home?kind={kind.value}&id={info.get('id')}",
                 }
                 accounts.append(account)
-                if default_account and default_account[0] == kind.value and default_account[1] == info.get("id"):
+                if (
+                    default_account
+                    and default_account[0] == kind.value
+                    and default_account[1] == info.get("id")
+                ):
                     active_account = account
         return accounts, active_account
 
-    def main_block(self):
-        """主内容块，子类需要重写此方法。"""
+    def set_main_block(self, block: Any) -> None:
+        """Replace the rendered page content for this layout instance."""
+        self._main_block_override = block
+
+    def main_block(self) -> Any:
+        """Render the default page body; subclasses may extend it via super()."""
         return Div(H1(self.title), P("这是页面的主要内容区域。"), cls="p-4")
 
-    def _fragment_navigation_enabled(self) -> bool:
-        return self._resolve_header_active() == "系统维护"
+    @staticmethod
+    def _request_path(req: Request | None) -> str:
+        url = getattr(req, "url", None)
+        return str(getattr(url, "path", "") or "")
 
-    def _resolve_main_content(self):
-        override = self.__dict__.get("main_block")
+    def _top_tab_navigation(self, req: Request | None) -> bool:
+        path = self._request_path(req)
+        return path.startswith("/factors") or path.startswith("/strategy")
+
+    def _fragment_navigation_enabled(self, req: Request | None = None) -> bool:
+        return self._resolve_header_active() == "系统维护" or self._top_tab_navigation(req)
+
+    def _resolve_main_content(self) -> Any:
+        override = self._main_block_override
+        if override is None:
+            override = self.__dict__.get("main_block")
         if override is None:
             return self.main_block()
         if inspect.isfunction(override) or inspect.ismethod(override):
             return override()
         return override
 
-    def _build_main_container(self):
+    def _build_main_container(self) -> Any:
         return Main(
             self._resolve_main_content(),
             id="layout-main-content",
             cls="flex-1 min-w-0 p-6 w-full",
         )
 
-    def _build_sidebar(self, *, fragment_navigation_enabled: bool, hx_swap_oob: bool = False):
+    def _build_sidebar(
+        self, *, fragment_navigation_enabled: bool, hx_swap_oob: bool = False
+    ) -> Any:
         return sidebar_component(
             self._get_sidebar_menu(),
             enable_fragment_navigation=fragment_navigation_enabled,
             hx_swap_oob=hx_swap_oob,
+            search_placeholder=self.sidebar_search,
         )
 
-    def render(self, req=None):
+    def _build_header(self, req: Request | None, *, hx_swap_oob: bool = False) -> Any:
+        accounts, active_account = self._resolve_accounts()
+        alert_context = self._build_alert_context()
+        return header_component(
+            logo="/static/logo.png",
+            brand=get_branding().product_name,
+            nav_items=build_header_menu(self._trade_entries_enabled(), req=req),
+            user=self.user,
+            accounts=accounts,
+            active_account=active_account,
+            active_title=self._resolve_header_active(),
+            unread_count=int(alert_context["unread_count"]),
+            risk_summary=alert_context["risk_summary"],
+            recent_risk_events=alert_context["recent_risk_events"],
+            runtime_summary=alert_context["runtime_summary"],
+            hx_swap_oob=hx_swap_oob,
+        )
+
+    def render(self, req: Request | None = None) -> Any:
         """渲染主页面。"""
-        fragment_navigation_enabled = self._fragment_navigation_enabled()
+        fragment_navigation_enabled = self._fragment_navigation_enabled(req)
         if _is_htmx_request(req) and fragment_navigation_enabled:
-            return (
+            fragments: tuple[Any, ...] = (
                 self._build_main_container(),
                 self._build_sidebar(
                     fragment_navigation_enabled=fragment_navigation_enabled,
                     hx_swap_oob=True,
                 ),
             )
-
-        accounts, active_account = self._resolve_accounts()
-        alert_context = self._build_alert_context()
-        from quantide.web.theme import AppTheme
+            if self._top_tab_navigation(req):
+                fragments += (
+                    Title(self.title, id="page-title", hx_swap_oob="true"),
+                    self._build_header(req, hx_swap_oob=True),
+                )
+            return fragments
 
         return (
-            Title(self.title),
-            *AppTheme.headers(),
+            Title(self.title, id="page-title"),
             Div(
-                header_component(
-                    logo="/static/logo.png",
-                    brand=get_branding().product_name,
-                    nav_items=build_header_menu(self._trade_entries_enabled(), req=req),
-                    user=self.user,
-                    accounts=accounts,
-                    active_account=active_account,
-                    active_title=self._resolve_header_active(),
-                    unread_count=int(alert_context["unread_count"]),
-                    risk_summary=alert_context["risk_summary"],
-                    recent_risk_events=alert_context["recent_risk_events"],
-                    runtime_summary=alert_context["runtime_summary"],
-                ),
+                self._build_header(req),
                 Div(
                     self._build_sidebar(
                         fragment_navigation_enabled=fragment_navigation_enabled,
                     ),
                     self._build_main_container(),
-                    cls="flex max-w-[1280px] mx-auto w-full flex-1",
+                    cls=f"flex {self.content_max_width} mx-auto w-full flex-1",
                 ),
                 cls="flex flex-col min-h-screen",
             ),

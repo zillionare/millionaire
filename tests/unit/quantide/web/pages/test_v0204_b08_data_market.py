@@ -97,9 +97,10 @@ async def test_do_update_bad_date_returns_error():
 
 
 @_pt.mark.asyncio
-async def test_do_update_valid_date():
+async def test_do_update_valid_date(monkeypatch):
     """Valid date → returns progress modal."""
     from quantide.web.pages.data_market import do_update
+    monkeypatch.setattr("quantide.service.data_sync.data_sync_service.run", lambda task_id: True)
     req = MagicMock()
     req.form = AsyncMock(return_value={"start_date": "2024-01-01", "end_date": "2024-06-30"})
     resp = await do_update(req)
@@ -158,5 +159,3 @@ def test_browse_tab_with_data():
         req.query_params = {"asset": "000001.SZ", "start": "2024-01-01", "end": "2024-12-31"}
         out = _BrowseTab(req)
     assert out is not None
-
-

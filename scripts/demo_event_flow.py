@@ -1,9 +1,11 @@
 import asyncio
 import datetime
+import tempfile
 
 from quantide.service.simulation_broker import SimulationBroker
 
 from quantide.core.message import msg_hub
+from scripts.artifact_paths import artifact_root
 
 
 class Cfg:
@@ -29,13 +31,17 @@ async def publish_quotes(asset: str, base_tm: datetime.datetime, price: float, v
         await asyncio.sleep(0.01)
 
 
-async def main():
+def _prepare_demo_data():
+    """Create local calendar/security fixtures before starting the event simulation."""
     from pathlib import Path
 
     import pandas as pd
 
     from quantide.data import init_data
-    base = Path("./.demo_store")
+
+    directory = artifact_root() / "work"
+    directory.mkdir(parents=True, exist_ok=True)
+    base = Path(tempfile.mkdtemp(prefix="event-flow-", dir=directory))
     (base / "data").mkdir(parents=True, exist_ok=True)
     # 预创建最小交易日历，避免远程获取
     t0 = datetime.datetime.now()
@@ -61,21 +67,31 @@ async def main():
     stocks.to_parquet(base / "data/stock_list.parquet", index=False)
     # 初始化本地数据与SQLite
     init_data(base)
+    return t0
+
+
+async def main():
+    t0 = _prepare_demo_data()
     broker = SimulationBroker(Cfg())
     asset = "000001.SZ"
-    buy_task = asyncio.create_task(broker.buy(asset=asset, shares=500, price=10.0, bid_time=t0, timeout=2.0))
+    buy_task = asyncio.create_task(
+        broker.buy(asset=asset, shares=500, price=10.0, bid_time=t0, timeout=2.0)
+    )
     await publish_quotes(asset, t0, 10.0, [100, 100, 100, 100, 100])
     await buy_task
-    t1_date = (t0.date() + datetime.timedelta(days=1))
+    t1_date = t0.date() + datetime.timedelta(days=1)
     broker.on_day_open(t1_date)
     sell_tm = t0 + datetime.timedelta(days=1)
-    sell_task = asyncio.create_task(broker.sell(asset=asset, shares=500, price=10.5, bid_time=sell_tm, timeout=2.0))
+    sell_task = asyncio.create_task(
+        broker.sell(asset=asset, shares=500, price=10.5, bid_time=sell_tm, timeout=2.0)
+    )
     await publish_quotes(asset, sell_tm, 10.5, [200, 300])
     await sell_task
     broker.on_day_close(t1_date)
     t2_date = t1_date + datetime.timedelta(days=1)
     broker.on_day_open(t2_date)
     from quantide.data.sqlite import db
+
     trades = db.trades_all()
     positions = db.positions_all()
     assets = db.assets_all()

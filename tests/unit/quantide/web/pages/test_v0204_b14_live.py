@@ -188,7 +188,7 @@ async def test_place_order_buy_calls_broker_buy():
 
 @pytest.mark.asyncio
 async def test_place_order_sell_calls_broker_sell():
-    """SELL side -> broker.sell awaited; default price 0 shares 0 if missing."""
+    """SELL submits a positive share count and defaults price to market."""
     broker = MagicMock()
     broker.buy = AsyncMock()
     broker.sell = AsyncMock()
@@ -197,9 +197,9 @@ async def test_place_order_sell_calls_broker_sell():
     reg = MagicMock()
     reg.get.return_value = broker
     req = _request(scope={"registry": reg})
-    req.form = AsyncMock(return_value={"side": "SELL", "asset": "600000.SH"})
+    req.form = AsyncMock(return_value={"side": "SELL", "asset": "600000.SH", "shares": "100"})
     out = await place_order(req, portfolio_id="p1")
-    broker.sell.assert_awaited_once_with("600000.SH", 0, 0.0)
+    broker.sell.assert_awaited_once_with("600000.SH", 100, 0.0)
     broker.buy.assert_not_awaited()
     assert isinstance(out, tuple)
 

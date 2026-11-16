@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from quantide.web.pages import strategy_backtest_views
+from quantide.web.pages import strategy_metrics
+
+
+from quantide.web.services import trade_quote_view as trade_quotes
+
 import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -25,7 +31,7 @@ from quantide.web.pages.strategy import (
 
 @pytest.fixture(autouse=True)
 def private_edition_strategy_cases(monkeypatch):
-    monkeypatch.setattr(strategy_mod, "supports_live_trading", lambda: True)
+    monkeypatch.setattr('quantide.config.features.get_runtime_edition', lambda: 'zillionaire')
     if "acc_mod" in globals():
         monkeypatch.setattr(acc_mod, "supports_live_trading", lambda: True)
 
@@ -57,7 +63,7 @@ def test_normalize_backtest_tab_overview_default():
     assert _normalize_backtest_tab(None) == "overview"
 
 
-def test_normalize_backtest_tab_valid():
+def test_normalize_backtest_tab_valid_original_66():
     """[AC-NFR1101-01] test_normalize_backtest_tab_valid."""
     assert _normalize_backtest_tab("positions") == "positions"
 
@@ -106,7 +112,7 @@ def test_normalize_stats_strips_special_chars():
 # ---------------------------------------------------------------------------
 
 
-def test_to_number_none():
+def test_to_number_none_original_115():
     """[AC-NFR1101-01] test_to_number_none."""
     assert _to_number(None) is None
 
@@ -176,7 +182,7 @@ def test_metric_value_unparseable_returns_none():
 # ---------------------------------------------------------------------------
 
 
-def test_format_date_none():
+def test_format_date_none_original_185():
     """[AC-NFR1101-01] test_format_date_none."""
     assert _format_date(None) == "--"
 
@@ -237,7 +243,7 @@ def test_format_percent_invalid():
     assert _format_percent("not-a-number") == "--"
 
 
-def test_format_percent_none():
+def test_format_percent_none_original_246():
     """[AC-NFR1101-01] test_format_percent_none."""
     assert _format_percent(None) == "--"
 
@@ -247,7 +253,7 @@ def test_format_percent_decimal():
     assert _format_percent(0.5) == "50.0%"
 
 
-def test_format_percent_zero():
+def test_format_percent_zero_original_256():
     """[AC-NFR1101-01] test_format_percent_zero."""
     assert _format_percent(0) == "0.0%"
 
@@ -262,17 +268,17 @@ def test_format_percent_string_number():
 # ---------------------------------------------------------------------------
 
 
-def test_format_number_invalid():
+def test_format_number_invalid_original_271():
     """[AC-NFR1101-01] test_format_number_invalid."""
     assert _format_number("x") == "--"
 
 
-def test_format_number_none():
+def test_format_number_none_original_276():
     """[AC-NFR1101-01] test_format_number_none."""
     assert _format_number(None) == "--"
 
 
-def test_format_number_decimal():
+def test_format_number_decimal_original_281():
     """[AC-NFR1101-01] test_format_number_decimal."""
     assert _format_number(3.14) == "3.14"
 
@@ -287,19 +293,19 @@ def test_format_number_string():
 # ---------------------------------------------------------------------------
 
 
-def test_params_to_text_empty():
+def test_params_to_text_empty_original_296():
     """[AC-NFR1101-01] test_params_to_text_empty."""
     assert _params_to_text({}) == "--"
 
 
-def test_params_to_text_simple():
+def test_params_to_text_simple_original_301():
     """[AC-NFR1101-01] test_params_to_text_simple."""
     out = _params_to_text({"x": 1, "y": "abc"})
     assert "x=1" in out
     assert "y=abc" in out
 
 
-def test_params_to_text_dict_value():
+def test_params_to_text_dict_value_original_308():
     """[AC-NFR1101-01] Dict values are unwrapped to .get('default')."""
     out = _params_to_text({"x": {"default": "val1"}})
     assert "x=val1" in out
@@ -325,7 +331,7 @@ def test_format_number_invalid():
     assert _format_number("not-a-number") == "--"
 
 
-def test_format_number_none():
+def test_format_number_none_original_334():
     """[AC-NFR1101-01] test_format_number_none."""
     assert _format_number(None) == "--"
 
@@ -345,7 +351,7 @@ def test_format_number_string_int():
     assert _format_number("10") == "10.00"
 
 
-def test_params_to_text_empty():
+def test_params_to_text_empty_original_354():
     """[AC-NFR1101-01] test_params_to_text_empty."""
     assert _params_to_text({}) == "--"
 
@@ -459,26 +465,26 @@ from quantide.web.pages.strategy import (
 )
 
 
-def test_format_percent_none():
+def test_format_percent_none_original_468():
     """[AC-NFR1101-01] test_format_percent_none."""
     out = _format_percent(None)
     assert out == "--"
 
 
-def test_format_percent_zero():
+def test_format_percent_zero_original_474():
     """[AC-NFR1101-01] test_format_percent_zero."""
     out = _format_percent(0)
     assert "%" in out
 
 
-def test_format_percent_positive():
+def test_format_percent_positive_original_480():
     """[AC-NFR1101-01] test_format_percent_positive."""
     out = _format_percent(0.1234)
     assert "%" in out
     assert "12.3" in out
 
 
-def test_format_percent_negative():
+def test_format_percent_negative_original_487():
     """[AC-NFR1101-01] test_format_percent_negative."""
     out = _format_percent(-0.05)
     assert "%" in out
@@ -1465,7 +1471,7 @@ def test_resolve_trade_reference_dates_no_calendar():
     fetcher.fetch_calendar.side_effect = RuntimeError("calendar unavailable")
 
     with patch(
-        "quantide.web.pages.trade_main.calendar.get_trade_dates", return_value=[]
+        "quantide.web.services.trade_quote_view.calendar.get_trade_dates", return_value=[]
     ):
         out = _resolve_trade_reference_dates(fetcher, end, 5)
 
@@ -1585,7 +1591,7 @@ def test_build_strategy_rows_with_class_no_portfolios():
         __doc__ = "Sample strategy"
 
     strategies = {"strat1": FakeStrategy}
-    with _patch_strat.object(_strat_mod, "db") as mock_db:
+    with _patch_strat.object(strategy_backtest_views, "db") as mock_db:
         mock_df = _pl_strat.DataFrame()
         mock_db.get_portfolios_by_strategy = MagicMock(return_value=mock_df)
         rows = _build_strategy_rows(strategies)
@@ -1611,7 +1617,7 @@ def test_build_strategy_rows_with_history():
         "start": ["2024-01-01", "2024-06-01"],
         "end": ["2024-04-30", "2024-12-31"],
     })
-    with _patch_strat.object(_strat_mod, "db") as mock_db:
+    with _patch_strat.object(strategy_backtest_views, "db") as mock_db:
         mock_db.get_portfolios_by_strategy = MagicMock(return_value=portfolios_df)
         rows = _build_strategy_rows(strategies)
     assert len(rows) == 1
@@ -1635,7 +1641,7 @@ def test_build_strategy_rows_class_no_doc():
         pass
 
     strategies = {"strat1": NoDocStrategy}
-    with _patch_strat.object(_strat_mod, "db") as mock_db:
+    with _patch_strat.object(strategy_backtest_views, "db") as mock_db:
         mock_df = _pl_strat.DataFrame()
         mock_db.get_portfolios_by_strategy = MagicMock(return_value=mock_df)
         rows = _build_strategy_rows(strategies)
@@ -1651,7 +1657,7 @@ def test_build_strategy_rows_portfolios_no_height():
     strategies = {"s1": FakeStrategy}
     mock_df = MagicMock(spec=["is_empty"])  # No height attr
     mock_df.is_empty = MagicMock(return_value=True)
-    with _patch_strat.object(_strat_mod, "db") as mock_db:
+    with _patch_strat.object(strategy_backtest_views, "db") as mock_db:
         mock_db.get_portfolios_by_strategy = MagicMock(return_value=mock_df)
         rows = _build_strategy_rows(strategies)
     assert len(rows) == 1
@@ -1693,7 +1699,7 @@ def test_build_trade_rows_side_sell_enum():
         "amount": [1000.0],
         "fee": [1.0],
     }, schema_overrides={"side": _pl_strat.Object})
-    with _patch_strat.object(_strat_mod, "db") as mock_db:
+    with _patch_strat.object(strategy_metrics, "db") as mock_db:
         mock_db.trades_all = MagicMock(return_value=fake_trades)
         out = _build_trade_rows("p1")
     assert out[0]["side"] == "卖出"
@@ -1720,7 +1726,7 @@ def test_build_trade_rows_side_buy_enum():
         "amount": [2500.0],
         "fee": [2.5],
     }, schema_overrides={"side": _pl_strat.Object})
-    with _patch_strat.object(_strat_mod, "db") as mock_db:
+    with _patch_strat.object(strategy_metrics, "db") as mock_db:
         mock_db.trades_all = MagicMock(return_value=fake_trades)
         out = _build_trade_rows("p1")
     assert out[0]["side"] == "买入"
@@ -1742,8 +1748,8 @@ def test_build_backtest_rows_invalid_kind_string_skipped():
         "start": ["2024-01-01"],
         "end": ["2024-06-30"],
     })
-    with _patch_strat.object(_strat_mod, "db") as mock_db, \
-         _patch_strat.object(_strat_mod, "strategy_runtime_manager") as mock_mgr:
+    with _patch_strat.object(strategy_backtest_views, "db") as mock_db, \
+         _patch_strat.object(strategy_backtest_views, "strategy_runtime_manager") as mock_mgr:
         mock_db.portfolios_all = MagicMock(return_value=portfolios_df)
         mock_mgr.backtest_deployment_modes = MagicMock(return_value={})
         rows = _build_backtest_rows({})
@@ -1770,9 +1776,9 @@ def test_build_backtest_rows_params_fallback_to_strategy_cls():
         "start": ["2024-01-01"],
         "end": ["2024-06-30"],
     })
-    with _patch_strat.object(_strat_mod, "db") as mock_db, \
-         _patch_strat.object(_strat_mod, "strategy_runtime_manager") as mock_mgr, \
-         _patch_strat.object(_strat_mod, "_build_metrics_payload") as mock_metrics:
+    with _patch_strat.object(strategy_backtest_views, "db") as mock_db, \
+         _patch_strat.object(strategy_backtest_views, "strategy_runtime_manager") as mock_mgr, \
+         _patch_strat.object(strategy_backtest_views, "_build_metrics_payload") as mock_metrics:
         mock_db.portfolios_all = MagicMock(return_value=portfolios_df)
         mock_mgr.backtest_deployment_modes = MagicMock(return_value={})
         mock_metrics.return_value = {
@@ -1808,9 +1814,9 @@ def test_build_backtest_rows_uses_info_params_when_present():
         "start": ["2024-01-01"],
         "end": ["2024-06-30"],
     })
-    with _patch_strat.object(_strat_mod, "db") as mock_db, \
-         _patch_strat.object(_strat_mod, "strategy_runtime_manager") as mock_mgr, \
-         _patch_strat.object(_strat_mod, "_build_metrics_payload") as mock_metrics:
+    with _patch_strat.object(strategy_backtest_views, "db") as mock_db, \
+         _patch_strat.object(strategy_backtest_views, "strategy_runtime_manager") as mock_mgr, \
+         _patch_strat.object(strategy_backtest_views, "_build_metrics_payload") as mock_metrics:
         mock_db.portfolios_all = MagicMock(return_value=portfolios_df)
         mock_mgr.backtest_deployment_modes = MagicMock(return_value={})
         mock_metrics.return_value = {
@@ -1929,7 +1935,7 @@ async def test_run_backtest_happy_path_redirects_to_report():
     with _patch_strat.object(_strat_mod, "strategy_loader") as mock_loader, \
          _patch_strat.object(_strat_mod, "strategy_runtime_manager") as mock_mgr, \
          _patch_strat.object(_strat_mod, "BacktestRunner") as mock_runner_cls, \
-         _patch_strat.object(_strat_mod.asyncio, "get_running_loop") as mock_loop_fn, \
+         _patch_strat("quantide.service.background.start_background") as mock_background, \
          _patch_strat.object(_strat_mod.asyncio, "run") as mock_run:
         mock_loader.load_from_cache = MagicMock(
             return_value={"my_strat": FakeStrategy}
@@ -1937,14 +1943,12 @@ async def test_run_backtest_happy_path_redirects_to_report():
         mock_mgr.create_backtest_runtime = MagicMock()
         mock_mgr.complete_backtest_runtime = MagicMock()
         mock_runner_cls.return_value = MagicMock()
-        fake_loop = MagicMock()
-        fake_loop.run_in_executor = MagicMock()
-        mock_loop_fn.return_value = fake_loop
+        mock_background.side_effect = lambda coroutine: coroutine.close()
         out = await run_backtest(req, name="my_strat")
     assert out.headers.get("HX-Redirect") is not None
     assert "/strategy/backtest/" in out.headers["HX-Redirect"]
     mock_mgr.create_backtest_runtime.assert_called_once()
-    fake_loop.run_in_executor.assert_called_once()
+    mock_background.assert_called_once()
 
 
 @pytest.mark.asyncio

@@ -21,8 +21,10 @@ import polars as pl
 from loguru import logger
 
 from quantide.core.enums import Topics
+from quantide.core.market_time import market_now
 from quantide.core.message import msg_hub
 from quantide.core.scheduler import scheduler
+from quantide.service.scheduled_jobs import remove_owned_jobs
 
 #: 领取当日限价的任务 id
 _JOB_0900 = "limit_price_refresh_0900"
@@ -53,7 +55,7 @@ class LimitPriceRefresher:
     ) -> None:
         self._fetcher_factory = fetcher_factory or _default_fetcher
         self._store_factory = store_factory or _default_store
-        self._clock = clock or datetime.datetime.now
+        self._clock = clock or market_now
         if calendar is None:
             from quantide.data.models.calendar import calendar as default_calendar
 
@@ -66,6 +68,10 @@ class LimitPriceRefresher:
     # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
+    def stop(self) -> None:
+        """Remove this service's registrations before a subsequent lifespan."""
+        remove_owned_jobs(self, scheduler, ("limit_price_refresh_0900", "limit_price_refresh_0920"))
+
     def start(self) -> None:
         """注册定时任务并立即刷新一次（幂等）。"""
         with self._lock:

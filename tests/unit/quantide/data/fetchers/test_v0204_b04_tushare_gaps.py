@@ -506,11 +506,9 @@ def test_fetch_fina_audit_with_data_returns_renamed_dataframe(pro_handle) -> Non
 
 def test_fetch_dividend_with_data_returns_renamed_dataframe(pro_handle) -> None:
     """AC-FR0700-110: fetch_dividend renames trade_date→date and ts_code→asset."""
-    # Use a datetime64 dtype for trade_date so the format/unit conversion
-    # branch is not exercised (that branch is broken in production code).
     div_df = pd.DataFrame(
         {
-            "trade_date": pd.to_datetime(["2024-01-01"]),
+            "trade_date": ["20240101"],
             "ts_code": ["000001.SZ"],
             "dv_ttm": [0.5],
             "total_mv": [1e9],
@@ -525,6 +523,7 @@ def test_fetch_dividend_with_data_returns_renamed_dataframe(pro_handle) -> None:
     assert "date" in result.columns
     assert "asset" in result.columns
     assert len(result) == 1
+    assert result["date"].iloc[0] == pd.Timestamp("2024-01-01")
 
 
 # ---------------------------------------------------------------------------

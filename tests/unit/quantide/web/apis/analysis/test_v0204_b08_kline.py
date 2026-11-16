@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 from unittest.mock import MagicMock, patch
 
 import polars as pl
@@ -23,7 +24,7 @@ def test_feature_removed_returns_410():
     assert resp.status_code == 410
 
 
-def test_bars_to_list_empty():
+def test_bars_to_list_empty_original_27():
     """[AC-NFR1101-01] test_bars_to_list_empty."""
     df = pl.DataFrame()
     got = bars_to_list(df)
@@ -77,14 +78,14 @@ def test_bars_to_list_string():
     assert got[0]["dt"] == "2024-01-01"
 
 
-def test_add_ma_to_list_empty():
+def test_add_ma_to_list_empty_original_81():
     """[AC-NFR1101-01] test_add_ma_to_list_empty."""
     df = pl.DataFrame()
     got = add_ma_to_list(df, [5, 10])
     assert got == []
 
 
-def test_add_ma_to_list_with_ma():
+def test_add_ma_to_list_with_ma_original_88():
     """[AC-NFR1101-01] test_add_ma_to_list_with_ma."""
     df = pl.DataFrame({
         "frame": [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
@@ -241,7 +242,7 @@ def _fake_request(query_params):
     return req
 
 
-def test_kline_endpoint_basic():
+async def test_kline_endpoint_basic():
     """[AC-NFR1101-01] get_stock_kline returns JSONResponse with valid request."""
     from quantide.web.apis.analysis.kline import get_stock_kline
 
@@ -255,54 +256,61 @@ def test_kline_endpoint_basic():
     })
     with patch.object(km, "_get_stock_bars", return_value=fake_df):
         with patch.object(km, "bars_to_list", return_value=[{"date": "2024-06-01", "close": 10.0}]):
-            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "5,10"})
-            out = get_stock_kline(req, "000001.SZ")
+            req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
+            out = await get_stock_kline(req, "000001.SZ", **dict(req.query_params))
     # Returns Response
-    assert out is not None
+    assert out.status_code == 200
+    assert json.loads(out.body)["code"] == 0
+
+    assert json.loads(out.body)["data"]["items"][0]["close"] == 10.0
 
 
-def test_kline_endpoint_no_dates():
+async def test_kline_endpoint_no_dates():
     """[AC-NFR1101-01] No start/end → uses defaults (today - 365, today)."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     fake_df = pl3.DataFrame({"date": [dt.date.today()], "close": [10.0]})
     with patch.object(km, "_get_stock_bars", return_value=fake_df):
         with patch.object(km, "bars_to_list", return_value=[]):
             req = _fake_request({})
-            out = get_stock_kline(req, "000001.SZ")
-    assert out is not None
+            out = await get_stock_kline(req, "000001.SZ", **dict(req.query_params))
+    assert out.status_code == 200
+    assert json.loads(out.body)["code"] == 0
 
 
-def test_kline_endpoint_invalid_date():
+async def test_kline_endpoint_invalid_date():
     """[AC-NFR1101-01] Invalid date format → JSONResponse error."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     req = _fake_request({"start": "invalid"})
-    out = get_stock_kline(req, "000001.SZ")
-    assert out is not None
+    out = await get_stock_kline(req, "000001.SZ", **dict(req.query_params))
+    assert out.status_code == 400
+    assert json.loads(out.body)["code"] == 400
 
 
-def test_kline_endpoint_invalid_freq():
+async def test_kline_endpoint_invalid_freq():
     """[AC-NFR1101-01] Invalid freq → JSONResponse error."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km, "_get_stock_bars", return_value=fake_df):
         with patch.object(km, "bars_to_list", return_value=[]):
             req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "freq": "invalid"})
-            out = get_stock_kline(req, "000001.SZ")
-    assert out is not None
+            out = await get_stock_kline(req, "000001.SZ", **dict(req.query_params))
+    assert out.status_code == 400
+    assert json.loads(out.body)["code"] == 400
 
 
-def test_kline_endpoint_invalid_ma():
+async def test_kline_endpoint_invalid_ma():
     """[AC-NFR1101-01] Invalid ma param → JSONResponse error."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     fake_df = pl3.DataFrame({"date": [dt.date(2024, 6, 1)], "close": [10.0]})
     with patch.object(km, "_get_stock_bars", return_value=fake_df):
         with patch.object(km, "bars_to_list", return_value=[]):
             req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "abc"})
-            out = get_stock_kline(req, "000001.SZ")
-    assert out is not None
+            out = await get_stock_kline(req, "000001.SZ", **dict(req.query_params))
+    assert out.status_code == 400
+    assert json.loads(out.body)["code"] == 400
 
 
-def test_kline_endpoint_with_ma():
+async def test_kline_endpoint_with_ma():
     """[AC-NFR1101-01] With valid ma periods, returns MA data."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     fake_df = pl3.DataFrame({
@@ -316,17 +324,19 @@ def test_kline_endpoint_with_ma():
     with patch.object(km, "_get_bars_with_ma", return_value=fake_df):
         with patch.object(km, "add_ma_to_list", return_value=[]):
             req = _fake_request({"start": "2024-01-01", "end": "2024-06-30", "ma": "5"})
-            out = get_stock_kline(req, "000001.SZ")
-    assert out is not None
+            out = await get_stock_kline(req, "000001.SZ", **dict(req.query_params))
+    assert out.status_code == 200
+    assert json.loads(out.body)["code"] == 0
 
 
-def test_kline_endpoint_exception():
+async def test_kline_endpoint_exception():
     """[AC-NFR1101-01] Generic exception in data fetch → error response."""
     from quantide.web.apis.analysis.kline import get_stock_kline
     with patch.object(km, "_get_stock_bars", side_effect=Exception("boom")):
         req = _fake_request({"start": "2024-01-01", "end": "2024-06-30"})
-        out = get_stock_kline(req, "000001.SZ")
-    assert out is not None
+        out = await get_stock_kline(req, "000001.SZ", **dict(req.query_params))
+    assert out.status_code == 500
+    assert json.loads(out.body)["code"] == 500
 
 
 import asyncio

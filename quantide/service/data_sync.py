@@ -19,8 +19,8 @@ from typing import Any
 
 from loguru import logger
 
-from quantide.core.enums import FrameType
 from quantide.core.message import msg_hub
+from quantide.data.coverage import trading_sessions
 from quantide.data.models.sync_task import (
     STATUS_CANCELLED,
     STATUS_DONE,
@@ -31,6 +31,18 @@ from quantide.data.models.sync_task import (
     DataSyncTask,
 )
 from quantide.data.sqlite import db
+from quantide.service.minute_backfill import (
+    MINUTE_HISTORY_READY_TIME as MINUTE_HISTORY_READY_TIME,
+)
+from quantide.service.minute_backfill import (
+    MINUTE_HISTORY_START as MINUTE_HISTORY_START,
+)
+from quantide.service.minute_backfill import (
+    MinuteBackfill,
+)
+from quantide.service.minute_backfill import (
+    _minute_history_end as _minute_history_end,
+)
 
 #: 同步进度主题
 SYNC_PROGRESS_TOPIC = "data_sync_progress"
@@ -110,29 +122,25 @@ class DataSyncService:
             params=json.dumps(params.to_dict(), ensure_ascii=False),
             message="等待执行",
         )
-        db[DataSyncTask.__table_name__].insert(
-            task.to_dict(), pk=DataSyncTask.__pk__, replace=True
-        )
+        db[DataSyncTask.__table_name__].insert(task.to_dict(), pk=DataSyncTask.__pk__, replace=True)
         return task
 
     def get_task(self, task_id: str) -> DataSyncTask | None:
         """读取任务。"""
         self._ensure_table()
-        rows = list(
-            db[DataSyncTask.__table_name__].rows_where("task_id = ?", (task_id,))
-        )
+        rows = list(db[DataSyncTask.__table_name__].rows_where("task_id = ?", (task_id,)))
         if not rows:
             return None
         row = dict(rows[0])
-        return DataSyncTask(**{k: v for k, v in row.items() if k in DataSyncTask.__dataclass_fields__})
+        return DataSyncTask(
+            **{k: v for k, v in row.items() if k in DataSyncTask.__dataclass_fields__}
+        )
 
     def list_tasks(self, limit: int = 20) -> list[DataSyncTask]:
         """列出最近的任务。"""
         self._ensure_table()
         rows = list(
-            db[DataSyncTask.__table_name__].rows_where(
-                order_by="created_at desc", limit=limit
-            )
+            db[DataSyncTask.__table_name__].rows_where(order_by="created_at desc", limit=limit)
         )
         return [
             DataSyncTask(
@@ -200,16 +208,12 @@ class DataSyncService:
         try:
             for index, stage in enumerate(SYNC_STAGES):
                 if self._cancel.is_set():
-                    self._update_task(
-                        task_id, status=STATUS_CANCELLED, message="已取消"
-                    )
+                    self._update_task(task_id, status=STATUS_CANCELLED, message="已取消")
                     return False
                 if stage in done_stages:
                     continue
                 percent = int(index * 100 / len(SYNC_STAGES))
-                self._update_task(
-                    task_id, progress=percent, message=f"正在同步 {stage}..."
-                )
+                self._update_task(task_id, progress=percent, message=f"正在同步 {stage}...")
                 _publish(
                     {
                         "task_id": task_id,
@@ -237,6 +241,9 @@ class DataSyncService:
                             "message": f"{stage} 失败",
                         }
                     )
+                    return False
+                if self._cancel.is_set():
+                    self._update_task(task_id, status=STATUS_CANCELLED, message="已取消")
                     return False
                 done_stages.append(stage)
                 self._update_task(
@@ -313,10 +320,7 @@ class DataSyncService:
         _ = params
         from quantide.data.models.calendar import calendar
 
-        try:
-            calendar.update()
-        except Exception as exc:
-            logger.warning("交易日历更新失败: {}", exc)
+        calendar.update()
 
     def _sync_stock_list(self, params: SyncParams) -> None:
         """同步证券主数据。"""
@@ -326,32 +330,31 @@ class DataSyncService:
         fetcher = get_data_fetcher()
         frame = fetcher.fetch_stock_list()
         if frame is None or len(frame) == 0:
-            return
+            raise RuntimeError("证券列表同步无数据，保留已有数据")
         stock_list.save(frame)
 
     def _sync_daily_bars(self, params: SyncParams) -> None:
         """同步个股日线（按月批量）。"""
         from quantide.data.models.daily_bars import daily_bars
 
-        for chunk_start, chunk_end in self._month_ranges(
-            params.start_date, params.end_date
-        ):
+        for chunk_start, chunk_end in self._month_ranges(params.start_date, params.end_date):
             if self._cancel.is_set():
                 return
             daily_bars.fetch(chunk_start, chunk_end)
 
     def _sync_daily_basic(self, params: SyncParams) -> None:
         """同步市值/换手（按月批量）。"""
-        from quantide.core.enums import FrameType
         from quantide.data.models.calendar import calendar
         from quantide.data.models.daily_basic import daily_basic
 
-        for chunk_start, chunk_end in self._month_ranges(
-            params.start_date, params.end_date
-        ):
+        daily_basic.load()
+        available = (
+            set(daily_basic.data["date"].to_list()) if not daily_basic.data.is_empty() else set()
+        )
+        for chunk_start, chunk_end in self._month_ranges(params.start_date, params.end_date):
             if self._cancel.is_set():
                 return
-            dates = list(calendar.get_frames(chunk_start, chunk_end, FrameType.DAY))
+            dates = sorted(set(trading_sessions(calendar, chunk_start, chunk_end)) - available)
             if not dates:
                 continue
             daily_basic.update(dates=dates)
@@ -364,110 +367,20 @@ class DataSyncService:
         from quantide.data.fetchers.registry import get_data_fetcher
 
         fetcher = get_data_fetcher()
-        frame, _errors = fetcher.fetch_index_bars(
+        frame, errors = fetcher.fetch_index_bars(
             params.index_codes, params.start_date, params.end_date
         )
+        if errors:
+            raise RuntimeError(f"指数行情同步失败: {errors}")
         if frame is None or len(frame) == 0:
-            return
+            raise RuntimeError("指数行情同步无数据，保留已有数据")
         store = get_index_bars_store()
         store.append_data(_to_index_bars_frame(frame))
 
     def _sync_minute_bars(self, params: SyncParams) -> None:
-        """同步 30 分钟线：只使用 BaoStock，按标的补齐缺失区间。
-
-        历史/每日回补都以 BaoStock 为唯一来源（时间口径为 bar 收盘时刻）。
-        当日盘中数据由 ``MinuteBarAggregator`` 内存合成，不落盘；本阶段入库后
-        通知合成器丢弃对应日期。
-        """
-        from quantide.data import get_minute_bars_store
-        from quantide.data.fetchers.baostock_minute import (
-            BaostockMinuteFetcher,
-            BaostockThrottledError,
-        )
-        from quantide.data.fetchers.multi import BaostockMinuteAdapter
-        from quantide.data.models.calendar import calendar
-        from quantide.data.models.stocks import stock_list
-        from quantide.service.minute_bar_aggregator import minute_bar_aggregator
-
-        if not params.include_minute and not params.minute_assets:
-            return
-        assets = [str(a) for a in (params.minute_assets or []) if str(a).strip()]
-        if not assets and stock_list.size > 0:
-            assets = [str(a) for a in stock_list.data["asset"].to_list()]
-        if not assets:
-            logger.warning("30 分钟同步没有可用的标的（股票列表为空）")
-            return
-        period = str(params.minute_frequency or "30")
-        if period not in {"1", "5", "15", "30", "60"}:
-            period = "30"
-        store = get_minute_bars_store()
-        end_date = _minute_history_end(params.end_date)
-        if end_date is None:
-            logger.info("30 分钟线暂无已收盘可回补日期")
-            return
-        base_start = max(params.start_date, MINUTE_HISTORY_START)
-        last_dates = store.last_dates()
-
-        pending: list[tuple[str, datetime.date]] = []
-        for asset in assets:
-            last = last_dates.get(asset)
-            start = base_start
-            if last is not None and last >= start:
-                start = calendar.shift(last, 1, FrameType.DAY)
-            if start <= end_date:
-                pending.append((asset, start))
-        if not pending:
-            logger.info("30 分钟线已覆盖到 {}，无需回补", end_date)
-            minute_bar_aggregator.clear_between(base_start, end_date)
-            return
-
-        baostock = BaostockMinuteFetcher()
-        adapter = BaostockMinuteAdapter(baostock)
-        failures = 0
-        try:
-            for index, (asset, start) in enumerate(pending, start=1):
-                if self._cancel.is_set():
-                    return
-                try:
-                    frame, _errors = adapter.fetch_minute_bars(
-                        asset,
-                        start,
-                        end_date,
-                        period=period,
-                        count=100000,
-                    )
-                except BaostockThrottledError:
-                    raise
-                except Exception as exc:
-                    failures += 1
-                    logger.warning("BaoStock 30 分钟回补失败 {}: {}", asset, exc)
-                    continue
-                if frame is not None and not frame.empty:
-                    store.append_data(_to_minute_bars_frame(frame))
-                if index % 50 == 0 or index == len(pending):
-                    percent = 50 + int(index * 50 / len(pending))
-                    _publish(
-                        {
-                            "task_id": "",
-                            "stage": "minute_bars",
-                            "progress": min(percent, 100),
-                            "message": f"30 分钟回补 {index}/{len(pending)}",
-                        }
-                    )
-                    logger.info(
-                        "30 分钟回补进度 {}/{}（{}，从 {}）",
-                        index,
-                        len(pending),
-                        asset,
-                        start,
-                    )
-        finally:
-            baostock.close()
-
-        if failures:
-            logger.warning("30 分钟回补有 {} 只标的失败，保留内存合成数据", failures)
-        else:
-            minute_bar_aggregator.clear_between(base_start, end_date)
+        """Backfill supported minutes and evict only committed, verified intervals."""
+        if params.include_minute or params.minute_assets:
+            MinuteBackfill(params, self._cancel, _publish).run()
 
     def _sync_index_weight(self, params: SyncParams) -> None:
         """同步指数成分（逐期抓取，绕过 7000 行上限）。"""
@@ -481,38 +394,12 @@ class DataSyncService:
         snapshots = _month_end_snapshots(params.start_date, params.end_date)
         if not snapshots:
             return
-        frame, _errors = fetcher.fetch_index_weights(params.index_codes, snapshots)
+        frame, errors = fetcher.fetch_index_weights(params.index_codes, snapshots)
+        if errors:
+            raise RuntimeError(f"指数成分同步失败: {errors}")
         if frame is None or len(frame) == 0:
             return
         store.append_data(frame)
-
-
-#: BaoStock 30 分钟线最早可用日期（更早的请求会被自动截断）。
-MINUTE_HISTORY_START = datetime.date(2020, 1, 2)
-#: BaoStock 当日分钟线入库时间（保守取值，避免收盘后立即请求为空）。
-MINUTE_HISTORY_READY_TIME = datetime.time(17, 30)
-
-
-def _minute_history_end(
-    end_date: datetime.date, now: datetime.datetime | None = None
-) -> datetime.date | None:
-    """返回可回补的最后一个已收盘交易日。
-
-    当日 17:30 之前不入库（BaoStock 尚未更新）；非交易日回退到上一交易日。
-    返回 None 表示没有可回补日期。
-    """
-    from quantide.data.models.calendar import calendar
-
-    now = now or datetime.datetime.now()
-    today = now.date()
-    if end_date < today:
-        return end_date
-    if calendar.is_trade_day(today) and now.time() >= MINUTE_HISTORY_READY_TIME:
-        return today
-    try:
-        return calendar.day_shift(today, -1)
-    except Exception:  # pragma: no cover - 日历未初始化
-        return None
 
 
 def _to_minute_bars_frame(frame: Any) -> Any:
@@ -544,23 +431,17 @@ def _to_index_bars_frame(frame: Any) -> Any:
     return out
 
 
-def _month_end_snapshots(
-    start: datetime.date, end: datetime.date
-) -> list[datetime.date]:
+def _month_end_snapshots(start: datetime.date, end: datetime.date) -> list[datetime.date]:
     """列出区间内每个自然月的月末（成分快照日候选）。"""
     from quantide.data.models.calendar import calendar
 
     try:
-        frames = calendar.get_frames(start, end, __import__(
-            "quantide.core.enums", fromlist=["FrameType"]
-        ).FrameType.MONTH)
+        frames = calendar.get_frames(
+            start, end, __import__("quantide.core.enums", fromlist=["FrameType"]).FrameType.MONTH
+        )
     except Exception:  # pragma: no cover - 日历不可用
         frames = []
-    return [
-        f
-        for f in frames
-        if isinstance(f, datetime.date) and start <= f <= end
-    ]
+    return [f for f in frames if isinstance(f, datetime.date) and start <= f <= end]
 
 
 #: 全局单例

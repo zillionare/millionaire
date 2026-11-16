@@ -22,6 +22,7 @@ from quantide.core.runtime.gateway_broker import (
     GatewayBrokerWrapper,
 )
 from quantide.core.ports import OrderRequest
+import quantide.core.runtime.gateway_legacy as legacy_gateway
 
 
 def _make_wrapper() -> GatewayBrokerWrapper:
@@ -60,7 +61,6 @@ def test_maybe_attach_forming_bar_returns_hist_when_end_dt_before_open():
 def test_maybe_attach_forming_bar_returns_prev_bars_when_bar_none():
     """[AC-NFR1101-01] Returns _provider_get_bars when live_quote bar is None (line 190)."""
     wrapper = _make_wrapper()
-    wrapper._history_provider = None  # attribute referenced at line 191
     hist = MagicMock()
     today = dt.date(2024, 6, 1)
     end_dt = dt.datetime(2024, 6, 1, 10, 0)  # after 9:30
@@ -100,7 +100,7 @@ def test_compute_scheduled_at_post_auction_window():
     today = dt.date(2024, 6, 3)  # Monday
     next_trade = dt.date(2024, 6, 4)
     with patch.object(wrapper, "_today", return_value=today), \
-         patch.object(gb_mod.calendar, "day_shift", return_value=next_trade):
+         patch.object(legacy_gateway.calendar, "day_shift", return_value=next_trade):
         result = wrapper._compute_scheduled_at()
     assert result.date() == next_trade
     assert result.time() == dt.time(9, 30, 0, 1000)
@@ -122,7 +122,7 @@ def test_estimate_limit_price_handles_non_datetime_scheduled_at():
         "price": 10.0,
         "slippage": 0.0,
     }
-    with patch.object(gb_mod.daily_bars, "get_bars") as mock_get:
+    with patch.object(legacy_gateway.daily_bars, "get_bars") as mock_get:
         mock_get.return_value = MagicMock(
             is_empty=MagicMock(return_value=False),
             row=MagicMock(return_value={"close": 10.5}),
@@ -142,7 +142,7 @@ def test_estimate_limit_price_handles_key_error_for_scheduled_at():
         "slippage": 0.0,
     }
     with patch.object(wrapper, "_today", return_value=dt.date(2024, 6, 4)), \
-         patch.object(gb_mod.daily_bars, "get_bars") as mock_get:
+         patch.object(legacy_gateway.daily_bars, "get_bars") as mock_get:
         mock_get.return_value = MagicMock(
             is_empty=MagicMock(return_value=False),
             row=MagicMock(return_value={"open": 11.0}),
@@ -161,8 +161,8 @@ def test_estimate_limit_price_handles_calendar_exception_in_auction():
         "price": 10.0,
         "slippage": 0.0,
     }
-    with patch.object(gb_mod.calendar, "day_shift", side_effect=RuntimeError("cal error")), \
-         patch.object(gb_mod.daily_bars, "get_bars") as mock_get:
+    with patch.object(legacy_gateway.calendar, "day_shift", side_effect=RuntimeError("cal error")), \
+         patch.object(legacy_gateway.daily_bars, "get_bars") as mock_get:
         mock_get.return_value = MagicMock(
             is_empty=MagicMock(return_value=False),
             row=MagicMock(return_value={"close": 9.8}),

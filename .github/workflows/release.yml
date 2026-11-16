@@ -1,48 +1,88 @@
-name: build & release
+name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
+  push:
+    tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    if: startsWith(github.ref, 'refs/tags/')
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  live-data:
+    uses: ./.github/workflows/live-data.yml
+    with:
+      required: true
+    secrets:
+      TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+
+  publish:
+    name: publish
+    needs: [ci, live-data]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
     env:
       PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-
-      - name: Install Poetry
+      - name: Configure temporary artifacts
+        run: python -m scripts.artifact_paths --github-env
+      - name: Require tag and package version to match
+        if: github.event_name == 'push'
+        shell: python
         run: |
-          python -m pip install --upgrade pip
-          pip install poetry
-
-      - name: Build wheels and source tarball
-        run: |
-          poetry build
-          python scripts/validate_release_artifacts.py dist
-
+          import os, pathlib, sys, tomllib
+          metadata = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
+          expected = 'v' + metadata['tool']['poetry']['version']
+          if os.environ['GITHUB_REF_NAME'] != expected:
+              sys.exit(f'Release tag must be {expected}')
+      - name: Download the exact package tested by CI
+        uses: actions/download-artifact@v4
+        with:
+          name: package-ubuntu-latest
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/dist
+      - name: Download verified native installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/installers
+          merge-multiple: true
+      - name: Revalidate the tested artifacts
+        run: python -m scripts.validate_release_artifacts
+      - name: Verify clean checkout layout
+        run: python -m scripts.artifact_paths --check-layout
       - name: Create GitHub Release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
           generate_release_notes: true
-          files: dist/*
-
-      - name: Publish to PyPI
-        if: env.PYPI_API_TOKEN != ''
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ env.PYPI_API_TOKEN }}
-          skip-existing: true
+          files: |
+            ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/dist/*.whl
+            ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/dist/*.tar.gz
+            ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/installers/*
+          fail_on_unmatched_files: true
+      - name: Isolate Python distributions for PyPI
+        shell: python
+        run: |
+          import os, pathlib, shutil
+          target = pathlib.Path(os.environ['MILLIONAIRE_ARTIFACTS_DIR']) / 'pypi-dist'
+          target.mkdir(exist_ok=True)
+          for path in (pathlib.Path(os.environ['MILLIONAIRE_ARTIFACTS_DIR']) / 'dist').iterdir():
+              if path.is_file() and (path.suffix == '.whl' or path.name.endswith('.tar.gz')):
+                  shutil.copy2(path, target)
+      - name: Publish to PyPI when configured
+        if: github.event_name == 'push' && env.PYPI_API_TOKEN != ''
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m pip install twine==6.2.0
+          python -m twine upload --non-interactive "${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/pypi-dist/"*

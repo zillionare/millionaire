@@ -162,10 +162,7 @@ def list_backtest_logs(portfolio_id: str, limit: int = 200) -> list[dict[str, st
         return []
 
     logs_df = logs_df.sort(["dt", "event_id"]).tail(limit)
-    return [
-        _entry_to_row(BacktestLogEntry(**row))
-        for row in logs_df.iter_rows(named=True)
-    ]
+    return [_entry_to_row(BacktestLogEntry(**row)) for row in logs_df.iter_rows(named=True)]
 
 
 def load_saved_backtest_logs(
@@ -188,7 +185,7 @@ def load_saved_backtest_logs(
             entry = BacktestLogEntry(
                 event_id=str(payload.get("event_id") or uuid.uuid4().hex),
                 portfolio_id=str(payload.get("portfolio_id") or portfolio_id),
-                dt=dt_value,
+                dt=datetime.datetime.fromisoformat(dt_value),
                 level=str(payload.get("level") or "INFO"),
                 source=str(payload.get("source") or "system"),
                 message=str(payload.get("message") or ""),

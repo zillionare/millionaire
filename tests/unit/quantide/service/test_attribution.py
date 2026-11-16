@@ -172,7 +172,7 @@ def test_explain_prediction_sums_to_final_score(monkeypatch) -> None:
     # 用确定性的线性模型替代 LightGBM，验证归因的可加性
     weights = np.arange(1, len(FEATURE_COLS) + 1, dtype=float) / 100.0
     monkeypatch.setattr(
-        ml_momentum_reversal,
+        __import__("quantide.strategies.example._ml_explanation", fromlist=["_fit_ml_model"]),
         "_fit_ml_model",
         lambda *args, **kwargs: (weights, "Ridge"),
     )

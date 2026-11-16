@@ -1,0 +1,4 @@
+# Flake8 is exclusively the cognitive-complexity gate; Ruff owns other lint.
+[flake8]
+select = CCR001
+max-cognitive-complexity = 15

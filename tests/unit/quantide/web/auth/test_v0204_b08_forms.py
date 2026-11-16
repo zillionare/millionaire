@@ -28,7 +28,7 @@ def test_login_error_message_missing_fields_returns_none():
 def test_login_error_message_invalid():
     """[AC-FR1501-05] Invalid mapping is for the 'invalid' key."""
     msg = _login_error_message("invalid")
-    assert "账号或密码" in msg
+    assert "密码错误" in msg
 
 
 def test_login_error_message_inactive():

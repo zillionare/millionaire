@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from quantide.web.pages import wizard_state
+
+
 import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -309,35 +312,35 @@ def test_render_inline_error():
 
 def test_set_download_error_then_get():
     """[AC-NFR1101-01] test_set_download_error_then_get."""
-    iw_mod._download_error_message = None
+    wizard_state._download_error_message = None
     _set_download_error("boom")
-    assert iw_mod._download_error_message == "boom"
+    assert wizard_state._download_error_message == "boom"
 
 
 def test_set_download_error_empty_clears():
     """[AC-NFR1101-01] test_set_download_error_empty_clears."""
-    iw_mod._download_error_message = "old"
+    wizard_state._download_error_message = "old"
     _set_download_error("")
-    assert iw_mod._download_error_message is None
+    assert wizard_state._download_error_message is None
 
 
 def test_set_download_error_strips_whitespace():
     """[AC-NFR1101-01] test_set_download_error_strips_whitespace."""
-    iw_mod._download_error_message = None
+    wizard_state._download_error_message = None
     _set_download_error("  boom  ")
-    assert iw_mod._download_error_message == "boom"
+    assert wizard_state._download_error_message == "boom"
 
 
-def test_get_download_error_step5_uses_global():
-    """[AC-NFR1101-01] test_get_download_error_step5_uses_global."""
-    iw_mod._download_error_message = "global-msg"
-    got = _get_download_error(step=5)
+def test_get_download_error_step6_uses_global():
+    """[AC-NFR1101-01] test_get_download_error_step6_uses_global."""
+    wizard_state._download_error_message = "global-msg"
+    got = _get_download_error(step=6)
     assert got == "global-msg"
 
 
 def test_get_download_error_step_not_5():
     """[AC-NFR1101-01] test_get_download_error_step_not_5."""
-    iw_mod._download_error_message = "global-msg"
+    wizard_state._download_error_message = "global-msg"
     got = _get_download_error(step=1)
     assert got is None
 
@@ -355,11 +358,11 @@ def test_get_download_error_explicit_overrides():
 
 def test_set_reconfigure_mode():
     """[AC-NFR1101-01] test_set_reconfigure_mode."""
-    iw_mod._reconfigure_mode_active = False
+    wizard_state._reconfigure_mode_active = False
     _set_reconfigure_mode(True)
-    assert iw_mod._reconfigure_mode_active is True
+    assert wizard_state._reconfigure_mode_active is True
     _set_reconfigure_mode(False)
-    assert iw_mod._reconfigure_mode_active is False
+    assert wizard_state._reconfigure_mode_active is False
 
 
 def test_request_in_force_mode_true():
@@ -385,14 +388,14 @@ def test_request_in_force_mode_no_force():
 
 def test_with_force_query_not_in_reconfigure():
     """[AC-NFR1101-01] test_with_force_query_not_in_reconfigure."""
-    iw_mod._reconfigure_mode_active = False
+    wizard_state._reconfigure_mode_active = False
     out = _with_force_query("/path")
     assert out == "/path"
 
 
 def test_with_force_query_in_reconfigure_no_q():
     """[AC-NFR1101-01] test_with_force_query_in_reconfigure_no_q."""
-    iw_mod._reconfigure_mode_active = True
+    wizard_state._reconfigure_mode_active = True
     out = _with_force_query("/path")
     assert "force=true" in out
     assert out == "/path?force=true"
@@ -400,7 +403,7 @@ def test_with_force_query_in_reconfigure_no_q():
 
 def test_with_force_query_in_reconfigure_with_q():
     """[AC-NFR1101-01] test_with_force_query_in_reconfigure_with_q."""
-    iw_mod._reconfigure_mode_active = True
+    wizard_state._reconfigure_mode_active = True
     out = _with_force_query("/path?x=1")
     assert out == "/path?x=1&force=true"
 
@@ -413,17 +416,17 @@ def test_with_force_query_in_reconfigure_with_q():
 def test_update_sync_status_sets_progress():
     """[AC-NFR1101-01] test_update_sync_status_sets_progress."""
     _update_sync_status(50, "mid", "half way", completed=False, error=None)
-    assert iw_mod._sync_status["progress"] == 50
-    assert iw_mod._sync_status["stage"] == "mid"
-    assert iw_mod._sync_status["message"] == "half way"
-    assert iw_mod._sync_status["completed"] is False
-    assert iw_mod._sync_status["error"] is None
+    assert wizard_state._sync_status["progress"] == 50
+    assert wizard_state._sync_status["stage"] == "mid"
+    assert wizard_state._sync_status["message"] == "half way"
+    assert wizard_state._sync_status["completed"] is False
+    assert wizard_state._sync_status["error"] is None
 
 
 def test_update_sync_status_no_message_uses_stage():
     """[AC-NFR1101-01] test_update_sync_status_no_message_uses_stage."""
     _update_sync_status(0, "start", message=None)
-    assert iw_mod._sync_status["message"] == "start"
+    assert wizard_state._sync_status["message"] == "start"
 
 
 # ---------------------------------------------------------------------------

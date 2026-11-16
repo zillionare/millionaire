@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from starlette.testclient import TestClient
 
@@ -14,6 +15,8 @@ from quantide.config.paths import clear_app_config_dir_override
 from quantide.service.init_wizard import init_wizard
 from quantide.web.auth.manager import AuthManager
 from quantide.web.pages import init_wizard as init_wizard_page
+from quantide.web.pages import wizard_state
+from tests.init_access_support import AccessClient
 
 
 _SYNC_STATUS_TEMPLATE = {
@@ -28,7 +31,8 @@ _SYNC_STATUS_TEMPLATE = {
 
 
 def _reset_init_wizard_page_state() -> None:
-    init_wizard_page._sync_status = dict(_SYNC_STATUS_TEMPLATE)
+    wizard_state._sync_status.clear()
+    wizard_state._sync_status.update(_SYNC_STATUS_TEMPLATE)
     init_wizard_page._set_download_error(None)
     init_wizard_page._set_reconfigure_mode(False)
 
@@ -64,7 +68,10 @@ def init_wizard_e2e_session():
                 app_config_dir=app_config_dir,
                 enforce_single_instance=False,
             )
-            with TestClient(app) as client:
+            with TestClient(app) as client, patch(
+                "quantide.service.data_source_access.create_probe_client",
+                side_effect=lambda token: AccessClient(),
+            ):
                 yield InitWizardE2ESession(
                     client=client,
                     market_home=market_home,

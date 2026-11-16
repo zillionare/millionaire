@@ -9,15 +9,16 @@
 """
 
 import datetime
+from collections.abc import Callable
 from pathlib import Path
 
 import polars as pl
 
 from quantide.data.models.calendar import Calendar
-from quantide.data.stores.base import ParquetStorage, _as_datetime_bound
+from quantide.data.stores.bar_store import BarStore
 
 
-class MinuteBarsStore(ParquetStorage):
+class MinuteBarsStore(BarStore):
     """30分钟行情存储类。
 
     使用 Parquet 文件存储，按年分区。
@@ -27,24 +28,10 @@ class MinuteBarsStore(ParquetStorage):
     读取时需通过 DailyBars 关联复权因子与涨跌停，或由调用方自行处理。
     """
 
-    def __init__(self, path: str | Path, calendar: Calendar):
-        path = Path(path).expanduser()
-        if path.suffix == ".parquet":
-            partition_by = None
-        else:
-            partition_by = "year"
+    def __init__(self, path: str | Path, calendar: Calendar) -> None:
+        super().__init__("MinuteBars", path, calendar, "asset")
 
-        super().__init__(
-            "MinuteBars",
-            path,
-            calendar,
-            None,
-            error_handler=None,
-            partition_by=partition_by,
-        )
-        self._id_cols = ["date", "asset"]
-
-    def get(
+    def get(  # type: ignore[override]
         self,
         assets: list[str] | None = None,
         start: datetime.date | datetime.datetime | None = None,
@@ -62,32 +49,14 @@ class MinuteBarsStore(ParquetStorage):
         Returns:
             pl.DataFrame 或 pl.LazyFrame，列：date, asset, open, high, low, close, volume, amount
         """
-        lf = self._scan_store(keep_partition_col=False)
-        if lf is None:
-            return pl.DataFrame() if eager_mode else pl.LazyFrame()
+        return self._read_bars(assets, start, end, eager_mode, full_day=True)
 
-        if start is not None:
-            lf = lf.filter(pl.col("date") >= _as_datetime_bound(start))
-        if end is not None:
-            if isinstance(end, datetime.datetime):
-                end_bound = end
-            else:
-                end_bound = datetime.datetime.combine(end, datetime.time.max)
-            lf = lf.filter(pl.col("date") <= pl.lit(end_bound))
-
-        if assets is not None:
-            lf = lf.filter(pl.col("asset").is_in(assets))
-
-        if eager_mode:
-            return lf.collect()
-        return lf
-
-    def fetch(
+    def fetch(  # type: ignore[override]
         self,
         asset: str,
         start: datetime.date,
         end: datetime.date,
-        progress_callback=None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> int:
         """获取并保存指数行情数据。
 
@@ -111,26 +80,3 @@ class MinuteBarsStore(ParquetStorage):
             for asset, last in zip(df["asset"].to_list(), df["last"].to_list(), strict=True)
             if last is not None
         }
-
-    def rec_counts_per_date(
-        self, start: datetime.date | None = None, end: datetime.date | None = None
-    ) -> dict[datetime.date, int]:
-        """获取每个交易日期的记录数量统计。"""
-        lazy = self._scan_store(keep_partition_col=False)
-        if lazy is None:
-            return {}
-
-        lazy = lazy.with_columns(pl.col("date").cast(pl.Date))
-
-        if start is not None:
-            lazy = lazy.filter(pl.col("date").dt.strftime("%F") >= start.isoformat())
-        if end is not None:
-            lazy = lazy.filter(pl.col("date").dt.strftime("%F") <= end.isoformat())
-
-        df = lazy.group_by("date").agg(pl.len().alias("n")).collect()
-        dates = df["date"].to_list()
-        counts = df["n"].to_list()
-        result: dict[datetime.date, int] = {}
-        for d, c in zip(dates, counts, strict=True):
-            result[d] = int(c)
-        return result

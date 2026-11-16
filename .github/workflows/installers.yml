@@ -1,0 +1,77 @@
+name: Native installers
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: installer (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, target: ubuntu-amd64}
+          - {os: windows-latest, target: windows-x64}
+          - {os: macos-latest, target: macos-arm64}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Configure temporary artifacts
+        run: python -m scripts.artifact_paths --github-env
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.11'
+      - name: Download the exact library wheel tested by CI
+        uses: actions/download-artifact@v4
+        with:
+          name: package-ubuntu-latest
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/dist
+      - name: Install build tools
+        run: python -m pip install build==1.3.0
+      - name: Install native Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgomp1 libx11-6 libxext6 libxrender1 xvfb xauth
+      - name: Install macOS OpenMP runtime
+        if: runner.os == 'macOS'
+        run: brew list --versions libomp || brew install libomp
+      - name: Install Windows GUI installer compiler
+        if: runner.os == 'Windows'
+        run: python -m scripts.install_windows_compiler
+      - name: Build standalone installer from the tested wheel
+        shell: python
+        run: |
+          import os, pathlib, subprocess, sys
+          wheel = next((pathlib.Path(os.environ['MILLIONAIRE_ARTIFACTS_DIR']) / 'dist').glob('*.whl'))
+          subprocess.run([sys.executable, '-m', 'scripts.build_installer', '--wheel', str(wheel)], check=True)
+      - name: Verify clean install, restart recovery, upgrade and uninstall
+        shell: python
+        run: |
+          import os, pathlib, subprocess, sys
+          command = [sys.executable, '-m', 'scripts.verify_installer']
+          if os.name != 'nt' and sys.platform != 'darwin':
+              command = ['xvfb-run', '-a', 'sudo', '-E', *command]
+          subprocess.run(command, check=True)
+      - name: Verify clean checkout layout
+        run: python -m scripts.artifact_paths --check-layout
+      - name: Retain only verified installers and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.target }}
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/installers/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload native installation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installation-evidence-${{ matrix.target }}
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/installers/
+          if-no-files-found: warn
+          retention-days: 30

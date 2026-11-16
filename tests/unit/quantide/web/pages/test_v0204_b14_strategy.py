@@ -13,6 +13,12 @@ Target lines:
 
 from __future__ import annotations
 
+from quantide.web.pages import strategy_report_views
+from quantide.web.pages import strategy_log_views
+from quantide.web.pages import strategy_metrics
+from quantide.web.pages import strategy_scanning
+
+
 import datetime as dt
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -65,9 +71,7 @@ def test_scan_confirm_modal_renders(monkeypatch):
 
 def test_scan_confirm_modal_empty_dirs(monkeypatch):
     """scan_confirm_modal with empty scan dirs still renders."""
-    monkeypatch.setattr(
-        strategy_mod.strategy_loader, "get_scan_directories", lambda: []
-    )
+    monkeypatch.setattr(strategy_mod.strategy_loader, "get_scan_directories", lambda: [])
     out = scan_confirm_modal(MagicMock())
     text = strategy_mod.to_xml(out) if not isinstance(out, str) else out
     assert "确认扫描" in text
@@ -114,6 +118,21 @@ def test_config_modal_html_default_message_branch(monkeypatch):
     assert "用户策略目录" in text
 
 
+def test_config_modal_buttons_use_outlined_default_style(monkeypatch):
+    """取消使用中性描边；保存作为默认操作使用匡醍红描边且无背景色。"""
+    monkeypatch.setattr(
+        strategy_mod.strategy_loader,
+        "get_builtin_scan_directory",
+        lambda: "/builtin",
+    )
+    out = _config_modal_html("/some/dir", is_error=False, error_message="")
+    text = strategy_mod.to_xml(out) if not isinstance(out, str) else out
+
+    assert "bg-transparent border border-gray-300" in text
+    assert "q-btn--outline-brand" in text
+    assert "bg-[#e41815] text-white" not in text
+
+
 # ---------------------------------------------------------------------------
 # save_scan_config: line 3258 (success Modal)
 # ---------------------------------------------------------------------------
@@ -123,12 +142,10 @@ def test_config_modal_html_default_message_branch(monkeypatch):
 async def test_save_scan_config_success_returns_saved_modal(monkeypatch):
     """save_scan_config with valid absolute path -> Modal '配置已保存' (line 3258)."""
     req = _make_req(form_data={"scan-dir-input": "/tmp/strategies"})
-    monkeypatch.setattr(
-        strategy_mod.strategy_loader, "set_scan_directory", lambda d: None
-    )
+    monkeypatch.setattr(strategy_mod.strategy_loader, "set_scan_directory", lambda d: None)
     # Stub _normalize_scan_directory to skip filesystem existence check.
     monkeypatch.setattr(
-        strategy_mod,
+        strategy_scanning,
         "_normalize_scan_directory",
         lambda d: (d, MagicMock()),
     )
@@ -146,10 +163,10 @@ async def test_save_scan_config_success_returns_saved_modal(monkeypatch):
 def test_load_saved_backtest_log_panel_success(monkeypatch):
     """load_saved_backtest_log_panel with rows -> _build_log_panel called."""
     monkeypatch.setattr(
-        strategy_mod, "_resolve_backtest_status", lambda pid: ("finished", "")
+        strategy_log_views, "_resolve_backtest_status", lambda pid: ("finished", "")
     )
     monkeypatch.setattr(
-        strategy_mod,
+        strategy_log_views,
         "load_saved_backtest_logs",
         lambda pid, limit=200: [
             {
@@ -162,7 +179,7 @@ def test_load_saved_backtest_log_panel_success(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        strategy_mod,
+        strategy_log_views,
         "_build_log_meta",
         lambda pid: {"save_requested": True, "saved": True, "saved_path": "/tmp/x.jsonl"},
     )
@@ -185,21 +202,17 @@ class _FakePageRequest:
         self.query_params = query or {}
 
 
-def _monkeypatch_backtest_helpers(monkeypatch, *, metrics=None,
-                                   positions_rows=None, trade_rows=None,
-                                   log_rows=None):
+def _monkeypatch_backtest_helpers(
+    monkeypatch, *, metrics=None, positions_rows=None, trade_rows=None, log_rows=None
+):
     """Apply common monkeypatches for backtest_result testing."""
     monkeypatch.setattr(
-        strategy_mod, "_resolve_backtest_status", lambda pid: ("finished", "")
+        strategy_report_views, "_resolve_backtest_status", lambda pid: ("finished", "")
     )
+    monkeypatch.setattr(strategy_report_views, "_build_metrics_payload", lambda pid: metrics or {})
+    monkeypatch.setattr(strategy_report_views, "_build_date_axis", lambda pid: ["2024-01-02"])
     monkeypatch.setattr(
-        strategy_mod, "_build_metrics_payload", lambda pid: metrics or {}
-    )
-    monkeypatch.setattr(
-        strategy_mod, "_build_date_axis", lambda pid: ["2024-01-02"]
-    )
-    monkeypatch.setattr(
-        strategy_mod,
+        strategy_report_views,
         "_build_series_payload",
         lambda pid, da: {
             "date_axis": da,
@@ -210,16 +223,16 @@ def _monkeypatch_backtest_helpers(monkeypatch, *, metrics=None,
         },
     )
     monkeypatch.setattr(
-        strategy_mod, "_build_trade_rows", lambda pid, limit=200: trade_rows or []
+        strategy_metrics, "_build_trade_rows", lambda pid, limit=200: trade_rows or []
     )
     monkeypatch.setattr(
-        strategy_mod, "_build_daily_positions", lambda pid: positions_rows or []
+        strategy_report_views, "_build_daily_positions", lambda pid: positions_rows or []
     )
     monkeypatch.setattr(
-        strategy_mod, "_build_log_rows", lambda pid, limit=200: log_rows or []
+        strategy_report_views, "_build_log_rows", lambda pid, limit=200: log_rows or []
     )
     monkeypatch.setattr(
-        strategy_mod,
+        strategy_log_views,
         "_build_log_meta",
         lambda pid: {"save_requested": False, "saved": False, "saved_path": "/tmp/x.jsonl"},
     )
@@ -233,9 +246,7 @@ def test_backtest_result_metric_positive_branch(monkeypatch):
         "max_drawdown": -0.10,  # negative -> green
     }
     _monkeypatch_backtest_helpers(monkeypatch, metrics=metrics)
-    html = strategy_mod.to_xml(
-        backtest_result(_FakePageRequest(), {"auth": "admin"}, "demo-pf")
-    )
+    html = strategy_mod.to_xml(backtest_result(_FakePageRequest(), {"auth": "admin"}, "demo-pf"))
     assert "text-red-600" in html
     assert "text-green-600" in html
 
@@ -247,9 +258,7 @@ def test_backtest_result_metric_zero_value_branch(monkeypatch):
         "sharpe": 0,
     }
     _monkeypatch_backtest_helpers(monkeypatch, metrics=metrics)
-    html = strategy_mod.to_xml(
-        backtest_result(_FakePageRequest(), {"auth": "admin"}, "demo-pf")
-    )
+    html = strategy_mod.to_xml(backtest_result(_FakePageRequest(), {"auth": "admin"}, "demo-pf"))
     assert "text-gray-700" in html
 
 
@@ -257,17 +266,37 @@ def test_backtest_result_positions_multi_date_grouping(monkeypatch):
     """positions with multiple dates -> date group headers inserted
     (lines 2808-2814)."""
     positions_rows = [
-        {"dt": "2024-01-02", "asset": "000001.SZ", "shares": 100.0,
-         "avail": 100.0, "price": 10.0, "mv": 1000.0, "profit": 50.0},
-        {"dt": "2024-01-02", "asset": "600000.SH", "shares": 50.0,
-         "avail": 50.0, "price": 5.0, "mv": 250.0, "profit": -10.0},
-        {"dt": "2024-01-03", "asset": "000001.SZ", "shares": 100.0,
-         "avail": 100.0, "price": 11.0, "mv": 1100.0, "profit": 100.0},
+        {
+            "dt": "2024-01-02",
+            "asset": "000001.SZ",
+            "shares": 100.0,
+            "avail": 100.0,
+            "price": 10.0,
+            "mv": 1000.0,
+            "profit": 50.0,
+        },
+        {
+            "dt": "2024-01-02",
+            "asset": "600000.SH",
+            "shares": 50.0,
+            "avail": 50.0,
+            "price": 5.0,
+            "mv": 250.0,
+            "profit": -10.0,
+        },
+        {
+            "dt": "2024-01-03",
+            "asset": "000001.SZ",
+            "shares": 100.0,
+            "avail": 100.0,
+            "price": 11.0,
+            "mv": 1100.0,
+            "profit": 100.0,
+        },
     ]
     _monkeypatch_backtest_helpers(monkeypatch, positions_rows=positions_rows)
     html = strategy_mod.to_xml(
-        backtest_result(_FakePageRequest({"tab": "positions"}),
-                        {"auth": "admin"}, "demo-pf")
+        backtest_result(_FakePageRequest({"tab": "positions"}), {"auth": "admin"}, "demo-pf")
     )
     # Each unique date should render as a date group header row (colspan=6).
     assert "2024-01-02" in html
@@ -280,7 +309,6 @@ def test_backtest_result_positions_multi_date_grouping(monkeypatch):
 # ---------------------------------------------------------------------------
 # run_grid_search: lines 2356-2358 (non-empty results_df)
 # ---------------------------------------------------------------------------
-
 
 
 # ---------------------------------------------------------------------------
@@ -302,9 +330,7 @@ async def test_deploy_backtest_to_paper_success(monkeypatch):
         "get_active_backtest_deployment",
         lambda pid, kind: None,
     )
-    monkeypatch.setattr(
-        strategy_mod, "_load_backtest_run_config", lambda pid: ({}, {})
-    )
+    monkeypatch.setattr(strategy_mod, "_load_backtest_run_config", lambda pid: ({}, {}))
     monkeypatch.setattr(strategy_mod, "_form_to_config", lambda form, base: {})
     monkeypatch.setattr(strategy_mod, "_get_market_data", lambda req: MagicMock())
 
@@ -317,16 +343,12 @@ async def test_deploy_backtest_to_paper_success(monkeypatch):
         lambda **kwargs: fake_runtime,
     )
     # _get_backtest_deploy_capabilities may inspect registry; stub it.
-    monkeypatch.setattr(
-        strategy_mod, "_get_backtest_deploy_capabilities", lambda req: {}
-    )
+    monkeypatch.setattr(strategy_mod, "_get_backtest_deploy_capabilities", lambda req: {})
 
     out = await deploy_backtest_to_paper(req, "demo-pf")
     # Should be a tuple (Div, _render_deploy_result, _build_backtest_action_cell).
     assert isinstance(out, tuple)
-    text = " ".join(
-        strategy_mod.to_xml(o) if not isinstance(o, str) else o for o in out
-    )
+    text = " ".join(strategy_mod.to_xml(o) if not isinstance(o, str) else o for o in out)
     assert "已转入仿真" in text
     assert "paper-pf-1" in text
 
@@ -347,8 +369,6 @@ async def test_deploy_backtest_to_live_is_unavailable_in_ce(monkeypatch):
     monkeypatch.setattr(strategy_mod, "_load_backtest_run_config", lambda pid: ({}, {}))
 
     out = await deploy_backtest_to_live(req, "demo-pf")
-    text = " ".join(
-        strategy_mod.to_xml(o) if not isinstance(o, str) else o for o in out
-    )
+    text = " ".join(strategy_mod.to_xml(o) if not isinstance(o, str) else o for o in out)
     assert "无法转入实盘" in text
     assert "未检测到可用的实盘网关" in text

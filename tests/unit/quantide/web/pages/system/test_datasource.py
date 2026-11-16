@@ -11,9 +11,11 @@ import pytest
 def client():
     """创建测试客户端"""
     from quantide.app_factory import create_app
+    from tests.e2e.support.auth_fixture import sign_in_test_admin
 
     app = create_app(enforce_single_instance=False)
     with TestClient(app) as c:
+        sign_in_test_admin(c)
         yield c
 
 

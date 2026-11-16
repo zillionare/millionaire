@@ -1,0 +1,135 @@
+
+    (function () {
+        var el = document.getElementById('@@TRADE_KLINE_CHART_ID@@');
+        if (!el || typeof echarts === 'undefined') { return; }
+        if (window.__tradeKlineResize) {
+            window.removeEventListener('resize', window.__tradeKlineResize);
+        }
+        if (window.__tradeKlineChart) {
+            window.__tradeKlineChart.dispose();
+        }
+        var dates = @@value_1@@;
+        var ohlc = @@value_2@@;
+        var volumes = @@value_3@@;
+        var pcts = @@value_4@@;
+        var maSeries = @@ma_series_js@@;
+        var markerMap = @@value_6@@;
+        var maPeriods = @@value_7@@;
+        var chart = echarts.init(el);
+        window.__tradeKlineChart = chart;
+        var series = [
+            {
+                name: 'K线',
+                type: 'candlestick',
+                data: ohlc,
+                itemStyle: {
+                    color: '#ef4444',
+                    color0: '#22c55e',
+                    borderColor: '#ef4444',
+                    borderColor0: '#22c55e'
+                },
+                markArea: {
+                    silent: true,
+                    itemStyle: { color: 'rgba(34,197,94,0.10)' },
+                    data: @@value_8@@
+                }
+            },
+            {
+                name: '成交量',
+                type: 'bar',
+                xAxisIndex: 1,
+                yAxisIndex: 1,
+                data: volumes,
+                itemStyle: { color: '#9ca3af' }
+            },
+            {
+                name: '买入',
+                type: 'scatter',
+                data: @@value_9@@,
+                symbol: 'arrow',
+                symbolRotate: 0,
+                symbolSize: 13,
+                itemStyle: { color: '#ef4444' }
+            },
+            {
+                name: '卖出',
+                type: 'scatter',
+                data: @@value_10@@,
+                symbol: 'arrow',
+                symbolRotate: 180,
+                symbolSize: 13,
+                itemStyle: { color: '#22c55e' }
+            }
+        ];
+        var maColors = ['#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
+        for (var i = 0; i < maPeriods.length; i++) {
+            var period = maPeriods[i];
+            series.push({
+                name: 'MA' + period,
+                type: 'line',
+                data: maSeries[period],
+                smooth: true,
+                showSymbol: false,
+                lineStyle: { width: 1, color: maColors[i % maColors.length] },
+                itemStyle: { color: maColors[i % maColors.length] }
+            });
+        }
+        chart.setOption({
+            animation: false,
+            backgroundColor: 'transparent',
+            legend: { data: @@legend_js@@, top: 0, textStyle: { fontSize: 11 } },
+            grid: [
+                { left: 56, right: 20, top: 30, height: '58%' },
+                { left: 56, right: 20, top: '74%', height: '14%' }
+            ],
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'cross' },
+                formatter: function (params) {
+                    if (!params || !params.length) { return ''; }
+                    var idx = params[0].dataIndex;
+                    var bar = ohlc[idx];
+                    if (!bar) { return ''; }
+                    var lines = [];
+                    lines.push(dates[idx]);
+                    lines.push('开盘 ' + bar[0].toFixed(2));
+                    lines.push('最高 ' + bar[3].toFixed(2));
+                    lines.push('最低 ' + bar[2].toFixed(2));
+                    lines.push('收盘 ' + bar[1].toFixed(2));
+                    var pct = pcts[idx] || 0;
+                    lines.push('涨跌幅 ' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%');
+                    lines.push('成交量 ' + (volumes[idx] || 0).toLocaleString());
+                    var marks = markerMap[dates[idx]] || [];
+                    for (var i = 0; i < marks.length; i++) {
+                        var m = marks[i];
+                        lines.push(
+                            (m.side === 'buy' ? '买入 ' : '卖出 ') +
+                            m.price.toFixed(2) + ' x ' + m.shares.toLocaleString()
+                        );
+                    }
+                    return lines.join('<br/>');
+                }
+            },
+            xAxis: [
+                { type: 'category', data: dates, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
+                { type: 'category', gridIndex: 1, data: dates, axisLabel: { show: false }, axisTick: { show: false } }
+            ],
+            yAxis: [
+                { scale: true, axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: '#f3f4f6' } } },
+                { gridIndex: 1, scale: true, axisLabel: { show: false }, splitLine: { show: false } }
+            ],
+            dataZoom: [
+                { type: 'inside', xAxisIndex: [0, 1], start: 0, end: 100 },
+                { type: 'slider', xAxisIndex: [0, 1], start: 0, end: 100, bottom: 2, height: 16 }
+            ],
+            series: series
+        });
+        var resize = function () {
+            if (window.__tradeKlineChart) { window.__tradeKlineChart.resize(); }
+        };
+        window.__tradeKlineResize = resize;
+        window.addEventListener('resize', resize);
+        setTimeout(resize, 0);
+        setTimeout(resize, 150);
+        setTimeout(resize, 450);
+    })();

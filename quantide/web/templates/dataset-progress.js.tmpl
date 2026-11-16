@@ -1,0 +1,16 @@
+(function() {
+    const bar = document.getElementById('@@BAR_ID@@');
+    const status = document.getElementById('@@STATUS_ID@@');
+    const btn = document.getElementById('@@CLOSE_ID@@');
+    const es = new EventSource('@@URL@@');
+    es.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        bar.style.width = data.progress + '%';
+        status.textContent = data.message;
+        if (data.completed || data.error) {
+            if (data.error) status.textContent = '错误: ' + data.error;
+            btn.disabled = false;
+            es.close();
+        }
+    };
+})();

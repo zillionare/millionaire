@@ -40,7 +40,13 @@ class PushEvent:
 
 _REQUIRED_ALERT_FIELDS = {"alert_id", "unread_count"}
 _REQUIRED_ORDER_FIELDS = {"order_id", "strategy_id", "status", "message"}
-_REQUIRED_PORTFOLIO_FIELDS = {"account_id", "total_assets", "available_cash", "market_value", "daily_pnl"}
+_REQUIRED_PORTFOLIO_FIELDS = {
+    "account_id",
+    "total_assets",
+    "available_cash",
+    "market_value",
+    "daily_pnl",
+}
 _REQUIRED_TASK_PROGRESS_FIELDS = {"task_id", "task_name", "percent", "stage", "status", "message"}
 _REQUIRED_GATEWAY_STATUS_FIELDS = {"status", "degrade_class", "message"}
 _VALID_GATEWAY_STATUSES = {"online", "offline", "not_configured"}

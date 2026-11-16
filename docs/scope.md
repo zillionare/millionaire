@@ -1,48 +1,66 @@
-# Community Edition scope
+# 本版能力与版本状态
 
-The current tree is the Community Edition (CE). It is released under the MIT
-License. The current distribution name is `millionaire-ce`.
+Millionaire 采用 MIT 许可证，分发包名为 `millionaire`，Python 导入名为
+`quantide`。本手册描述当前源码树；原生安装包和 GitHub Release 的版本可能滞后，
+下载时以 Release 实际列出的文件、版本号和校验值为准。
 
-## Included
+Millionaire 是社区版与专业版的合称。本页列出社区版（CE）的交付范围；仅属于
+专业版的功能均使用 millionaire pro 明确标注。
 
-- Backtesting, paper trading, and simulation runtime paths
-- Generic broker, market-data, strategy, and `RiskStrategy` contracts
-- The generic risk-overlay lifecycle (`RiskOverlay` protocol and
-  `CompositeRiskOverlay`) and explicit `RiskProgramAdapter`/registry
-  extension point
-- Generic custom adapter helpers such as `register_risk_program`,
-  `available_risk_programs`, `normalize_risk_programs`,
-  `build_backtest_risk_overlay`, and `build_live_risk_strategies`
-- Example strategies and local development stubs
-- Local web UI, initialization flow, and developer documentation
+## 已提供的能力
 
-## Deliberately absent from CE
+| 能力 | 当前范围 |
+| --- | --- |
+| 历史数据 | Tushare 日线、日历、证券主数据与辅助字段；BaoStock 沪深分钟数据。策略正式支持日线、月线与 30 分钟。 |
+| 数据完整性 | 以 `epoch` 为完整性边界扫描缺口，先补尾部再补近期历史；回测启动前检查日线覆盖，不可补全缺口进入风险事件并按区间阻断回测。 |
+| 实时行情 | Tushare 官方股票实时快照（独立权限）、用户扩展、可选腾讯 30 天演示；腾讯默认关闭。 |
+| 策略运行 | 回测、仿真、独立 HTTP 模拟柜台；统一策略/Broker 接口与固定策略周期。 |
+| 交易条件 | 资金、可用持仓、T+1、涨跌停等检查与模拟撮合；数据前提见[执行约定](execution.md)。 |
+| 研究工具 | 内置示例策略、LightGBM 日线选股、因子检验（Rank/Pearson IC、分层、分年与持有期）、参数优化、样本内外结果、SHAP 预测解释。 |
+| 证据工具 | 源码提供离线策略/因子审计入口和账户事实收益归因；它们提供证据，不构成安全沙箱或收益保证。 |
+| 安装与服务 | macOS ARM64、Ubuntu x86_64、Windows x64 自包含安装器；macOS 菜单栏、Windows 系统托盘、Ubuntu 桌面控制器与原生后台服务。 |
+| 运行恢复 | 账户/订单/成交持久化、提交对账、数据任务进度、异常进程退出后的恢复路径。 |
+| 影子伴行 | 日线策略双实例对照：当日收盘、历史数据就绪后运行回测实例，与仿真实例对比净值和回撤；30 分钟逐 bar 对照待补齐。见[使用说明](paper-trading.md#shadow-run)。 |
+| 通用风控扩展 | `RiskStrategy`、`RiskOverlay` 和风险程序注册接口；宿主可以注册自己的实现。 |
 
-- Private risk-program implementations or private risk-program IDs
-- Built-in triple-barrier, pullback-sell, or cost-stop programs (and their
-  tests): the CE default registry is empty and ships no program
-- Production/live trading controls and live account UI
-- A bundled native installer or OS service registration
+## 未包含的能力
 
-Live trading is hidden and unavailable when the active edition is CE,
-including when an old local configuration contains gateway or live-account
-settings. Paper/simulation mode is the supported CE operational mode. CE does
-not silently replace an old risk-program ID: `normalize_risk_programs` rejects
-an unknown or private ID, and an adapter must be explicitly registered by the
-host before it can be selected.
+- 真实交易账户、实盘 UI/API 和券商柜台程序；旧配置也不能在 CE 中绕过实盘开关。
+- 内置三重障碍、回撤卖出、成本止损等私有风险程序；默认风险程序注册表为空。
+- macOS Intel 安装包及其官方验收支持。
+- 30 分钟影子逐 bar 生命周期、完整数据源能力矩阵与多源热切换；见[后续方向](roadmap.md)。
+- 对任意 Python 策略或第三方柜台的自动正确性证明、安全沙箱、行业/风格归因。
+- 原生包签名、公证和所有硬件/系统版本的实机覆盖；见下文验证边界。
 
-## Extension boundary
+未知或私有风险程序 ID 会被拒绝，不会静默替换为另一个程序。通用接口和生命周期
+保留下来，供 millionaire pro 或用户宿主扩展显式装配。详见[风险扩展契约](design/risk_program_selection.md)。
 
-Applications may register their own risk adapters through
-`quantide.service.risk_programs`. The CE package supplies the generic
-interfaces and lifecycle only; its module-level registry starts empty and it
-does not import or discover private risk implementations. See
-[Risk program boundary](design/risk_program_selection.md) for the data and
-validation contract.
+## 三模式一致性的含义
 
-## Local-use status
+同一策略可通过统一接口运行在回测 Broker、Paper Broker 和独立 HTTP 模拟柜台上。
+验收比较固定行情/费用/撮合假设下的现金、持仓、成交及费用，并覆盖重复提交和恢复。
+它不代表已经验证真实券商的排队、滑点、流动性、回报或网络故障。
 
-The repository is still undergoing architectural refactoring. The local setup
-and paper-mode flow are the actionable parts of this first release groundwork.
-See [Installation](installation.md) and
-[Developer acceptance](developer-acceptance.md) for commands.
+## 审计与收益归因的边界
+
+源码树提供 `quantide.audit` 的离线审计入口，覆盖固定因子管线、未来数据扰动、
+随机/置换对照、账户不变量和关键变异；账户事实收益归因从仿真账户的“收益归因”
+入口读取。它们默认只读，不触发真实交易，也不修改用户账户。
+
+审计结果只对绑定的源码、配置、数据和审计配置有效；`INCONCLUSIVE`、缺失证据、
+skip/xfail 都不能当作通过。它不能证明任意程序不存在错误，也不能保证有利润。
+具体命令与当前覆盖状态以[策略与因子审计](strategy-audit.md)中的 CLI 输出为准，
+不要从旧文档复制固定通过数量。
+
+## 平台与验证边界
+
+macOS ARM64、Ubuntu 和 Windows 原生 CI 包含干净安装、服务/控制器启停、进程强杀
+后的恢复、覆盖升级和卸载保留数据。macOS 默认用户服务在登录后启动；系统
+LaunchDaemon 是单独安装选项，尚未取得相同的实机验证证据。
+
+Windows 实体验证机器是 Windows 10；当前托管 Windows runner 是 Server 2025，
+不能当成 Windows 11 桌面实机验证。尚未配置 Apple Developer ID/公证或 Windows
+发行者代码签名证书。操作系统断电/重启及多个完整交易日无人值守仍需现场验证。
+
+这些验证界限不能据此扩展为所有硬件、系统版本和故障情形均已覆盖。
+安装与日常维护分别见[安装](native-installation.md)和[运维](operations.md)。

@@ -14,7 +14,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def init_app_state_for_web_tests(monkeypatch):
+def init_app_state_for_web_tests(monkeypatch, tmp_path):
     """Make web tests pass initialization middleware and seed app state.
 
     Also seeds the app_state DB row to fully-initialized to make the
@@ -42,6 +42,7 @@ def init_app_state_for_web_tests(monkeypatch):
     # Seed the app_state row as fully initialized.
     try:
         from quantide.data.models.app_state import AppState
+
         state = AppState(
             id=1,
             init_completed=True,
@@ -62,9 +63,7 @@ def init_app_state_for_web_tests(monkeypatch):
     try:
         from quantide.service import init_wizard as init_wizard_mod
 
-        monkeypatch.setattr(
-            init_wizard_mod.init_wizard, "is_initialized", lambda: True
-        )
+        monkeypatch.setattr(init_wizard_mod.init_wizard, "is_initialized", lambda: True)
     except Exception:
         pass
 
@@ -74,9 +73,18 @@ def init_app_state_for_web_tests(monkeypatch):
     try:
         from quantide.data.models.stocks import stock_list
 
-        stock_path = Path(__file__).resolve().parents[4] / "data" / "stock_list.parquet"
+        stock_path = (
+            Path(__file__).resolve().parents[4]
+            / "tests"
+            / "assets"
+            / "market_data"
+            / "stock_list.parquet"
+        )
         if stock_path.exists():
-            stock_list.load(stock_path)
+            import polars as pl
+
+            stock_list._data = pl.read_parquet(stock_path)
+            stock_list._path = tmp_path / "stock_list.parquet"
     except Exception:
         pass
 

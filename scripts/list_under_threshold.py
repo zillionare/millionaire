@@ -1,4 +1,5 @@
 """List pre-v0.2-retained files <80% sorted by import count."""
+
 import json
 import re
 import subprocess
@@ -18,7 +19,8 @@ failing_lookup = {f["path"]: f for f in failing}
 
 result = subprocess.run(
     ["grep", "-rE", "from quantide\\.", "quantide/", "tests/"],
-    capture_output=True, text=True,
+    capture_output=True,
+    text=True,
 )
 counter = Counter()
 for line in result.stdout.split("\n"):
@@ -34,6 +36,4 @@ for mod, count in counter.most_common(200):
 v02.sort(key=lambda x: -x[1])
 print(f"\n{len(v02)} pre-v0.2-retained files <80% (sorted by import count):")
 for mod, count, f in v02:
-    print(
-        f"  imp={count:4d} cov={f['percent_covered']}% stmts={f['num_statements']:4d}  {mod}"
-    )
+    print(f"  imp={count:4d} cov={f['percent_covered']}% stmts={f['num_statements']:4d}  {mod}")

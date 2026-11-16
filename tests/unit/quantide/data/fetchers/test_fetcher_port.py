@@ -6,7 +6,7 @@ import datetime
 
 import pandas as pd
 
-from quantide.core.ports import DataFetcherPort
+from quantide.core.ports import DataFetcherPort, HistoricalDataFetcherPort
 from quantide.core.ports.data_fetcher import (
     STANDARD_BAR_COLUMNS,
     STANDARD_INDEX_BAR_COLUMNS,
@@ -63,6 +63,7 @@ def test_port_protocol_methods_exist():
 def test_tushare_fetcher_implements_port():
     """Tushare 适配器实现标准端口。"""
     fetcher = TushareDataFetcher()
+    assert isinstance(fetcher, HistoricalDataFetcherPort)
     assert fetcher.source_name == "tushare"
     for name in [
         "fetch_calendar",

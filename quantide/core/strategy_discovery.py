@@ -18,10 +18,17 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import inspect
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, Literal
+
+from quantide.core.strategy_metadata import StrategyMetadata as StrategyMetadata
+
+if TYPE_CHECKING:
+    from quantide.core.strategy import Strategy
 
 
 class SkippedReason(StrEnum):
@@ -46,19 +53,6 @@ class SkippedEntry:
 
 
 @dataclass(frozen=True)
-class StrategyMetadata:
-    """策略元数据 (FR-020)."""
-
-    strategy_id: str
-    name: str
-    description: str
-    strategy_type: Literal["independent", "risk"]
-    module: str
-    is_builtin: bool
-    default_config: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class EnumerationResult:
     """枚举结果 (FR-020) — 包含 strategies + diagnostics."""
 
@@ -68,8 +62,97 @@ class EnumerationResult:
     def __len__(self) -> int:
         return len(self.strategies)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[StrategyMetadata]:
         return iter(self.strategies)
+
+
+def _file_diagnostic(
+    path: str | Path,
+    reason: SkippedReason,
+    detail: str,
+    class_name: str | None = None,
+) -> SkippedEntry:
+    return SkippedEntry(path=str(path), class_name=class_name, reason=reason, detail=detail)
+
+
+def _import_strategy_source(
+    path: Path,
+) -> tuple[ModuleType | None, list[SkippedEntry]]:
+    importlib.invalidate_caches()
+    spec = importlib.util.spec_from_file_location(f"_strategy_{path.stem}_{id(path)}", path)
+    if spec is None or spec.loader is None:
+        return None, [
+            _file_diagnostic(
+                path, SkippedReason.ImportError, "spec_from_file_location returned None"
+            )
+        ]
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except SyntaxError as exc:
+        return None, [_file_diagnostic(path, SkippedReason.SyntaxError, str(exc))]
+    except ImportError as exc:
+        return None, [_file_diagnostic(path, SkippedReason.ImportError, str(exc))]
+    except Exception as exc:
+        return None, [
+            _file_diagnostic(path, SkippedReason.ImportError, f"{type(exc).__name__}: {exc}")
+        ]
+    return module, []
+
+
+def _strategy_default_config(
+    strategy: type[Strategy], path: Path, diagnostics: list[SkippedEntry]
+) -> dict[str, Any]:
+    try:
+        config = strategy.default_config()
+        if isinstance(config, dict):
+            return config
+        detail = f"default_config() returned non-dict: {type(config).__name__}"
+    except Exception as exc:
+        detail = str(exc)
+    diagnostics.append(
+        _file_diagnostic(path, SkippedReason.InvalidConfig, detail, strategy.__name__)
+    )
+    return {}
+
+
+def _enumerate_module_strategies(
+    module: ModuleType,
+    path: Path,
+    base_cls: type[Strategy],
+    risk_cls: type[Strategy],
+) -> tuple[list[StrategyMetadata], list[SkippedEntry]]:
+    strategies, diagnostics = [], []
+    for _, strategy in inspect.getmembers(module, inspect.isclass):
+        if strategy.__module__ != module.__name__ or strategy in (base_cls, risk_cls):
+            continue
+        kind: Literal["risk", "independent"]
+        if issubclass(strategy, risk_cls):
+            kind = "risk"
+        elif issubclass(strategy, base_cls):
+            kind = "independent"
+        else:
+            diagnostics.append(
+                _file_diagnostic(
+                    path,
+                    SkippedReason.NotAStrategy,
+                    f"class {strategy.__name__} does not inherit BaseStrategy/RiskStrategy",
+                    strategy.__name__,
+                )
+            )
+            continue
+        strategies.append(
+            StrategyMetadata(
+                strategy_id=f"{strategy.__module__}.{strategy.__name__}",
+                name=getattr(strategy, "__display_name__", None) or strategy.__name__,
+                description=(inspect.getdoc(strategy) or "").split("\n")[0],
+                strategy_type=kind,
+                module=strategy.__module__,
+                is_builtin="quantide.strategies" in strategy.__module__,
+                default_config=_strategy_default_config(strategy, path, diagnostics),
+            )
+        )
+    return strategies, diagnostics
 
 
 class StrategyDiscovery:
@@ -89,14 +172,17 @@ class StrategyDiscovery:
 
         root = Path(root_path)
         if not root.exists():
-            return EnumerationResult(strategies=[], diagnostics=[
-                SkippedEntry(
-                    path=str(root),
-                    class_name=None,
-                    reason=SkippedReason.PermissionDenied,
-                    detail=f"directory does not exist: {root}",
-                )
-            ])
+            return EnumerationResult(
+                strategies=[],
+                diagnostics=[
+                    SkippedEntry(
+                        path=str(root),
+                        class_name=None,
+                        reason=SkippedReason.PermissionDenied,
+                        detail=f"directory does not exist: {root}",
+                    )
+                ],
+            )
 
         strategies: list[StrategyMetadata] = []
         diagnostics: list[SkippedEntry] = []
@@ -110,104 +196,34 @@ class StrategyDiscovery:
                 strategies.extend(file_strategies)
                 diagnostics.extend(file_diags)
             except SyntaxError as e:
-                diagnostics.append(SkippedEntry(
-                    path=str(py_file), class_name=None,
-                    reason=SkippedReason.SyntaxError, detail=str(e),
-                ))
+                diagnostics.append(
+                    SkippedEntry(
+                        path=str(py_file),
+                        class_name=None,
+                        reason=SkippedReason.SyntaxError,
+                        detail=str(e),
+                    )
+                )
             except ImportError as e:
-                diagnostics.append(SkippedEntry(
-                    path=str(py_file), class_name=None,
-                    reason=SkippedReason.ImportError, detail=str(e),
-                ))
+                diagnostics.append(
+                    SkippedEntry(
+                        path=str(py_file),
+                        class_name=None,
+                        reason=SkippedReason.ImportError,
+                        detail=str(e),
+                    )
+                )
         return EnumerationResult(strategies=strategies, diagnostics=diagnostics)
 
     @staticmethod
     def _load_strategies_from_file(
-        py_file: Path, base_cls, risk_cls
+        py_file: Path, base_cls: type[Strategy], risk_cls: type[Strategy]
     ) -> tuple[list[StrategyMetadata], list[SkippedEntry]]:
-        """从 .py 文件加载策略类, 返回 (strategies, diagnostics)."""
-        importlib.invalidate_caches()
-        spec = importlib.util.spec_from_file_location(
-            f"_strategy_{py_file.stem}_{id(py_file)}", py_file
-        )
-        if spec is None or spec.loader is None:
-            return [], [SkippedEntry(
-                path=str(py_file), class_name=None,
-                reason=SkippedReason.ImportError, detail="spec_from_file_location returned None",
-            )]
-        module = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(module)  # type: ignore[union-attr]
-        except SyntaxError as e:
-            return [], [SkippedEntry(
-                path=str(py_file), class_name=None,
-                reason=SkippedReason.SyntaxError, detail=str(e),
-            )]
-        except ImportError as e:
-            return [], [SkippedEntry(
-                path=str(py_file), class_name=None,
-                reason=SkippedReason.ImportError, detail=str(e),
-            )]
-        except Exception as e:
-            return [], [SkippedEntry(
-                path=str(py_file), class_name=None,
-                reason=SkippedReason.ImportError, detail=f"{type(e).__name__}: {e}",
-            )]
-
-        strategies: list[StrategyMetadata] = []
-        diagnostics: list[SkippedEntry] = []
-        for _name, obj in inspect.getmembers(module, inspect.isclass):
-            if obj.__module__ != module.__name__:
-                continue
-            if obj in (base_cls, risk_cls):
-                continue
-            if issubclass(obj, risk_cls):
-                strategy_type: Literal["independent", "risk"] = "risk"
-            elif issubclass(obj, base_cls):
-                strategy_type = "independent"
-            else:
-                diagnostics.append(SkippedEntry(
-                    path=str(py_file), class_name=obj.__name__,
-                    reason=SkippedReason.NotAStrategy,
-                    detail=f"class {obj.__name__} does not inherit BaseStrategy/RiskStrategy",
-                ))
-                continue
-
-            display_name = getattr(obj, "__display_name__", None) or obj.__name__
-            docstring = inspect.getdoc(obj) or ""
-            description = docstring.split("\n")[0] if docstring else ""
-            module_path = obj.__module__
-            is_builtin = "quantide.strategies" in module_path
-
-            try:
-                default_cfg = obj.default_config()
-                if not isinstance(default_cfg, dict):
-                    diagnostics.append(SkippedEntry(
-                        path=str(py_file), class_name=obj.__name__,
-                        reason=SkippedReason.InvalidConfig,
-                        detail=f"default_config() returned non-dict: {type(default_cfg).__name__}",
-                    ))
-                    default_cfg = {}
-            except Exception as e:
-                diagnostics.append(SkippedEntry(
-                    path=str(py_file), class_name=obj.__name__,
-                    reason=SkippedReason.InvalidConfig, detail=str(e),
-                ))
-                default_cfg = {}
-
-            strategy_id = f"{module_path}.{obj.__name__}"
-            strategies.append(
-                StrategyMetadata(
-                    strategy_id=strategy_id,
-                    name=display_name,
-                    description=description,
-                    strategy_type=strategy_type,
-                    module=module_path,
-                    is_builtin=is_builtin,
-                    default_config=default_cfg,
-                )
-            )
-        return strategies, diagnostics
+        """Import one strategy source and classify only classes defined by that source."""
+        module, diagnostics = _import_strategy_source(py_file)
+        if module is None:
+            return [], diagnostics
+        return _enumerate_module_strategies(module, py_file, base_cls, risk_cls)
 
     @staticmethod
     def discover_builtin() -> EnumerationResult:

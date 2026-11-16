@@ -14,6 +14,7 @@ from typing import Any
 
 from loguru import logger
 
+from quantide.config.output_paths import external_runtime_path
 from quantide.config.paths import get_model_store_dir
 
 MODEL_CONFIG_KEYS = (
@@ -46,9 +47,7 @@ def model_config_payload(config: dict[str, Any]) -> dict[str, Any]:
 
 def model_key(strategy_name: str, config: dict[str, Any]) -> str:
     """策略名 + 模型相关配置的稳定键。"""
-    payload = json.dumps(
-        model_config_payload(config), sort_keys=True, default=_json_default
-    )
+    payload = json.dumps(model_config_payload(config), sort_keys=True, default=_json_default)
     digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
     return f"{strategy_name}-{digest}"
 
@@ -86,12 +85,12 @@ class ModelStore:
     """文件系统模型仓库：最新模型二进制 + JSON 元数据。"""
 
     def __init__(self, root: Path | str | None = None) -> None:
-        self.root = Path(root).expanduser() if root else get_model_store_dir()
+        self.root = external_runtime_path(root) if root else get_model_store_dir()
         self.root.mkdir(parents=True, exist_ok=True)
 
     def rebind(self, root: Path | str) -> None:
         """Move the process-wide store after the app config override is set."""
-        self.root = Path(root).expanduser()
+        self.root = external_runtime_path(root)
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _dir(self, key: str) -> Path:

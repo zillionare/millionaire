@@ -11,6 +11,7 @@ AC-6: 无添加第二个网关入口 (系统仅支持 1 个交易网关).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 GATEWAY_CONFIG_FIELDS: tuple[str, ...] = ("server", "port", "url_prefix", "api_key")
 SINGLE_GATEWAY_ONLY: bool = True
@@ -20,7 +21,7 @@ class GatewayValidationError(ValueError):
     """网关配置校验错误."""
 
 
-def validate_gateway_config(config: dict) -> bool:
+def validate_gateway_config(config: dict[str, Any]) -> bool:
     """AC-3: 校验网关配置字段.
 
     Args:

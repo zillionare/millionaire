@@ -1,4 +1,10 @@
+from typing import Any
+
 from fasthtml.common import *
+from fasthtml.common import (
+    Container,
+    Title,
+)
 from monsterui.all import *
 
 from quantide.config.branding import get_branding
@@ -10,7 +16,7 @@ class BaseLayout:
     用于不需要侧边栏的简单页面，如登录页、初始化向导等。
     """
 
-    def __init__(self, *content, page_title: str | None = None):
+    def __init__(self, *content: Any, page_title: str | None = None) -> None:
         """初始化基础布局
 
         Args:
@@ -20,7 +26,7 @@ class BaseLayout:
         self.content = content
         self.page_title = page_title or get_branding().product_name
 
-    def __ft__(self):
+    def __ft__(self) -> Any:
         """渲染页面"""
         return Title(self.page_title), Container(
             *self.content,

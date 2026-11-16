@@ -16,10 +16,12 @@ from __future__ import annotations
 
 import datetime
 import threading
-from typing import Any
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any, Protocol, cast
 
 from loguru import logger
 
+from quantide.core.domain.events import QuoteSnapshot
 from quantide.core.enums import FrameType
 
 #: 采样间隔（秒）
@@ -34,11 +36,34 @@ def _naive(value: datetime.datetime) -> datetime.datetime:
     return value.replace(tzinfo=None) if value.tzinfo is not None else value
 
 
-def _quote_field(quote: Any, name: str) -> Any:
+class QuoteSource(Protocol):
+    """Minimal snapshot source used by the aggregator."""
+
+    def snapshot(self, symbols: list[str]) -> Mapping[str, QuoteSnapshot]:
+        """Return the latest quote for each requested symbol."""
+        ...
+
+
+class CalendarPort(Protocol):
+    """Calendar operations used by the aggregator."""
+
+    def is_trade_day(self, dt: datetime.datetime) -> bool:
+        """Return whether the date is a trading day."""
+        ...
+
+    def ceiling(
+        self, moment: datetime.datetime, frame_type: FrameType
+    ) -> datetime.datetime | datetime.date:
+        """Return the end of the frame containing ``moment``."""
+        ...
+
+
+def _quote_field(quote: Mapping[str, object] | QuoteSnapshot, name: str) -> object:
+    """Read a field from either a dict-like quote or a QuoteSnapshot."""
     """同时支持 dict 与 QuoteSnapshot。"""
-    if isinstance(quote, dict):
+    if isinstance(quote, Mapping):
         return quote.get(name)
-    return getattr(quote, name, None)
+    return cast(object, getattr(quote, name, None))
 
 
 class MinuteBarAggregator:
@@ -46,13 +71,13 @@ class MinuteBarAggregator:
 
     def __init__(
         self,
-        market_data: Any | None = None,
-        clock: Any | None = None,
+        market_data: QuoteSource | None = None,
+        clock: Callable[[], datetime.datetime] | None = None,
         interval: float = DEFAULT_SAMPLE_INTERVAL,
-        calendar: Any | None = None,
+        calendar: CalendarPort | None = None,
     ) -> None:
         self._market_data = market_data
-        self._clock = clock or datetime.datetime.now
+        self._clock: Callable[[], datetime.datetime] = clock or datetime.datetime.now
         if calendar is None:
             from quantide.data.models.calendar import calendar as default_calendar
 
@@ -113,9 +138,7 @@ class MinuteBarAggregator:
     def is_session(now: datetime.datetime) -> bool:
         """是否处于连续竞价时段（含 11:30/15:00 边界）。"""
         tm = now.time()
-        return (MORNING[0] <= tm <= MORNING[1]) or (
-            AFTERNOON[0] <= tm <= AFTERNOON[1]
-        )
+        return (MORNING[0] <= tm <= MORNING[1]) or (AFTERNOON[0] <= tm <= AFTERNOON[1])
 
     def sample_once(self, now: datetime.datetime | None = None) -> None:
         """采样一次：抓取已订阅标的的最新快照并更新内存 bar。"""
@@ -137,18 +160,21 @@ class MinuteBarAggregator:
                 self.on_sample(str(asset), quote, now)
 
     def on_sample(
-        self, asset: str, quote: Any, now: datetime.datetime | None = None
+        self,
+        asset: str,
+        quote: Mapping[str, object] | QuoteSnapshot,
+        now: datetime.datetime | None = None,
     ) -> None:
         """用一条快照更新某标的的当前 30 分钟桶（测试可直接调用）。"""
         now = _naive(now or self._clock())
         if not self.is_session(now) or not self._calendar.is_trade_day(now):
             return
-        price = _quote_field(quote, "price")
-        if price is None or float(price) <= 0:
+        raw_price = _quote_field(quote, "price")
+        if raw_price is None or float(cast(float | int | str, raw_price)) <= 0:
             return
-        price = float(price)
-        cum_volume = float(_quote_field(quote, "volume") or 0.0)
-        cum_amount = float(_quote_field(quote, "amount") or 0.0)
+        price = float(cast(float | int | str, raw_price))
+        cum_volume = float(cast(float | int | str, _quote_field(quote, "volume") or 0.0))
+        cum_amount = float(cast(float | int | str, _quote_field(quote, "amount") or 0.0))
         ts = _quote_field(quote, "ts")
         if isinstance(ts, datetime.datetime):
             ts = _naive(ts)
@@ -158,7 +184,7 @@ class MinuteBarAggregator:
         if sample_day != now.date():
             # 行情时间戳不是今天（收盘后残留），不参与合成。
             return
-        bucket = _naive(self._calendar.ceiling(now, FrameType.MIN30))
+        bucket = _naive(cast(datetime.datetime, self._calendar.ceiling(now, FrameType.MIN30)))
 
         with self._lock:
             self._update(asset, price, cum_volume, cum_amount, bucket)
@@ -257,9 +283,7 @@ class MinuteBarAggregator:
             rows = rows[-int(count) :]
         return rows
 
-    def forming(
-        self, asset: str, now: datetime.datetime | None = None
-    ) -> dict[str, Any] | None:
+    def forming(self, asset: str, now: datetime.datetime | None = None) -> dict[str, Any] | None:
         """返回某标的当前未完成桶（已收盘则返回 None）。"""
         now = _naive(now or self._clock())
         with self._lock:
@@ -273,21 +297,42 @@ class MinuteBarAggregator:
     # 清理
     # ------------------------------------------------------------------
     def clear_between(
-        self, start: datetime.date, end: datetime.date
+        self, start: datetime.date, end: datetime.date, assets: Iterable[str] | None = None
     ) -> None:
-        """BaoStock 已入库后丢弃对应日期的内存数据。"""
+        """Discard only the security/session ranges confirmed by durable historical data."""
+        selected = set(assets) if assets is not None else None
         with self._lock:
-            for day in list(self._completed):
-                if start <= day <= end:
-                    self._completed.pop(day, None)
-            for asset, forming in list(self._forming.items()):
-                if start <= forming["date"].date() <= end:
-                    self._forming.pop(asset, None)
-            for asset, last in list(self._last_completed.items()):
-                if start <= last.date() <= end:
-                    self._last_completed.pop(asset, None)
-                    self._last_cum.pop(asset, None)
-                    self._last_cum_day.pop(asset, None)
+            self._clear_completed_days(start, end, selected)
+            self._clear_forming_bars(start, end, selected)
+            self._clear_latest_markers(start, end, selected)
+
+    def _clear_completed_days(
+        self, start: datetime.date, end: datetime.date, selected: set[str] | None
+    ) -> None:
+        for day in list(self._completed):
+            if not start <= day <= end:
+                continue
+            if selected is None:
+                self._completed.pop(day, None)
+            else:
+                for asset in selected:
+                    self._completed[day].pop(asset, None)
+
+    def _clear_forming_bars(
+        self, start: datetime.date, end: datetime.date, selected: set[str] | None
+    ) -> None:
+        for asset, forming in list(self._forming.items()):
+            if (selected is None or asset in selected) and start <= forming["date"].date() <= end:
+                self._forming.pop(asset, None)
+
+    def _clear_latest_markers(
+        self, start: datetime.date, end: datetime.date, selected: set[str] | None
+    ) -> None:
+        for asset, last in list(self._last_completed.items()):
+            if (selected is None or asset in selected) and start <= last.date() <= end:
+                self._last_completed.pop(asset, None)
+                self._last_cum.pop(asset, None)
+                self._last_cum_day.pop(asset, None)
 
 
 #: 全局单例

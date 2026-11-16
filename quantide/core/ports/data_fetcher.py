@@ -14,69 +14,72 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Callable, Iterable
-from typing import Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import pandas as pd
 
+from quantide.core.bar_schema import (
+    STANDARD_BAR_COLUMNS as STANDARD_BAR_COLUMNS,
+)
+from quantide.core.bar_schema import (
+    STANDARD_INDEX_BAR_COLUMNS as STANDARD_INDEX_BAR_COLUMNS,
+)
+from quantide.core.bar_schema import (
+    STANDARD_INDEX_WEIGHT_COLUMNS as STANDARD_INDEX_WEIGHT_COLUMNS,
+)
+from quantide.core.bar_schema import (
+    STANDARD_MINUTE_BAR_COLUMNS as STANDARD_MINUTE_BAR_COLUMNS,
+)
+from quantide.core.bar_schema import (
+    STANDARD_STOCK_LIST_COLUMNS as STANDARD_STOCK_LIST_COLUMNS,
+)
+
 #: 标准扩展日线字段（顺序即存储列顺序）
-STANDARD_BAR_COLUMNS: list[str] = [
-    "date",
-    "asset",
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    "amount",
-    "adjust",
-    "is_st",
-    "up_limit",
-    "down_limit",
-]
 
 #: 标准指数日线字段
-STANDARD_INDEX_BAR_COLUMNS: list[str] = [
-    "date",
-    "index_code",
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    "amount",
-]
 
 #: 标准指数成分字段（point-in-time）
-STANDARD_INDEX_WEIGHT_COLUMNS: list[str] = [
-    "date",
-    "index_code",
-    "con_code",
-    "weight",
-]
 
 #: 标准股票列表字段
-STANDARD_STOCK_LIST_COLUMNS: list[str] = [
-    "asset",
-    "name",
-    "pinyin",
-    "list_date",
-    "delist_date",
-]
 
 #: 标准分钟线字段（``date`` 为 datetime64[ms]，含时分）
-STANDARD_MINUTE_BAR_COLUMNS: list[str] = [
-    "date",
-    "asset",
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    "amount",
-]
 
 #: 错误记录格式：[func_name, identifier, message]
-ErrorRecord = list[list]
+ErrorRecord = list[list[str | datetime.date]]
+
+
+@runtime_checkable
+class HistoricalDataFetcherPort(Protocol):
+    """Historical data capabilities required by the source registry."""
+
+    def fetch_calendar(self, epoch: datetime.date) -> pd.DataFrame: ...
+    def fetch_stock_list(self) -> pd.DataFrame | None: ...
+    def fetch_adjust_factor(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_bars(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_limit_price(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_st_info(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_bars_ext(
+        self,
+        dates: Iterable[datetime.date] | datetime.date,
+        phase_callback: Callable[[str], None] | None = None,
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_daily_basic(
+        self, dates: Iterable[datetime.date] | datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_index_bars(
+        self, index_codes: Iterable[str] | str, start_date: datetime.date, end_date: datetime.date
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
+    def fetch_index_weights(
+        self, index_codes: Iterable[str] | str, snapshot_dates: Iterable[datetime.date]
+    ) -> tuple[pd.DataFrame, ErrorRecord]: ...
 
 
 class DataFetcherPort(Protocol):
@@ -236,9 +239,7 @@ class DataFetcherPort(Protocol):
         """
         ...
 
-    def fetch_quote_snapshot(
-        self, symbols: Iterable[str] | str
-    ) -> dict[str, dict]:
+    def fetch_quote_snapshot(self, symbols: Iterable[str] | str) -> dict[str, dict[str, Any]]:
         """获取实时行情快照。
 
         Returns:

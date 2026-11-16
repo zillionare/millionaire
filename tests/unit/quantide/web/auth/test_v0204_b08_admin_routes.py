@@ -14,6 +14,8 @@ from quantide.web.auth.admin_routes import AdminRoutes, InfoRow
 def admin():
     auth = MagicMock()
     auth.config = {}
+    # This fixture isolates handler business rules. Real role checks have separate boundary tests.
+    auth.require_admin.return_value = lambda function: function
     auth.user_repo = MagicMock()
     return AdminRoutes(auth)
 

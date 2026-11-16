@@ -1,0 +1,81 @@
+{
+  "tool": "cognitive-complexity Python package (not Sonar official analyzer)",
+  "count": 2275,
+  "mean": 3.772307692307692,
+  "over_15": 103,
+  "over_30": 28,
+  "worst": [
+    [
+      80,
+      "quantide/web/pages/trade_main.py",
+      2050,
+      "place_order_trade"
+    ],
+    [
+      77,
+      "quantide/service/strategy_runtime.py",
+      1184,
+      "_strategy_loop"
+    ],
+    [
+      72,
+      "quantide/strategies/example/ml_momentum_reversal.py",
+      1637,
+      "_rank_for_bar"
+    ],
+    [
+      68,
+      "quantide/web/pages/init_wizard.py",
+      1360,
+      "handle_step"
+    ],
+    [
+      66,
+      "quantide/web/pages/system/market.py",
+      99,
+      "_build_market_table"
+    ],
+    [
+      52,
+      "quantide/service/metrics.py",
+      98,
+      "_calculate_metrics"
+    ],
+    [
+      48,
+      "quantide/web/pages/trade_main.py",
+      72,
+      "_get_active_account"
+    ],
+    [
+      44,
+      "quantide/web/pages/optimize.py",
+      205,
+      "_render_monthly_matrix"
+    ],
+    [
+      43,
+      "quantide/service/runner.py",
+      461,
+      "run"
+    ],
+    [
+      42,
+      "quantide/web/auth/routes.py",
+      371,
+      "_register_profile_route"
+    ],
+    [
+      41,
+      "quantide/web/pages/trade_lightning.py",
+      1073,
+      "_resolve_lightning_price"
+    ],
+    [
+      41,
+      "quantide/web/auth/routes.py",
+      25,
+      "register_all"
+    ]
+  ]
+}

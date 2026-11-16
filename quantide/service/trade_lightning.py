@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 import sqlite_utils as su
 
@@ -14,6 +16,7 @@ from quantide.config.settings import get_timezone
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
+from quantide.service.reference_prices import historical_reference
 
 LIGHTNING_TABLE = "trade_lightning_entries"
 
@@ -46,7 +49,7 @@ class TradeLightningEntry:
         if isinstance(self.updated_at, str):
             self.updated_at = datetime.datetime.fromisoformat(self.updated_at)
 
-    def to_record(self) -> dict[str, str]:
+    def to_record(self) -> dict[str, str | float]:
         """转换为数据库记录。
 
         Returns:
@@ -66,7 +69,7 @@ class TradeLightningEntry:
 
 def _ensure_lightning_table() -> None:
     """确保闪电单数据表存在。"""
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     table.create(  # pylint: disable=no-member
         {
             "portfolio_id": str,
@@ -111,9 +114,7 @@ def list_trade_lightning_entries(portfolio_id: str) -> list[TradeLightningEntry]
     return [_row_to_entry(row) for row in rows]
 
 
-def get_trade_lightning_entry(
-    portfolio_id: str, asset: str
-) -> TradeLightningEntry | None:
+def get_trade_lightning_entry(portfolio_id: str, asset: str) -> TradeLightningEntry | None:
     """获取单个闪电单条目。
 
     Args:
@@ -136,7 +137,7 @@ def get_trade_lightning_entry(
     return _row_to_entry(rows[0])
 
 
-def _row_to_entry(row) -> TradeLightningEntry:
+def _row_to_entry(row: Mapping[str, Any]) -> TradeLightningEntry:
     """把数据库行（含可能缺失 cached_price 列的历史数据）转成 entry."""
     data = dict(row)
     if "cached_price" not in data:
@@ -180,61 +181,13 @@ def last_closed_trade_date() -> datetime.date:
 
 
 def compute_cached_price(asset: str, price_ref: str) -> float:
-    """闪电单创建/更新时预先计算并缓存的价格.
-
-    与执行时的 ``_resolve_lightning_price`` 不同，``compute_cached_price``
-    **只使用已收盘的日线**，确保创建时刻锁定的价格不会随盘中行情漂移：
-
-    - ``current`` / ``current_p1..p3``：留 0.0（实时价格无法预先锁定缓存）
-    - ``close``：取 last_closed_trade_date 的收盘价
-    - ``ma5/10/20/30/60``：取 last_closed_trade_date 之前 N 个已收盘日的均价
-
-    Args:
-        asset: 股票代码。
-        price_ref: 价格参考 key。
-
-    Returns:
-        缓存价格。无法解析时返回 ``0.0``。
-    """
-    if price_ref in ("current", "current_p1", "current_p2", "current_p3"):
-        return 0.0
-
-    end = last_closed_trade_date()
-
-    if price_ref == "close":
-        try:
-            bars = daily_bars.get_bars(
-                1, end=end, assets=[asset], eager_mode=True, adjust="qfq"
-            )
-        except Exception:
-            return 0.0
-        if bars.is_empty():
-            return 0.0
-        try:
-            close_value = float(bars.sort("date").row(-1, named=True).get("close") or 0)
-        except Exception:
-            return 0.0
-        return round(close_value, 2) if close_value > 0 else 0.0
-
-    if price_ref.startswith("ma"):
-        try:
-            period = int(price_ref[2:])
-        except ValueError:
-            return 0.0
-        try:
-            bars = daily_bars.get_bars(
-                period, end=end, assets=[asset], eager_mode=True, adjust="qfq"
-            )
-        except Exception:
-            return 0.0
-        if bars.is_empty() or len(bars) < period:
-            return 0.0
-        closes = [float(v) for v in bars.sort("date").get_column("close").to_list()]
-        if len(closes) < period:
-            return 0.0
-        return round(sum(closes[-period:]) / period, 2)
-
-    return 0.0
+    """Lock a rounded, adjusted reference using closed daily bars only."""
+    return round(
+        historical_reference(
+            daily_bars, asset, price_ref, end=last_closed_trade_date(), adjust="qfq"
+        ),
+        2,
+    )
 
 
 def add_trade_lightning_entry(
@@ -265,7 +218,7 @@ def add_trade_lightning_entry(
         price_ref=price_ref,
         cached_price=compute_cached_price(asset, price_ref),
     )
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     table.insert(  # pylint: disable=no-member
         entry.to_record(), pk=("portfolio_id", "asset")
     )
@@ -302,7 +255,7 @@ def update_trade_lightning_entry(
         updated_at=datetime.datetime.now(),
         cached_price=compute_cached_price(asset, price_ref),
     )
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     table.upsert(  # pylint: disable=no-member
         updated.to_record(), pk=("portfolio_id", "asset")
     )
@@ -323,7 +276,7 @@ def remove_trade_lightning_entry(portfolio_id: str, asset: str) -> bool:
     if entry is None:
         return False
 
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     table.delete((portfolio_id, asset))  # pylint: disable=no-member
     return True
 
@@ -341,7 +294,7 @@ def clear_trade_lightning_entries(portfolio_id: str) -> int:
     if not entries:
         return 0
 
-    table: su.db.Table = db[LIGHTNING_TABLE]  # type: ignore[assignment]
+    table: su.db.Table = db[LIGHTNING_TABLE]
     for entry in entries:
         table.delete((entry.portfolio_id, entry.asset))  # pylint: disable=no-member
     return len(entries)

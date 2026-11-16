@@ -75,11 +75,10 @@ class LightGBM30mSmokeStrategy(BaseStrategy):
         if self.engine == "lightgbm":
             # A tiny fixed model keeps this example lifecycle-focused while
             # still verifying the declared LightGBM dependency when available.
-            model = lgb.LGBMRegressor(  # type: ignore[union-attr]
-                n_estimators=4, max_depth=2, learning_rate=0.1, verbosity=-1
-            )
+            model = lgb.LGBMRegressor(n_estimators=4, max_depth=2, learning_rate=0.1, verbosity=-1)
             model.fit([[0.0], [1.0]], [0.0, closes[-1] - closes[-2]])
             return float(model.predict([[1.0]])[0])
+        raise RuntimeError(f"Unsupported model engine: {self.engine}")
 
 
 __all__ = ["LightGBM30mSmokeStrategy"]

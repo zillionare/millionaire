@@ -79,24 +79,16 @@ def build_scheduling_page_model(
         show_hidden=show_hidden,
         show_overridden=show_overridden,
     )
-    selected = next(
-        (s for s in filtered if s.strategy_id == selected_strategy_id), None
-    )
+    selected = next((s for s in filtered if s.strategy_id == selected_strategy_id), None)
     strategy_type_value = selected.strategy_type.value if selected else ""
     return SchedulingPageModel(
         strategies=filtered,
         selected_strategy=selected,
-        can_backtest=can_start_backtest(strategy_type_value)
+        can_backtest=can_start_backtest(strategy_type_value) if selected else False,
+        can_promote_to_paper=can_promote_to_paper(strategy_type_value, selected_has_backtest)
         if selected
         else False,
-        can_promote_to_paper=can_promote_to_paper(
-            strategy_type_value, selected_has_backtest
-        )
-        if selected
-        else False,
-        can_promote_to_live=can_promote_to_live(
-            strategy_type_value, selected_has_backtest
-        )
+        can_promote_to_live=can_promote_to_live(strategy_type_value, selected_has_backtest)
         if selected
         else False,
         runtime_params_default=DEFAULT_RUNTIME_PARAMS,

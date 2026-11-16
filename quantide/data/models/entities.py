@@ -28,9 +28,7 @@ class Order(Entity):
 
     foid: str | None = None  # 代理(比如QMT)指定的 id，透传，一般用以查错
     cid: str | None = None  # 券商柜台合约 id
-    status: OrderStatus = (
-        OrderStatus.UNREPORTED
-    )  # 委托状态，比如未报、待报、已报、部成等
+    status: OrderStatus = OrderStatus.UNREPORTED  # 委托状态，比如未报、待报、已报、部成等
     status_msg: str = ""  # 委托状态描述，比如废单原因
 
     # 本委托 ID, pk
@@ -38,7 +36,7 @@ class Order(Entity):
     error: str = ""  # 报单错误信息，包括错误码和错误信息,以:分隔
     extra: str = ""  # 额外信息，json 格式
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if isinstance(self.tm, str):
             self.tm = datetime.datetime.fromisoformat(self.tm)
         if isinstance(self.status, int):
@@ -71,7 +69,7 @@ class Trade(Entity):
 
     fee: float = 0  # 本笔交易手续费
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if isinstance(self.tm, str):
             self.tm = datetime.datetime.fromisoformat(self.tm)
         if isinstance(self.side, int):
@@ -93,7 +91,7 @@ class Position(Entity):
     profit: float  # 盈亏比，本字段主要供实盘快速查询使用，在回测、模拟时都不使用。
     mv: float  # 市值
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if isinstance(self.dt, str):
             # 处理可能包含时间的ISO格式字符串
             if self.dt.find("T") != -1:
@@ -118,7 +116,20 @@ class Asset(Entity):
     market_value: float
     total: float
 
-    def __post_init__(self):
+    @classmethod
+    def initial(cls, portfolio_id: str, day: datetime.date, principal: float) -> "Asset":
+        """Create the initial all-cash account snapshot."""
+        return cls(
+            portfolio_id=portfolio_id,
+            dt=day,
+            principal=principal,
+            cash=principal,
+            frozen_cash=0,
+            market_value=0,
+            total=principal,
+        )
+
+    def __post_init__(self) -> None:
         if isinstance(self.dt, str):
             # 处理可能包含时间的ISO格式字符串
             if self.dt.find("T") != -1:
@@ -143,7 +154,7 @@ class Portfolio(Entity):
     end: datetime.date | None = None
     status: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if isinstance(self.start, str):
             self.start = datetime.datetime.strptime(self.start, "%Y-%m-%d").date()
 
@@ -170,7 +181,7 @@ class StrategyLog(Entity):
     value: float
     extra: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if isinstance(self.dt, str):
             if self.dt.find("T") != -1:
                 self.dt = datetime.datetime.fromisoformat(self.dt)
@@ -195,6 +206,6 @@ class BacktestLogEntry(Entity):
     message: str
     extra: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if isinstance(self.dt, str):
             self.dt = datetime.datetime.fromisoformat(self.dt)

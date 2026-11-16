@@ -33,6 +33,10 @@ def test_header_alert_center_renders_badge_and_shortcuts():
 
     assert 'aria-label="告警中心"' in html
     assert "账户已封锁" in html
+    assert "账户风控" in html
+    assert "策略风控" in html
+    assert "账户封控" not in html
+    assert "策略封控" not in html
     assert "/system/risk-events/" in html
     assert "/system/runtime-monitor/" in html
     assert ">2<" in html

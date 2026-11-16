@@ -878,6 +878,7 @@ def _stub_strategy(monkeypatch, days: list[dt.date], **overrides):
     from quantide.strategies.example import ml_momentum_reversal as module
 
     monkeypatch.setattr(module, "calendar", _StubCalendar(days))
+    monkeypatch.setattr("quantide.strategies.example._ml_explanation.calendar", _StubCalendar(days))
     broker = SimpleNamespace(_bt_end=None, positions={}, cash=0.0)
     config = {"universe_size": 10, "universe_rebalance_days": 5, "retrain_days": 2}
     config.update(overrides)

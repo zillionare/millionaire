@@ -1,15 +1,18 @@
 """K线数据查询 API"""
 
 import datetime
+from typing import Any
 
 import polars as pl
 from fasthtml.common import *
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from quantide.core.bar_schema import bar_schema
 from quantide.data import get_index_bars_store
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.utils.resampler import Resampler
+from quantide.web.application import fast_app
 
 app, rt = fast_app()
 
@@ -19,34 +22,40 @@ def _feature_removed(message: str) -> JSONResponse:
     return JSONResponse({"code": 410, "message": message}, status_code=410)
 
 
-def bars_to_list(df) -> list[dict]:
+def bars_to_list(df: pl.DataFrame) -> list[dict[str, Any]]:
     """将 DataFrame 转换为列表"""
     if df.is_empty():
         return []
 
-    result = []
+    result: list[dict[str, Any]] = []
     for row in df.iter_rows(named=True):
-        result.append({
-            "dt": row["frame"].isoformat() if isinstance(row["frame"], (datetime.date, datetime.datetime)) else row["frame"],
-            "open": float(row["open"]),
-            "high": float(row["high"]),
-            "low": float(row["low"]),
-            "close": float(row["close"]),
-            "volume": float(row["volume"]),
-            "amount": float(row["amount"]),
-        })
+        result.append(
+            {
+                "dt": row["frame"].isoformat()
+                if isinstance(row["frame"], (datetime.date, datetime.datetime))
+                else row["frame"],
+                "open": float(row["open"]),
+                "high": float(row["high"]),
+                "low": float(row["low"]),
+                "close": float(row["close"]),
+                "volume": float(row["volume"]),
+                "amount": float(row["amount"]),
+            }
+        )
     return result
 
 
-def add_ma_to_list(df, ma_periods: list[int]) -> list[dict]:
+def add_ma_to_list(df: pl.DataFrame, ma_periods: list[int]) -> list[dict[str, Any]]:
     """将 DataFrame 转换为列表，包含均线数据"""
     if df.is_empty():
         return []
 
-    result = []
+    result: list[dict[str, Any]] = []
     for row in df.iter_rows(named=True):
-        item = {
-            "dt": row["frame"].isoformat() if isinstance(row["frame"], (datetime.date, datetime.datetime)) else row["frame"],
+        item: dict[str, Any] = {
+            "dt": row["frame"].isoformat()
+            if isinstance(row["frame"], (datetime.date, datetime.datetime))
+            else row["frame"],
             "open": float(row["open"]),
             "high": float(row["high"]),
             "low": float(row["low"]),
@@ -82,16 +91,11 @@ def _get_stock_bars(
     )
 
     if df.is_empty():
-        return pl.DataFrame(schema={
-            "frame": pl.Date,
-            "asset": pl.Utf8,
-            "open": pl.Float64,
-            "high": pl.Float64,
-            "low": pl.Float64,
-            "close": pl.Float64,
-            "volume": pl.Float64,
-            "amount": pl.Float64,
-        })
+        return pl.DataFrame(
+            schema=bar_schema(
+                time_column="frame", time_type=pl.Date, asset_column="asset", extended=False
+            )
+        )
 
     # 重命名列
     df = df.rename({"date": "frame", "asset": "asset"})
@@ -116,18 +120,14 @@ def _get_index_bars(
         end=end,
         eager_mode=True,
     )
+    assert isinstance(df, pl.DataFrame)
 
     if df.is_empty():
-        return pl.DataFrame(schema={
-            "frame": pl.Date,
-            "asset": pl.Utf8,
-            "open": pl.Float64,
-            "high": pl.Float64,
-            "low": pl.Float64,
-            "close": pl.Float64,
-            "volume": pl.Float64,
-            "amount": pl.Float64,
-        })
+        return pl.DataFrame(
+            schema=bar_schema(
+                time_column="frame", time_type=pl.Date, asset_column="asset", extended=False
+            )
+        )
 
     df = df.rename({"date": "frame", "asset": "asset"})
 
@@ -152,9 +152,7 @@ def _get_bars_with_ma(
 
     # 计算均线
     for period in ma_periods:
-        df = df.with_columns(
-            pl.col("close").rolling_mean(window_size=period).alias(f"ma{period}")
-        )
+        df = df.with_columns(pl.col("close").rolling_mean(window_size=period).alias(f"ma{period}"))
 
     return df
 
@@ -167,7 +165,7 @@ async def get_stock_kline(
     end: str | None = None,
     freq: str = "day",
     ma: str | None = None,
-):
+) -> Any:
     """获取个股K线数据"""
     # 解析日期
     try:
@@ -212,15 +210,17 @@ async def get_stock_kline(
             df = _get_stock_bars(symbol, start_date, end_date, freq)
             data = bars_to_list(df)
 
-        return JSONResponse({
-            "code": 0,
-            "message": "success",
-            "data": {
-                "symbol": symbol,
-                "freq": freq,
-                "items": data,
-            },
-        })
+        return JSONResponse(
+            {
+                "code": 0,
+                "message": "success",
+                "data": {
+                    "symbol": symbol,
+                    "freq": freq,
+                    "items": data,
+                },
+            }
+        )
 
     except Exception as e:
         return JSONResponse(
@@ -237,7 +237,7 @@ async def get_sector_kline(
     end: str | None = None,
     freq: str = "day",
     ma: str | None = None,
-):
+) -> Any:
     """获取板块K线数据"""
     _ = (request, sector_id, start, end, freq, ma)
     return _feature_removed("sector kline has been retired from the subject app")
@@ -251,7 +251,7 @@ async def get_index_kline(
     end: str | None = None,
     freq: str = "day",
     ma: str | None = None,
-):
+) -> Any:
     """获取指数K线数据"""
     # 解析日期
     try:
@@ -301,15 +301,17 @@ async def get_index_kline(
             df = _get_index_bars(symbol, start_date, end_date, freq)
             data = bars_to_list(df)
 
-        return JSONResponse({
-            "code": 0,
-            "message": "success",
-            "data": {
-                "symbol": symbol,
-                "freq": freq,
-                "items": data,
-            },
-        })
+        return JSONResponse(
+            {
+                "code": 0,
+                "message": "success",
+                "data": {
+                    "symbol": symbol,
+                    "freq": freq,
+                    "items": data,
+                },
+            }
+        )
 
     except Exception as e:
         return JSONResponse(
@@ -326,7 +328,7 @@ async def compare_kline(
     start: str | None = None,
     end: str | None = None,
     freq: str = "day",
-):
+) -> Any:
     """对比两个标的的K线数据"""
     # 解析日期
     try:
@@ -361,17 +363,19 @@ async def compare_kline(
         df2 = _get_stock_bars(compare, start_date, end_date, freq)
         data2 = bars_to_list(df2)
 
-        return JSONResponse({
-            "code": 0,
-            "message": "success",
-            "data": {
-                "symbol": symbol,
-                "compare": compare,
-                "freq": freq,
-                "primary": data1,
-                "compare_data": data2,
-            },
-        })
+        return JSONResponse(
+            {
+                "code": 0,
+                "message": "success",
+                "data": {
+                    "symbol": symbol,
+                    "compare": compare,
+                    "freq": freq,
+                    "primary": data1,
+                    "compare_data": data2,
+                },
+            }
+        )
 
     except Exception as e:
         return JSONResponse(

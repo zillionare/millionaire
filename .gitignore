@@ -29,6 +29,7 @@ wheels/
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
+!scripts/packaging/windows/app.manifest
 *.spec
 
 # Installer logs
@@ -142,6 +143,7 @@ quantide.db-shm
 .kilo/
 
 coverage.json
+quality-reports/
 .opencode/agents/
 .louke/web-users.json
 .louke/project/.serve-activity.jsonl

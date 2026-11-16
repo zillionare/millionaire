@@ -32,16 +32,20 @@ class TestTushareFetcher:
             nonlocal calendar_df
             if calendar_df is None:
                 raw = request.getfixturevalue("calendar_data")
-                calendar_df = raw.to_pandas().reset_index().rename(
-                    columns={
-                        "index": "cal_date",
-                        "date": "cal_date",
-                        "prev": "pretrade_date",
-                    }
+                calendar_df = (
+                    raw.to_pandas()
+                    .reset_index()
+                    .rename(
+                        columns={
+                            "index": "cal_date",
+                            "date": "cal_date",
+                            "prev": "pretrade_date",
+                        }
+                    )
                 )
-                calendar_df["cal_date"] = pd.to_datetime(
-                    calendar_df["cal_date"]
-                ).dt.strftime("%Y%m%d")
+                calendar_df["cal_date"] = pd.to_datetime(calendar_df["cal_date"]).dt.strftime(
+                    "%Y%m%d"
+                )
                 calendar_df["pretrade_date"] = pd.to_datetime(
                     calendar_df["pretrade_date"]
                 ).dt.strftime("%Y%m%d")
@@ -51,17 +55,19 @@ class TestTushareFetcher:
             nonlocal stock_df
             if stock_df is None:
                 stock_list_path = (
-                    Path(__file__).resolve().parents[5] / "data" / "stock_list.parquet"
+                    Path(__file__).resolve().parents[5]
+                    / "tests"
+                    / "assets"
+                    / "market_data"
+                    / "stock_list.parquet"
                 )
                 stock_df = pd.read_parquet(stock_list_path).rename(
                     columns={"asset": "ts_code", "pinyin": "cnspell"}
                 )
-                stock_df["list_date"] = pd.to_datetime(
-                    stock_df["list_date"]
-                ).dt.strftime("%Y%m%d")
-                stock_df["delist_date"] = pd.to_datetime(
-                    stock_df["delist_date"]
-                ).dt.strftime("%Y%m%d")
+                stock_df["list_date"] = pd.to_datetime(stock_df["list_date"]).dt.strftime("%Y%m%d")
+                stock_df["delist_date"] = pd.to_datetime(stock_df["delist_date"]).dt.strftime(
+                    "%Y%m%d"
+                )
             return stock_df
 
         def _select_fixture(
@@ -77,9 +83,7 @@ class TestTushareFetcher:
                 return _select_fields(result.rename(columns=rename_as), fields)
             result = result.rename(columns=rename_as)
             if "trade_date" in result:
-                result["trade_date"] = pd.to_datetime(
-                    result["trade_date"]
-                ).dt.strftime("%Y%m%d")
+                result["trade_date"] = pd.to_datetime(result["trade_date"]).dt.strftime("%Y%m%d")
             return _select_fields(result, fields)
 
         def _select_fields(df: pd.DataFrame, fields: str | None) -> pd.DataFrame:
@@ -95,7 +99,11 @@ class TestTushareFetcher:
             def stock_basic(self, list_status: str, exchange: str = "", fields: str | None = None):
                 if list_status != "L":
                     source = _stock_df()
-                    columns = [col.strip() for col in fields.split(",")] if fields else source.columns.tolist()
+                    columns = (
+                        [col.strip() for col in fields.split(",")]
+                        if fields
+                        else source.columns.tolist()
+                    )
                     return pd.DataFrame(columns=columns)
                 return _select_fields(_stock_df().copy(), fields)
 
@@ -172,9 +180,7 @@ class TestTushareFetcher:
         ]
 
         assert len(df) > 5000
-        assert df[df.asset == "000001.SZ"]["list_date"].item() == datetime.date(
-            1991, 4, 3
-        )
+        assert df[df.asset == "000001.SZ"]["list_date"].item() == datetime.date(1991, 4, 3)
 
     def test_fetch_adjust_factor(self, adjust_factor):
         # 返回空值的情况
@@ -227,9 +233,7 @@ class TestTushareFetcher:
         df, errors = fetch_bars(date)
 
         expected = (
-            bars[bars["date"] == pd.Timestamp(date)]
-            .sort_values(by="asset")
-            .reset_index(drop=True)
+            bars[bars["date"] == pd.Timestamp(date)].sort_values(by="asset").reset_index(drop=True)
         )
         actual = df.sort_values(by="asset").reset_index(drop=True)
         expected["volume"] = expected["volume"].astype("float64")
@@ -308,9 +312,7 @@ class TestTushareFetcher:
         cutoff = datetime.date(2007, 1, 1)
         valid_dates = [datetime.date(2007, 1, 4), datetime.date(2007, 1, 5)]
 
-        def fake_fetch_by_dates(
-            func_name, dates, *args, fields=None, rename_as=None, **kwargs
-        ):
+        def fake_fetch_by_dates(func_name, dates, *args, fields=None, rename_as=None, **kwargs):
             assert all(d >= cutoff for d in dates)
             s_dates = pd.to_datetime(dates).astype("datetime64[ms]")
             # build minimal DataFrame with expected numeric columns
@@ -354,9 +356,7 @@ class TestTushareFetcher:
         df, errors = fetch_st_info(date)
 
         expected = (
-            st[st["date"] == pd.Timestamp(date)]
-            .sort_values(by="asset")
-            .reset_index(drop=True)
+            st[st["date"] == pd.Timestamp(date)].sort_values(by="asset").reset_index(drop=True)
         )
         actual = df.sort_values(by="asset").reset_index(drop=True)
 
@@ -374,9 +374,7 @@ class TestTushareFetcher:
         actual = actual.sort_values(by=["asset", "date"]).reset_index(drop=True)
         ts_dates = [pd.Timestamp(d) for d in dates]
         expected = (
-            st[st["date"].isin(ts_dates)]
-            .sort_values(by=["asset", "date"])
-            .reset_index(drop=True)
+            st[st["date"].isin(ts_dates)].sort_values(by=["asset", "date"]).reset_index(drop=True)
         )
 
         expected["is_st"] = True
@@ -404,9 +402,7 @@ class TestTushareFetcher:
         cutoff = datetime.date(2016, 1, 1)
         valid_dates = [datetime.date(2016, 1, 4), datetime.date(2016, 1, 5)]
 
-        def fake_fetch_by_dates(
-            func_name, dates, *args, fields=None, rename_as=None, **kwargs
-        ):
+        def fake_fetch_by_dates(func_name, dates, *args, fields=None, rename_as=None, **kwargs):
             assert all(d >= cutoff for d in dates)
             s_dates = pd.to_datetime(dates).astype("datetime64[ms]")
             df_ = pd.DataFrame({"asset": ["000001.SZ"] * len(dates), "date": s_dates})
@@ -468,12 +464,8 @@ class TestTushareFetcher:
 
         bars_pl = pl.from_pandas(bars.query("date >= @start and date <= @end")).lazy()
         st_pl = pl.from_pandas(st.query("date >= @start and date <= @end")).lazy()
-        adjust_pl = pl.from_pandas(
-            adjust_factor.query("date >= @start and date <= @end")
-        ).lazy()
-        limit_pl = pl.from_pandas(
-            limit_price.query("date >= @start and date <= @end")
-        ).lazy()
+        adjust_pl = pl.from_pandas(adjust_factor.query("date >= @start and date <= @end")).lazy()
+        limit_pl = pl.from_pandas(limit_price.query("date >= @start and date <= @end")).lazy()
 
         expect = (
             bars_pl.join(adjust_pl, on=["date", "asset"], how="left")
@@ -521,13 +513,9 @@ class TestTushareFetcher:
             actual2, errors2 = fetch_bars_ext(dates)
             # normalize actual2 to pandas
             actual2_pd = (
-                actual2.collect().to_pandas()
-                if isinstance(actual2, pl.LazyFrame)
-                else actual2
+                actual2.collect().to_pandas() if isinstance(actual2, pl.LazyFrame) else actual2
             )
-            assert (
-                "up_limit" in actual2_pd.columns and "down_limit" in actual2_pd.columns
-            )
+            assert "up_limit" in actual2_pd.columns and "down_limit" in actual2_pd.columns
             assert actual2_pd["up_limit"].eq(0.0).all()
             assert actual2_pd["down_limit"].eq(0.0).all()
 

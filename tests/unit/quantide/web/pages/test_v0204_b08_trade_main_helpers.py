@@ -7,6 +7,8 @@ file covers pure helper functions to push coverage toward 80%.
 
 from __future__ import annotations
 
+from quantide.web.services import trade_quote_view as trade_quotes
+
 import datetime
 import sys
 from types import SimpleNamespace
@@ -287,7 +289,7 @@ def test_resolve_live_current_price_returns_zero_when_no_quote(monkeypatch):
         def start(self):
             return None
 
-    monkeypatch.setattr(tm, "market_data_hub", _FakeLQ())
+    monkeypatch.setattr(trade_quotes, "market_data_hub", _FakeLQ())
     price = _resolve_live_current_price("000001.SZ")
     assert price == 0.0
 

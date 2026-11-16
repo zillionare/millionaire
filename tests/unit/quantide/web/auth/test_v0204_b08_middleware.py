@@ -37,7 +37,7 @@ def test_build_skip_patterns_basic():
     assert "/health" in patterns
 
 
-def test_build_skip_patterns_with_additional():
+def test_build_skip_patterns_with_single_additional_path():
     """[AC-NFR1101-01] test_build_skip_patterns_with_additional."""
     mw = AuthBeforeware(auth_manager=MagicMock())
     patterns = mw._build_skip_patterns(additional_paths=["/custom"])
@@ -267,8 +267,8 @@ def test_capture_auth_check_admin():
         assert fake_req.scope.get("user_is_admin") is True
 
 
-def test_capture_auth_check_remember_me():
-    """[AC-NFR1101-01] When remember_user cookie present + active user, restore session."""
+def test_unsigned_remember_cookie_cannot_restore_session():
+    """[AC-NFR1101-01] Reject a forged remember_user identity even when that user exists."""
     captured = {}
 
     def capturing_BW(*args, **kwargs):
@@ -294,11 +294,10 @@ def test_capture_auth_check_remember_me():
         fake_req.cookies = {"remember_user": "alice"}
         fake_req.scope = {}
         fake_sess = {}
-        auth_check(fake_req, fake_sess)
-        # Session restored
-        assert fake_sess.get("auth") == "alice"
-        assert fake_sess.get("user_id") == 7
-        assert fake_sess.get("remember_me") is True
+        response = auth_check(fake_req, fake_sess)
+        assert response.status_code == 303
+        assert fake_sess == {}
+        mw.auth_manager.get_user.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

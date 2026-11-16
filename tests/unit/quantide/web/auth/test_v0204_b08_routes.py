@@ -233,7 +233,7 @@ def test_register_page_no_error():
     assert out is not None
 
 
-def test_register_page_with_error():
+def test_register_page_with_error_original_236():
     """[AC-NFR1101-01] test_register_page_with_error."""
     auth = MagicMock()
     auth.config = {"allow_registration": True}
@@ -265,7 +265,7 @@ async def test_register_submit_no_terms():
 
 
 @pytest.mark.asyncio
-async def test_register_submit_password_mismatch():
+async def test_register_submit_password_mismatch_original_268():
     auth = MagicMock()
     auth.config = {"allow_registration": True}
     auth.user_repo = MagicMock()
@@ -285,7 +285,7 @@ async def test_register_submit_password_mismatch():
 
 
 @pytest.mark.asyncio
-async def test_register_submit_username_taken():
+async def test_register_submit_username_taken_original_288():
     auth = MagicMock()
     auth.config = {"allow_registration": True}
     auth.user_repo = MagicMock()
@@ -307,7 +307,7 @@ async def test_register_submit_username_taken():
 
 
 @pytest.mark.asyncio
-async def test_register_submit_success():
+async def test_register_submit_success_original_310():
     auth = MagicMock()
     auth.config = {"allow_registration": True}
     fake_user = MagicMock()
@@ -416,7 +416,7 @@ def test_forgot_page_with_error_success():
 
 
 @pytest.mark.asyncio
-async def test_forgot_submit():
+async def test_forgot_submit_original_419():
     auth = MagicMock()
     auth.config = {"allow_password_reset": True}
     routes = AuthRoutes(auth)
@@ -434,7 +434,7 @@ async def test_forgot_submit():
 # ---------------------------------------------------------------------------
 
 
-def test_profile_page():
+def test_profile_page_original_437():
     """[AC-NFR1101-01] test_profile_page."""
     auth = MagicMock()
     auth.config = {}
@@ -529,7 +529,8 @@ def test_register_all_minimal_no_admin():
     app = MagicMock()
     fake_route = MagicMock(side_effect=lambda *args, **kw: lambda f: f)
     app.route = fake_route
-    routes.register_all(app, prefix="/auth", include_admin=False, allow_custom_login=False)
+    result = routes.register_all(app, prefix="/auth", include_admin=False, allow_custom_login=False)
+    assert result is routes.routes
     assert "login_page" in routes.routes
     assert "logout" in routes.routes
     assert "profile_page" in routes.routes

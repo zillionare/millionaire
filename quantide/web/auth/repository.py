@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+from typing import Any, cast
 
 from .models import User
 
@@ -5,11 +7,11 @@ from .models import User
 class UserRepository:
     """Handles all database operations for users"""
 
-    def __init__(self, db):
+    def __init__(self, db: Any) -> None:
         self.db = db
         self.users = db.t.user
 
-    def _dict_to_user(self, user_dict) -> User:
+    def _dict_to_user(self, user_dict: User | Mapping[str, Any]) -> User:
         """Convert dictionary from database to User object"""
         if isinstance(user_dict, User):
             return user_dict
@@ -54,10 +56,8 @@ class UserRepository:
             print(f"Error in get_by_id: {e}")
             return None
 
-    def create(
-        self, username: str, email: str, password: str, role: str = "user"
-    ) -> User:
-        """Create new user.  Note that the dates will be updated by the class -_post_init__ method"""
+    def create(self, username: str, email: str, password: str, role: str = "user") -> User:
+        """Create a user with timestamps initialized by the model."""
         user = User(
             username=username,
             email=email,
@@ -71,13 +71,13 @@ class UserRepository:
         if isinstance(inserted_user, dict):
             return self._dict_to_user(inserted_user)
         else:
-            return inserted_user
+            return cast(User, inserted_user)
 
     def authenticate(self, username: str, password: str) -> User | None:
         """Authenticate user and update last_login"""
         user = self.get_by_username(username)
         print(f"User: {user}")
-        if user and user.active and User.verify_password(password, user.password):
+        if user and user.active and user.password and User.verify_password(password, user.password):
             # Update last_login using the new fastlite approach
             from datetime import datetime
 
@@ -86,15 +86,13 @@ class UserRepository:
             return user
         return None
 
-    def update(self, user_id: int, **kwargs) -> bool:
+    def update(self, user_id: int, **kwargs: Any) -> bool:
         """Update user fields using fastlite kwargs approach"""
         try:
             # Hash password if being updated                    # <- NEW
             if "password" in kwargs and kwargs["password"]:  # <- NEW
                 if not User.is_hashed(kwargs["password"]):  # <- NEW
-                    kwargs["password"] = User.get_hashed_password(
-                        kwargs["password"]
-                    )  # <- NEW
+                    kwargs["password"] = User.get_hashed_password(kwargs["password"])  # <- NEW
 
             # Include the primary key in the update kwargs
             self.users.update(id=user_id, **kwargs)
@@ -150,7 +148,7 @@ class UserRepository:
             print(f"Error deleting user '{username}': {e}")
             return False
 
-    def count_by_role(self) -> dict:
+    def count_by_role(self) -> dict[str, int]:
         """Get count of users by role"""
         try:
             users = self.list_all()
@@ -165,7 +163,7 @@ class UserRepository:
 
     def search_users(
         self, query: str, role: str | None = None, active: bool | None = None
-    ) -> list:
+    ) -> list[User]:
         """Search users with optional filters"""
         try:
             users = self.list_all()
@@ -176,8 +174,8 @@ class UserRepository:
                 users = [
                     u
                     for u in users
-                    if query_lower in u.username.lower()
-                    or query_lower in u.email.lower()
+                    if query_lower in (u.username or "").lower()
+                    or query_lower in (u.email or "").lower()
                 ]
 
             # Apply role filter

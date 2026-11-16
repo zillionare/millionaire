@@ -12,6 +12,8 @@ Targets gaps left by earlier B08/B09 test files:
 
 from __future__ import annotations
 
+from quantide.web.services import trade_quote_view as trade_quotes
+
 import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -77,7 +79,7 @@ def test_resolve_trade_reference_dates_calendar_exception_falls_back_to_fetcher(
         "is_open": [1, 1],
     })
     fetcher.fetch_calendar.return_value = df
-    with patch.object(tm, "calendar") as fake_calendar:
+    with patch.object(trade_quotes, "calendar") as fake_calendar:
         fake_calendar.get_trade_dates.side_effect = Exception("calendar boom")
         out = _resolve_trade_reference_dates(fetcher, datetime.date(2024, 1, 5), 2)
     assert isinstance(out, list)
@@ -88,7 +90,7 @@ def test_resolve_trade_reference_dates_fetcher_exception_returns_end():
     """When both calendar and fetcher.fetch_calendar raise, returns [end]."""
     fetcher = MagicMock()
     fetcher.fetch_calendar.side_effect = Exception("fetcher boom")
-    with patch.object(tm, "calendar") as fake_calendar:
+    with patch.object(trade_quotes, "calendar") as fake_calendar:
         fake_calendar.get_trade_dates.side_effect = Exception("calendar boom")
         out = _resolve_trade_reference_dates(fetcher, datetime.date(2024, 1, 5), 2)
     assert out == [datetime.date(2024, 1, 5)]
@@ -101,7 +103,7 @@ def test_resolve_trade_reference_dates_fetcher_exception_returns_end():
 
 def test_build_asset_stats_returns_invisible_payload_when_bars_empty():
     """When _load_trade_reference_bars returns empty DataFrame, payload stays invisible."""
-    with patch.object(tm, "_load_trade_reference_bars", return_value=pl.DataFrame()):
+    with patch.object(trade_quotes, "_load_trade_reference_bars", return_value=pl.DataFrame()):
         out = _build_asset_stats("000001.SZ")
     assert out["visible"] is False
     assert out["close"] == ""
@@ -115,8 +117,8 @@ def test_build_asset_stats_returns_invisible_payload_when_closes_empty():
     contains zero rows -- a degenerate frame with a schema but no data.
     """
     df = pl.DataFrame(schema={"date": pl.Date, "close": pl.Float64})
-    with patch.object(tm, "_load_trade_reference_bars", return_value=df), \
-         patch.object(tm, "_resolve_live_current_price", return_value=0.0):
+    with patch.object(trade_quotes, "_load_trade_reference_bars", return_value=df), \
+         patch.object(trade_quotes, "_resolve_live_current_price", return_value=0.0):
         out = _build_asset_stats("000001.SZ")
     assert out["visible"] is False
 
@@ -132,7 +134,7 @@ def test_load_trade_reference_bars_returns_local_bars_when_available():
         "date": [datetime.date(2024, 1, 2), datetime.date(2024, 1, 1)],
         "close": [10.0, 9.0],
     })
-    with patch.object(tm.daily_bars, "get_bars", return_value=df):
+    with patch.object(trade_quotes.daily_bars, "get_bars", return_value=df):
         out = _load_trade_reference_bars("000001.SZ", datetime.date(2024, 1, 5), 2)
     assert not out.is_empty()
     # Sorted ascending by date.
@@ -142,8 +144,8 @@ def test_load_trade_reference_bars_returns_local_bars_when_available():
 
 def test_load_trade_reference_bars_fallback_empty_frame_returns_empty():
     """When local bars are empty and the fetcher fallback yields an empty frame, returns empty."""
-    with patch.object(tm.daily_bars, "get_bars", return_value=pl.DataFrame()), \
-         patch.object(tm, "get_data_fetcher") as fake_fetcher, \
+    with patch.object(trade_quotes.daily_bars, "get_bars", return_value=pl.DataFrame()), \
+         patch.object(trade_quotes, "get_data_fetcher") as fake_fetcher, \
          patch.object(tm, "_resolve_trade_reference_dates", return_value=[datetime.date(2024, 1, 4)]):
         fake_fetcher.return_value.fetch_bars_ext.return_value = (pd.DataFrame(), None)
         out = _load_trade_reference_bars("000001.SZ", datetime.date(2024, 1, 5), 2)
@@ -158,7 +160,7 @@ def test_load_trade_reference_bars_fallback_empty_frame_returns_empty():
 def test_resolve_trade_reference_close_returns_zero_when_close_non_positive():
     """When the latest close value is 0 (or non-positive), returns 0.0."""
     df = pl.DataFrame({"date": [datetime.date(2024, 1, 1)], "close": [0.0]})
-    with patch.object(tm, "_load_trade_reference_bars", return_value=df):
+    with patch.object(trade_quotes, "_load_trade_reference_bars", return_value=df):
         out = _resolve_trade_reference_close("000001.SZ")
     assert out == 0.0
 

@@ -8,8 +8,11 @@ import json
 import os
 import shutil
 import sys
+import threading
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Literal
 
 from loguru import logger
 
@@ -25,6 +28,23 @@ from quantide.data.models.strategy_config import (
     StrategyMetadata,
 )
 from quantide.data.sqlite import db
+
+
+def _cache_strategy_metadata(
+    class_name: str, self: "StrategyLoader", strategy_class: type[Strategy] | None
+) -> None:
+    """Cache strategy metadata."""
+    if strategy_class and inspect.isclass(strategy_class):
+        is_valid = (
+            issubclass(strategy_class, BaseStrategy)
+            and strategy_class not in (BaseStrategy, Strategy)
+        ) or (
+            issubclass(strategy_class, RiskStrategy)
+            and strategy_class not in (RiskStrategy, Strategy)
+        )
+        if is_valid:
+            self._strategies[class_name] = strategy_class
+            logger.debug(f"Loaded strategy from cache: {class_name}")
 
 
 @dataclass(frozen=True)
@@ -62,10 +82,33 @@ class StrategyLoader:
             Path(__file__).resolve().parents[1] / "strategies" / "example"
         ).resolve()
         self._builtin_module_prefix = "quantide.strategies.example"
+        self._builtin_generation: int | None = None
+        self._builtin_lock = threading.RLock()
 
     def get_builtin_scan_directory(self) -> str:
         """返回内置示例策略目录。"""
         return str(self._builtin_example_dir)
+
+    def ensure_builtin_strategies(self) -> None:
+        """Register shipped examples without replacing a user's same-name strategy."""
+        with self._builtin_lock:
+            generation = db._connection_generation
+            if generation == self._builtin_generation:
+                return
+            self._register_builtin_strategies()
+            self._builtin_generation = generation
+
+    def _register_builtin_strategies(self) -> None:
+        source = ScanSource(self._builtin_example_dir, self._builtin_module_prefix)
+        for name, info in self._scan_source(source).items():
+            existing = list(db["strategy_info"].rows_where("name = ?", (name,)))
+            if existing and not str(existing[0].get("module_path", "")).startswith(
+                self._builtin_module_prefix + "."
+            ):
+                continue
+            if existing:
+                info.id = existing[0]["id"]
+            db["strategy_info"].upsert(info.to_dict(), pk=StrategyInfo.__pk__)
 
     def get_user_scan_directory(self) -> str:
         """返回用户配置的策略目录。"""
@@ -111,9 +154,7 @@ class StrategyLoader:
         """设置扫描目录"""
         from datetime import datetime
 
-        existing_rows = list(
-            db["strategy_config"].rows_where("key = ?", ("scan_directory",))
-        )
+        existing_rows = list(db["strategy_config"].rows_where("key = ?", ("scan_directory",)))
         existing_id = existing_rows[0]["id"] if existing_rows else None
 
         config = StrategyConfig(
@@ -149,16 +190,11 @@ class StrategyLoader:
 
                     # 获取策略类
                     strategy_class = getattr(module, class_name, None)
-                    if strategy_class and inspect.isclass(strategy_class):
-                        is_valid = (
-                            (issubclass(strategy_class, BaseStrategy) and strategy_class not in (BaseStrategy, Strategy))
-                            or (issubclass(strategy_class, RiskStrategy) and strategy_class not in (RiskStrategy, Strategy))
-                        )
-                        if is_valid:
-                            self._strategies[class_name] = strategy_class
-                            logger.debug(f"Loaded strategy from cache: {class_name}")
+                    _cache_strategy_metadata(class_name, self, strategy_class)
                 except Exception as e:
-                    logger.error(f"Failed to load strategy from cache: {row.get('name', 'unknown')}: {e}")
+                    logger.error(
+                        f"Failed to load strategy from cache: {row.get('name', 'unknown')}: {e}"
+                    )
 
         except Exception as e:
             logger.warning(f"Failed to load strategies from cache: {e}")
@@ -252,7 +288,7 @@ class StrategyLoader:
         scanned: dict[str, StrategyInfo] = {}
         # spec FR-020 AC-020-02: 不递归子目录;仅顶层 .py 文件
         for file in sorted(source.directory.iterdir()):
-            if not file.is_file() or not file.name.endswith(".py") or file.name.startswith("__"):
+            if not file.is_file() or not file.name.endswith(".py") or file.name.startswith("_"):
                 continue
             file_path = file
             try:
@@ -286,8 +322,6 @@ class StrategyLoader:
 
     def _load_module_and_get_info(self, module_name: str, scan_dir: str) -> list[StrategyInfo]:
         """加载模块并获取策略信息"""
-        from datetime import datetime
-
         strategies = []
 
         try:
@@ -297,31 +331,9 @@ class StrategyLoader:
                 module = importlib.import_module(module_name)
 
             for name, obj in inspect.getmembers(module):
-                if not inspect.isclass(obj):
-                    continue
-                is_base = issubclass(obj, BaseStrategy) and obj not in (BaseStrategy, Strategy)
-                is_risk = issubclass(obj, RiskStrategy) and obj not in (RiskStrategy, Strategy)
-                if not is_base and not is_risk:
-                    continue
-                file_path = inspect.getfile(obj)
-                params = {}
-                if hasattr(obj, "params") and obj.params:
-                    params = obj.params
-                strategy_type = "risk" if is_risk else "independent"
-
-                strategy_info = StrategyInfo(
-                    name=name,
-                    module_path=module_name,
-                    file_path=file_path,
-                    description=getattr(obj, "__doc__", "") or "",
-                    version=getattr(obj, "version", "1.0.0"),
-                    params=json.dumps(params, ensure_ascii=False),
-                    scan_dir=scan_dir,
-                    scanned_at=datetime.now(),
-                    strategy_type=strategy_type,
-                )
-                strategies.append(strategy_info)
-                logger.debug(f"Scanned strategy: {name} ({strategy_type}) from {module_name}")
+                info = _cached_class_info(name, obj, module_name, scan_dir)
+                if info is not None:
+                    strategies.append(info)
         except Exception as e:
             # 不抛出异常，以免一个文件错误导致整个加载失败
             logger.debug(f"Failed to load module {module_name}: {e}")
@@ -415,7 +427,7 @@ strategy_loader = StrategyLoader()
 _BUILTIN_MODULE_PREFIX = "quantide.examples"
 
 
-def _classify_strategy(cls) -> str | None:
+def _classify_strategy(cls: object) -> Literal["independent", "risk"] | None:
     """v0.2 spec: BaseStrategy 子类 → "independent", RiskStrategy 子类 → "risk"
     排除 Strategy/BaseStrategy/RiskStrategy 自身.
     """
@@ -435,7 +447,7 @@ def _classify_strategy(cls) -> str | None:
     return None
 
 
-def _to_param_spec(params: dict) -> dict:
+def _to_param_spec(params: Mapping[str, Any]) -> dict[str, ParamSpec]:
     """v0.2 spec: default_config dict → dict[str, ParamSpec]"""
     result = {}
     for key, value in (params or {}).items():
@@ -449,7 +461,7 @@ def _to_param_spec(params: dict) -> dict:
     return result
 
 
-def _is_builtin_class(cls) -> bool:
+def _is_builtin_class(cls: object) -> bool:
     """v0.2 spec: 框架包内 (quantide.*) 的类视为内置"""
     module = getattr(cls, "__module__", "") or ""
     return module.startswith("quantide.") and not module.startswith("quantide.examples.")
@@ -493,12 +505,14 @@ def enumerate_strategies(
 
     root_path = Path(root).expanduser().resolve()
     if not root_path.exists():
-        diagnostics.append(SkippedEntry(
-            path=str(root),
-            class_name=None,
-            reason="PermissionDenied",
-            detail=f"directory does not exist: {root}",
-        ))
+        diagnostics.append(
+            SkippedEntry(
+                path=str(root),
+                class_name=None,
+                reason="PermissionDenied",
+                detail=f"directory does not exist: {root}",
+            )
+        )
         return EnumerationResult(strategies=strategies, diagnostics=diagnostics)
 
     user_strategies, user_diags = _enumerate_dir(root_path, is_builtin=False)
@@ -526,75 +540,141 @@ def _enumerate_dir(
         sys.path.insert(0, str(directory))
 
     for file in sorted(directory.iterdir()):
-        if not file.is_file() or not file.name.endswith(".py") or file.name.startswith("__"):
+        if not file.is_file() or not file.name.endswith(".py") or file.name.startswith("_"):
             continue
-        file_path = file
-        try:
-            module_name = (
-                f"{_BUILTIN_MODULE_PREFIX}.{file.stem}" if is_builtin
-                else file.stem
-            )
-            if module_name in sys.modules:
-                module = importlib.reload(sys.modules[module_name])
-            else:
-                module = importlib.import_module(module_name)
-        except SyntaxError as e:
-            diagnostics.append(SkippedEntry(
+        found, skipped = _enumerate_file(file, is_builtin)
+        strategies.extend(found)
+        diagnostics.extend(skipped)
+
+    return strategies, diagnostics
+
+
+def _enumerate_file(
+    file: Path, is_builtin: bool
+) -> tuple[list[StrategyMetadata], list[SkippedEntry]]:
+    """Import one strategy file and retain a diagnostic if importing fails."""
+    strategies = []
+    diagnostics = []
+    file_path = file
+    try:
+        module_name = f"{_BUILTIN_MODULE_PREFIX}.{file.stem}" if is_builtin else file.stem
+        if module_name in sys.modules:
+            module = importlib.reload(sys.modules[module_name])
+        else:
+            module = importlib.import_module(module_name)
+    except SyntaxError as e:
+        diagnostics.append(
+            SkippedEntry(
                 path=str(file_path),
                 class_name=None,
                 reason="SyntaxError",
                 detail=f"line {e.lineno}: {e.msg}",
-            ))
-            continue
-        except (ImportError, ModuleNotFoundError) as e:
-            diagnostics.append(SkippedEntry(
+            )
+        )
+        return [], diagnostics
+    except (ImportError, ModuleNotFoundError) as e:
+        diagnostics.append(
+            SkippedEntry(
                 path=str(file_path),
                 class_name=None,
                 reason="ImportError",
                 detail=str(e),
-            ))
-            continue
-        except Exception as e:
-            diagnostics.append(SkippedEntry(
+            )
+        )
+        return [], diagnostics
+    except Exception as e:
+        diagnostics.append(
+            SkippedEntry(
                 path=str(file_path),
                 class_name=None,
                 reason="ModuleInitError",
                 detail=str(e),
-            ))
-            continue
+            )
+        )
+        return [], diagnostics
 
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            if obj.__module__ != module_name:
-                continue
-            strategy_type = _classify_strategy(obj)
-            if strategy_type is None:
-                diagnostics.append(SkippedEntry(
-                    path=str(file_path),
-                    class_name=name,
-                    reason=SKIP_NOT_A_STRATEGY,
-                    detail="class is not a BaseStrategy/RiskStrategy subclass",
-                ))
-                continue
-            try:
-                params = obj.default_config()
-            except Exception as e:
-                diagnostics.append(SkippedEntry(
-                    path=str(file_path),
-                    class_name=name,
-                    reason=SKIP_INVALID_CONFIG,
-                    detail=str(e),
-                ))
-                continue
-            strategy_id = f"{obj.__module__}.{name}"
-            strategies.append(StrategyMetadata(
-                strategy_id=strategy_id,
-                name=getattr(obj, "__display_name__", None) or name,
-                description=(obj.__doc__ or "").strip().split("\n", 1)[0] if obj.__doc__ else "",
-                strategy_type=strategy_type,
-                module=obj.__module__,
-                is_builtin=is_builtin,
-                default_config=_to_param_spec(params),
-                skipped_reasons=[],
-            ))
-
+    for name, obj in inspect.getmembers(module, inspect.isclass):
+        metadata = _enumerated_class(name, obj, module_name, file_path, is_builtin, diagnostics)
+        if metadata is not None:
+            strategies.append(metadata)
     return strategies, diagnostics
+
+
+def _enumerated_class(
+    name: str,
+    obj: type[Strategy],
+    module_name: str,
+    file_path: Path,
+    is_builtin: bool,
+    diagnostics: list[SkippedEntry],
+) -> StrategyMetadata | None:
+    """Validate one class and construct its user-facing strategy metadata."""
+    if obj.__module__ != module_name:
+        return None
+    strategy_type = _classify_strategy(obj)
+    if strategy_type is None:
+        diagnostics.append(
+            SkippedEntry(
+                path=str(file_path),
+                class_name=name,
+                reason=SKIP_NOT_A_STRATEGY,
+                detail="class is not a BaseStrategy/RiskStrategy subclass",
+            )
+        )
+        return None
+    try:
+        params = obj.default_config()
+    except Exception as e:
+        diagnostics.append(
+            SkippedEntry(
+                path=str(file_path),
+                class_name=name,
+                reason=SKIP_INVALID_CONFIG,
+                detail=str(e),
+            )
+        )
+        return None
+    strategy_id = f"{obj.__module__}.{name}"
+    return StrategyMetadata(
+        strategy_id=strategy_id,
+        name=getattr(obj, "__display_name__", None) or name,
+        description=(obj.__doc__ or "").strip().split("\n", 1)[0] if obj.__doc__ else "",
+        strategy_type=strategy_type,
+        module=obj.__module__,
+        is_builtin=is_builtin,
+        default_config=_to_param_spec(params),
+        skipped_reasons=[],
+    )
+
+
+def _cached_class_info(
+    name: str, obj: type[Strategy], module_name: str, scan_dir: str
+) -> StrategyInfo | None:
+    """Recognize a strategy class for the legacy discovery cache."""
+    from datetime import datetime
+
+    if not inspect.isclass(obj):
+        return None
+    is_base = issubclass(obj, BaseStrategy) and obj not in (BaseStrategy, Strategy)
+    is_risk = issubclass(obj, RiskStrategy) and obj not in (RiskStrategy, Strategy)
+    if not is_base and not is_risk:
+        return None
+    file_path = inspect.getfile(obj)
+    params = {}
+    if hasattr(obj, "params") and obj.params:
+        params = obj.params
+    strategy_type = "risk" if is_risk else "independent"
+
+    strategy_info = StrategyInfo(
+        name=name,
+        module_path=module_name,
+        file_path=file_path,
+        description=getattr(obj, "__doc__", "") or "",
+        version=getattr(obj, "version", "1.0.0"),
+        params=json.dumps(params, ensure_ascii=False),
+        scan_dir=scan_dir,
+        scanned_at=datetime.now(),
+        strategy_type=strategy_type,
+    )
+    logger.debug(f"Scanned strategy: {name} ({strategy_type}) from {module_name}")
+    return strategy_info

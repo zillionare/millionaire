@@ -38,7 +38,7 @@ def test_asset_symbol_no_suffix():
 
 def test_asset_profile_valid():
     """[AC-NFR1101-01] When stock_list has the asset, returns (name, pinyin)."""
-    with patch.object(tl_mod, "stock_list") as mock_sl:
+    with patch("quantide.web.components.lightning_values.stock_list") as mock_sl:
         mock_sl.get_name = MagicMock(return_value="XCompany")
         mock_sl.get_pinyin = MagicMock(return_value="xcompany")
         name, pinyin = _asset_profile("000001.SZ")
@@ -48,7 +48,7 @@ def test_asset_profile_valid():
 
 def test_asset_profile_stock_list_attribute():
     """[AC-NFR1101-01] When stock_list.get_name etc not present as attrs, returns (asset, '')."""
-    with patch.object(tl_mod, "stock_list") as mock_sl:
+    with patch("quantide.web.components.lightning_values.stock_list") as mock_sl:
         # No method attrs - raises AttributeError, but spec catches broader Exception
         del mock_sl.get_name
         name, pinyin = _asset_profile("000001.SZ")

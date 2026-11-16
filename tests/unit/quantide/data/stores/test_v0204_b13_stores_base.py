@@ -195,10 +195,11 @@ def test_daily_progress_swallows_error_msg_hub_exception(
     store = ParquetStorage(
         "err", store_path, calendar, fetch_data_func=fetch_returning_errors
     )
-    n = store.fetch_with_daily_progress(
-        datetime.date(2024, 1, 2), datetime.date(2024, 1, 2), force=True
-    )
-    assert n == 0
+    with pytest.raises(RuntimeError, match="error_detail"):
+        store.fetch_with_daily_progress(
+            datetime.date(2024, 1, 2), datetime.date(2024, 1, 2), force=True
+        )
+    assert store.available_dates == []
 
 
 def test_daily_progress_swallows_progress_msg_hub_exception(
@@ -244,10 +245,11 @@ def test_daily_progress_handles_fetch_exception_per_date(
     store = ParquetStorage(
         "outer", store_path, calendar, fetch_data_func=raising_fetch
     )
-    n = store.fetch_with_daily_progress(
-        datetime.date(2024, 1, 2), datetime.date(2024, 1, 2), force=True
-    )
-    assert n == 0
+    with pytest.raises(RuntimeError, match="fetch blew up"):
+        store.fetch_with_daily_progress(
+            datetime.date(2024, 1, 2), datetime.date(2024, 1, 2), force=True
+        )
+    assert store.available_dates == []
 
 
 def test_daily_progress_swallows_final_msg_hub_exception(

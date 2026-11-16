@@ -95,6 +95,9 @@ def test_embedded_tencent_publisher_starts_when_enabled(monkeypatch):
     """QUANTIDE_QUOTE_PUBLISHER=tencent 时在服务进程内启动发布者。"""
     from quantide.core.runtime.adapter_registry import AdapterRegistry
 
+    from types import SimpleNamespace
+    monkeypatch.setattr("quantide.config.tencent_trial.trial_status",
+                        lambda: SimpleNamespace(enabled=True))
     started: dict = {}
 
     class _FakePublisher:

@@ -122,7 +122,11 @@ def build_monthly_heatmap_spec(
     cells: list[HeatmapCell] = []
     for row_idx, year in enumerate(years):
         for col_idx, month in enumerate(months):
-            value = returns[row_idx][col_idx] if row_idx < len(returns) and col_idx < len(returns[row_idx]) else 0.0
+            value = (
+                returns[row_idx][col_idx]
+                if row_idx < len(returns) and col_idx < len(returns[row_idx])
+                else 0.0
+            )
             cells.append(
                 HeatmapCell(
                     year=year,

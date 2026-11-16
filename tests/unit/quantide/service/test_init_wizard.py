@@ -261,9 +261,9 @@ def test_get_progress_uses_new_step_labels(db):
         "欢迎",
         "运行环境",
         "管理员密码",
-        "行情与交易",
-        "数据源设置及下载",
-        "完成",
+        "配置数据源",
+        "配置实时行情",
+        "数据准备与完成",
     ]
     assert progress["total_steps"] == WIZARD_TOTAL_STEPS
 
@@ -308,7 +308,8 @@ def test_save_runtime_config_keeps_auth_on_fixed_config_db(db, monkeypatch, tmp_
     assert rebound["db_path"] == str((tmp_path / "config" / "quantide.db").resolve())
 
 
-def test_save_runtime_config_defaults_blank_home_and_expands_user(db):
+def test_save_runtime_config_defaults_blank_home_and_expands_user(db, monkeypatch):
+    monkeypatch.delenv("QUANTIDE_DATA_HOME", raising=False)
     service = InitWizardService()
 
     service.save_runtime_config(

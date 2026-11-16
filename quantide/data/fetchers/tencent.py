@@ -22,11 +22,14 @@ from __future__ import annotations
 import datetime
 import threading
 import time
-from collections.abc import Iterable
-from typing import Any
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 from loguru import logger
+
+if TYPE_CHECKING:
+    import requests
 
 from quantide.core.ports.data_fetcher import (
     STANDARD_INDEX_BAR_COLUMNS,
@@ -35,7 +38,30 @@ from quantide.core.ports.data_fetcher import (
 )
 
 #: 实时行情批量上限（a-stock-data 实测约 800 支/次）
-DEFAULT_QUOTE_BATCH = 800
+DEFAULT_QUOTE_BATCH = 100
+
+
+def _kline_source_rows(
+    self: TencentDataFetcher, asset: str, period: str, count: int, adjust: str
+) -> list[list[object]] | None:
+    """Kline source rows."""
+    symbol = to_tencent_symbol(asset)
+    period = self.PERIOD_MAP.get(str(period), str(period))
+    if period.startswith("m"):
+        param = f"{symbol},{period},,,{int(count)}"
+        keys = (period, f"qfq{period}", f"hfq{period}")
+    else:
+        param = f"{symbol},{period},,,{int(count)},{adjust}"
+        keys = (f"{adjust}{period}", period, f"qfq{period}")
+    data = self._request_json(self.KLINE_URL, {"param": param})
+    node = ((data.get("data") or {}).get(symbol) or {}) if data else {}
+    rows = None
+    for key in keys:
+        value = node.get(key)
+        if isinstance(value, list):
+            rows = value
+            break
+    return rows
 
 
 def to_tencent_symbol(asset: str) -> str:
@@ -43,7 +69,12 @@ def to_tencent_symbol(asset: str) -> str:
     text = str(asset).strip().upper()
     if "." in text:
         code, market = text.split(".", 1)
-        return f"{'sh' if market == 'SH' else 'sz'}{code}"
+        prefixes = {"SH": "sh", "SZ": "sz", "BJ": "bj"}
+        if market not in prefixes:
+            raise ValueError(f"Unsupported market: {market}")
+        return f"{prefixes[market]}{code}"
+    if text.startswith(("4", "8", "92")):
+        return f"bj{text}"
     return f"sh{text}" if text.startswith(("5", "6", "9")) else f"sz{text}"
 
 
@@ -53,15 +84,15 @@ def from_tencent_symbol(symbol: str) -> str:
     return f"{text[2:]}.{text[:2].upper()}"
 
 
-def _to_float(value: Any) -> float | None:
+def _to_float(value: object) -> float | None:
     try:
-        number = float(value)
+        number = float(cast(float | int | str, value))
     except (TypeError, ValueError):
         return None
     return number
 
 
-def _parse_quote_time(value: Any) -> datetime.datetime | None:
+def _parse_quote_time(value: object) -> datetime.datetime | None:
     """解析腾讯行情时间（``20241022150000`` 或 ``2024/10/22 15:00:00``）。"""
     text = str(value or "").strip()
     if not text:
@@ -103,30 +134,34 @@ class TencentDataFetcher:
         timeout: float = 3.0,
         max_retries: int = 2,
         quote_batch: int = DEFAULT_QUOTE_BATCH,
-        min_interval: float = 0.05,
-        session: Any | None = None,
+        min_interval: float = 5.0,
+        session: requests.Session | None = None,
+        access_check: Callable[[], None] | None = None,
     ) -> None:
         """初始化适配器。
 
         Args:
             timeout: 单次 HTTP 超时（秒）；实时扫描要求 <5 秒，默认 3 秒。
             max_retries: 失败重试次数。
-            quote_batch: 实时行情单次请求标的数（腾讯实测可到 800）。
+            quote_batch: 实时行情单次请求标的数（演示上限 100）。
             min_interval: 同一适配器连续请求的最小间隔（秒）。
             session: 可注入的 requests.Session（测试用）。
         """
         self._timeout = float(timeout)
         self._max_retries = max(0, int(max_retries))
-        self._quote_batch = max(1, int(quote_batch))
+        self._quote_batch = min(100, max(1, int(quote_batch)))
         self._min_interval = max(0.0, float(min_interval))
         self._lock = threading.Lock()
         self._last_request = 0.0
+        from quantide.config.tencent_trial import require_tencent_access
+
+        self._access_check = access_check or require_tencent_access
         self._session = session
 
     # ------------------------------------------------------------------
     # HTTP 基础
     # ------------------------------------------------------------------
-    def _get_session(self) -> Any:
+    def _get_session(self) -> requests.Session:
         if self._session is not None:
             return self._session
         import requests
@@ -134,11 +169,7 @@ class TencentDataFetcher:
         self._session = requests.Session()
         self._session.headers.update(
             {
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
-                ),
-                "Referer": "https://gu.qq.com/",
+                "User-Agent": "Millionaire/0.3 (+https://github.com/zillionare/millionaire)",
             }
         )
         return self._session
@@ -154,9 +185,11 @@ class TencentDataFetcher:
 
     def _request_bytes(self, url: str, params: dict[str, Any] | None = None) -> bytes:
         """GET 请求并返回原始字节（腾讯行情为 GBK 编码）。"""
+        self._access_check()
         session = self._get_session()
         last_error: Exception | None = None
-        for _ in range(self._max_retries + 1):
+        for attempt in range(self._max_retries + 1):
+            self._access_check()
             self._throttle()
             try:
                 response = session.get(url, params=params, timeout=self._timeout)
@@ -164,15 +197,18 @@ class TencentDataFetcher:
                     response.raise_for_status()
                 content = getattr(response, "content", None)
                 if content is not None:
-                    return content
+                    return cast(bytes, content)
                 return str(getattr(response, "text", "")).encode("utf-8")
             except Exception as exc:  # pragma: no cover - 网络异常
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                if status in {401, 403, 429}:
+                    raise
                 last_error = exc
+                if attempt < self._max_retries:
+                    time.sleep(min(2**attempt, 8))
         raise RuntimeError(f"腾讯请求失败: {last_error}")
 
-    def _request_json(
-        self, url: str, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    def _request_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         raw = self._request_bytes(url, params)
         import json
 
@@ -182,7 +218,7 @@ class TencentDataFetcher:
         if start < 0 or end <= start:
             return {}
         try:
-            return json.loads(text[start : end + 1])
+            return cast(dict[str, Any], json.loads(text[start : end + 1]))
         except ValueError:
             return {}
 
@@ -222,14 +258,12 @@ class TencentDataFetcher:
             },
         )
 
-    def fetch_quote_snapshot(
-        self, symbols: Iterable[str] | str
-    ) -> dict[str, dict]:
-        """获取实时快照（自动分批，单批默认 800 支）。"""
+    def fetch_quote_snapshot(self, symbols: Iterable[str] | str) -> dict[str, dict[str, Any]]:
+        """获取实时快照（演示范围最多 100 个标的）。"""
         if isinstance(symbols, str):
             symbols = [symbols]
-        result: dict[str, dict] = {}
-        unique = list(dict.fromkeys(str(s).strip().upper() for s in symbols if s))
+        result: dict[str, dict[str, Any]] = {}
+        unique = list(dict.fromkeys(str(s).strip().upper() for s in symbols if s))[:100]
         for start in range(0, len(unique), self._quote_batch):
             batch = unique[start : start + self._quote_batch]
             query = ",".join(to_tencent_symbol(symbol) for symbol in batch)
@@ -261,22 +295,7 @@ class TencentDataFetcher:
 
         注意腾讯行的字段顺序为 ``[日期, 开盘, 收盘, 最高, 最低, 成交量, ...]``。
         """
-        symbol = to_tencent_symbol(asset)
-        period = self.PERIOD_MAP.get(str(period), str(period))
-        if period.startswith("m"):
-            param = f"{symbol},{period},,,{int(count)}"
-            keys = (period, f"qfq{period}", f"hfq{period}")
-        else:
-            param = f"{symbol},{period},,,{int(count)},{adjust}"
-            keys = (f"{adjust}{period}", period, f"qfq{period}")
-        data = self._request_json(self.KLINE_URL, {"param": param})
-        node = ((data.get("data") or {}).get(symbol) or {}) if data else {}
-        rows = None
-        for key in keys:
-            value = node.get(key)
-            if isinstance(value, list):
-                rows = value
-                break
+        rows = _kline_source_rows(self, asset, period, count, adjust)
         if not rows:
             return pd.DataFrame()
         records = []
@@ -319,14 +338,10 @@ class TencentDataFetcher:
         if frame.empty:
             return pd.DataFrame(columns=STANDARD_MINUTE_BAR_COLUMNS), errors
         frame = frame.copy()
-        frame["date"] = pd.to_datetime(frame["date"], errors="coerce").astype(
-            "datetime64[ms]"
-        )
+        frame["date"] = pd.to_datetime(frame["date"], errors="coerce").astype("datetime64[ms]")
         frame = frame.dropna(subset=["date"])
         # 腾讯 K 线返回 bar 起点，统一加一个周期，改为收盘时刻（项目口径）。
-        frame["date"] = (
-            frame["date"] + pd.Timedelta(minutes=int(period))
-        ).astype("datetime64[ms]")
+        frame["date"] = (frame["date"] + pd.Timedelta(minutes=int(period))).astype("datetime64[ms]")
         if start_date is not None:
             frame = frame[frame["date"].dt.date >= start_date]
         if end_date is not None:
@@ -334,9 +349,7 @@ class TencentDataFetcher:
         if frame.empty:
             return pd.DataFrame(columns=STANDARD_MINUTE_BAR_COLUMNS), errors
         # 成交额估算：volume(手) * 100 * close(元) / 1000 = 千元
-        frame["amount"] = (
-            frame["volume"].fillna(0.0) * frame["close"].fillna(0.0) / 10.0
-        )
+        frame["amount"] = frame["volume"].fillna(0.0) * frame["close"].fillna(0.0) / 10.0
         frame = frame.sort_values("date").tail(int(count))
         return frame[STANDARD_MINUTE_BAR_COLUMNS].reset_index(drop=True), errors
 
@@ -395,7 +408,7 @@ class TencentDataFetcher:
     def fetch_bars_ext(
         self,
         dates: Iterable[datetime.date] | datetime.date,
-        phase_callback: Any = None,
+        phase_callback: Callable[[str], None] | None = None,
     ) -> tuple[pd.DataFrame, ErrorRecord]:
         return (
             pd.DataFrame(),
@@ -432,13 +445,10 @@ class TencentDataFetcher:
             if frame is None or frame.empty:
                 continue
             frame = frame.copy()
-            frame["date"] = pd.to_datetime(frame["date"], errors="coerce").astype(
-                "datetime64[ms]"
-            )
+            frame["date"] = pd.to_datetime(frame["date"], errors="coerce").astype("datetime64[ms]")
             frame = frame.dropna(subset=["date"])
             frame = frame[
-                (frame["date"].dt.date >= start_date)
-                & (frame["date"].dt.date <= end_date)
+                (frame["date"].dt.date >= start_date) & (frame["date"].dt.date <= end_date)
             ]
             if frame.empty:
                 continue
@@ -448,9 +458,9 @@ class TencentDataFetcher:
         if not frames:
             return pd.DataFrame(columns=STANDARD_INDEX_BAR_COLUMNS), errors
         out = pd.concat(frames, ignore_index=True)
-        return out[STANDARD_INDEX_BAR_COLUMNS].sort_values(
-            ["date", "index_code"]
-        ).reset_index(drop=True), errors
+        return out[STANDARD_INDEX_BAR_COLUMNS].sort_values(["date", "index_code"]).reset_index(
+            drop=True
+        ), errors
 
     def fetch_index_weights(
         self,

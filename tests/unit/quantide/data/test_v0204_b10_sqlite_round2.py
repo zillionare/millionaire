@@ -85,6 +85,8 @@ def test_init_tables_adds_missing_column_to_existing_table():
     saved_path = _db.db_path
     saved_initialized = _db._initialized
     saved_thread_local = _db._thread_local
+    saved_uri = _db.__dict__.get("_connection_uri")
+    saved_generation = _db._connection_generation
     try:
         with tempfile.TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "test.db"
@@ -114,10 +116,16 @@ def test_init_tables_adds_missing_column_to_existing_table():
             }
             conn.close()
             assert "tm" in cols_after
+            _db.close()
     finally:
         _db.db_path = saved_path
         _db._initialized = saved_initialized
         _db._thread_local = saved_thread_local
+        if saved_uri is None:
+            _db.__dict__.pop("_connection_uri", None)
+        else:
+            _db._connection_uri = saved_uri
+        _db._connection_generation = saved_generation
 
 
 # ---------------------------------------------------------------------------

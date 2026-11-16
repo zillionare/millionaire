@@ -1,12 +1,16 @@
 import datetime
+from collections.abc import Callable
 from pathlib import Path
+from typing import Literal, overload
 
+import pandas as pd
 import polars as pl
 from loguru import logger
 
 from quantide.config.settings import get_timezone
 from quantide.core.enums import FrameType
-from quantide.core.ports import DataFetcherPort
+from quantide.core.ports import HistoricalDataFetcherPort
+from quantide.core.ports.data_fetcher import ErrorRecord
 from quantide.core.singleton import singleton
 from quantide.data.fetchers.registry import get_data_fetcher
 from quantide.data.helper import hfq_adjustment, qfq_adjustment
@@ -22,7 +26,7 @@ class DailyBars(ParquetStorage):
     .store 属性返回 self，保持向后兼容。
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # 占位初始化；connect() 会用真实路径重新初始化 ParquetStorage
         ParquetStorage.__init__(
             self,
@@ -31,8 +35,7 @@ class DailyBars(ParquetStorage):
             calendar=Calendar(),
             fetch_data_func=None,
         )
-        self._calendar: Calendar | None = None
-        self._data_fetcher: DataFetcherPort | None = None
+        self._data_fetcher: HistoricalDataFetcherPort | None = None
         self._initialized = False
 
     def connect(self, store_path: str | Path, calendar_store_path: str | Path) -> None:
@@ -97,28 +100,23 @@ class DailyBars(ParquetStorage):
     def _fetch_bars_ext(
         self,
         dates: list[datetime.date] | datetime.date,
-        phase_callback=None,
-    ):
-        return self._data_fetcher.fetch_bars_ext(dates, phase_callback=phase_callback)
+        phase_callback: Callable[[str], None] | None = None,
+    ) -> tuple[pd.DataFrame, ErrorRecord]:
+        from quantide.data.coverage import require_date_coverage
+
+        assert self._data_fetcher is not None
+        frame, errors = self._data_fetcher.fetch_bars_ext(dates, phase_callback=phase_callback)
+        if errors:
+            raise RuntimeError(f"日线源同步失败: {errors}")
+        requested = [dates] if isinstance(dates, datetime.date) else dates
+        require_date_coverage(frame, requested, "daily_bars")
+        return frame, errors
 
     def rec_counts_per_date(
         self, start: datetime.date | None = None, end: datetime.date | None = None
     ) -> dict[datetime.date, int]:
-        """获取每个交易日期的记录数量统计。"""
-        lazy = self._scan_store(keep_partition_col=False)
-        lazy = lazy.with_columns(pl.col("date").cast(pl.Date))
-
-        if start is not None:
-            lazy = lazy.filter(pl.col("date").dt.strftime("%F") >= start.isoformat())
-        if end is not None:
-            lazy = lazy.filter(pl.col("date").dt.strftime("%F") <= end.isoformat())
-        df = lazy.group_by("date").agg(pl.len().alias("n")).collect()
-        dates = df["date"].to_list()
-        counts = df["n"].to_list()
-        result: dict[datetime.date, int] = {}
-        for d, c in zip(dates, counts, strict=True):
-            result[d] = int(c)
-        return result
+        """Expose shared date counting through the singleton factory's public API."""
+        return super().rec_counts_per_date(start, end)
 
     def _normalize_bar_schema(
         self, frame: pl.DataFrame | pl.LazyFrame
@@ -143,6 +141,37 @@ class DailyBars(ParquetStorage):
             frame = frame.with_columns(exprs)
         return frame
 
+    @overload
+    def get_bars_in_range(
+        self,
+        start: datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        assets: list[str] | None = None,
+        adjust: str | None = "qfq",
+        eager_mode: Literal[True] = True,
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def get_bars_in_range(
+        self,
+        start: datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        assets: list[str] | None = None,
+        adjust: str | None = "qfq",
+        *,
+        eager_mode: Literal[False],
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def get_bars_in_range(
+        self,
+        start: datetime.date | datetime.datetime,
+        end: datetime.date | datetime.datetime | None = None,
+        assets: list[str] | None = None,
+        adjust: str | None = "qfq",
+        eager_mode: bool = True,
+    ) -> pl.DataFrame | pl.LazyFrame: ...
+
     def get_bars_in_range(
         self,
         start: datetime.date | datetime.datetime,
@@ -162,13 +191,42 @@ class DailyBars(ParquetStorage):
             raw = self.get(assets, start, end, eager_mode=eager_mode)
             return self._normalize_bar_schema(raw)
 
-        lf = self._normalize_bar_schema(
-            self.get(assets, start, end, eager_mode=False)
-        )
+        lf = self._normalize_bar_schema(self.get(assets, start, end, eager_mode=False))
         if adjust == "qfq":
             return qfq_adjustment(lf, eager_mode=eager_mode)
         else:
             return hfq_adjustment(lf, eager_mode=eager_mode)
+
+    @overload
+    def get_bars(
+        self,
+        n: int,
+        end: datetime.date | datetime.datetime | None = None,
+        assets: list[str] | None = None,
+        adjust: str | None = "qfq",
+        eager_mode: Literal[True] = True,
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def get_bars(
+        self,
+        n: int,
+        end: datetime.date | datetime.datetime | None = None,
+        assets: list[str] | None = None,
+        adjust: str | None = "qfq",
+        *,
+        eager_mode: Literal[False],
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def get_bars(
+        self,
+        n: int,
+        end: datetime.date | datetime.datetime | None = None,
+        assets: list[str] | None = None,
+        adjust: str | None = "qfq",
+        eager_mode: bool = True,
+    ) -> pl.DataFrame | pl.LazyFrame: ...
 
     def get_bars(
         self,
@@ -182,8 +240,10 @@ class DailyBars(ParquetStorage):
 
         Args:
             n (int): 最近 n 个交易日
-            end (datetime.date | datetime.datetime | None, optional): 结束日期/时间，默认为 None，表示获取缓存中最后一个交易日。 Defaults to None.
-            assets (list[str] | None, optional): 获取指定股票的行情数据，默认为 None，表示获取所有股票。 Defaults to None.
+            end (datetime.date | datetime.datetime | None, optional): 结束日期/时间，默认为
+            None，表示获取缓存中最后一个交易日。 Defaults to None.
+            assets (list[str] | None, optional): 获取指定股票的行情数据，默认为 None，
+            表示获取所有股票。 Defaults to None.
         """
         assert self._calendar is not None
 
@@ -211,13 +271,9 @@ class DailyBars(ParquetStorage):
         """
         df = self.get_bars(1, end=date, assets=[asset], eager_mode=True, adjust=adjust)
 
-        return df.select(pl.col("close"), pl.col("up_limit"), pl.col("down_limit")).row(
-            0
-        )
+        return df.select(pl.col("close"), pl.col("up_limit"), pl.col("down_limit")).row(0)
 
-    def get_trade_price_limits(
-        self, asset: str, dt: datetime.date
-    ) -> tuple[float, float]:
+    def get_trade_price_limits(self, asset: str, dt: datetime.date) -> tuple[float, float]:
         """获取指定资产在指定日期的涨跌停限价。
 
         Returns:
@@ -252,9 +308,7 @@ class DailyBars(ParquetStorage):
         """获取用于撮合的行情数据。"""
         # 对于日线级别，返回当天的 bar
         dt = tm.date() if isinstance(tm, datetime.datetime) else tm
-        df = self.get_bars_in_range(
-            dt, dt, assets=[asset], adjust=None, eager_mode=True
-        )
+        df = self.get_bars_in_range(dt, dt, assets=[asset], adjust=None, eager_mode=True)
         return df
 
 

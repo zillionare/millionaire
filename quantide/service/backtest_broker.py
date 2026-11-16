@@ -1,113 +1,117 @@
 import datetime
 import math
-import uuid
-from typing import Any, Literal
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
 
-import numpy as np
 import polars as pl
 from loguru import logger
 
-from quantide.core.enums import BidType, BrokerKind, FrameType, OrderSide, OrderStatus
+from quantide.core.enums import BrokerKind, OrderSide
 from quantide.core.errors import (
-    BadPercent,
     ClockAfterEnd,
     ClockBeforeStart,
     ClockRewind,
     DupPortfolio,
-    InsufficientCash,
-    InsufficientPosition,
-    LimitPrice,
-    NoDataForMatch,
-    NonMultipleOfLotSize,
-    PriceNotMeet,
-    TradeError,
-    TradingHaltedError,
 )
-from quantide.core.ports.broker import ExecutionResult
-from quantide.data.models import Asset, Order, Portfolio, Position, Trade
+from quantide.data.models import Asset, Portfolio, Position
 from quantide.data.models.calendar import calendar
 from quantide.data.sqlite import db
 from quantide.service.abstract_broker import AbstractBroker
+from quantide.service.backtest_options import BacktestOptions
+from quantide.service.backtest_orders import BacktestOrders
+from quantide.service.backtest_snapshots import BacktestSnapshots
 from quantide.service.bar_views import HistBarView
 from quantide.service.datafeed import BarsFeedImpl
-from quantide.service.risk_overlay import RiskOverlay
 
 
-class BacktestBroker(AbstractBroker):
+def _adjust_held_position_factors(
+    held: dict[str, Position],
+    factors: Mapping[str, Mapping[datetime.date, float]],
+    prev_dt: datetime.date,
+    new_dt: datetime.date,
+) -> None:
+    """Apply factor changes to each held position across a session boundary."""
+    for asset, pos in held.items():
+        values = factors.get(asset, {})
+        prev_adjust = values.get(prev_dt)
+        new_adjust = values.get(new_dt)
+        if not prev_adjust or not new_adjust:
+            continue
+        ratio = new_adjust / prev_adjust
+        if not math.isfinite(ratio) or ratio <= 0 or abs(ratio - 1.0) < 1e-12:
+            continue
+        old_shares = float(pos.shares)
+        old_cost = float(pos.price)
+        new_shares = int(round(old_shares * ratio))
+        if new_shares <= 0:
+            continue
+        pos.shares = float(new_shares)
+        # 取整后用总成本守恒反推每股成本，避免小数股残留。
+        pos.price = old_shares * old_cost / new_shares
+
+
+class BacktestBroker(BacktestSnapshots, BacktestOrders, AbstractBroker):
+    interval: str
+
     def __init__(
         self,
         bt_start: datetime.date | datetime.datetime,
         bt_end: datetime.date | datetime.datetime,
         portfolio_id: str,
         data_feed: BarsFeedImpl,
-        principal: float = 1_000_000,
-        commission: float = 1e-4,
-        stamp_duty: float = 5e-4,
-        min_commission: float = 5.0,
-        transfer_fee: float = 1e-5,
-        portfolio_name: str = "backtest",
-        match_level: Literal["day", "minute"] = "day",
-        desc: str = "",
-        save_logs: bool = False,
-        risk_overlay: RiskOverlay | None = None,
-        auction_epsilon: float = 0.001,
-        minute_bars: Any | None = None,
-        allow_same_bar_repurchase: bool = True,
-    ):
-        """回测 broker
+        *legacy_options: object,
+        options: BacktestOptions | None = None,
+        **overrides: object,
+    ) -> None:
+        """Create a backtest broker, accepting established positional and keyword options.
 
-        Args:
-            - portfolio_id, 账户ID
-            - principal, 账户初始资金
-            - commission, 券商佣金率（默认万1，单边）
-            - stamp_duty, 卖方印花税率（默认万5）
-            - min_commission, 单笔最低佣金（默认 5 元）
-            - transfer_fee, 过户费率（默认万0.1，双边）
-            - account, 账户名称
-            - data_feed, 行情数据源
-            - match_level, 匹配模式，day为日线，minute为分钟线
-            - desc, 账户/策略描述
-            - save_logs, 是否同步写入回测日志文件
-            - auction_epsilon, 集合竞价限价容差（竞价价 × (1+eps)）
+        ``BacktestOptions`` documents the fee, matching and risk settings. Existing
+        keyword arguments and their established positional order remain supported.
         """
+        options = BacktestOptions.resolve(
+            cast(Sequence[Any], legacy_options), options, cast(Mapping[str, Any], overrides)
+        )
+        self._initialize_backtest(bt_start, bt_end, portfolio_id, data_feed, options)
+
+    def _initialize_backtest(
+        self,
+        bt_start: datetime.date | datetime.datetime,
+        bt_end: datetime.date | datetime.datetime,
+        portfolio_id: str,
+        data_feed: BarsFeedImpl,
+        options: BacktestOptions,
+    ) -> None:
+        """Initialize account, execution policy and snapshots from one named configuration."""
         super().__init__(
             portfolio_id=portfolio_id,
-            principal=principal,
-            commission=commission,
-            portfolio_name=portfolio_name,
+            principal=options.principal,
+            commission=options.commission,
+            portfolio_name=options.portfolio_name,
         )
-
         self._data_feed: BarsFeedImpl = data_feed
-        self._minute_bars = minute_bars
-        self._bar_view = HistBarView(data_feed, minute_bars=minute_bars)
-        self._stamp_duty = max(0.0, float(stamp_duty))
-        self._min_commission = max(0.0, float(min_commission))
-        self._transfer_fee = max(0.0, float(transfer_fee))
-        self._match_level = match_level
+        self._minute_bars = options.minute_bars
+        self._bar_view = HistBarView(data_feed, minute_bars=options.minute_bars)
+        self._stamp_duty = max(0.0, float(options.stamp_duty))
+        self._min_commission = max(0.0, float(options.min_commission))
+        self._transfer_fee = max(0.0, float(options.transfer_fee))
+        self._match_level = options.match_level
         self._bt_start: datetime.datetime = calendar.replace_time(bt_start, 9, 30)
-        # End time should cover the closing operations
         self._bt_end: datetime.datetime = calendar.replace_time(bt_end, 16, 0)
         self._bt_stopped: bool = False
-        self._desc: str = desc
-        self._save_backtest_logs = save_logs
-        self._risk_overlay = risk_overlay
-        self.allow_same_bar_repurchase = bool(allow_same_bar_repurchase)
+        self._desc: str = options.desc
+        self._save_backtest_logs = options.save_logs
+        self._risk_overlay = options.risk_overlay
+        self.allow_same_bar_repurchase = bool(options.allow_same_bar_repurchase)
         self._risk_overlay_in_progress = False
         self._risk_overlay_sold_assets: set[str] = set()
-        self._auction_epsilon = max(0.0, float(auction_epsilon))
-
-        # 回测时钟，初始化为 bt_start 的前一个交易日 (Day 0)
+        self._auction_epsilon = max(0.0, float(options.auction_epsilon))
         prev = calendar.day_shift(bt_start, -1)
         if prev >= bt_start:
-            # 只有当日历确实包含 bt_start 之前的日期却算不出上一交易日时，
-            # 才判定为日历损坏；最小测试日历（第一天没有更早日期）允许回退。
             frames = getattr(calendar, "day_frames", None)
             first_frame = frames[0] if frames is not None and len(frames) else None
-            if hasattr(first_frame, "as_py"):
+            if first_frame is not None and hasattr(first_frame, "as_py"):
                 first_frame = first_frame.as_py()
-            has_earlier = bool(
-                first_frame is not None and first_frame < bt_start
-            )
+            has_earlier = bool(first_frame is not None and first_frame < bt_start)
             if has_earlier:
                 raise ValueError(
                     f"交易日历异常：{bt_start} 的上一交易日为 {prev}，"
@@ -115,14 +119,9 @@ class BacktestBroker(AbstractBroker):
                 )
             prev = bt_start - datetime.timedelta(days=1)
         self._clock: datetime.datetime = calendar.replace_time(prev, 15)
-
-        # 初始化回测数据记录
         self.init_backtest()
-
         self._positions: dict[str, Position] = {}
         self._last_snapshot_day: datetime.date | None = None
-
-        # Use patched logger to support time-travel logging
         self.logger = logger.bind(portfolio_id=portfolio_id)
 
     @staticmethod
@@ -161,9 +160,17 @@ class BacktestBroker(AbstractBroker):
     def positions(self) -> dict[str, Position]:
         return self._positions
 
+    def get_prices(self, assets: list[str]) -> dict[str, float]:
+        """Risk overlays require a live/paper broker for current prices."""
+        raise NotImplementedError("backtest broker does not provide live prices")
+
+    def get_ticks(self, asset: str, count: int) -> pl.DataFrame:
+        """Risk overlays require a live/paper broker for tick data."""
+        raise NotImplementedError("backtest broker does not provide live ticks")
+
     @property
     def cash(self) -> float:
-        return self._cash
+        return float(self._cash)
 
     def init_backtest(self) -> None:
         """创建回测相关数据记录
@@ -190,15 +197,7 @@ class BacktestBroker(AbstractBroker):
         db.insert_portfolio(portfolio)
 
         # 记录回测前的资产，以便计算 day 0的收益，与 baseline 对齐
-        asset = Asset(
-            portfolio_id=self._portfolio_id,
-            dt=self.as_date(self._clock),
-            principal=self._principal,
-            cash=self._principal,
-            frozen_cash=0,
-            market_value=0,
-            total=self._principal,
-        )
+        asset = Asset.initial(self._portfolio_id, self.as_date(self._clock), self._principal)
         db.upsert_asset(asset)
 
     async def stop_backtest(self) -> None:
@@ -248,226 +247,7 @@ class BacktestBroker(AbstractBroker):
             self._bt_stopped = True
             db.update_portfolio(self._portfolio_id, status=False)
 
-    def _fill_history_gaps(self, end_fill: datetime.date) -> None:
-        """填补历史数据缺失，确保资产记录和持仓记录完整
-
-        本方法要求在每一次交易时，都要更新数据库中的 asset 和 position 记录。
-
-        Args:
-            end_fill (datetime.date): 填充到的结束日期，一般为 clock 前一日
-        """
-        # 1. 获取需要填补的日期范围
-        # 在回测场景下， latest_asset一定存在，这是 init_backtest 保证的
-        latest_asset: Asset = db.get_asset(portfolio_id=self._portfolio_id) # type: ignore
-
-        start_fill = calendar.day_shift(latest_asset.dt, 1)
-
-        fill_dates = calendar.get_frames(start_fill, end_fill, FrameType.DAY)
-        if not fill_dates:
-            return
-
-        # 2. 获取与最新资产记录同日的持仓快照。
-        #
-        # 清仓后的最新资产日可能已经没有任何持仓记录；如果这里退回到 positions
-        # 表中的“最新日期”，会把更早一天的历史仓位重新带回来，导致后续填仓时在
-        # 空仓日期重新出现 market_value。
-        latest_pos = db.get_positions(dt=latest_asset.dt, portfolio_id=self._portfolio_id)
-
-        if latest_pos.is_empty():
-            self._fill_assets_only(fill_dates, latest_asset)
-        else:
-            self._fill_positions_and_assets(fill_dates, latest_pos, latest_asset)
-
-    def _fill_assets_only(self, fill_dates: list[datetime.date], last_asset: Asset):
-        """无持仓时，仅同步资产日期"""
-        assets_to_insert = [
-            Asset(
-                portfolio_id=self._portfolio_id,
-                dt=d,
-                principal=last_asset.principal,
-                cash=last_asset.cash,
-                frozen_cash=float(last_asset.frozen_cash or 0.0),
-                market_value=0.0,
-                total=last_asset.cash,
-            )
-            for d in fill_dates
-        ]
-        db.upsert_asset(assets_to_insert)
-
-    def _fill_positions_and_assets(
-        self, fill_dates: list[datetime.date], latest_pos: pl.DataFrame, last_asset: Asset
-    ):
-        """有持仓时，计算行情变动及复权折算
-
-        在复权发生时，按现金折算持仓价值，更新资产记录。
-
-        Args:
-            fill_dates (list[datetime.date]): 填充的日期列表
-            latest_pos (pl.DataFrame): 最新持仓 DataFrame
-            last_asset (Asset): 上一个交易日的资产记录
-        """
-        assets = latest_pos["asset"].unique().to_list()
-        start, end = fill_dates[0], fill_dates[-1]
-
-        # 1. 获取行情与复权因子（包含前一交易日，用于基准）
-        old_date = calendar.day_shift(start, -1)
-        prices_df = self._get_close_adjust_factors(assets, old_date, end)
-        prices_df = prices_df.sort(["asset", "date"])
-
-        base_factors = prices_df.filter(pl.col("date") == old_date).select(
-            [
-                pl.col("asset"),
-                pl.col("adjust").alias("base_adjust"),
-            ]
-        )
-        first_factors = prices_df.group_by("asset").agg(
-            pl.col("adjust").first().alias("first_adjust")
-        )
-
-        # 3. 构造填充模板
-        pos_template = (
-            latest_pos.select(
-                [
-                    pl.col("asset"),
-                    pl.col("shares"),
-                    pl.col("price"),
-                    (pl.col("mv") / pl.col("shares")).alias("last_mkt_price"),
-                ]
-            )
-            .join(base_factors, on="asset", how="left")
-            .join(first_factors, on="asset", how="left")
-            .with_columns(
-                pl.coalesce(
-                    pl.col("base_adjust"),
-                    pl.col("first_adjust"),
-                    pl.lit(1.0),
-                ).alias("seed_adjust")
-            )
-        )
-
-        fill_df = pl.DataFrame({"date": fill_dates}).join(pos_template, how="cross")
-
-        # 4. 合并行情并处理缺失值
-        fill_df = fill_df.join(
-            prices_df, on=["date", "asset"], how="left"
-        ).sort(["asset", "date"])
-
-        fill_df = fill_df.with_columns([
-            pl.col("close").fill_null(strategy="forward").over("asset"),
-            pl.col("adjust").fill_null(strategy="forward").over("asset"),
-        ]).with_columns([
-            pl.col("close").fill_null(pl.col("last_mkt_price")).over("asset"),
-            pl.col("adjust").fill_null(pl.col("seed_adjust")).over("asset"),
-        ])
-
-        # 5. 按复权因子调整持仓，而不是现金补偿。
-        #
-        # 数据源只提供累计复权因子，无法可靠区分现金分红与拆股。按更合理的
-        # 拆股假设处理：adjust_ratio = r 时，股数乘以 r、成本除以 r，raw price
-        # 变为原来的 1/r，持仓总市值在除权前后保持不变。这样后续涨跌始终作用
-        # 在完整的经济仓位上；对现金分红而言，等价于把分红再投资。
-        fill_df = fill_df.with_columns(
-            pl.col("adjust")
-            .shift(1)
-            .over("asset")
-            .fill_null(pl.col("seed_adjust"))
-            .alias("prev_adjust")
-        ).with_columns([
-            pl.when((pl.col("adjust") > 0) & (pl.col("prev_adjust") > 0))
-            .then(pl.col("adjust") / pl.col("prev_adjust"))
-            .otherwise(pl.lit(1.0))
-            .alias("adjust_ratio"),
-        ]).with_columns([
-            pl.col("adjust_ratio").cum_prod().over("asset").alias("cum_adjust_ratio"),
-        ]).with_columns([
-            # A 股股数必须为整数：现金分红按拆股近似会产生小数，取整后再
-            # 用「总成本不变」反推每股成本，避免宿主卖出时因零股被拒。
-            # 与 _apply_day_adjustment 的 round() 保持一致（half-to-even）
-            (pl.col("shares") * pl.col("cum_adjust_ratio"))
-            .round(0)
-            .cast(pl.Int64)
-            .alias("new_shares"),
-        ]).with_columns([
-            pl.when(pl.col("new_shares") > 0)
-            .then(
-                (pl.col("shares") * pl.col("price")) / pl.col("new_shares")
-            )
-            .otherwise(pl.col("price"))
-            .alias("new_price"),
-        ]).with_columns([
-            (pl.col("new_shares") * pl.col("close")).alias("mv"),
-            ((pl.col("close") - pl.col("new_price")) * pl.col("new_shares")).alias(
-                "profit"
-            ),
-        ])
-
-        # 6. 汇总每日统计量。公司行为不产生现金，现金余额保持不变。
-        daily_stats = fill_df.group_by("date").agg([
-            pl.col("mv").sum().alias("market_value"),
-        ]).sort("date")
-        daily_stats = daily_stats.with_columns(
-            pl.lit(last_asset.cash).alias("new_cash")
-        )
-
-        # 同步更新内存中的现金余额，供展仓后的下一笔交易使用
-        self._cash = daily_stats["new_cash"][-1]
-
-        # 同步内存持仓的股数/成本/市值，后续策略和风控 overlay 读取的是调整后的值
-        for row in (
-            fill_df.sort("date").group_by("asset").last().iter_rows(named=True)
-        ):
-            pos = self._positions.get(row["asset"])
-            if pos is None:
-                continue
-            pos.shares = row["new_shares"]
-            pos.price = row["new_price"]
-            pos.mv = row["mv"]
-            pos.profit = row["profit"]
-            pos.avail = row["new_shares"]
-            pos.dt = row["date"]
-
-        # 7. 批量更新数据库 (资产表和持仓表)
-        self._batch_update_history(fill_df, daily_stats, last_asset)
-
-    def _batch_update_history(self, fill_df: pl.DataFrame, daily_stats: pl.DataFrame, last_asset: Asset):
-        """执行数据库批量更新"""
-        # 批量写入持仓记录。每个日期必须写成完整快照，否则已清仓的标的
-        # 会残留在当天记录中，并在下一次 fill_history_gap 时被当成持仓。
-        for fill_date, group in fill_df.group_by("date", maintain_order=True):
-            positions = [
-                Position(
-                    portfolio_id=self._portfolio_id,
-                    dt=row["date"],
-                    asset=row["asset"],
-                    shares=row["new_shares"],
-                    price=row["new_price"],
-                    avail=row["new_shares"],
-                    mv=row["mv"],
-                    profit=row["profit"],
-                )
-                for row in group.to_dicts()
-            ]
-            db.replace_positions(self._portfolio_id, fill_date, positions)
-
-        # 批量写入资产记录 (核心：更新每一天的 cash 字段)
-        assets_to_insert = [
-            Asset(
-                portfolio_id=self._portfolio_id,
-                dt=row["date"],
-                principal=last_asset.principal,
-                cash=row["new_cash"], # 正确反映每日现金变动
-                frozen_cash=float(last_asset.frozen_cash or 0.0),
-                market_value=row["market_value"],
-                total=row["new_cash"] + row["market_value"]
-            )
-            for row in daily_stats.to_dicts()
-        ]
-        db.upsert_asset(assets_to_insert)
-
-
-    def get_bar_for_date(
-        self, asset: str, date: datetime.date
-    ) -> dict[str, Any] | None:
+    def get_bar_for_date(self, asset: str, date: datetime.date) -> dict[str, Any] | None:
         """Return the raw daily bar for ``asset`` on ``date`` if available."""
         try:
             df = self._data_feed.get_price_for_match(
@@ -479,9 +259,7 @@ class BacktestBroker(AbstractBroker):
             return None
         return df.row(0, named=True)
 
-    def get_bar_for_time(
-        self, asset: str, tm: datetime.datetime
-    ) -> dict[str, Any] | None:
+    def get_bar_for_time(self, asset: str, tm: datetime.datetime) -> dict[str, Any] | None:
         """Return exactly the completed 30m bar at ``tm`` for risk overlays."""
         if self._minute_bars is None:
             return None
@@ -494,7 +272,7 @@ class BacktestBroker(AbstractBroker):
             return None
         if frame is None or frame.is_empty():
             return None
-        return frame.sort("date").row(0, named=True)
+        return cast(dict[str, Any] | None, frame.sort("date").row(0, named=True))
 
     def _price_for_match(
         self,
@@ -525,9 +303,12 @@ class BacktestBroker(AbstractBroker):
             return None
         row = frame.tail(1)
         fill_col = "open" if fill_timing == "next_open" else "close"
-        return row.with_columns(
-            pl.col(fill_col).alias("price"),
-            pl.col("date").alias("tm"),
+        return cast(
+            pl.DataFrame,
+            row.with_columns(
+                pl.col(fill_col).alias("price"),
+                pl.col("date").alias("tm"),
+            ),
         )
 
     async def run_risk_overlay(self, tm: datetime.datetime) -> None:
@@ -558,14 +339,13 @@ class BacktestBroker(AbstractBroker):
         """Register positions opened/changed by the host's ``on_bar``."""
         if self._risk_overlay is None:
             return
-        self._risk_overlay.sync_positions(
-            self._positions, self.as_date(tm)
-        )
+        self._risk_overlay.sync_positions(self._positions, self.as_date(tm))
 
     def set_clock(self, dt: datetime.datetime) -> None:
         """设置回测时钟。
 
-        在设置回测时钟时，如果 dt 对应的日期与 self._clock 对应的日期不相同，则需要调用 fill_history_gap 以填实跨越的日期 gap。
+        在设置回测时钟时，如果 dt 对应的日期与 self._clock 对应的日期不相同，则需要调用
+        fill_history_gap 以填实跨越的日期 gap。
         """
         if dt < self._bt_start:
             raise ClockBeforeStart(dt, self._bt_start)
@@ -583,7 +363,7 @@ class BacktestBroker(AbstractBroker):
 
         if new_dt > old_dt:
             # 1. 执行展仓逻辑，填补从 clock 到 new_dt 前一天的缺失数据
-            prev_dt =  calendar.day_shift(new_dt, -1)
+            prev_dt = calendar.day_shift(new_dt, -1)
             self._fill_history_gaps(prev_dt)
             # 2. 把 new_dt 当日的除权比例落到内存持仓，保证当日 raw 价格与
             #    成本处于同一价格空间（不能等到 new_dt+1 展仓才调整）。
@@ -596,9 +376,7 @@ class BacktestBroker(AbstractBroker):
 
         self._clock = dt
 
-    def _apply_day_adjustment(
-        self, new_dt: datetime.date, prev_dt: datetime.date
-    ) -> None:
+    def _apply_day_adjustment(self, new_dt: datetime.date, prev_dt: datetime.date) -> None:
         """把当日除权比例应用到内存持仓（FR-185）.
 
         ``_fill_history_gaps`` 只结算到 ``prev_dt``，而 ``new_dt`` 的 raw 行情
@@ -607,11 +385,7 @@ class BacktestBroker(AbstractBroker):
         ``r = adjust(new_dt) / adjust(prev_dt)`` 同步股数与成本；市值/浮盈保持
         连续（拆股假设：现金分红视为再投资）。
         """
-        held = {
-            asset: pos
-            for asset, pos in self._positions.items()
-            if float(pos.shares or 0) > 0
-        }
+        held = {asset: pos for asset, pos in self._positions.items() if float(pos.shares or 0) > 0}
         if not held:
             return
 
@@ -628,933 +402,4 @@ class BacktestBroker(AbstractBroker):
             if adjust > 0 and math.isfinite(adjust):
                 factors.setdefault(row["asset"], {})[day] = adjust
 
-        for asset, pos in held.items():
-            values = factors.get(asset, {})
-            prev_adjust = values.get(prev_dt)
-            new_adjust = values.get(new_dt)
-            if not prev_adjust or not new_adjust:
-                continue
-            ratio = new_adjust / prev_adjust
-            if not math.isfinite(ratio) or ratio <= 0 or abs(ratio - 1.0) < 1e-12:
-                continue
-            old_shares = float(pos.shares)
-            old_cost = float(pos.price)
-            new_shares = int(round(old_shares * ratio))
-            if new_shares <= 0:
-                continue
-            pos.shares = float(new_shares)
-            # 取整后用总成本守恒反推每股成本，避免小数股残留。
-            pos.price = old_shares * old_cost / new_shares
-
-    async def buy(
-        self,
-        asset: str,
-        shares: int | float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        # 在回测中，timeout 参数无效，直接忽略
-        _ = timeout
-
-        if (
-            not self.allow_same_bar_repurchase
-            and asset in self._risk_overlay_sold_assets
-        ):
-            self._log(
-                "INFO",
-                f"risk overlay blocked same-bar repurchase for {asset}",
-                dt=order_time,
-            )
-            return ExecutionResult.empty()
-
-        assert order_time is not None, "order_time must be present in backtest mode"
-        self.set_clock(order_time)
-
-        # 1. 份额必须是 100 的整数倍
-        if int(shares) % 100 != 0:
-            raise NonMultipleOfLotSize(asset, shares)
-
-        # 2. 获取撮合所需的行情数据
-        bars = self._price_for_match(
-            asset, order_time, str(kwargs.get("fill_timing", "")).lower()
-        )
-        if bars is None or bars.is_empty():
-            self._log(
-                "WARNING",
-                f"failed to match {asset}, no data at {order_time}",
-                dt=order_time,
-            )
-            raise NoDataForMatch(asset, order_time)
-
-        # 3. 根据报单价格（考虑涨停）和 shares 确定现金是否充足
-        # 日线取第一行，分钟线也取第一行作为报单时的参考价
-        row = bars.row(0, named=True)
-        up_limit = row.get("up_limit", 0.0)
-
-        # 处理 extra 信息
-        extra = kwargs.get("extra", {})
-        import json
-        extra_json = json.dumps(extra) if extra else ""
-
-        # 集合竞价：市价买以「竞价价×(1+eps)」为限价，成交价仍为竞价价。
-        bid_price = price
-        if bid_price == 0 and self.is_auction_time(order_time):
-            bid_price = self._auction_bid_price(bars, OrderSide.BUY) or up_limit
-        if bid_price == 0:
-            bid_price = up_limit
-
-        # 4. 创建 Order 记录（忠实记录用户请求的份额）
-        order = Order(
-            portfolio_id=self._portfolio_id,
-            asset=asset,
-            price=bid_price,
-            shares=shares,
-            side=OrderSide.BUY,
-            bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
-            tm=order_time,
-            extra=extra_json
-        )
-        db.insert_order(order)
-
-        # 5. 执行撮合
-        try:
-            if self._match_level == "minute":
-                trade = self._match_bid_minute(order, bars)
-            else:
-                trade =self._match_bid_day(order, bars)
-
-            return ExecutionResult(qt_oid=order.qtoid, trades=[trade])
-        except TradeError as e:
-            # 在废单的情况下，保留已插入的订单记录并更新状态，
-            # 避免重复插入同一个 qtoid 触发唯一约束异常。
-            order.status = OrderStatus.JUNK
-            order.status_msg = str(e)
-            db.update_order(
-                order.qtoid,
-                status=order.status.value,
-                status_msg=order.status_msg,
-                filled=order.filled,
-                error=str(e),
-            )
-            raise e
-
-    def _match_bid_day(
-        self,
-        order: Order,
-        bars: pl.DataFrame
-    )->Trade:
-        """日线撮合逻辑：不考虑成交量，直接全额成交
-
-        Args:
-            order: 订单
-            bars: 日线行情数据
-
-        Raises:
-            InsufficientCash: 资金不足
-
-        """
-        row = bars.row(0, named=True)
-
-        up_limit = row.get("up_limit", 0.0)
-        bid_price = order.price
-
-        # 用以计算当天的市值
-        close = row["close"]
-
-        market_open = datetime.time(9, 30)
-        match_price = row["open"] if order.tm.time() <= market_open else row["close"]
-
-        # 缺少涨停价数据：无法判断能否成交，保守拒绝并告警
-        if up_limit <= 0:
-            self._log(
-                "WARNING",
-                f"资产 {order.asset} 在 {row['date']} 缺少涨停价数据，拒绝成交",
-                dt=order.tm,
-            )
-            raise LimitPrice(order.asset, match_price)
-
-        # 成交时间点已涨停，不允许成交
-        if match_price >= up_limit:
-            self._log(
-                "WARNING",
-                f"资产 {order.asset} 在 {row['date']} 处于涨停，无法成交",
-                dt=order.tm,
-            )
-            raise LimitPrice(order.asset, match_price)
-
-        if bid_price > 0 and bid_price < match_price:
-            self._log(
-                "WARNING",
-                f"资产 {order.asset} 委托价 {bid_price} 低于撮合价 {match_price}，无法成交",
-                dt=order.tm,
-            )
-            raise PriceNotMeet(order.asset, bid_price, match_price)
-
-        estimated_amount = order.shares * bid_price
-        required_cash = estimated_amount + self._calc_fee(
-            estimated_amount, OrderSide.BUY
-        )
-        if required_cash > self._cash:
-            self._log(
-                "INFO",
-                f"委买失败：{order.asset}, 资金({self._cash:.2f})不足以按价格 {bid_price:.2f} 购买 {order.shares} 股。",
-                dt=order.tm,
-            )
-            raise InsufficientCash(self._portfolio_name, required_cash, self._cash)
-
-        return self._execute_trade(order, match_price, close=close)
-
-
-    def _match_bid_minute(
-        self,
-        order: Order,
-        bars: pl.DataFrame
-    ) -> Trade:
-        """分钟线撮合逻辑：按成交量匹配，并计算出成交均价
-
-        Args:
-            order: 订单
-            bars: 分钟线行情数据
-
-        Returns:
-            成交数量、均价和完成时间
-        """
-        # feed 保证返回的 bars 一定有数据，否则返回 None
-        row = bars.row(0, named=True)
-        up_limit = row.get("up_limit", 0.0)
-        if up_limit <= 0:
-            self._log(
-                "WARNING",
-                f"资产 {order.asset} 缺少涨停价数据，拒绝成交",
-                dt=order.tm,
-            )
-            raise LimitPrice(order.asset, float(row.get("close", 0.0) or 0.0))
-
-        # 提取当天收盘价，计算市值时使用
-        close = bars.row(-1, named=True)["close"]
-
-        bars = self._remove_for_bid(bars, order.price, up_limit)
-
-        if bars.is_empty():
-            raise NoDataForMatch(order.asset, order.tm)
-
-        mean_price, filled, tm = self._match_shares(bars, order.shares)
-
-        if filled == 0:
-            raise NoDataForMatch(order.asset, order.tm)
-
-        return self._execute_trade(
-            order,
-            mean_price,
-            close=close,
-            tm=tm,
-            shares=filled,
-        )
-
-    async def execute_exit(
-        self,
-        asset: str,
-        shares: int | float,
-        price: float,
-        order_time: datetime.datetime,
-        reason: str = "",
-    ) -> ExecutionResult:
-        """Execute a risk exit at an explicit simulated intraday price.
-
-        Used by registered overlays for same-bar explicit-price exits. The fill
-        is still constrained by A-share price limits and suspension.
-        """
-        self.set_clock(order_time)
-        pos = self._positions.get(asset)
-        if pos is None:
-            raise InsufficientPosition(asset, shares)
-        self._validate_sell_shares(pos, shares)
-
-        bars = self._price_for_match(asset, order_time)
-        if bars is None or bars.is_empty():
-            raise NoDataForMatch(asset, order_time)
-        row = bars.row(0, named=True)
-        close = float(row["close"])
-        down_limit = float(row.get("down_limit", 0.0) or 0.0)
-        volume = float(row.get("volume", 0.0) or 0.0)
-        if volume <= 0:
-            raise TradingHaltedError(asset)
-        if down_limit <= 0:
-            self._log(
-                "WARNING",
-                f"资产 {asset} 缺少跌停价数据，拒绝成交",
-                dt=order_time,
-            )
-            raise LimitPrice(asset, price)
-        if price <= down_limit:
-            raise LimitPrice(asset, price)
-
-        import json
-
-        order = Order(
-            portfolio_id=self._portfolio_id,
-            asset=asset,
-            price=float(price),
-            shares=shares,
-            side=OrderSide.SELL,
-            bid_type=BidType.FIXED,
-            tm=order_time,
-            extra=json.dumps({"reason": reason}) if reason else "",
-        )
-        db.insert_order(order)
-        try:
-            trade = self._execute_trade(
-                order,
-                float(price),
-                close=close,
-                tm=order_time,
-                shares=shares,
-            )
-            if self._risk_overlay_in_progress:
-                self._risk_overlay_sold_assets.add(asset)
-            return ExecutionResult(qt_oid=order.qtoid, trades=[trade])
-        except TradeError as exc:
-            order.status = OrderStatus.JUNK
-            order.status_msg = str(exc)
-            db.update_order(
-                order.qtoid,
-                status=order.status.value,
-                status_msg=order.status_msg,
-                filled=order.filled,
-                error=str(exc),
-            )
-            raise
-
-    def _calc_fee(self, amount: float, side: OrderSide) -> float:
-        """计算单笔成交的全部费用（佣金、过户费、卖方印花税）。"""
-        if amount <= 0:
-            return 0.0
-        commission = max(amount * self._commission, self._min_commission)
-        transfer = amount * self._transfer_fee
-        stamp = amount * self._stamp_duty if side == OrderSide.SELL else 0.0
-        return commission + transfer + stamp
-
-    def _execute_trade(
-        self,
-        order: Order,
-        price: float,
-        close: float,
-        tm: datetime.datetime|None = None,
-        shares: float | None = None
-    )->Trade:
-        """执行成交并更新状态
-
-        将根据 order 方法来计算 cash， 创建 Trade， 创建（更新） assets, positions 表格
-        Args:
-            order: 订单
-            price: 成交均价
-            close: 当日收盘价
-            tm: 成交时间
-            shares: 成交数量
-
-        Returns:
-            成交结果
-        """
-        shares = shares or order.shares
-        tm = tm or order.tm
-
-        # 1. 创建成交记录
-        amount = shares * price
-
-        fee = self._calc_fee(amount, order.side)
-
-        trade = Trade(
-            portfolio_id=self._portfolio_id,
-            tid=uuid.uuid4().hex,
-            qtoid=order.qtoid,
-            foid="",
-            asset=order.asset,
-            shares=shares,
-            price=price,
-            amount=amount,
-            tm=tm,
-            side=order.side,
-            cid="",
-            fee=fee,
-        )
-        db.insert_trades(trade)
-
-        # 2. 更新内存中的现金和持仓
-        if order.side == OrderSide.BUY:
-            self._cash -= amount + fee
-            pos = self._positions.get(order.asset)
-            if pos:
-                total_shares = pos.shares + shares
-                # Position cost basis is the all-in acquisition cost, including
-                # the fee charged for this buy.
-                new_price = (pos.shares * pos.price + amount + fee) / total_shares
-                pos.shares = total_shares
-                pos.price = new_price
-                pos.profit = 0
-                pos.mv = pos.shares * close  # 更新市值为当前收盘价 * 总持仓
-                # avail 保持不变
-            else:
-                self._positions[order.asset] = Position(
-                    portfolio_id=self._portfolio_id,
-                    dt=self.as_date(tm),
-                    asset=order.asset,
-                    shares=shares,
-                    price=(amount + fee) / shares,
-                    avail=0,  # T+1 规则：当日买入的持仓 avail 为 0
-                    mv=shares * close,
-                    profit=0,
-                )
-        else:
-            self._cash += amount - fee
-            pos = self._positions.get(order.asset)
-            if pos:
-                pos.shares -= shares
-                pos.avail -= shares
-                pos.profit = 0
-                pos.mv = pos.shares * close  # 更新市值为当前收盘价 * 剩余持仓
-                if pos.shares <= 0:
-                    del self._positions[order.asset]
-
-        # 更新持仓记录。按完整快照写入，清仓标的不能留在当天记录中。
-        db.replace_positions(
-            self._portfolio_id, self.as_date(tm), list(self._positions.values())
-        )
-
-        # 更新 asset 记录
-        mv = np.sum([pos.mv for pos in self._positions.values()])
-        total = self._cash + mv
-        # 更新资产记录
-        db.update_asset(
-            dt=self.as_date(tm),
-            portfolio_id=self._portfolio_id,
-            cash=self._cash,
-            total=total,
-            market_value=mv,
-            principal=self._principal,
-        )
-
-        return trade
-
-    def market_value(self) -> float:
-        """获取当前总市值
-
-        本方法使用内存中的 positions 缓存快速计算，不刷新数据，最终结果为近似值。
-        """
-        return float(np.sum([pos.mv for pos in self._positions.values()]))
-
-    def total_asset(self)-> float:
-        """获取当前总资产
-
-        本方法使用内存中的 positions 缓存与 cash 快速计算，不刷新数据，最终结果为近似值。
-        """
-        return self._cash + self.market_value()
-
-    async def buy_percent(
-        self,
-        asset: str,
-        percent: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        _ = timeout
-
-        if not 0 < percent <= 1:
-            raise BadPercent(percent)
-
-        return await self.buy_amount(
-            asset, self._cash * percent, price, order_time, timeout, **kwargs
-        )
-
-    async def buy_amount(
-        self,
-        asset: str,
-        amount: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        _ = timeout
-        assert order_time is not None, "order_time must be present in backtest mode"
-
-        # 获取预估价格
-        if price > 0:
-            est_price = price
-        elif self.is_auction_time(order_time):
-            bars = self._price_for_match(asset, order_time)
-            est_price = (
-                self._auction_bid_price(bars, OrderSide.BUY)
-                if bars is not None and not bars.is_empty()
-                else 0.0
-            )
-            if est_price <= 0:
-                _, up_limit = self._data_feed.get_trade_price_limits(
-                    asset, self.as_date(order_time)
-                )
-                est_price = up_limit
-        else:
-            _, up_limit = self._data_feed.get_trade_price_limits(
-                asset, self.as_date(order_time)
-            )
-            est_price = up_limit
-
-        if est_price <= 0:
-            raise NoDataForMatch(asset, order_time)
-
-        shares = amount / (
-            est_price * (1 + self._commission + self._transfer_fee)
-        )
-
-        shares = int(shares // 100) * 100
-        if shares == 0:
-            return ExecutionResult.empty()
-
-        return await self.buy(
-            asset, shares, price, order_time, timeout, **kwargs
-        )
-
-    async def sell(
-        self,
-        asset: str,
-        shares: int | float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        _ = timeout
-
-        assert order_time is not None, "order_time must be present in backtest mode"
-        self.set_clock(order_time)
-
-        # 1. 获取撮合所需的行情数据
-        bars = self._price_for_match(
-            asset, order_time, str(kwargs.get("fill_timing", "")).lower()
-        )
-        if bars is None or bars.is_empty():
-            self._log(
-                "WARNING",
-                f"failed to match {asset}, no data at {order_time}",
-                dt=order_time,
-            )
-            raise NoDataForMatch(asset, order_time)
-
-        # 2. 确定基准价格
-        row = bars.row(0, named=True)
-        down_limit = row.get("down_limit", 0.0)
-        ask_price = price
-        if ask_price == 0 and self.is_auction_time(order_time):
-            ask_price = self._auction_bid_price(bars, OrderSide.SELL) or down_limit
-        if ask_price == 0:
-            ask_price = down_limit
-
-        if ask_price == 0:
-            self._log(
-                "WARNING",
-                f"failed to match {asset}, no valid price at {order_time}",
-                dt=order_time,
-            )
-            raise NoDataForMatch(asset, order_time)
-
-        # 3. 严格校验：份额必须是 100 的整数倍（除非清仓）且有可用持仓
-        pos = self._positions.get(asset)
-        if pos is None:
-            raise InsufficientPosition(asset, shares)
-
-        self._validate_sell_shares(pos, shares)
-
-        # 处理 extra 信息
-        extra = kwargs.get("extra", {})
-        import json
-        extra_json = json.dumps(extra) if extra else ""
-
-        # 4. 创建 Order 记录
-        order = Order(
-            portfolio_id=self._portfolio_id,
-            asset=asset,
-            price= ask_price,
-            shares=shares,
-            side=OrderSide.SELL,
-            bid_type=BidType.MARKET if price == 0 else BidType.FIXED,
-            tm=order_time,
-            extra=extra_json
-        )
-        db.insert_order(order)
-
-        # 5. 执行撮合
-        try:
-            if self._match_level == "minute":
-                trade = self._match_ask_minute(order, bars)
-            else:
-                trade = self._match_ask_day(order, bars)
-
-            if self._risk_overlay_in_progress:
-                self._risk_overlay_sold_assets.add(asset)
-            return ExecutionResult(qt_oid=order.qtoid, trades=[trade])
-        except TradeError as e:
-            # 在废单的情况下，保留已插入的订单记录并更新状态。
-            order.status = OrderStatus.JUNK
-            order.status_msg = str(e)
-            db.update_order(
-                order.qtoid,
-                status=order.status.value,
-                status_msg=order.status_msg,
-                filled=order.filled,
-                error=str(e),
-            )
-            raise e
-
-    def _match_ask_day(
-        self,
-        order: Order,
-        bars: pl.DataFrame
-    ) -> Trade:
-        """日线卖出撮合逻辑"""
-        row = bars.row(0, named=True)
-
-        down_limit = row.get("down_limit", 0.0)
-        ask_price = order.price or down_limit
-
-        # 用以计算当天的市值
-        close = row["close"]
-
-
-        market_open = datetime.time(9, 30)
-        match_price = row["open"] if order.tm.time() <= market_open else row["close"]
-
-        if down_limit <= 0:
-            self._log(
-                "WARNING",
-                f"资产 {order.asset} 在 {row['date']} 缺少跌停价数据，拒绝成交",
-                dt=order.tm,
-            )
-            raise LimitPrice(order.asset, match_price)
-
-        if match_price <= down_limit:
-            self._log(
-                "WARNING",
-                f"资产 {order.asset} 在 {row['date']} 处于跌停，无法成交",
-                dt=order.tm,
-            )
-            raise LimitPrice(order.asset, match_price)
-
-        if ask_price > 0 and ask_price > match_price:
-            self._log(
-                "WARNING",
-                f"资产 {order.asset} 委托价 {ask_price} 高于撮合价 {match_price}，无法成交",
-                dt=order.tm,
-            )
-            raise PriceNotMeet(order.asset, ask_price, match_price)
-
-        return self._execute_trade(order, match_price, close=close)
-
-    def _match_ask_minute(
-        self,
-        order: Order,
-        bars: pl.DataFrame
-    ) -> Trade:
-        """分钟线撮合逻辑：按成交量匹配"""
-        # feed 保证返回的 bars 一定有数据，否则返回 None
-        row = bars.row(0, named=True)
-        down_limit = row.get("down_limit", 0.0)
-        if down_limit <= 0:
-            self._log(
-                "WARNING",
-                f"资产 {order.asset} 缺少跌停价数据，拒绝成交",
-                dt=order.tm,
-            )
-            raise LimitPrice(order.asset, float(row.get("close", 0.0) or 0.0))
-
-        # 提取当天收盘价，计算市值时使用
-        close = bars.row(-1, named=True)["close"]
-
-        bars = self._remove_for_ask(bars, order.price, down_limit)
-        if bars.is_empty():
-            raise NoDataForMatch(order.asset, order.tm)
-
-        mean_price, filled, tm = self._match_shares(bars, order.shares)
-
-        if filled == 0:
-            raise NoDataForMatch(order.asset, order.tm)
-
-        return self._execute_trade(
-            order,
-            mean_price,
-            close=close,
-            tm=tm,
-            shares=filled,
-        )
-
-    def _match_shares(self, bars: pl.DataFrame, shares: float)-> tuple[float, float, datetime.datetime]:
-        """对分钟线匹配成交量，返回均价，filled 及最后匹配的时间
-
-        Args:
-            bars (pl.DataFrame): 已移除掉无法匹配的分钟线的数据
-            shares (float): 要匹配的股数
-
-        Returns:
-            均价，filled 及最后成交时间
-        """
-        # 来自 zillionare-backtesting
-        c = bars["price"].to_numpy()
-
-        # volume 是手数，转换成股数，以便与 shares 比较
-        v = bars["volume"].to_numpy() * 100
-        times = bars["tm"].to_list()
-
-        cum_v = np.cumsum(v)
-
-        # until i the order can be filled
-        where_total_filled = np.argwhere(cum_v >= shares)
-        if len(where_total_filled) == 0:
-            i = len(v) - 1
-        else:
-            i = np.min(where_total_filled)
-
-        # 也许到当天结束，都没有足够的股票
-        filled = min(cum_v[i], shares)
-
-        # 最后一周期，只需要成交剩余的部分
-        vol = v[: i + 1].copy()
-        vol[-1] = filled - np.sum(vol[:-1])
-
-        money = sum(c[: i + 1] * vol)
-        mean_price = money / filled
-
-        return mean_price, filled, times[i]
-
-    def _remove_for_bid(
-        self, bars: pl.DataFrame, bid_price: float, up_limit: float
-    ) -> pl.DataFrame:
-        """分钟线买入：只要 bar 未“完全封死”在涨停，就允许成交。
-
-        - ``low < up_limit`` 表示该 bar 内曾出现低于涨停价的价格；
-        - 成交价仍使用 bar 价格（若收在涨停，即按涨停价成交）；
-        - 全天/整段完全封死（``low >= up_limit``）的 bar 不参与撮合。
-        """
-        return bars.filter(
-            (pl.col("low") < up_limit)
-            & (pl.col("close") <= bid_price)
-            & (pl.col("volume").is_not_null())
-            & (pl.col("volume") > 0)
-        )
-
-    def _remove_for_ask(
-        self, bars: pl.DataFrame, ask_price: float, down_limit: float
-    ) -> pl.DataFrame:
-        """分钟线卖出：只要 bar 未“完全封死”在跌停，就允许成交。
-
-        - ``high > down_limit`` 表示该 bar 内曾出现高于跌停价的价格；
-        - 成交价仍使用 bar 价格（若收在跌停，即按跌停价成交）。
-        """
-        return bars.filter(
-            (pl.col("high") > down_limit)
-            & (pl.col("close") >= ask_price)
-            & (pl.col("volume").is_not_null())
-            & (pl.col("volume") > 0)
-        )
-
-    async def sell_percent(
-        self,
-        asset: str,
-        percent: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        **kwargs,
-    ) -> ExecutionResult:
-        """按持仓百分比卖出"""
-        _ = timeout
-
-        assert order_time is not None, "order_time must be present in backtest mode"
-        # buy/sell会设置时钟
-
-        if not 0 < percent <= 1:
-            raise BadPercent(percent)
-
-        pos = self._positions.get(asset)
-        if pos is None:
-            raise InsufficientPosition(asset, 0)
-
-        # sell will validate shares
-        shares = pos.avail * percent
-
-        return await self.sell(
-            asset, shares, price, order_time, timeout, **kwargs
-        )
-
-    async def sell_amount(
-        self,
-        asset: str,
-        amount: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5,
-        method: Literal["ceil", "floor"] = "ceil",
-        **kwargs,
-    ) -> ExecutionResult:
-        _ = timeout
-
-        assert order_time is not None, "order_time must be present in backtest mode"
-
-        if price > 0:
-            est_price = price
-        else:
-            down_limit, _ = self._data_feed.get_trade_price_limits(
-                asset, self.as_date(order_time)
-            )
-            est_price = down_limit
-
-        # 没提供报价，又未能获得跌停价
-        if est_price <= 0:
-            raise NoDataForMatch(asset, order_time)
-
-        if method == "ceil":
-            shares = math.ceil(amount / est_price / 100) * 100
-        else:
-            shares = int(amount / est_price / 100) * 100
-
-        if shares == 0:
-            return ExecutionResult.empty()
-
-        return await self.sell(
-            asset, shares, est_price, order_time, timeout, **kwargs
-        )
-
-    async def trade_target_pct(
-        self,
-        asset: str,
-        target_pct: float,
-        price: float = 0,
-        order_time: datetime.datetime | None = None,
-        timeout: float = 0.5
-    ) -> ExecutionResult:
-        """将`asset`仓位调整到占总市值的`target_pct`
-
-        受市值波动影响，以及可能还有其它标的的仓位也要调整，所以最终仓位可能与目标仓位不完全一致。
-        如果当前仓位非常接近目标仓位（差别不足一手），则不进行调整，此时返回`ExecutionResult.empty()`
-
-        Args:
-            asset: 资产代码，"symbol.SZ"风格
-            target_pct: 目标仓位占比，0-1 之间的浮点数
-            price: 委托价格. Defaults to 0.
-            order_time: 委托时间.
-
-        Returns:
-            ExecutionResult: 交易结果
-        """
-        _ = timeout
-
-        total = self.total_asset()
-
-        target_mv = total * target_pct
-        pos = self._positions.get(asset)
-        if pos is None:
-            return await self.buy_amount(asset, target_mv, price, order_time)
-
-        margin = target_mv - pos.mv
-        if margin > 0:
-            return await self.buy_amount(asset, margin, price, order_time)
-        else:
-            return await self.sell_amount(asset, -margin, price, order_time, method="floor")
-
-    async def cancel_order(self, qt_oid: str):
-        """回测模式下，不支持取消订单"""
-        return None
-
-    async def cancel_all_orders(self, side=None):
-        """回测模式下，不支持取消订单"""
-        return None
-
-    def get_history(
-        self,
-        asset: str,
-        count: int,
-        end_dt: datetime.datetime | None = None,
-        frame_type: FrameType | str = FrameType.DAY,
-        skip_suspended: bool = True,
-        fill_value: bool = True,
-        include_forming_bar: bool = True,
-    ) -> pl.DataFrame:
-        """获取回测历史行情。
-
-        日线回测默认在开盘时生成信号，因此当 ``end_dt`` 落在开盘时刻或更早时，
-        当前交易日尚未完成，历史窗口只能看到上一交易日的数据，避免前视偏差。
-
-        Args:
-            asset: 资产代码。
-            count: 历史 bar 数量。
-            end_dt: 截止时间，包含边界。
-            frame_type: 周期类型，目前仅支持 ``1d``。
-            skip_suspended: 预留参数，当前未使用。
-            fill_value: 预留参数，当前未使用。
-            include_forming_bar: 回测模式下不适用（无实时 tick 注入），保留参数以
-                与 sim/gateway broker 接口一致。
-
-        Returns:
-            历史日线数据。
-        """
-        _ = skip_suspended
-        _ = fill_value
-        _ = include_forming_bar
-        return self._bar_view.get_history(asset, count, end_dt, frame_type)
-
-    def get_bars_range(
-        self,
-        assets: list[str] | None,
-        start_dt: datetime.datetime | datetime.date,
-        end_dt: datetime.datetime | datetime.date | None = None,
-        adjust: str | None = None,
-        include_forming_bar: bool = False,
-    ) -> pl.DataFrame:
-        """批量日期区间日线（回测：仅已完成日线）。"""
-        return self._bar_view.get_bars_range(
-            assets, start_dt, end_dt, adjust=adjust, include_forming_bar=include_forming_bar
-        )
-
-    def _get_close_adjust_factors(
-        self,
-        assets: list[str],
-        start: datetime.date,
-        end: datetime.date,
-    ) -> pl.DataFrame:
-        """读取用于展仓的收盘价与复权因子，并兼容旧测试桩接口。"""
-        if hasattr(self._data_feed, "get_close_adjust_factor"):
-            frame = self._data_feed.get_close_adjust_factor(assets, start, end)
-        elif hasattr(self._data_feed, "get_close_factor"):
-            frame = self._data_feed.get_close_factor(assets, start, end)
-        else:
-            frame = None
-
-        if frame is None or frame.is_empty():
-            return pl.DataFrame(
-                schema={
-                    "date": pl.Date,
-                    "asset": pl.Utf8,
-                    "close": pl.Float64,
-                    "adjust": pl.Float64,
-                }
-            )
-
-        rename_map: dict[str, str] = {}
-        if "dt" in frame.columns and "date" not in frame.columns:
-            rename_map["dt"] = "date"
-        if "factor" in frame.columns and "adjust" not in frame.columns:
-            rename_map["factor"] = "adjust"
-        if rename_map:
-            frame = frame.rename(rename_map)
-
-        if "adjust" not in frame.columns:
-            frame = frame.with_columns(pl.lit(1.0).alias("adjust"))
-
-        return frame.select(["date", "asset", "close", "adjust"]).with_columns(
-            [
-                pl.col("date").cast(pl.Date),
-                pl.col("close").cast(pl.Float64),
-                pl.col("adjust").cast(pl.Float64),
-            ]
-        )
+        _adjust_held_position_factors(held, factors, prev_dt, new_dt)

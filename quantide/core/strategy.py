@@ -3,19 +3,22 @@ from abc import ABC
 
 # Strategy hooks intentionally have no-op defaults for backward compatibility.
 # ruff: noqa: B024,B027
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from loguru import logger
 
-from quantide.core.enums import FrameType
-from quantide.core.ports import BrokerPort
-from quantide.core.ports.broker import ExecutionResult
+if TYPE_CHECKING:
+    from loguru import Record
+
+from quantide.core.enums import FrameType, OrderSide
+from quantide.core.order_values import coerce_order_side
+from quantide.core.ports.broker import ExecutionResult, StrategyBroker
 
 
 class Strategy(ABC):
-    def __init__(self, broker: BrokerPort, config: dict[str, Any]):
-        self.broker = broker
+    def __init__(self, broker: StrategyBroker, config: dict[str, Any]) -> None:
+        self.broker: StrategyBroker = broker
         self.config = config
         logger_kwargs = {"strategy": self.__class__.__name__}
         portfolio_id = getattr(broker, "portfolio_id", "")
@@ -24,6 +27,7 @@ class Strategy(ABC):
         self.logger = logger.bind(**logger_kwargs)
         self.interval: str = "1d"
         self._current_time: datetime.datetime | None = None
+        self._positions_by_date: dict[datetime.date, dict[str, float]] = {}
 
     @staticmethod
     def default_config() -> dict[str, Any]:
@@ -69,11 +73,11 @@ class Strategy(ABC):
     def log(
         self,
         msg: str,
-        *args,
+        *args: Any,
         tm: datetime.datetime | datetime.date | None = None,
         level: str = "INFO",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         log_time = tm
         if log_time is None:
             log_time = self._current_time
@@ -82,9 +86,7 @@ class Strategy(ABC):
         # 其 datetime 子类，直接塞普通 datetime 会把格式串当字面量输出。
         # 用 loguru 的 datetime 包装可同时保留格式化与测试可读的 record["time"]。
         if log_time:
-            if isinstance(log_time, datetime.date) and not isinstance(
-                log_time, datetime.datetime
-            ):
+            if isinstance(log_time, datetime.date) and not isinstance(log_time, datetime.datetime):
                 log_time = datetime.datetime.combine(log_time, datetime.time.min)
             try:
                 from loguru._datetime import datetime as _LoguruDatetime
@@ -100,7 +102,7 @@ class Strategy(ABC):
                     tzinfo=log_time.tzinfo,
                 )
 
-                def _time_patcher(record):
+                def _time_patcher(record: "Record") -> None:
                     record["time"] = sim_time
 
                 self.logger.patch(_time_patcher).log(level, msg, *args, **kwargs)
@@ -122,8 +124,8 @@ class Strategy(ABC):
         key: str,
         value: float,
         dt: datetime.datetime | None = None,
-        extra: dict | None = None,
-    ):
+        extra: dict[str, Any] | None = None,
+    ) -> None:
         if dt is None:
             dt = self._current_time
         self.broker.record(key, value, dt, extra)
@@ -143,54 +145,82 @@ class BaseStrategy(Strategy):
 
     @property
     def cash(self) -> float:
-        return self.broker.cash
+        return float(self.broker.cash)
 
-    async def buy(self, asset: str, shares: int, price: float = 0,
-                  order_time: datetime.datetime | None = None) -> ExecutionResult:
+    async def buy(
+        self, asset: str, shares: int, price: float = 0, order_time: datetime.datetime | None = None
+    ) -> ExecutionResult:
         return await self.broker.buy(asset, shares, price, order_time)
 
-    async def buy_percent(self, asset: str, percent: float, price: float = 0,
-                          order_time: datetime.datetime | None = None) -> ExecutionResult:
+    async def buy_percent(
+        self,
+        asset: str,
+        percent: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+    ) -> ExecutionResult:
         return await self.broker.buy_percent(asset, percent, price, order_time)
 
-    async def buy_amount(self, asset: str, amount: int | float, price: float = 0,
-                         order_time: datetime.datetime | None = None) -> ExecutionResult:
+    async def buy_amount(
+        self,
+        asset: str,
+        amount: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+    ) -> ExecutionResult:
         return await self.broker.buy_amount(asset, amount, price, order_time)
 
-    async def sell(self, asset: str, shares: int, price: float = 0,
-                   order_time: datetime.datetime | None = None) -> ExecutionResult:
+    async def sell(
+        self, asset: str, shares: int, price: float = 0, order_time: datetime.datetime | None = None
+    ) -> ExecutionResult:
         return await self.broker.sell(asset, shares, price, order_time)
 
-    async def sell_percent(self, asset: str, percent: float, price: float = 0,
-                           order_time: datetime.datetime | None = None) -> ExecutionResult:
+    async def sell_percent(
+        self,
+        asset: str,
+        percent: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+    ) -> ExecutionResult:
         return await self.broker.sell_percent(asset, percent, price, order_time)
 
-    async def sell_amount(self, asset: str, amount: int | float, price: float = 0,
-                          order_time: datetime.datetime | None = None) -> ExecutionResult:
+    async def sell_amount(
+        self,
+        asset: str,
+        amount: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+    ) -> ExecutionResult:
         return await self.broker.sell_amount(asset, amount, price, order_time)
 
     async def cancel_order(self, qt_oid: str) -> None:
-        return await self.broker.cancel_order(qt_oid)
+        await self.broker.cancel_order(qt_oid)
 
-    async def cancel_all_orders(self, side: str | None = None) -> int:
-        return await self.broker.cancel_all_orders(side)
+    async def cancel_all_orders(self, side: OrderSide | str | None = None) -> int:
+        normalized = coerce_order_side(side) if side is not None else None
+        cancelled = await self.broker.cancel_all_orders(normalized)
+        return 0 if cancelled is None else int(cancelled)
 
-    async def trade_target_pct(self, asset: str, target_pct: float,
-                               price: float = 0,
-                               order_time: datetime.datetime | None = None) -> ExecutionResult:
+    async def trade_target_pct(
+        self,
+        asset: str,
+        target_pct: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+    ) -> ExecutionResult:
         return await self.broker.trade_target_pct(asset, target_pct, price, order_time)
 
 
 class RiskStrategy(Strategy):
-    def __init__(self, broker, config: dict):
+    def __init__(self, broker: StrategyBroker, config: dict[str, Any]) -> None:
         super().__init__(broker, config)
         import uuid
+
         self.activation_id: str = str(uuid.uuid4())
         self.host_strategy_id: str = getattr(broker, "portfolio_id", "")
         self.risk_strategy_id: str = f"{type(self).__module__}.{type(self).__name__}"
 
-    async def on_check(self, positions: dict[str, Any],
-                       tm: datetime.datetime) -> None:
+    async def on_check(self, positions: dict[str, Any], tm: datetime.datetime) -> None:
         pass
 
     def get_prices(self, assets: list[str]) -> dict[str, float]:
@@ -203,9 +233,11 @@ class RiskStrategy(Strategy):
             return self.broker.get_ticks(asset, count)
         raise NotImplementedError("get_ticks is only available in paper/live mode")
 
-    async def sell_host_position(self, asset: str, shares: int,
-                                  reason: str = "") -> ExecutionResult:
+    async def sell_host_position(
+        self, asset: str, shares: int, reason: str = ""
+    ) -> ExecutionResult:
         from quantide.core.risk_events import BarrierHit, emit_risk_triggered
+
         price = 0.0
         if hasattr(self.broker, "get_prices"):
             try:

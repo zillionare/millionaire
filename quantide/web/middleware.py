@@ -1,22 +1,25 @@
 import traceback
 
 from fasthtml.common import JSONResponse
+from starlette.requests import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from quantide.core.errors import BaseTradeError, WebErrors
+from quantide.service.registry import BrokerRegistry
 
 
 class BrokerRegistryMiddleware:
-    def __init__(self, app, registry):
+    def __init__(self, app: ASGIApp, registry: BrokerRegistry) -> None:
         self.app = app
         self.registry = registry
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] in ("http", "websocket"):
             scope["registry"] = self.registry
         await self.app(scope, receive, send)
 
 
-async def exception_handler(request, exc):
+async def exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """全局异常处理函数"""
     if isinstance(exc, BaseTradeError):
         # 业务自定义异常

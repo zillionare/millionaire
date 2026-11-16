@@ -33,8 +33,11 @@ def _assert_json_content_type(url: str, content_type: str) -> None:
         return
     if "html" in ct:
         raise GatewayProtocolError(
-            f"qmt-gateway 端点返回了 htmx/text/html（违反 spec 12 协议契约）：{url} Content-Type={ct!r}。"
-            " quantide 端不应请求 htmx 端点；请改用对应的 JSON 端点。"
+            "qmt-gateway 端点返回了 htmx/text/html（违反 spec 12 协议契约）："
+            f"{url}"
+            " Content-Type="
+            f"{ct!r}"
+            "。 quantide 端不应请求 htmx 端点；请改用对应的 JSON 端点。"
         )
     raise GatewayProtocolError(
         f"qmt-gateway 返回了未预期的 Content-Type：{url} Content-Type={ct!r}"
@@ -50,7 +53,7 @@ class GatewayClient:
         username: str,
         password: str,
         timeout: float = 10.0,
-    ):
+    ) -> None:
         """初始化客户端.
 
         Args:

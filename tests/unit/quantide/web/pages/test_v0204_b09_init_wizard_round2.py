@@ -16,6 +16,9 @@ Covers missing branches:
 
 from __future__ import annotations
 
+from quantide.web.pages import wizard_state
+
+
 import datetime as dt
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -60,13 +63,13 @@ def _make_request(
 def test_set_download_error_strips_whitespace_to_none_when_empty():
     """[AC-NFR1101-01] Empty/whitespace message sets _download_error_message to None."""
     _set_download_error("   ")
-    assert iw._download_error_message is None
+    assert wizard_state._download_error_message is None
 
 
 def test_set_download_error_stores_message():
     """[AC-NFR1101-01] Non-empty message is stored stripped."""
     _set_download_error("  download failed  ")
-    assert iw._download_error_message == "download failed"
+    assert wizard_state._download_error_message == "download failed"
 
 
 def test_get_download_error_returns_explicit_error_when_provided():
@@ -90,9 +93,9 @@ def test_get_download_error_returns_none_for_non_step_5():
 def test_set_reconfigure_mode_toggles_global_flag():
     """[AC-NFR1101-01] _set_reconfigure_mode updates the global flag."""
     _set_reconfigure_mode(True)
-    assert iw._reconfigure_mode_active is True
+    assert wizard_state._reconfigure_mode_active is True
     _set_reconfigure_mode(False)
-    assert iw._reconfigure_mode_active is False
+    assert wizard_state._reconfigure_mode_active is False
 
 
 def test_request_in_force_mode_returns_true_for_force_true():
@@ -284,13 +287,13 @@ def test_on_fetch_progress_ignores_non_dict_payload():
     _update_sync_status(45, "stage", "msg")
     # The closure is not exposed; we test _update_sync_status instead.
     _update_sync_status(50, "stage2", "msg2")
-    assert iw._sync_status["progress"] == 50
+    assert wizard_state._sync_status["progress"] == 50
 
 
 def test_update_sync_status_sets_message_to_stage_when_none():
     """[AC-NFR1101-01] When message is None, it falls back to stage."""
     _update_sync_status(60, "stage3")
-    assert iw._sync_status["message"] == "stage3"
+    assert wizard_state._sync_status["message"] == "stage3"
 
 
 # ---------------------------------------------------------------------------
@@ -301,8 +304,8 @@ def test_update_sync_status_sets_message_to_stage_when_none():
 @pytest.mark.asyncio
 async def test_sync_progress_returns_streaming_response_when_completed():
     """[AC-NFR1101-01] When status is completed, the SSE stream yields once then closes."""
-    iw._sync_status["completed"] = True
-    iw._sync_status["error"] = None
+    wizard_state._sync_status["completed"] = True
+    wizard_state._sync_status["error"] = None
     req = _make_request()
     resp = await sync_progress(req)
     assert isinstance(resp, StreamingResponse)
@@ -317,8 +320,8 @@ async def test_sync_progress_returns_streaming_response_when_completed():
 @pytest.mark.asyncio
 async def test_sync_progress_returns_streaming_response_when_error():
     """[AC-NFR1101-01] When status has error, the SSE stream yields once then closes."""
-    iw._sync_status["completed"] = False
-    iw._sync_status["error"] = "boom"
+    wizard_state._sync_status["completed"] = False
+    wizard_state._sync_status["error"] = "boom"
     req = _make_request()
     resp = await sync_progress(req)
     assert isinstance(resp, StreamingResponse)
@@ -329,13 +332,12 @@ async def test_sync_progress_returns_streaming_response_when_error():
 # ---------------------------------------------------------------------------
 
 
-def test_prepare_dev_stub_sample_data_clamps_epoch_when_after_sync_end(monkeypatch):
+def test_prepare_dev_stub_sample_data_clamps_epoch_when_after_sync_end(monkeypatch, tmp_path):
     """[AC-NFR1101-01] When epoch > sync_end, sync_start is clamped to sync_end."""
     fake_state = MagicMock()
-    fake_state.app_home = "/tmp/data"
+    fake_state.app_home = str(tmp_path / "market")
     fake_state.epoch = dt.date(2030, 1, 1)  # after sync_end
 
-    monkeypatch.setattr(iw, "DEFAULT_DATA_HOME", "/tmp/data")
     # init_data is imported inside the function; patch it on its module.
     import quantide.data as data_mod
 
@@ -351,6 +353,7 @@ def test_prepare_dev_stub_sample_data_clamps_epoch_when_after_sync_end(monkeypat
 
     monkeypatch.setattr(iw.daily_bars, "fetch_with_daily_progress", _fake_fetch)
     _prepare_dev_stub_sample_data(fake_state)
+    data_mod.init_data.assert_called_once_with(fake_state.app_home, init_db=True)
     # sync_start clamped to sync_end (2024-06-17).
     assert captured["start"] == dt.date(2024, 6, 17)
 

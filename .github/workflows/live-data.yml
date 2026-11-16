@@ -1,0 +1,57 @@
+name: Live data source validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      required:
+        description: Require actual passing source probes
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      required:
+        type: boolean
+        default: false
+    secrets:
+      TUSHARE_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  live-data:
+    runs-on: ubuntu-latest
+    environment: CI
+    timeout-minutes: 5
+    env:
+      TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+      QUANTIDE_REQUIRE_LIVE_DATA: ${{ inputs.required && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Configure temporary artifacts
+        run: python -m scripts.artifact_paths --github-env
+      - name: Install CE and test tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . --group test
+      - name: Validate small real calendar and price samples
+        env:
+          XDG_CONFIG_HOME: ${{ runner.temp }}/quantide-live-config
+        run: >-
+          python -m pytest tests/live -m live_data --strict-markers --runxfail
+          --timeout=30 -rs --junitxml=${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/live-data.xml
+      - name: Release requires actual passing tests, never missing-credential skips
+        if: inputs.required
+        run: python -m scripts.check_test_results ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/live-data.xml
+      - name: Upload live source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-data-report
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/quality/live-data.xml
+      - name: Verify clean checkout layout
+        run: python -m scripts.artifact_paths --check-layout

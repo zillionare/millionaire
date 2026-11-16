@@ -129,9 +129,7 @@ def test_complete_backtest_runtime_for_missing_run_is_noop():
     assert strategy_runtime_manager.get_backtest_run("does-not-exist") is None
 
 
-def test_get_backtest_run_or_resolve_falls_back_when_in_memory_missing(
-    monkeypatch, db
-):
+def test_get_backtest_run_or_resolve_falls_back_when_in_memory_missing(monkeypatch, db):
     """When in-memory has no entry, falls back to _resolve_backtest_run path
     which loads from db. We register no portfolio, so the helper returns None."""
     result = strategy_runtime_manager.get_backtest_run_or_resolve("missing-portfolio")
@@ -371,8 +369,12 @@ def _make_runtime(status: str) -> StrategyRuntime:
 
 
 def test_list_runtime_rows_sorts_by_mode_then_portfolio():
-    rt_b = _make_runtime("idle"); rt_b.portfolio_id = "p-b"; rt_b.runtime_id = "paper:p-b"
-    rt_a = _make_runtime("idle"); rt_a.portfolio_id = "p-a"; rt_a.runtime_id = "paper:p-a"
+    rt_b = _make_runtime("idle")
+    rt_b.portfolio_id = "p-b"
+    rt_b.runtime_id = "paper:p-b"
+    rt_a = _make_runtime("idle")
+    rt_a.portfolio_id = "p-a"
+    rt_a.runtime_id = "paper:p-a"
     strategy_runtime_manager._account_runtimes["paper:p-b"] = rt_b
     strategy_runtime_manager._account_runtimes["paper:p-a"] = rt_a
     rows = strategy_runtime_manager.list_runtime_rows()
@@ -568,6 +570,7 @@ def test_deploy_to_paper_full_flow_with_mocked_dependencies(monkeypatch):
     class _NoStartThread:
         def __init__(self, target, args, daemon, name):
             pass
+
         def start(self):
             pass
 
@@ -807,7 +810,6 @@ def test_start_strategy_runtime_direct_auto_generates_ids(
     assert runtime.strategy_id.startswith("Demo-")
 
 
-
 # ---------------------------------------------------------------------------
 # Lifecycle methods - stop_strategy_runtime
 # ---------------------------------------------------------------------------
@@ -895,9 +897,7 @@ def _build_fake_runtime() -> SimpleNamespace:
 def test_bootstrap_from_runtime_seeds_account_runtimes():
     strategy_runtime_manager.bootstrap_from_runtime(_build_fake_runtime())
     # Should have at least one runtime registered for the listed broker.
-    assert any(
-        rid.startswith("paper:") for rid in strategy_runtime_manager._account_runtimes
-    )
+    assert any(rid.startswith("paper:") for rid in strategy_runtime_manager._account_runtimes)
 
 
 # ---------------------------------------------------------------------------
@@ -959,9 +959,7 @@ def test_runtime_to_row_when_account_blocked_returns_blocked_scope(monkeypatch):
     rt.strategy_id = ""  # account-level runtime
     rt.broker = SimpleNamespace(avail=0)
     account_key = strategy_runtime_manager._account_key_for_runtime(rt)
-    strategy_runtime_manager._blocked_accounts[account_key] = {
-        "reason": "drawdown"
-    }
+    strategy_runtime_manager._blocked_accounts[account_key] = {"reason": "drawdown"}
     row = strategy_runtime_manager._runtime_to_row(rt)
     assert row["status"] == "blocked"
     assert row["blocked_scope"] == "account"
@@ -1065,9 +1063,7 @@ def test_strategy_data_alarm_deduplicates_and_recovers(monkeypatch):
 
     manager = StrategyRuntimeManager()
     events = []
-    monkeypatch.setattr(
-        manager, "record_system_event", lambda **kwargs: events.append(kwargs)
-    )
+    monkeypatch.setattr(manager, "record_system_event", lambda **kwargs: events.append(kwargs))
     runtime = SimpleNamespace(runtime_id="paper:p1:Demo-1", strategy_name="Demo")
 
     manager._sync_strategy_data_alarm(runtime, True)
@@ -1080,3 +1076,36 @@ def test_strategy_data_alarm_deduplicates_and_recovers(monkeypatch):
     assert len(events) == 2
     assert events[1]["blocked"] is False
     assert events[1]["title"] == "策略行情恢复"
+
+
+def test_create_and_validate_monthly_runtime_interval():
+    from quantide.strategies.example.monthly_ma import MonthlyMAStrategy
+
+    strategy_runtime_manager.create_backtest_runtime(
+        portfolio_id="bt-monthly",
+        strategy_name="MonthlyMAStrategy",
+        config={"bar_interval": "1M"},
+        interval="1M",
+        start_date="2023-01-01",
+        end_date="2024-02-01",
+        initial_cash=10000,
+    )
+    run = strategy_runtime_manager.get_backtest_run("bt-monthly")
+    assert run is not None and run.interval == "1M"
+    assert (
+        strategy_runtime_manager.validate_runtime_interval(
+            {"interval": "1M", "config": {"bar_interval": "1M"}},
+            MonthlyMAStrategy,
+        )
+        == "1M"
+    )
+    with pytest.raises(ValueError):
+        strategy_runtime_manager.create_backtest_runtime(
+            portfolio_id="bt-minute",
+            strategy_name="MonthlyMAStrategy",
+            config={},
+            interval="1m",
+            start_date="2023-01-01",
+            end_date="2024-02-01",
+            initial_cash=10000,
+        )

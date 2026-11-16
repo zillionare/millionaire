@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -13,6 +13,30 @@ from quantide.data.models.calendar import calendar
 from quantide.service.model_store import model_store
 from quantide.service.shadow_broker import ShadowBroker
 from quantide.service.strategy_tracking import tracking_store
+
+if TYPE_CHECKING:
+    from quantide.service.strategy_runtime import StrategyRuntime
+
+
+def _replay_previous_shadow_session(
+    self: StrategyTaskManager,
+    run: dict[str, Any],
+    last: str,
+    previous: datetime.date,
+    runtime: StrategyRuntime,
+    runtime_id: str,
+) -> None:
+    """Replay a missed previous session before evaluating the morning strategy."""
+    if run.get("dry_run_enabled", True) and last < previous.isoformat():
+        shadow = None
+        if self._can_replay(runtime, previous):
+            shadow = self._run_shadow(runtime, previous)
+        if shadow is None:
+            gaps = list(run.get("gap_dates") or [])
+            if previous.isoformat() not in gaps:
+                gaps.append(previous.isoformat())
+            tracking_store.update_run(runtime_id, gap_dates=gaps)
+
 
 _EOD_HOUR = 18
 _EOD_MINUTE = 45
@@ -32,7 +56,7 @@ def _job_prefix(runtime_id: str) -> str:
     return f"strategy:{runtime_id}"
 
 
-def _to_date(value: Any) -> datetime.date | None:
+def _to_date(value: object) -> datetime.date | None:
     if isinstance(value, datetime.datetime):
         return value.date()
     if isinstance(value, datetime.date):
@@ -40,9 +64,9 @@ def _to_date(value: Any) -> datetime.date | None:
     return None
 
 
-def _model_hash(strategy: Any) -> str:
+def _model_hash(strategy: object) -> str:
     try:
-        meta = model_store.metadata(strategy._model_key)
+        meta = model_store.metadata(getattr(strategy, "_model_key", ""))
         return meta.model_hash if meta else ""
     except Exception:
         return ""
@@ -55,7 +79,7 @@ class StrategyTaskManager:
         self._attached: set[str] = set()
         self._next_open_attached: set[str] = set()
 
-    def attach(self, runtime: Any) -> None:
+    def attach(self, runtime: StrategyRuntime) -> None:
         runtime_id = str(getattr(runtime, "runtime_id", "") or "")
         if not runtime_id:
             return
@@ -101,11 +125,9 @@ class StrategyTaskManager:
                 coalesce=True,
                 misfire_grace_time=None,
             )
-            if (
-                str(getattr(runtime, "interval", "1d")) == "1d"
-                and str((runtime.config or {}).get("fill_timing", "")).lower()
-                in {"next_open", "open"}
-            ):
+            if str(getattr(runtime, "interval", "1d")) == "1d" and str(
+                (runtime.config or {}).get("fill_timing", "")
+            ).lower() in {"next_open", "open"}:
                 scheduler.add_job(
                     self.run_next_open,
                     "cron",
@@ -146,7 +168,7 @@ class StrategyTaskManager:
         self._attached.discard(runtime_id)
         self._next_open_attached.discard(runtime_id)
 
-    def _init_shadow_state(self, runtime: Any) -> None:
+    def _init_shadow_state(self, runtime: StrategyRuntime) -> None:
         if tracking_store.get_shadow_state(runtime.runtime_id) is not None:
             return
         broker = getattr(runtime, "broker", None)
@@ -174,7 +196,7 @@ class StrategyTaskManager:
             positions=positions,
         )
 
-    def _runtime(self, runtime_id: str) -> Any | None:
+    def _runtime(self, runtime_id: str) -> StrategyRuntime | None:
         from quantide.service.strategy_runtime import strategy_runtime_manager
 
         return strategy_runtime_manager.get_runtime(runtime_id)
@@ -188,7 +210,7 @@ class StrategyTaskManager:
         except Exception:
             return now.date()
 
-    def _can_replay(self, runtime: Any, day: datetime.date) -> bool:
+    def _can_replay(self, runtime: StrategyRuntime, day: datetime.date) -> bool:
         """只有 latest 模型在该日已生效时才允许回放，避免未来函数。"""
         try:
             meta = model_store.metadata(runtime.config.get("_model_key", ""))
@@ -204,7 +226,7 @@ class StrategyTaskManager:
         except Exception:
             return True
 
-    def _actual_snapshot(self, runtime: Any, day: datetime.date) -> None:
+    def _actual_snapshot(self, runtime: StrategyRuntime, day: datetime.date) -> None:
         broker = getattr(runtime, "broker", None)
         if broker is None:
             return
@@ -236,7 +258,7 @@ class StrategyTaskManager:
             positions=positions,
         )
 
-    def _run_shadow(self, runtime: Any, day: datetime.date) -> dict[str, Any] | None:
+    def _run_shadow(self, runtime: StrategyRuntime, day: datetime.date) -> dict[str, Any] | None:
         config = dict(runtime.config or {})
         fill_timing = str(config.get("fill_timing", "auction_close"))
         if fill_timing not in _SUPPORTED_FILL_TIMINGS:
@@ -264,8 +286,7 @@ class StrategyTaskManager:
         if strategy_cls is None:
             logger.warning("dry-run 策略不存在: {}", runtime.strategy_name)
             return None
-        shadow_config = {**config, "_shadow_mode": True}
-        strategy = strategy_cls(broker, shadow_config)
+        strategy: Any = strategy_cls(broker, {**config, "_shadow_mode": True})
         try:
             asyncio.run(strategy.init())
             # 回放日必须有一份当天已生效的模型；否则不要用未来模型。
@@ -291,11 +312,7 @@ class StrategyTaskManager:
                 decision_time = datetime.time(15, 0)
             else:
                 decision_time = datetime.time(14, 57)
-            asyncio.run(
-                strategy.on_bar(
-                    datetime.datetime.combine(day, decision_time)
-                )
-            )
+            asyncio.run(strategy.on_bar(datetime.datetime.combine(day, decision_time)))
             if getattr(strategy, "_data_missing", False):
                 logger.warning("dry-run 行情缺失，记为缺口: {} {}", runtime.runtime_id, day)
                 return None
@@ -320,7 +337,6 @@ class StrategyTaskManager:
             positions=positions,
         )
         nav = broker.total_assets
-        market_value = nav - broker.cash
         tracking_store.save_daily(
             runtime_id=runtime.runtime_id,
             portfolio_id=runtime.portfolio_id,
@@ -328,7 +344,7 @@ class StrategyTaskManager:
             source="dry_run",
             nav=nav,
             cash=broker.cash,
-            market_value=market_value,
+            market_value=nav - broker.cash,
             positions=positions,
             trades=broker.trades,
             model_hash=_model_hash(strategy),
@@ -341,14 +357,10 @@ class StrategyTaskManager:
             "model_hash": _model_hash(strategy),
         }
 
-    def _process_shadow_intents(
-        self, runtime: Any, day: datetime.date
-    ) -> int:
+    def _process_shadow_intents(self, runtime: StrategyRuntime, day: datetime.date) -> int:
         """Drain shadow next-open intents against the target day's open."""
         shadow_runtime_id = f"{runtime.runtime_id}:shadow"
-        rows = tracking_store.list_next_open_intents(
-            runtime_id=shadow_runtime_id, target_date=day
-        )
+        rows = tracking_store.list_next_open_intents(runtime_id=shadow_runtime_id, target_date=day)
         if not rows:
             return 0
         config = dict(runtime.config or {})
@@ -370,9 +382,7 @@ class StrategyTaskManager:
                 kwargs["order_time"] = order_time
                 method = getattr(broker, str(row["method"]))
                 asyncio.run(method(*(row.get("args") or []), **kwargs))
-                tracking_store.mark_next_open_intent(
-                    row["intent_id"], status="processed"
-                )
+                tracking_store.mark_next_open_intent(row["intent_id"], status="processed")
             except Exception as exc:
                 tracking_store.mark_next_open_intent(
                     row["intent_id"], status="failed", error=str(exc)
@@ -407,14 +417,14 @@ class StrategyTaskManager:
         )
         return len(rows)
 
-    def _ensure_model(self, runtime: Any, day: datetime.date) -> None:
+    def _ensure_model(self, runtime: StrategyRuntime, day: datetime.date) -> None:
         try:
             from quantide.service.discovery import strategy_loader
 
             strategy_cls = strategy_loader.load_from_cache().get(runtime.strategy_name)
             if strategy_cls is None:
                 return
-            strategy = strategy_cls(runtime.broker, dict(runtime.config or {}))
+            strategy: Any = strategy_cls(runtime.broker, dict(runtime.config or {}))
             if not hasattr(strategy, "train_model_for_day"):
                 return
             # 只对模型策略生效；没有模型或已到期才训练。
@@ -425,7 +435,7 @@ class StrategyTaskManager:
             logger.warning("模型维护失败 {}: {}", runtime.runtime_id, exc)
 
     def _ensure_model_effective_today(
-        self, runtime: Any, today: datetime.date, previous: datetime.date
+        self, runtime: StrategyRuntime, today: datetime.date, previous: datetime.date
     ) -> None:
         """早盘兜底：只保证今天有可用模型，训练数据截止到上一交易日。"""
         try:
@@ -434,7 +444,7 @@ class StrategyTaskManager:
             strategy_cls = strategy_loader.load_from_cache().get(runtime.strategy_name)
             if strategy_cls is None:
                 return
-            strategy = strategy_cls(runtime.broker, dict(runtime.config or {}))
+            strategy: Any = strategy_cls(runtime.broker, dict(runtime.config or {}))
             if not hasattr(strategy, "train_model_for_day"):
                 return
             if strategy._load_model_from_store(today) and not strategy._model_due(today):
@@ -475,8 +485,7 @@ class StrategyTaskManager:
         if day is None:
             return
         if (
-            str((runtime.config or {}).get("fill_timing", "")).lower()
-            in {"next_open", "open"}
+            str((runtime.config or {}).get("fill_timing", "")).lower() in {"next_open", "open"}
             and str(getattr(runtime, "interval", "1d")) == "1d"
         ):
             self._process_shadow_intents(runtime, day)
@@ -486,20 +495,10 @@ class StrategyTaskManager:
             previous = calendar.day_shift(day, -1)
         except Exception:
             previous = day - datetime.timedelta(days=1)
-        if run.get("dry_run_enabled", True) and last < previous.isoformat():
-            shadow = None
-            if self._can_replay(runtime, previous):
-                shadow = self._run_shadow(runtime, previous)
-            if shadow is None:
-                gaps = list(run.get("gap_dates") or [])
-                if previous.isoformat() not in gaps:
-                    gaps.append(previous.isoformat())
-                tracking_store.update_run(runtime_id, gap_dates=gaps)
+        _replay_previous_shadow_session(self, run, last, previous, runtime, runtime_id)
         self._ensure_model_effective_today(runtime, day, previous)
 
-    def run_next_open(
-        self, runtime_id: str, now: datetime.datetime | None = None
-    ) -> None:
+    def run_next_open(self, runtime_id: str, now: datetime.datetime | None = None) -> None:
         """Submit durable 1d intents at the next trading day's open."""
         runtime = self._runtime(runtime_id)
         if runtime is None or runtime.status != "running":

@@ -3,12 +3,13 @@ import datetime
 import json
 import threading
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from quantide.core.enums import BrokerKind, OrderSide, OrderStatus
 from quantide.core.errors import InsufficientPosition, NonMultipleOfLotSize
+from quantide.core.order_values import coerce_order_side
 from quantide.core.ports.broker import (
     AssetView,
     CancelAck,
@@ -26,6 +27,67 @@ from quantide.service.backtest_logs import record_backtest_log
 class AbstractBroker:
     """抽象 Broker 类。只实现超时控制功能，策略的 metrics 计算等功能"""
 
+    if TYPE_CHECKING:
+
+        async def cancel_order(self, qt_oid: str) -> CancelAck | None: ...
+        async def cancel_all_orders(self, side: OrderSide | None = None) -> int | None: ...
+        async def buy(
+            self,
+            asset: str,
+            shares: int | float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def sell(
+            self,
+            asset: str,
+            shares: int | float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def buy_amount(
+            self,
+            asset: str,
+            amount: int | float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def sell_amount(
+            self,
+            asset: str,
+            amount: int | float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def buy_percent(
+            self,
+            asset: str,
+            percent: float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def sell_percent(
+            self,
+            asset: str,
+            percent: float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+        async def trade_target_pct(
+            self,
+            asset: str,
+            target_pct: float,
+            price: float = 0,
+            order_time: datetime.datetime | None = None,
+            timeout: float = 0.5,
+        ) -> ExecutionResult: ...
+
     def __init__(
         self,
         portfolio_id: str = "default",
@@ -36,7 +98,7 @@ class AbstractBroker:
         info: str = "",
         start: datetime.date | None = None,
         end: datetime.date | None = None,
-    ):
+    ) -> None:
         self._cash: float = principal
         self._portfolio_id: str = portfolio_id
         self._principal: float = principal
@@ -65,7 +127,7 @@ class AbstractBroker:
         key: str,
         value: float,
         dt: datetime.datetime | None = None,
-        extra: dict | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """记录策略运行数据
 
@@ -82,11 +144,7 @@ class AbstractBroker:
         extra_str = json.dumps(extra) if extra else ""
 
         log = StrategyLog(
-            portfolio_id=self._portfolio_id,
-            dt=dt,
-            key=key,
-            value=value,
-            extra=extra_str
+            portfolio_id=self._portfolio_id, dt=dt, key=key, value=value, extra=extra_str
         )
         db.insert_strategy_logs(log)
 
@@ -123,7 +181,7 @@ class AbstractBroker:
 
     @property
     def portfolio_name(self) -> str:
-        """Portfolio 对应的账户名称，是一个适合人类阅读的名字。一般应与 portfolio一一对应，不建议重复"""
+        """返回与组合对应的账户名称。"""
         return self._portfolio_name
 
     @property
@@ -140,10 +198,11 @@ class AbstractBroker:
     def portfolio_id(self) -> str:
         return self._portfolio_id
 
-    def _validate_sell_shares(
-        self, pos: Position, shares: float
-    ) ->None:
-        """卖出时，如果是清仓或零股 (不足一手的零散股) 则不限 100 整倍数；否则必须以 100 整数倍为单位 (FR-150)."""
+    def _validate_sell_shares(self, pos: Position, shares: float) -> None:
+        """卖出时，如果是清仓或零股 (不足一手的零散股) 则不限 100 整倍数；否则必须以 100
+
+        整数倍为单位 (FR-150).
+        """
         # 1. 基础检查：没有可用持仓
         if pos.avail == 0:
             raise InsufficientPosition(pos.asset, shares)
@@ -161,7 +220,7 @@ class AbstractBroker:
 
         # 4. 数量检查: 非清仓情况下, 卖出量不能超过可用量
         if shares > pos.avail:
-             raise InsufficientPosition(pos.asset, shares)
+            raise InsufficientPosition(pos.asset, shares)
 
         # 5. 整手检查
         if shares % 100 != 0 or shares == 0:
@@ -327,47 +386,61 @@ class AbstractBroker:
         if request.style == "shares":
             if request.side == OrderSide.BUY:
                 return await self.buy(
-                    asset=request.asset, shares=request.value,
-                    price=request.price, order_time=request.order_time,
+                    asset=request.asset,
+                    shares=request.value,
+                    price=request.price,
+                    order_time=request.order_time,
                     timeout=request.timeout,
                 )
             return await self.sell(
-                asset=request.asset, shares=request.value,
-                price=request.price, order_time=request.order_time,
+                asset=request.asset,
+                shares=request.value,
+                price=request.price,
+                order_time=request.order_time,
                 timeout=request.timeout,
             )
         if request.style == "amount":
             if request.side == OrderSide.BUY:
                 return await self.buy_amount(
-                    asset=request.asset, amount=request.value,
-                    price=request.price, order_time=request.order_time,
+                    asset=request.asset,
+                    amount=request.value,
+                    price=request.price,
+                    order_time=request.order_time,
                     timeout=request.timeout,
                 )
             return await self.sell_amount(
-                asset=request.asset, amount=request.value,
-                price=request.price, order_time=request.order_time,
+                asset=request.asset,
+                amount=request.value,
+                price=request.price,
+                order_time=request.order_time,
                 timeout=request.timeout,
             )
         if request.style == "percent":
             if request.side == OrderSide.BUY:
                 return await self.buy_percent(
-                    asset=request.asset, percent=request.value,
-                    price=request.price, order_time=request.order_time,
+                    asset=request.asset,
+                    percent=request.value,
+                    price=request.price,
+                    order_time=request.order_time,
                     timeout=request.timeout,
                 )
             return await self.sell_percent(
-                asset=request.asset, percent=request.value,
-                price=request.price, order_time=request.order_time,
+                asset=request.asset,
+                percent=request.value,
+                price=request.price,
+                order_time=request.order_time,
                 timeout=request.timeout,
             )
         # target_pct
         return await self.trade_target_pct(
-            asset=request.asset, target_pct=request.value,
-            price=request.price, order_time=request.order_time,
+            asset=request.asset,
+            target_pct=request.value,
+            price=request.price,
+            order_time=request.order_time,
             timeout=request.timeout,
         )
 
-    def _status_matches(self, raw_status, expected: str) -> bool:
+    def _status_matches(self, raw_status: Any, expected: str) -> bool:
         """判断订单状态是否匹配."""
         text = str(expected).strip().upper()
         if text.isdigit():
@@ -379,7 +452,7 @@ class AbstractBroker:
                 return False
         return str(raw_status).upper() == text
 
-    def _to_trade(self, trade) -> Trade:
+    def _to_trade(self, trade: Trade | dict[str, Any]) -> Trade:
         """转换 dict 或 Trade 为 Trade."""
         if isinstance(trade, Trade):
             return trade
@@ -388,7 +461,7 @@ class AbstractBroker:
             qtoid=str(trade.get("qtoid") or ""),
             foid="",
             asset=str(trade.get("asset") or ""),
-            side=str(trade.get("side") or ""),
+            side=coerce_order_side(trade.get("side")),
             shares=float(trade.get("shares") or 0),
             price=float(trade.get("price") or 0),
             amount=float(trade.get("amount") or 0),
@@ -398,7 +471,7 @@ class AbstractBroker:
             portfolio_id=self.portfolio_id,
         )
 
-    def _to_datetime(self, value):
+    def _to_datetime(self, value: Any) -> datetime.datetime:
         """将值转换为 datetime."""
         if isinstance(value, datetime.datetime):
             return value
@@ -407,4 +480,3 @@ class AbstractBroker:
         if isinstance(value, str):
             return datetime.datetime.fromisoformat(value)
         return datetime.datetime.now()
-

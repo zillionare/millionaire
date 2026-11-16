@@ -11,6 +11,7 @@ from quantide.core.runtime.gateway_broker import (
     _coerce_order_side,
     _coerce_order_status,
 )
+import quantide.core.runtime.gateway_legacy as legacy_gateway
 
 
 class DummyGatewayClient:
@@ -236,6 +237,7 @@ async def test_gateway_broker_preserves_qtoid_when_gateway_returns_external_orde
     assert ack.order_id == "qt-1"
     assert orders[0].order_id == "qt-1"
     assert trades[0].qtoid == "qt-1"
+    assert trades[0].side is OrderSide.BUY
 
 
 @pytest.mark.asyncio
@@ -564,7 +566,7 @@ async def test_gateway_broker_no_double_qfq_adjustment_on_forming_merge(monkeypa
         def get_bars(self, n, end, assets, adjust, eager_mode):
             return hist
 
-    monkeypatch.setattr(_gb_mod, "daily_bars", _RawProvider())
+    monkeypatch.setattr(legacy_gateway, "daily_bars", _RawProvider())
 
     client = DummyGatewayClient()
     adapter = GatewayBrokerAdapter(client)
@@ -626,7 +628,7 @@ async def test_live_estimate_limit_price_auction_uses_previous_close(monkeypatch
                 }
             )
 
-    monkeypatch.setattr(_gb_mod, "daily_bars", _FakeBars())
+    monkeypatch.setattr(legacy_gateway, "daily_bars", _FakeBars())
 
     client = DummyGatewayClient()
     adapter = GatewayBrokerAdapter(client)
@@ -689,7 +691,7 @@ async def test_live_estimate_limit_price_post_auction_uses_next_day_open(monkeyp
                 }
             )
 
-    monkeypatch.setattr(_gb_mod, "daily_bars", _FakeBars())
+    monkeypatch.setattr(legacy_gateway, "daily_bars", _FakeBars())
 
     client = DummyGatewayClient()
     adapter = GatewayBrokerAdapter(client)

@@ -13,7 +13,7 @@ def singleton[T](cls: type[T]) -> type[T]:
     def get_instance(*args: Any, **kwargs: Any) -> T:
         if cls not in _instances:
             _instances[cls] = cls(*args, **kwargs)
-        return _instances[cls]
+        return cast(T, _instances[cls])
 
     # 保持原始类的属性
     get_instance.__name__ = cls.__name__

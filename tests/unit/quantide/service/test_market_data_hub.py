@@ -213,7 +213,7 @@ def test_tencent_publisher_publishes_quotes_and_limits():
             }
         }
     )
-    publisher = TencentPublisher(["600519.SH"], fetcher=fake)
+    publisher = TencentPublisher(["600519.SH"], access_check=lambda: None, fetcher=fake)
 
     quotes: list[dict] = []
     limits: list[dict] = []
@@ -236,7 +236,7 @@ def test_tencent_publisher_publishes_quotes_and_limits():
 def test_tencent_publisher_survives_fetch_error():
     """拉取失败时发布 0 条而不抛异常。"""
     publisher = TencentPublisher(
-        ["600519.SH"], fetcher=_FakeTencentFetcher(RuntimeError("网络错误"))
+        ["600519.SH"], access_check=lambda: None, fetcher=_FakeTencentFetcher(RuntimeError("网络错误"))
     )
     assert publisher.publish_once() == 0
 

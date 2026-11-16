@@ -1,18 +1,23 @@
 import datetime
 import inspect
 import json
+import threading
 import uuid
+from collections.abc import Iterable
 from typing import Any
 
+import polars as pl
 from loguru import logger
 
 from quantide.config.settings import get_cheat_on_close_time
 from quantide.core.enums import FrameType
 from quantide.core.errors import RiskStrategyNotBacktestable
+from quantide.core.intervals import normalize_interval
+from quantide.core.order_execution import BROKER_ORDER_METHODS
 from quantide.core.ports import ClockPort
 from quantide.core.ports.broker import ExecutionResult
 from quantide.core.runtime.clock_bridge import BacktestClockAdapter
-from quantide.core.strategy import BaseStrategy, RiskStrategy
+from quantide.core.strategy import BaseStrategy, RiskStrategy, Strategy
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.minute_bars import minute_bars
@@ -28,18 +33,16 @@ from quantide.service.risk_programs import (
 )
 
 
+async def _await_overlay(result: Any) -> None:
+    """Support both synchronous and asynchronous risk overlay adapters."""
+    if inspect.isawaitable(result):
+        await result
+
+
 class _BacktestNextOpenBrokerProxy:
     """Queue host strategy orders until the following daily bar opens."""
 
-    _ORDER_METHODS = {
-        "buy",
-        "sell",
-        "buy_percent",
-        "sell_percent",
-        "buy_amount",
-        "sell_amount",
-        "trade_target_pct",
-    }
+    _ORDER_METHODS = BROKER_ORDER_METHODS
 
     def __init__(self, broker: BacktestBroker, mark_next_open: bool = False) -> None:
         self._broker = broker
@@ -51,7 +54,8 @@ class _BacktestNextOpenBrokerProxy:
 
     def __getattribute__(self, item: str) -> Any:
         if item in object.__getattribute__(self, "_ORDER_METHODS"):
-            async def queued(*args, **kwargs):
+
+            async def queued(*args: Any, **kwargs: Any) -> ExecutionResult:
                 object.__getattribute__(self, "pending").append((item, args, kwargs))
                 return ExecutionResult.empty()
 
@@ -74,16 +78,21 @@ class _BacktestNextOpenBrokerProxy:
 class BacktestRunner:
     """回测运行器，负责管理回测的生命周期和时间循环。"""
 
-    def __init__(self, clock: ClockPort | None = None):
+    def __init__(self, clock: ClockPort | None = None) -> None:
         """初始化回测运行器.
 
         Args:
             clock: 时钟端口实现。
         """
         self._clock = clock or BacktestClockAdapter()
+        self._stop_event = threading.Event()
+
+    def stop(self) -> None:
+        """Request interruption at the next replay boundary."""
+        self._stop_event.set()
 
     @staticmethod
-    def strategy_interval(strategy_cls: type[BaseStrategy]) -> str:
+    def strategy_interval(strategy_cls: type[Strategy]) -> str:
         """Return the immutable interval declared by a strategy class."""
         declared = getattr(strategy_cls, "BAR_INTERVAL", None)
         if not isinstance(declared, str):
@@ -96,40 +105,44 @@ class BacktestRunner:
             defaults = getattr(strategy_cls, "default_config", None)
             values = defaults() if callable(defaults) else {}
             declared = values.get("bar_interval", "1d") if isinstance(values, dict) else "1d"
-        interval = str(declared).strip().lower()
-        if interval not in {"1d", "30m"}:
-            raise ValueError(f"策略声明了不支持的 bar_interval: {interval!r}")
+        raw = str(declared).strip()
+        interval = normalize_interval(raw)
+        if interval == "1m":
+            raise ValueError("1m minute bars are not supported; 1M means monthly")
+        if interval not in {"1d", "30m", "1M"}:
+            raise ValueError(f"策略声明了不支持的 bar_interval: {raw!r}")
         return interval
 
     @classmethod
     def validate_strategy_interval(
         cls,
-        strategy_cls: type[BaseStrategy],
+        strategy_cls: type[Strategy],
         config: dict[str, Any] | None,
         frame_type: FrameType | str,
     ) -> str:
         expected = cls.strategy_interval(strategy_cls)
         supplied = (config or {}).get("bar_interval")
-        if supplied is not None and str(supplied).strip().lower() != expected:
+        supplied_text = str(supplied).strip() if supplied is not None else ""
+        supplied_norm = normalize_interval(supplied_text)
+        if supplied is not None and supplied_norm != expected:
             raise ValueError(
                 f"bar_interval override {supplied!r} conflicts with strategy interval {expected!r}"
             )
-        actual = frame_type.value if isinstance(frame_type, FrameType) else str(frame_type).lower()
+        actual_raw = (
+            frame_type.value if isinstance(frame_type, FrameType) else str(frame_type).strip()
+        )
+        actual = normalize_interval(actual_raw)
         if actual != expected:
             # A few legacy tests use a callable mock as the strategy factory
             # and exercise the pre-v0.2 1m runner.  There is no declaration to
             # validate in that path; real strategy classes are strict below.
             if not inspect.isclass(strategy_cls) and actual not in {"1d", "30m"}:
                 return expected
-            raise ValueError(
-                f"回测周期 {actual!r} conflicts with strategy interval {expected!r}"
-            )
+            raise ValueError(f"回测周期 {actual!r} conflicts with strategy interval {expected!r}")
         return expected
 
     @staticmethod
-    def _resolve_cheat_on_close(
-        strategy_cls: type[BaseStrategy], config: dict[str, Any]
-    ) -> bool:
+    def _resolve_cheat_on_close(strategy_cls: type[BaseStrategy], config: dict[str, Any]) -> bool:
         """从 config / 类属性解析 cheat_on_close. config 优先."""
         if "cheat_on_close" in config:
             return bool(config["cheat_on_close"])
@@ -227,9 +240,7 @@ class BacktestRunner:
             return end_date
         clamped = calendar.floor(last_data_date, FrameType.DAY)
         if clamped < start_date:
-            raise ValueError(
-                f"行情数据仅覆盖到 {last_data_date}，无法回测 {start_date} 之后的区间"
-            )
+            raise ValueError(f"行情数据仅覆盖到 {last_data_date}，无法回测 {start_date} 之后的区间")
         logger.warning(
             "回测结束日期 {} 超出行情数据范围，已收敛到 {}（请更新行情数据后重跑）",
             end_date,
@@ -275,9 +286,7 @@ class BacktestRunner:
         # 1. Init Broker
         risk_overlay = None
         if RISK_PROGRAMS_KEY in config:
-            risk_overlay = build_backtest_risk_overlay(
-                strategy_cls, config, frame_type
-            )
+            risk_overlay = build_backtest_risk_overlay(strategy_cls, config, frame_type)
         broker = BacktestBroker(
             bt_start=start_date,
             bt_end=end_date,
@@ -289,15 +298,13 @@ class BacktestRunner:
             stamp_duty=float(config.get("stamp_duty", 5e-4)),
             min_commission=float(config.get("min_commission", 5.0)),
             transfer_fee=float(config.get("transfer_fee", 1e-5)),
-            match_level="day" if frame_type == FrameType.DAY else "minute",
+            match_level="day" if frame_type in {FrameType.DAY, FrameType.MONTH} else "minute",
             portfolio_name=strategy_cls.__name__,
             desc=json.dumps({"config": dict(config or {})}, ensure_ascii=False),
             save_logs=save_logs,
             risk_overlay=risk_overlay,
             auction_epsilon=float(config.get("auction_epsilon", 0.001)),
-            allow_same_bar_repurchase=bool(
-                config.get(ALLOW_SAME_BAR_REPURCHASE_KEY, True)
-            ),
+            allow_same_bar_repurchase=bool(config.get(ALLOW_SAME_BAR_REPURCHASE_KEY, True)),
         )
 
         # Use patched logger
@@ -367,14 +374,12 @@ class BacktestRunner:
         benchmark: Any,
         start_date: datetime.date,
         end_date: datetime.date,
-    ):
+    ) -> pl.DataFrame | None:
         """读取指数日线并计算基准日收益率；不可用时返回 None。"""
         code = str(benchmark).strip() if benchmark else ""
         if not code:
             return None
         try:
-            import polars as pl
-
             from quantide.data import get_index_bars_store
 
             store = get_index_bars_store()
@@ -385,15 +390,10 @@ class BacktestRunner:
             dates = frame["date"].to_list()
             if not dates or dates[0] > start_date or dates[-1] < end_date:
                 return None
-            returns = (
-                frame.select(
-                    pl.col("date").alias("dt"),
-                    (pl.col("close") / pl.col("close").shift(1) - 1).alias(
-                        "returns"
-                    ),
-                )
-                .drop_nulls()
-            )
+            returns = frame.select(
+                pl.col("date").alias("dt"),
+                (pl.col("close") / pl.col("close").shift(1) - 1).alias("returns"),
+            ).drop_nulls()
             return returns
         except Exception:  # pragma: no cover - 缺数据时静默跳过基准
             return None
@@ -470,40 +470,9 @@ class BacktestRunner:
         db_path: str | None = None,
         save_logs: bool = False,
     ) -> dict[str, Any]:
-        """运行回测。
-
-        Args:
-            strategy_cls: 策略类
-            config: 策略配置
-            start_date: 回测开始日期
-            end_date: 回测结束日期
-            frame_type: 回测周期类型
-            initial_cash: 初始资金
-            portfolio_id: 组合 ID，如果为 None 则自动生成
-            db_path: 数据库路径，如果为 None 则使用默认路径
-            save_logs: 是否同时写入回测日志文件
-
-        Returns:
-            Dict[str, Any]: 回测结果，包含 metrics 和 portfolio_id
-        """
-        if inspect.isclass(strategy_cls) and issubclass(strategy_cls, RiskStrategy):
-            raise RiskStrategyNotBacktestable(getattr(strategy_cls, "__name__", ""))
-
-        self.validate_strategy_interval(strategy_cls, config, frame_type)
-
-        if RISK_PROGRAMS_KEY in config:
-            config = dict(config)
-            config[RISK_PROGRAMS_KEY] = normalize_risk_programs(
-                config.get(RISK_PROGRAMS_KEY),
-                host_strategy_cls=strategy_cls,
-                frame_type=frame_type,
-            )
-            config.setdefault(ALLOW_SAME_BAR_REPURCHASE_KEY, True)
-
-        start_date, end_date = self._align_backtest_dates(
-            start_date, end_date, frame_type
-        )
-
+        """Run the strategy through setup, clock replay, closing and metrics calculation."""
+        config = self._normalized_run_config(strategy_cls, config, frame_type)
+        start_date, end_date = self._align_backtest_dates(start_date, end_date, frame_type)
         portfolio_id, broker, strategy = self._init_backtest(
             strategy_cls,
             config,
@@ -515,11 +484,51 @@ class BacktestRunner:
             db_path,
             save_logs,
         )
+        try:
+            await strategy.init()
+            await strategy.on_start()
+            await self._run_clock_frames(
+                strategy, broker, strategy_cls, config, start_date, end_date, frame_type
+            )
+            await broker.stop_backtest()
+        except Exception as exc:
+            self.logger.exception("Backtest failed: {}", exc)
+            self._record_run_log(
+                portfolio_id, strategy, broker, "ERROR", f"回测失败：{exc}", save_logs
+            )
+            raise
+        finally:
+            await strategy.on_stop()
+        self.logger.info(f"Backtest finished: {portfolio_id}")
+        self._record_run_log(
+            portfolio_id,
+            strategy,
+            broker,
+            "INFO",
+            f"回测结束：portfolio_id={portfolio_id}",
+            save_logs,
+        )
+        return self._run_metrics(portfolio_id, config, start_date, end_date)
 
-        await strategy.init()
-        await strategy.on_start()
+    def _normalized_run_config(
+        self, strategy_cls: type[BaseStrategy], config: dict[str, Any], frame_type: FrameType
+    ) -> dict[str, Any]:
+        if inspect.isclass(strategy_cls) and issubclass(strategy_cls, RiskStrategy):
+            raise RiskStrategyNotBacktestable(getattr(strategy_cls, "__name__", ""))
+        self.validate_strategy_interval(strategy_cls, config, frame_type)
+        if RISK_PROGRAMS_KEY in config:
+            config = dict(config)
+            config[RISK_PROGRAMS_KEY] = normalize_risk_programs(
+                config.get(RISK_PROGRAMS_KEY),
+                host_strategy_cls=strategy_cls,
+                frame_type=frame_type,
+            )
+            config.setdefault(ALLOW_SAME_BAR_REPURCHASE_KEY, True)
+        return config
 
-        # 3. Time Loop
+    def _iter_backtest_frames(
+        self, start_date: datetime.date, end_date: datetime.date, frame_type: FrameType
+    ) -> Iterable[datetime.date | datetime.datetime]:
         if frame_type in {
             FrameType.MIN1,
             FrameType.MIN5,
@@ -527,172 +536,199 @@ class BacktestRunner:
             FrameType.MIN30,
             FrameType.MIN60,
         }:
-            start_tm = calendar.first_min_frame(start_date, frame_type)
-            end_tm = calendar.last_min_frame(end_date, frame_type)
-            frames = self._clock.iter_frames(start_tm, end_tm, frame_type)
-        else:
-            frames = self._clock.iter_frames(start_date, end_date, frame_type)
+            return self._clock.iter_frames(
+                calendar.first_min_frame(start_date, frame_type),
+                calendar.last_min_frame(end_date, frame_type),
+                frame_type,
+            )
+        frames = self._clock.iter_frames(start_date, end_date, frame_type)
+        if frame_type is FrameType.MONTH:
+            return [
+                frame
+                for frame in frames
+                if (frame.date() if isinstance(frame, datetime.datetime) else frame) >= start_date
+            ]
+        return frames
 
+    def _next_open_settings(
+        self,
+        strategy_cls: type[BaseStrategy],
+        config: dict[str, Any],
+        frame_type: FrameType,
+        broker: BacktestBroker,
+    ) -> tuple[_BacktestNextOpenBrokerProxy | None, tuple[int, int]]:
+        fill_timing, _, cheat_tm = self._resolve_fill_timing(strategy_cls, config)
+        declared = getattr(strategy_cls, "fill_timing", None)
+        if not isinstance(declared, str):
+            defaults = getattr(strategy_cls, "default_config", None)
+            if callable(defaults):
+                declared = defaults().get("fill_timing")
+        explicit = str(config.get("fill_timing", "")).lower() in {"next_open", "open"} or (
+            isinstance(declared, str) and declared.lower() in {"next_open", "open"}
+        )
+        enabled = (
+            frame_type in {FrameType.DAY, FrameType.MIN30}
+            and fill_timing == "next_open"
+            and explicit
+        )
+        proxy = (
+            _BacktestNextOpenBrokerProxy(broker, mark_next_open=frame_type == FrameType.MIN30)
+            if enabled
+            else None
+        )
+        self.logger.info(f"回测成交时点: {fill_timing}")
+        return proxy, cheat_tm
+
+    async def _run_clock_frames(
+        self,
+        strategy: BaseStrategy,
+        broker: BacktestBroker,
+        strategy_cls: type[BaseStrategy],
+        config: dict[str, Any],
+        start_date: datetime.date,
+        end_date: datetime.date,
+        frame_type: FrameType,
+    ) -> None:
+        proxy, cheat_tm = self._next_open_settings(strategy_cls, config, frame_type, broker)
+        strategy.interval = frame_type.value
         last_trade_day = None
-
-        try:
-            fill_timing, cheat, cheat_tm = self._resolve_fill_timing(
-                strategy_cls, config
+        if frame_type == FrameType.MONTH:
+            await self._run_monthly_execution(strategy, broker, config, start_date)
+        for tm in self._iter_backtest_frames(start_date, end_date, frame_type):
+            if self._stop_event.is_set():
+                raise InterruptedError("服务停止，回测被中断；已完成的交易记录保留")
+            current_date = tm.date() if isinstance(tm, datetime.datetime) else tm
+            bar_tm = (
+                tm
+                if isinstance(tm, datetime.datetime)
+                else calendar.replace_time(tm, 15, 0)
+                if frame_type == FrameType.MONTH
+                else calendar.replace_time(tm, *cheat_tm)
             )
-            declared_fill = getattr(strategy_cls, "fill_timing", None)
-            if not isinstance(declared_fill, str):
-                defaults = getattr(strategy_cls, "default_config", None)
-                if callable(defaults):
-                    declared_fill = defaults().get("fill_timing")
-            explicit_next_open = str(config.get("fill_timing", "")).lower() in {
-                "next_open",
-                "open",
-            } or (
-                isinstance(declared_fill, str)
-                and declared_fill.lower() in {"next_open", "open"}
+            last_trade_day = await self._handle_day_switch(
+                strategy, broker, current_date, last_trade_day
             )
-            next_open_daily = (
-                frame_type in {FrameType.DAY, FrameType.MIN30}
-                and fill_timing == "next_open"
-                and explicit_next_open
+            broker.begin_risk_overlay_cycle()
+            await self._run_strategy_bar(
+                strategy, broker, current_date, bar_tm, config, frame_type, proxy
             )
-            next_open_broker = (
-                _BacktestNextOpenBrokerProxy(
-                    broker, mark_next_open=frame_type == FrameType.MIN30
-                )
-                if next_open_daily
-                else None
+            last_trade_day = await self._run_monthly_next_open(
+                strategy,
+                broker,
+                config,
+                current_date,
+                end_date,
+                frame_type,
+                last_trade_day,
             )
-            self.logger.info(f"回测成交时点: {fill_timing}")
-            # SC-04: announce the bar interval on the strategy before the loop
-            # so consumers can observe the active frame via ``strategy.interval``.
-            strategy.interval = frame_type.value
-            for tm in frames:
-                if isinstance(tm, datetime.datetime):
-                    current_date = tm.date()
-                    bar_tm = tm
-                else:
-                    current_date = tm
-                    bar_tm = calendar.replace_time(current_date, *cheat_tm)
+        if last_trade_day is not None:
+            close_tm = calendar.replace_time(last_trade_day, 15, 30)
+            self._set_strategy_time(strategy, broker, close_tm)
+            await strategy.on_day_close(close_tm)
 
-                last_trade_day = await self._handle_day_switch(
-                    strategy, broker, current_date, last_trade_day
-                )
-                broker.begin_risk_overlay_cycle()
+    async def _run_monthly_next_open(
+        self,
+        strategy: BaseStrategy,
+        broker: BacktestBroker,
+        config: dict[str, Any],
+        current_date: datetime.date,
+        end_date: datetime.date,
+        frame_type: FrameType,
+        last_trade_day: datetime.date | None,
+    ) -> datetime.date | None:
+        if frame_type is not FrameType.MONTH:
+            return last_trade_day
+        execution_day = calendar.day_shift(current_date, 1)
+        if execution_day > end_date:
+            return last_trade_day
+        await self._run_monthly_execution(strategy, broker, config, execution_day)
+        return execution_day
 
-                if next_open_broker is not None:
-                    await next_open_broker.flush(bar_tm)
-                    signal_tm = (
-                        calendar.replace_time(current_date, 15, 0)
-                        if frame_type == FrameType.DAY
-                        else bar_tm
-                    )
-                    self._clock.set_now(signal_tm)
-                    broker.set_clock(signal_tm)
-                    strategy._current_time = signal_tm
-                    self._get_bar_quote(
-                        broker,
-                        current_date,
-                        signal_tm,
-                        config,
-                        frame_type,
-                    )
-                    overlay_result = broker.run_risk_overlay(signal_tm)
-                    if inspect.isawaitable(overlay_result):
-                        await overlay_result
-                    original_broker = strategy.broker
-                    strategy.broker = next_open_broker
-                    try:
-                        await strategy.on_bar(signal_tm)
-                    finally:
-                        strategy.broker = original_broker
-                    broker.sync_risk_overlay(signal_tm)
-                    intraday_result = broker.run_risk_overlay_intraday(signal_tm)
-                    if inspect.isawaitable(intraday_result):
-                        await intraday_result
-                    continue
+    async def _run_monthly_execution(
+        self,
+        strategy: BaseStrategy,
+        broker: BacktestBroker,
+        config: dict[str, Any],
+        day: datetime.date,
+    ) -> None:
+        """Run the next-open event so monthly intents execute before the next signal."""
+        execution_tm = calendar.replace_time(day, 9, 30)
+        await self._run_strategy_bar(
+            strategy, broker, day, execution_tm, config, FrameType.MONTH, None
+        )
 
-                # Bar Logic
-                self._clock.set_now(bar_tm)
-                broker.set_clock(bar_tm)
-                strategy._current_time = bar_tm
-                # SC-04: ``on_bar`` only receives the bar timestamp. Strategies
-                # pull data themselves via ``get_bars``/``get_history``. We still
-                # compute the pre-callback quote so daily backtests can prime
-                # the broker's quote cache through the legacy hook, but the
-                # callback signature is the single-argument canonical form.
-                self._get_bar_quote(
-                    broker,
-                    current_date,
-                    bar_tm,
-                    config,
-                    frame_type,
-                )
-                if frame_type in {FrameType.DAY, FrameType.MIN30}:
-                    overlay_result = broker.run_risk_overlay(bar_tm)
-                    if inspect.isawaitable(overlay_result):
-                        await overlay_result
+    def _set_strategy_time(
+        self, strategy: BaseStrategy, broker: BacktestBroker, moment: datetime.datetime
+    ) -> None:
+        self._clock.set_now(moment)
+        broker.set_clock(moment)
+        strategy._current_time = moment
+
+    async def _run_strategy_bar(
+        self,
+        strategy: BaseStrategy,
+        broker: BacktestBroker,
+        current_date: datetime.date,
+        bar_tm: datetime.datetime,
+        config: dict[str, Any],
+        frame_type: FrameType,
+        proxy: _BacktestNextOpenBrokerProxy | None,
+    ) -> None:
+        if proxy is not None:
+            await proxy.flush(bar_tm)
+            if frame_type == FrameType.DAY:
+                bar_tm = calendar.replace_time(current_date, 15, 0)
+        self._set_strategy_time(strategy, broker, bar_tm)
+        self._get_bar_quote(broker, current_date, bar_tm, config, frame_type)
+        overlay = frame_type in {FrameType.DAY, FrameType.MIN30}
+        if overlay:
+            await _await_overlay(broker.run_risk_overlay(bar_tm))
+        if proxy is None:
+            await strategy.on_bar(bar_tm)
+        else:
+            original_broker = strategy.broker
+            strategy.broker = proxy
+            try:
                 await strategy.on_bar(bar_tm)
-                if frame_type in {FrameType.DAY, FrameType.MIN30}:
-                    broker.sync_risk_overlay(bar_tm)
-                    intraday_result = broker.run_risk_overlay_intraday(bar_tm)
-                    if inspect.isawaitable(intraday_result):
-                        await intraday_result
+            finally:
+                strategy.broker = original_broker
+        if overlay:
+            broker.sync_risk_overlay(bar_tm)
+            await _await_overlay(broker.run_risk_overlay_intraday(bar_tm))
 
-            # Close the last day
-            if last_trade_day is not None:
-                close_tm = calendar.replace_time(last_trade_day, 15, 30)
-                self._clock.set_now(close_tm)
-                broker.set_clock(close_tm)
-                strategy._current_time = close_tm
-                await strategy.on_day_close(close_tm)
-
-            # 收尾清仓放在 try 内：失败时同样记录错误日志
-            await broker.stop_backtest()
-
-        except Exception as exc:
-            self.logger.exception("Backtest failed: {}", exc)
-            failure_tm = strategy._current_time or broker._clock
-            record_backtest_log(
-                portfolio_id=portfolio_id,
-                level="ERROR",
-                source="runner",
-                message=f"回测失败：{exc}",
-                dt=failure_tm,
-                save_to_file=save_logs,
-            )
-            raise
-
-        finally:
-            await strategy.on_stop()
-
-        self.logger.info(f"Backtest finished: {portfolio_id}")
-        finish_tm = strategy._current_time or broker._clock
+    def _record_run_log(
+        self,
+        portfolio_id: str,
+        strategy: BaseStrategy,
+        broker: BacktestBroker,
+        level: str,
+        message: str,
+        save_logs: bool,
+    ) -> None:
         record_backtest_log(
             portfolio_id=portfolio_id,
-            level="INFO",
+            level=level,
             source="runner",
-            message=f"回测结束：portfolio_id={portfolio_id}",
-            dt=finish_tm,
+            message=message,
+            dt=strategy._current_time or broker._clock,
             save_to_file=save_logs,
         )
 
-        # 4. Metrics（可选指数基准 → 超额收益/Beta/Alpha）
+    def _run_metrics(
+        self,
+        portfolio_id: str,
+        config: dict[str, Any],
+        start_date: datetime.date,
+        end_date: datetime.date,
+    ) -> dict[str, Any]:
         baseline = self._benchmark_returns(
             config.get("benchmark", "000300.SH"), start_date, end_date
         )
         try:
-            stats = metrics(
-                portfolio_id,
-                baseline_returns=baseline,
-                start=start_date,
-                end=end_date,
-            )
+            stats = metrics(portfolio_id, baseline_returns=baseline, start=start_date, end=end_date)
         except ValueError as exc:
-            # 基准日期覆盖不足时退回无基准指标，避免回测整体失败。
             self.logger.warning(f"基准对齐失败，跳过超额指标: {exc}")
             stats = metrics(portfolio_id, start=start_date, end=end_date)
-
         return {
             "portfolio_id": portfolio_id,
             "metrics": stats.to_dict() if stats is not None else {},

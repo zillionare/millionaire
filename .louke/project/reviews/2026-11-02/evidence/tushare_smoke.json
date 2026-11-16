@@ -1,0 +1,58 @@
+{
+  "token_present": true,
+  "sdk_version": "1.4.29",
+  "results": [
+    {
+      "endpoint": "trade_cal",
+      "token_source": "TUSHARE_TOKEN",
+      "request_params": {
+        "exchange": "SSE",
+        "start_date": "20240102",
+        "end_date": "20240103",
+        "fields": "exchange,cal_date,is_open,pretrade_date"
+      },
+      "status": "data",
+      "rows": 2,
+      "columns": [
+        "exchange",
+        "cal_date",
+        "is_open",
+        "pretrade_date"
+      ],
+      "elapsed_seconds": 0.16,
+      "responses": [
+        {
+          "http_status": 200
+        }
+      ]
+    },
+    {
+      "endpoint": "daily",
+      "token_source": "TUSHARE_TOKEN",
+      "request_params": {
+        "ts_code": "000001.SZ",
+        "start_date": "20240102",
+        "end_date": "20240103",
+        "fields": "ts_code,trade_date,open,high,low,close,vol,amount"
+      },
+      "status": "data",
+      "rows": 2,
+      "columns": [
+        "ts_code",
+        "trade_date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "vol",
+        "amount"
+      ],
+      "elapsed_seconds": 0.09,
+      "responses": [
+        {
+          "http_status": 200
+        }
+      ]
+    }
+  ]
+}

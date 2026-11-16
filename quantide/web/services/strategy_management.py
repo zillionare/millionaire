@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 
 class StrategyType(StrEnum):
@@ -56,7 +57,7 @@ class StrategyItem:
     strategy_type: StrategyType
     is_builtin: bool
     source: StrategySource
-    default_config: dict
+    default_config: dict[str, Any]
     skipped_reasons: list[str] | None
     hidden: bool = False
     running_live: bool = False
@@ -198,7 +199,8 @@ def filter_strategies(
     if query:
         q = query.lower()
         result = [
-            s for s in result
+            s
+            for s in result
             if q in s.name.lower() or q in s.description.lower() or q in s.strategy_id.lower()
         ]
     return result
@@ -229,7 +231,9 @@ def scan_strategies(*, new_count: int, updated_count: int, failed: bool = False)
         ScanResult 实例.
     """
     if failed:
-        return ScanResult(new_count=0, updated_count=0, failed=True, message="扫描失败, 列表保留扫描前状态")
+        return ScanResult(
+            new_count=0, updated_count=0, failed=True, message="扫描失败, 列表保留扫描前状态"
+        )
     return ScanResult(
         new_count=new_count,
         updated_count=updated_count,

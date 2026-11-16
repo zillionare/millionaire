@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 from quantide.core.enums import BidType, BrokerKind, OrderSide, OrderStatus
@@ -1162,6 +1163,12 @@ def test_get_orders_portfolio_filter(setup):
     res_p1_all = db.get_orders(portfolio_id=p1)
     assert len(res_p1_all) == 1
     assert res_p1_all["portfolio_id"][0] == p1
+
+
+def test_get_orders_for_date_without_results_returns_empty_frame(setup):
+    result = setup.get_orders(dt=datetime.date(2024, 1, 1), portfolio_id="missing")
+    assert isinstance(result, pl.DataFrame)
+    assert result.is_empty()
 
 
 def test_trades_all_portfolio_filter(setup):

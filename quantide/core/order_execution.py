@@ -8,7 +8,8 @@ from enum import StrEnum
 class OrderExecutionMode(StrEnum):
     """下单方式 (FR-050/060/070).
 
-    - CHEAT_ON_CLOSE: T+0 close 信号, T+0 close 撮合 (回测) / T+0 尾盘集合竞价 (paper/live, 默认 14:57)
+    - CHEAT_ON_CLOSE: T+0 close 信号, T+0 close 撮合 (回测) / T+0 尾盘集合竞价 (paper/live,
+    默认 14:57)
     - NEXT_OPEN: T+0 close 信号, T+1 open 撮合 (开盘涨跌停不撮合)
     - NEXT_LIMIT: T+0 close 信号, T+1 bar [low, high] 撮合
     """
@@ -16,3 +17,16 @@ class OrderExecutionMode(StrEnum):
     CHEAT_ON_CLOSE = "cheat_on_close"
     NEXT_OPEN = "next_open"
     NEXT_LIMIT = "next_limit"
+
+
+BROKER_ORDER_METHODS = frozenset(
+    {
+        "buy",
+        "sell",
+        "buy_percent",
+        "sell_percent",
+        "buy_amount",
+        "sell_amount",
+        "trade_target_pct",
+    }
+)

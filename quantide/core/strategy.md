@@ -39,10 +39,7 @@ await self.broker.buy(
     asset="000001.SZ",
     shares=100,
     price=10.0,
-    extra={
-        "reason": "Signal triggered",
-        "features": {"ma5": 10.1, "rsi": 30}
-    }
+    extra={"reason": "Signal triggered", "features": {"ma5": 10.1, "rsi": 30}},
 )
 ```
 
@@ -84,9 +81,5 @@ self.record("rsi", rsi_value)
 
 if rsi_value < 30:
     # 2. 发生交易时，在 extra 中记录触发交易的具体 RSI 值和阈值
-    await self.buy(..., extra={
-        "reason": "RSI_OVERSOLD",
-        "rsi_value": rsi_value,
-        "threshold": 30
-    })
+    await self.buy(..., extra={"reason": "RSI_OVERSOLD", "rsi_value": rsi_value, "threshold": 30})
 ```

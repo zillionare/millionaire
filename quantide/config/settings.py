@@ -23,8 +23,37 @@ from quantide.config.dev_stubs import (
 from quantide.config.features import supports_live_trading
 from quantide.config.paths import normalize_data_home
 
+
+def _runtime_connection_fields(
+    state: Any, parsed: urllib.parse.ParseResult
+) -> tuple[str, int, str]:
+    """Resolve gateway connection defaults and the effective runtime mode."""
+    gateway_scheme = str(getattr(state, "gateway_scheme", "") or parsed.scheme or "http")
+    fallback_port = 443 if gateway_scheme == "https" else 80
+    gateway_port = _as_int(
+        getattr(state, "gateway_port", 0) or parsed.port or fallback_port,
+        fallback_port,
+    )
+    runtime_mode = str(getattr(state, "runtime_mode", "") or "").strip().lower()
+    if runtime_mode == "live" and not supports_live_trading():
+        runtime_mode = "paper"
+    return gateway_scheme, gateway_port, runtime_mode
+
+
 DEFAULT_TIMEZONE = ZoneInfo("Asia/Shanghai")
 _LAST_APP_STATE_LOAD_ERROR: tuple[type[BaseException], str] | None = None
+
+
+def _gateway_server_origin(port: int, scheme: str, server: str) -> str:
+    """Gateway server origin."""
+    if server.startswith("http://") or server.startswith("https://"):
+        base = server.rstrip("/")
+    else:
+        base = f"{scheme}://{server}"
+        default_port = 443 if scheme == "https" else 80
+        if port > 0 and port != default_port:
+            base = f"{base}:{port}"
+    return base
 
 
 def _as_date(value: Any, default: datetime.date) -> datetime.date:
@@ -59,9 +88,7 @@ def parse_cheat_on_close_time(value: Any) -> datetime.time:
     try:
         h, m = int(parts[0]), int(parts[1])
     except ValueError as err:
-        raise ValueError(
-            f"cheat_on_close_time parts must be integers, got {value!r}"
-        ) from err
+        raise ValueError(f"cheat_on_close_time parts must be integers, got {value!r}") from err
     if not (0 <= h <= 23 and 0 <= m <= 59):
         raise ValueError(f"cheat_on_close_time out of clock range: {value!r}")
     if not (9 <= h <= 15) or (h == 15 and m > 0):
@@ -137,13 +164,7 @@ def _build_gateway_base_url(state: Any) -> str:
     port = _as_int(getattr(state, "gateway_port", 0), 0)
     prefix = _normalize_path_prefix(configured or "/")
 
-    if server.startswith("http://") or server.startswith("https://"):
-        base = server.rstrip("/")
-    else:
-        base = f"{scheme}://{server}"
-        default_port = 443 if scheme == "https" else 80
-        if port > 0 and port != default_port:
-            base = f"{base}:{port}"
+    base = _gateway_server_origin(port, scheme, server)
 
     if prefix == "/":
         return base
@@ -216,17 +237,7 @@ class Settings:
         branding = get_branding()
         gateway_base_url = _build_gateway_base_url(state)
         parsed = urllib.parse.urlparse(gateway_base_url)
-        gateway_scheme = str(
-            getattr(state, "gateway_scheme", "") or parsed.scheme or "http"
-        )
-        fallback_port = 443 if gateway_scheme == "https" else 80
-        gateway_port = _as_int(
-            getattr(state, "gateway_port", 0) or parsed.port or fallback_port,
-            fallback_port,
-        )
-        runtime_mode = str(getattr(state, "runtime_mode", "") or "").strip().lower()
-        if runtime_mode == "live" and not supports_live_trading():
-            runtime_mode = "paper"
+        gateway_scheme, gateway_port, runtime_mode = _runtime_connection_fields(state, parsed)
 
         return cls(
             edition=branding.edition,
@@ -236,9 +247,7 @@ class Settings:
             app_home=normalize_data_home(getattr(state, "app_home", "")),
             app_host=str(getattr(state, "app_host", "") or "127.0.0.1"),
             app_port=_as_int(getattr(state, "app_port", 8130), 8130),
-            app_prefix=_normalize_path_prefix(
-                getattr(state, "app_prefix", "") or "/quantide"
-            ),
+            app_prefix=_normalize_path_prefix(getattr(state, "app_prefix", "") or "/quantide"),
             gateway_enabled=bool(getattr(state, "gateway_enabled", False)),
             gateway_base_url=gateway_base_url,
             gateway_api_key=str(getattr(state, "gateway_api_key", "") or ""),
@@ -246,20 +255,14 @@ class Settings:
             gateway_password=str(getattr(state, "gateway_password", "") or ""),
             gateway_timeout=float(getattr(state, "gateway_timeout", 10) or 10),
             gateway_scheme=gateway_scheme,
-            gateway_server=str(
-                getattr(state, "gateway_server", "") or parsed.hostname or ""
-            ),
+            gateway_server=str(getattr(state, "gateway_server", "") or parsed.hostname or ""),
             gateway_port=gateway_port,
             runtime_mode=runtime_mode,
-            runtime_broker_adapter=str(
-                getattr(state, "runtime_broker_adapter", "") or ""
-            ).strip().lower(),
-            livequote_mode=str(
-                getattr(state, "livequote_mode", "") or "none"
-            ).strip().lower(),
-            data_source=str(getattr(state, "data_source", "") or "tushare")
+            runtime_broker_adapter=str(getattr(state, "runtime_broker_adapter", "") or "")
             .strip()
-            .lower()
+            .lower(),
+            livequote_mode=str(getattr(state, "livequote_mode", "") or "none").strip().lower(),
+            data_source=str(getattr(state, "data_source", "") or "tushare").strip().lower()
             or "tushare",
             epoch=_as_date(getattr(state, "epoch", None), datetime.date(2005, 1, 1)),
             timezone=timezone,

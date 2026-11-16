@@ -1,12 +1,33 @@
 """系统维护 - 股票列表模块"""
 
 import asyncio
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    Span,
+    Td,
+    Tr,
+)
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H2,
+    Input,
+    UkIcon,
+)
+from starlette.requests import Request
 
 from quantide.data.models.stocks import stock_list
+from quantide.web.application import fast_app
+from quantide.web.components.data_tables import (
+    DatasetPagination,
+    DatasetTable,
+    pagination_button_class,
+)
+from quantide.web.components.system import subtle_icon_button
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
@@ -14,12 +35,13 @@ from quantide.web.theme import PRIMARY_COLOR, AppTheme
 system_stocks_app, rt = fast_app(hdrs=AppTheme.headers())
 
 
-def _build_stock_table(data: list, page: int = 1, per_page: int = 20, total: int = 0, query: str = ""):
-    """构建股票列表表格"""
-    rows = []
+def _append_security_table_rows(data: Sequence[Mapping[Any, Any]], rows: list[Any]) -> None:
+    """Append security table rows."""
     if data:
         for row in data:
-            list_date_str = str(row.get("list_date", "")).split(" ")[0] if row.get("list_date") else ""
+            list_date_str = (
+                str(row.get("list_date", "")).split(" ")[0] if row.get("list_date") else ""
+            )
             delist_date_str = ""
             if row.get("delist_date") and str(row.get("delist_date")) != "NaT":
                 delist_date_str = str(row.get("delist_date")).split(" ")[0]
@@ -34,70 +56,54 @@ def _build_stock_table(data: list, page: int = 1, per_page: int = 20, total: int
                     Td(
                         Span(row.get("name", "")),
                         delist_info,
-                        cls="px-4 py-2 text-sm text-gray-900"
+                        cls="px-4 py-2 text-sm text-gray-900",
                     ),
                     Td(row.get("pinyin", ""), cls="px-4 py-2 text-sm text-gray-500"),
                     Td(list_date_str, cls="px-4 py-2 text-sm text-gray-500"),
-                    cls="hover:bg-gray-50"
+                    cls="hover:bg-gray-50",
                 )
             )
     else:
-        rows.append(
-            Tr(
-                Td("暂无数据", colspan="4", cls="px-4 py-8 text-center text-gray-500")
-            )
-        )
+        rows.append(Tr(Td("暂无数据", colspan="4", cls="px-4 py-8 text-center text-gray-500")))
+
+
+def _build_stock_table(
+    data: Sequence[Mapping[Any, Any]],
+    page: int = 1,
+    per_page: int = 20,
+    total: int = 0,
+    query: str = "",
+) -> Any:
+    """构建股票列表表格"""
+    rows: list[Any] = []
+    _append_security_table_rows(data, rows)
 
     total_pages = max(1, (total + per_page - 1) // per_page) if total > 0 else 1
-    pagination_info = f"显示第 {(page - 1) * per_page + 1} 到 {min(page * per_page, total)} 条，共 {total} 条" if total > 0 else "暂无数据"
+    pagination_info = (
+        f"显示第 {(page - 1) * per_page + 1} 到 {min(page * per_page, total)} 条，共 {total} 条"
+        if total > 0
+        else "暂无数据"
+    )
 
-    def page_url(p, pp=per_page):
+    def page_url(p: int, pp: int = per_page) -> str:
         return f"/system/stocks/?page={p}&per_page={pp}&q={query}"
 
     return Div(
-        Div(
-            Table(
-                Thead(
-                    Tr(
-                        Th("代码", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
-                        Th("名称", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
-                        Th("拼音", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
-                        Th("上市日期", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
-                    )
-                ),
-                Tbody(*rows),
-                cls="min-w-full divide-y divide-gray-200"
-            ),
-            cls="overflow-x-auto"
+        DatasetTable(["代码", "名称", "拼音", "上市日期"], rows),
+        DatasetPagination(
+            pagination_info,
+            page,
+            per_page,
+            total_pages,
+            page_url,
+            pagination_button_class,
         ),
-        Div(
-            Div(pagination_info, cls="text-sm text-gray-700"),
-            Div(
-                Span("每页: ", cls="text-sm text-gray-600 mr-1"),
-                A("20", href=page_url(1, 20),
-                  cls=f"btn btn-sm {'btn-primary' if per_page == 20 else 'btn-outline'} mx-0.5"),
-                A("50", href=page_url(1, 50),
-                  cls=f"btn btn-sm {'btn-primary' if per_page == 50 else 'btn-outline'} mx-0.5"),
-                A("100", href=page_url(1, 100),
-                  cls=f"btn btn-sm {'btn-primary' if per_page == 100 else 'btn-outline'} mx-0.5"),
-                cls="flex items-center ml-4"
-            ),
-            Div(
-                *[
-                    A(str(p), href=page_url(p),
-                      cls=f"btn btn-sm {'btn-primary' if p == page else 'btn-outline'} mx-0.5")
-                    for p in range(max(1, page - 2), min(total_pages + 1, page + 3))
-                ],
-                cls="flex items-center ml-4"
-            ),
-            cls="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between"
-        ),
-        cls="bg-white rounded-lg shadow overflow-hidden"
+        cls="bg-white rounded-lg shadow overflow-hidden",
     )
 
 
 @rt("/")
-async def index(req, page: int = 1, per_page: int = 20, q: str = ""):
+async def index(req: Request, page: int = 1, per_page: int = 20, q: str = "") -> Any:
     """股票列表页面"""
     query = q or req.query_params.get("q", "")
     page = int(req.query_params.get("page", page))
@@ -108,9 +114,11 @@ async def index(req, page: int = 1, per_page: int = 20, q: str = ""):
     try:
         if query:
             result_df = stock_list.fuzzy_search(query, id_only=False)
+            if isinstance(result_df, list):
+                raise TypeError("Expected stock search dataframe")
             total = len(result_df)
             if total > 0:
-                data = result_df.to_pandas().to_dict("records")
+                data = result_df.to_dict("records")
             else:
                 data = []
         else:
@@ -136,50 +144,43 @@ async def index(req, page: int = 1, per_page: int = 20, q: str = ""):
             Div(
                 UkIcon("list", size=32, cls="mr-3", style=f"color: {PRIMARY_COLOR};"),
                 H2("股票列表", cls="text-2xl font-bold"),
-                cls="flex items-center"
+                cls="flex items-center",
             ),
-            cls="mb-6"
+            subtle_icon_button(
+                UkIcon("refresh-cw", size=16),
+                post_url="/system/stocks/sync",
+                target="#stocks-content",
+                label="立即更新股票列表",
+            ),
+            cls="mb-6 flex items-center justify-between",
         ),
         Div(
-            Div(
-                Input(
-                    type="text",
-                    name="q",
-                    value=query,
-                    placeholder="输入代码、名称或拼音搜索...",
-                    cls="input input-bordered w-full max-w-md",
-                    hx_get="/system/stocks/search",
-                    hx_trigger="keyup changed delay:200ms, search",
-                    hx_target="#stocks-content",
-                    hx_swap="innerHTML",
-                    hx_include="[name='per_page']",
-                    hx_vals='{"page": "1"}',
-                ),
-                Input(type="hidden", name="per_page", value=str(per_page)),
-                cls="flex-1"
-            ),
-            Button(
-                "立即更新",
-                hx_post="/system/stocks/sync",
+            Input(
+                type="text",
+                name="q",
+                value=query,
+                placeholder="输入代码、名称或拼音搜索...",
+                cls="input input-bordered w-full",
+                hx_get="/system/stocks/search",
+                hx_trigger="keyup changed delay:200ms, search",
                 hx_target="#stocks-content",
                 hx_swap="innerHTML",
-                cls="btn btn-sm btn-secondary"
+                hx_include="[name='per_page']",
+                hx_vals='{"page": "1"}',
             ),
-            cls="flex justify-between items-center mb-4"
+            Input(type="hidden", name="per_page", value=str(per_page)),
+            cls="mb-4",
         ),
-        Div(
-            _build_stock_table(data, page, per_page, total, query),
-            id="stocks-content"
-        ),
-        cls="p-8"
+        Div(_build_stock_table(data, page, per_page, total, query), id="stocks-content"),
+        cls="p-8",
     )
 
-    layout.main_block = page_content
+    layout.set_main_block(page_content)
     return layout.render(req)
 
 
 @rt("/sync", methods="post")
-async def sync_stocks():
+async def sync_stocks() -> Any:
     """同步股票列表数据"""
     try:
         await asyncio.to_thread(stock_list.update)
@@ -199,12 +200,12 @@ async def sync_stocks():
         return Div(
             UkIcon("alert-circle", cls="text-red-500 mr-2"),
             f"同步失败: {str(e)}",
-            cls="flex items-center p-4 bg-red-50 text-red-700 rounded-lg"
+            cls="flex items-center p-4 bg-red-50 text-red-700 rounded-lg",
         )
 
 
 @rt("/search")
-async def search(req, q: str = "", per_page: int = 20):
+async def search(req: Request, q: str = "", per_page: int = 20) -> Any:
     """HTMX 搜索 API，返回表格内容。
 
     用于防抖自动搜索，仅返回表格部分。
@@ -218,6 +219,8 @@ async def search(req, q: str = "", per_page: int = 20):
     try:
         if query:
             result_df = stock_list.fuzzy_search(query, id_only=False)
+            if isinstance(result_df, list):
+                raise TypeError("Expected stock search dataframe")
             total = len(result_df)
             if total > 0:
                 # 搜索结果分页

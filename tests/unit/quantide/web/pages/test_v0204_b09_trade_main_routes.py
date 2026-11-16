@@ -8,6 +8,8 @@ Targets uncovered branches of ``trade_main.py`` route handlers:
 
 from __future__ import annotations
 
+from quantide.web.services import trade_quote_view as trade_quotes
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
@@ -94,7 +96,7 @@ async def test_search_trade_assets_with_valid_query_renders_dropdown_items():
     """[AC-NFR1101-01] Valid query with matches renders the asset-search dropdown."""
     req = _make_req(query_params={"q": "000001"})
     with patch.object(tm, "stock_list") as mock_sl, \
-         patch.object(tm, "daily_bars") as mock_bars:
+         patch.object(trade_quotes, "daily_bars") as mock_bars:
         mock_sl.fuzzy_search = MagicMock(
             return_value=pd.DataFrame(
                 [{"asset": "000001.SZ", "name": "平安银行", "pinyin": "pingan"}]

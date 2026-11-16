@@ -1,13 +1,26 @@
+import functools
 import inspect
-from typing import Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Beforeware,
+    RedirectResponse,
+    Response,
+)
+from starlette.requests import Request
+
+if TYPE_CHECKING:
+    from quantide.web.auth.manager import AuthManager
+
+_Route = TypeVar("_Route", bound=Callable[..., Any])
 
 
 class AuthBeforeware:
     """Authentication middleware for fastHTML"""
 
-    def __init__(self, auth_manager, config=None):
+    def __init__(self, auth_manager: "AuthManager", config: dict[str, Any] | None = None) -> None:
         self.auth_manager = auth_manager
         self.config = config or {}
 
@@ -28,33 +41,17 @@ class AuthBeforeware:
             r".*\.svg",
         ]
 
-    def create_beforeware(self, additional_public_paths=None):
+    def create_beforeware(self, additional_public_paths: list[str] | None = None) -> Any:
         """Create beforeware for fastHTML"""
-        skip_patterns = self._build_skip_patterns(
-            additional_paths=additional_public_paths
-        )
+        skip_patterns = self._build_skip_patterns(additional_paths=additional_public_paths)
 
         # Create Beforeware authentication check function
-        def auth_check(req, sess):
+        def auth_check(req: Request, sess: dict[str, Any]) -> Response | None:
             """Check authentication prior to check"""
             auth_username = sess.get("auth")
 
-            # If no session auth, check for remember me cookie
-            if not auth_username:
-                remember_user = req.cookies.get("remember_user")
-                if remember_user:
-                    # Verify user still exists and is active
-                    user = self.auth_manager.get_user(remember_user)
-                    if user and user.active:
-                        # Restore session from remember me cookie
-                        sess["auth"] = user.username
-                        sess["user_id"] = user.id
-                        sess["role"] = user.role
-                        sess["remember_me"] = True
-                        auth_username = user.username
-                    else:
-                        # Invalid remember me cookie, continue to redirect
-                        pass
+            # Authentication comes only from the signed session middleware.
+            # A legacy remember_user cookie is client-controlled identity, not proof of login.
 
             if not auth_username:
                 # No auth, redirect to login
@@ -73,11 +70,16 @@ class AuthBeforeware:
             req.scope["user.id"] = user.id
             req.scope["user_role"] = user.role
             req.scope["user_is_admin"] = user.role == "admin"
+            return None
+
+        # FastHTML injects the signed session by parameter name only when the
+        # runtime annotation is absent; retain the static type without changing injection.
+        auth_check.__annotations__.pop("sess", None)
 
         # Return configured Beforeware
         return Beforeware(auth_check, skip=skip_patterns)
 
-    def _build_skip_patterns(self, additional_paths=None) -> list:
+    def _build_skip_patterns(self, additional_paths: list[str] | None = None) -> list[str]:
         """Build list of paths to skip auth check"""
         skip = []
 
@@ -99,30 +101,39 @@ class AuthBeforeware:
 
         return skip
 
-    def require_admin(self):
+    def require_admin(self) -> Callable[[_Route], _Route]:
         """Decorate paths requiring the admin role."""
         return self.require_role("admin")
 
-    import functools
-    from typing import Any
+    def require_role(self, *allowed_roles: str) -> Callable[[_Route], _Route]:
+        """Guard synchronous and asynchronous routes before running any handler code."""
 
-    def require_role(self, *allowed_roles):
-        """Decorate paths requiring a specific role."""
+        def decorator(function: _Route) -> _Route:
+            only_request = len(inspect.signature(function).parameters) == 1
 
-        def decorator(func):
-            @functools.wraps(func)  # ← Copy original function signature
-            def wrapper(req, *args: Any, **kwargs: Any):  # ← Add type annotations
-                user = req.scope.get("user")
-                if not user or user.role not in allowed_roles:
+            def invoke(request: Request, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+                return function(request) if only_request else function(request, *args, **kwargs)
+
+            def denied(request: Request) -> bool:
+                user = request.scope.get("user")
+                return bool(not user or user.role not in allowed_roles)
+
+            if inspect.iscoroutinefunction(function):
+
+                @functools.wraps(function)
+                async def async_wrapper(req: Request, *args: Any, **kwargs: Any) -> Any:
+                    if denied(req):
+                        return Response("Forbidden", status_code=403)
+                    return await invoke(req, args, kwargs)
+
+                return cast(_Route, async_wrapper)
+
+            @functools.wraps(function)
+            def wrapper(req: Request, *args: Any, **kwargs: Any) -> Any:
+                if denied(req):
                     return Response("Forbidden", status_code=403)
+                return invoke(req, args, kwargs)
 
-                # Check if function accepts extra args
-                sig = inspect.signature(func)
-                if len(sig.parameters) == 1:  # Only takes req
-                    return func(req)
-                else:
-                    return func(req, *args, **kwargs)
-
-            return wrapper
+            return cast(_Route, wrapper)
 
         return decorator

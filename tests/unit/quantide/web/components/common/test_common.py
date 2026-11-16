@@ -83,3 +83,23 @@ def test_runtime_parameter_boundaries_and_asset_name_fallback(monkeypatch: pytes
         lambda asset: (_ for _ in ()).throw(KeyError(asset)),
     )
     assert resolve_asset_name("UNKNOWN") == "UNKNOWN"
+
+
+def test_sidebar_child_items_use_compact_non_overflowing_text() -> None:
+    """展开后的因子子菜单使用更小字号，并允许长名称在必要时换行。"""
+    html = _html(
+        sidebar_component(
+            [
+                {
+                    "title": "相对强弱",
+                    "children": [
+                        {"title": "板块二十日相对强弱", "url": "/factors/rs_board_20d"}
+                    ],
+                }
+            ]
+        )
+    )
+
+    assert "text-xs" in html
+    assert "break-words" in html
+    assert "min-w-0" in html

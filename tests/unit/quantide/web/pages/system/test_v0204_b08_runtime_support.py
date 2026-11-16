@@ -183,7 +183,7 @@ def test_build_runtime_actions_blocked_scope_account():
             "blocked_scope": "account", "strategy_id": "s1"}
     actions = _build_runtime_actions(item, "/api", "#table")
     text = str(actions)
-    assert "请在账户行解除封控" in text
+    assert "请在账户行解除账户封锁" in text
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +205,10 @@ def test_build_risk_event_center_content():
         content = build_risk_event_center_content(limit=5)
     text = str(content)
     assert "风险事件中心" in text
+    assert "账户风控" in text
+    assert "策略风控" in text
+    assert "账户封控" not in text
+    assert "策略封控" not in text
     assert mock_mgr.risk_summary.called
     assert mock_mgr.list_risk_events.called
 

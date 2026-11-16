@@ -1,0 +1,53 @@
+{
+  "archive": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3",
+  "moves": [
+    {
+      "from": "review",
+      "to": ".louke/project/reviews"
+    },
+    {
+      "from": "packaging",
+      "to": "scripts/packaging"
+    },
+    {
+      "from": "data",
+      "to": "tests/assets/market_data"
+    },
+    {
+      "from": "dist",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/dist"
+    },
+    {
+      "from": "quality-reports",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/quality-reports"
+    },
+    {
+      "from": "site",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/site"
+    },
+    {
+      "from": ".pytest_cache",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/.pytest_cache"
+    },
+    {
+      "from": ".mypy_cache",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/.mypy_cache"
+    },
+    {
+      "from": ".ruff_cache",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/.ruff_cache"
+    },
+    {
+      "from": ".sesskey",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/.sesskey"
+    },
+    {
+      "from": ".coverage",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/.coverage"
+    },
+    {
+      "from": ".coverage.mini-one_local.pid89614.XSoVllax.HNQIp837rWOh",
+      "to": "/tmp/millionaire-ce/workspace-cleanup-jueci9a3/.coverage.mini-one_local.pid89614.XSoVllax.HNQIp837rWOh"
+    }
+  ]
+}

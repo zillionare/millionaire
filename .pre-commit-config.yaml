@@ -3,19 +3,32 @@ repos:
   rev: v6.0.0
   hooks:
   - id: trailing-whitespace
+    exclude: ^quantide/web/static/vendor/
   - id: end-of-file-fixer
+    exclude: ^quantide/web/static/vendor/
   - id: check-yaml
   - id: check-toml
   - id: check-merge-conflict
   - id: check-added-large-files
+    exclude: ^quantide/web/static/vendor/
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.15.20
+  rev: v0.16.0
   hooks:
   - id: ruff
     args:
     - --fix
   - id: ruff-format
-- repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v2.1.0
+- repo: local
   hooks:
+  - id: production-quality
+    name: production quality (Ruff, cognitive complexity, duplication, size)
+    entry: python -m scripts.check_quality
+    language: system
+    files: ^(quantide/.*\.py|scripts/.*\.py|pyproject\.toml|\.flake8|\.pre-commit-config\.yaml)$
+    pass_filenames: false
   - id: mypy
+    name: mypy (quantide)
+    entry: python -m mypy
+    language: system
+    files: ^(quantide/.*\.py|pyproject\.toml|\.pre-commit-config\.yaml)$
+    pass_filenames: false

@@ -7,7 +7,7 @@
 
 用法::
 
-    # 默认从本地股票列表取全市场；也可显式指定
+    # 需先在 wizard 显式启用演示；默认取当前订阅，最多 100 个标的
     python -m quantide.providers.tencent_publisher
     python -m quantide.providers.tencent_publisher --symbols 600519.SH,000001.SZ
 
@@ -15,10 +15,10 @@
 
     from quantide.providers.tencent_publisher import TencentPublisher
 
-    TencentPublisher(symbols=["600519.SH"], interval=3.0).start()
+    TencentPublisher(symbols=["600519.SH"], interval=5.0).start()
 
-注意：全市场分批请求（默认 800 支/批），单轮通常 2~4 秒；若网络不稳定可
-调大 ``interval`` 或只发布持仓/选股池。
+默认关闭。首次启用后固定 30 天，到期停止所有请求；之后请通过用户扩展接入行情。
+默认最短轮询间隔 5 秒，最多请求 100 个订阅标的。
 """
 
 from __future__ import annotations
@@ -27,16 +27,18 @@ import argparse
 import datetime
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 from loguru import logger
 
 from quantide.core.enums import Topics
+from quantide.core.market_time import market_now
 from quantide.core.message import msg_hub
 from quantide.data.fetchers.tencent import TencentDataFetcher
 
 #: 默认轮询间隔（秒）
-DEFAULT_INTERVAL = 3.0
+DEFAULT_INTERVAL = 5.0
 
 #: 行情请求时段（含集合竞价与收盘后 30 秒，确保拿到收盘快照）
 SESSION_WINDOWS = (
@@ -46,20 +48,14 @@ SESSION_WINDOWS = (
 
 
 def _resolve_symbols(symbols: list[str] | None) -> list[str]:
-    """未显式给定时，从本地股票列表取在市标的。"""
+    """未显式给定时，取当前订阅标的和演示基准，最多 100 个。"""
     if symbols:
-        return [str(s).strip().upper() for s in symbols if str(s).strip()]
-    try:
-        from quantide.data.models.stocks import stock_list
+        return list(dict.fromkeys(str(s).strip().upper() for s in symbols if str(s).strip()))[:100]
+    from quantide.service.market_data_hub import market_data_hub
 
-        if stock_list.size == 0:
-            return []
-        frame = stock_list.data
-        if "asset" not in frame.columns:
-            return []
-        return [str(a) for a in frame["asset"].to_list() if a]
-    except Exception:
-        return []
+    subscribed = market_data_hub.subscribed_symbols()
+    indices = ["000001.SH", "000300.SH", "399001.SZ", "399006.SZ"]
+    return list(dict.fromkeys([*subscribed, *indices, "000001.SZ"]))[:100]
 
 
 class TencentPublisher:
@@ -74,21 +70,25 @@ class TencentPublisher:
         fetcher: TencentDataFetcher | None = None,
         calendar: Any | None = None,
         clock: Any | None = None,
+        access_check: Callable[[], None] | None = None,
     ) -> None:
         """初始化。
 
         Args:
-            symbols: 标的列表；None 表示使用本地股票列表。
+            symbols: 标的列表；None 表示使用当前订阅和演示基准（最多 100 个）。
             interval: 轮询间隔（秒）。
             fetcher: 可注入的腾讯适配器（测试用）。
             calendar: 交易日历（测试可注入）。
             clock: 时钟函数（测试可注入）。
         """
+        from quantide.config.tencent_trial import require_tencent_access
+
+        self._access_check = access_check or require_tencent_access
         self.symbols = list(symbols) if symbols else None
-        self.interval = max(0.5, float(interval))
+        self.interval = max(5.0, float(interval))
         self._fetcher = fetcher or TencentDataFetcher()
         self._calendar = calendar
-        self._clock = clock or datetime.datetime.now
+        self._clock = clock or market_now
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -120,6 +120,11 @@ class TencentPublisher:
 
     def publish_once(self) -> int:
         """拉取并发布一轮，返回成功发布的标的数。"""
+        try:
+            self._access_check()
+        except PermissionError:
+            self._stop.set()
+            return 0
         symbols = _resolve_symbols(self.symbols)
         if not symbols:
             logger.warning("TencentPublisher 没有可发布的标的（股票列表为空？）")
@@ -131,7 +136,7 @@ class TencentPublisher:
             return 0
         if not snapshot:
             return 0
-        now = datetime.datetime.now()
+        now = market_now()
         payload: dict[str, dict[str, Any]] = {}
         limits: dict[str, dict[str, float]] = {}
         for symbol, quote in snapshot.items():
@@ -170,16 +175,15 @@ class TencentPublisher:
     # ------------------------------------------------------------------
     def start(self) -> None:
         """启动后台发布线程。"""
-        if self._thread is not None:
+        if self._thread is not None and self._thread.is_alive():
             return
+        self._access_check()
         self._stop.clear()
-        self._thread = threading.Thread(
-            target=self._loop, daemon=True, name="tencent-publisher"
-        )
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="tencent-publisher")
         self._thread.start()
         logger.info(
             "腾讯行情发布者已启动，标的数 {}，间隔 {}s",
-            len(self.symbols) if self.symbols else "全市场",
+            len(self.symbols) if self.symbols else "当前订阅（最多 100）",
             self.interval,
         )
 
@@ -193,6 +197,11 @@ class TencentPublisher:
 
     def _loop(self) -> None:
         while not self._stop.is_set():
+            try:
+                self._access_check()
+            except PermissionError:
+                self._stop.set()
+                break
             count = self._tick()
             if count:
                 logger.debug("已发布 {} 个标的的行情", count)
@@ -202,7 +211,9 @@ class TencentPublisher:
 def main() -> None:
     """命令行入口。"""
     parser = argparse.ArgumentParser(description="腾讯行情发布者")
-    parser.add_argument("--symbols", default="", help="逗号分隔的标的代码；为空=全市场")
+    parser.add_argument(
+        "--symbols", default="", help="逗号分隔的标的代码；为空=当前订阅（最多 100）"
+    )
     parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL)
     args = parser.parse_args()
 

@@ -1,33 +1,25 @@
 """Application factory for Quantide."""
 
-# Import order is intentional: htmx is configured before page modules load.
+# Import order is intentional: local asset headers are configured before page
+# modules load.
 # ruff: noqa: E402
 
 from __future__ import annotations
 
-import atexit
-import datetime
 import os
-import sys
 from pathlib import Path
+from typing import Any
 
-from fasthtml import core as _fasthtml_core
-from fasthtml.common import Mount, Route, fast_app
+from fasthtml.common import Mount, Route
+from fasthtml.core import FastHTML
 from loguru import logger
-
-# fasthtml 默认注入 htmx@2.0.7；AppTheme.headers() 又显式注入了 htmx@1.9.12。
-# 两个版本同时加载会让同一份 hx-* 属性被两套监听器重复绑定，浏览器侧触发
-# ``htmx:afterRequest``/``htmx:sendAbort`` 互相打断死循环（用户报告：点击
-# “实盘”进入 /trade 后整页 frozen）。把 fasthtml 的默认 htmx URL 改到 1.9.12，
-# 两份就是同源，浏览器会自动去重，冲突消失。
-_fasthtml_core.htmxsrc = _fasthtml_core.Script(
-    src="https://unpkg.com/htmx.org@1.9.12"
-)
 from starlette.middleware import Middleware
-from starlette.responses import RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.staticfiles import StaticFiles
 
-from quantide.config.branding import get_branding
+from quantide.config.branding import get_branding, get_runtime_edition
 from quantide.config.dev_stubs import ensure_dev_stubs_started
 from quantide.config.paths import (
     get_app_config_dir,
@@ -40,20 +32,26 @@ from quantide.core.errors import BaseTradeError
 from quantide.core.runtime import RuntimeBootstrap
 from quantide.data import init_data
 from quantide.data.sqlite import db
+from quantide.service.factor_tracking import factor_tracking_service
+from quantide.service.lifecycle import application_lifespan, recover_interrupted_tasks
 from quantide.service.registry import BrokerRegistry
 from quantide.service.strategy_runtime import strategy_runtime_manager
 from quantide.web.apis.analysis import kline_router, search_router
 from quantide.web.apis.broker import app as broker_api_app
+from quantide.web.application import fast_app
+from quantide.web.auth.guard import AuthGuard
 from quantide.web.auth.manager import AuthManager
 from quantide.web.middleware import BrokerRegistryMiddleware, exception_handler
 from quantide.web.middleware_feature import FeatureCheckMiddleware
 from quantide.web.middleware_init import InitCheckMiddleware
-from quantide.web.pages.accounts import accounts_app, accounts_list
+from quantide.web.pages.accounts import accounts_app
 from quantide.web.pages.analysis import analysis_handler
+from quantide.web.pages.attribution import attribution_app
 from quantide.web.pages.data_calendar import data_calendar_app
 from quantide.web.pages.data_db import data_db_app
 from quantide.web.pages.data_market import data_market_app
 from quantide.web.pages.data_stocks import data_stocks_app
+from quantide.web.pages.factors import factor_app
 from quantide.web.pages.history_orders import history_orders_list
 from quantide.web.pages.history_positions import history_positions_list
 from quantide.web.pages.history_trades import history_trades_list
@@ -65,12 +63,12 @@ from quantide.web.pages.optimize import (
 )
 from quantide.web.pages.paper import paper_app
 from quantide.web.pages.strategy import strategy_app
-from quantide.web.pages.system.alpha_ledger import system_alpha_ledger_app
 from quantide.web.pages.system.calendar import system_calendar_app
 from quantide.web.pages.system.datasource import system_datasource_app
 from quantide.web.pages.system.gateway import system_gateway_app
 from quantide.web.pages.system.jobs import _init_scheduler_jobs, system_jobs_app
 from quantide.web.pages.system.market import system_market_app
+from quantide.web.pages.system.network import system_network_app
 from quantide.web.pages.system.realtime import system_realtime_app
 from quantide.web.pages.system.risk_events import system_risk_events_app
 from quantide.web.pages.system.runtime_monitor import system_runtime_monitor_app
@@ -99,77 +97,57 @@ from quantide.web.pages.trade_main import (
     trade_orders_refresh,
     trade_positions_refresh,
 )
+from quantide.web.session_data import SessionData
 from quantide.web.theme import AppTheme
 
 
 def _check_single_instance() -> None:
-    """检查是否已有实例在运行，防止多实例启动。"""
-    pid_file = get_pid_file_path()
-    product_name = get_branding().product_name
+    """Use an OS lock so stale/reused PIDs cannot block recovery after shutdown."""
+    from quantide.core.instance_guard import acquire_instance_guard
 
-    if pid_file.exists():
-        try:
-            with open(pid_file) as file_obj:
-                pid = int(file_obj.read().strip())
-
-            if sys.platform == "win32":
-                import ctypes
-
-                kernel32 = ctypes.windll.kernel32
-                handle = kernel32.OpenProcess(1, False, pid)
-                if handle != 0:
-                    kernel32.CloseHandle(handle)
-                    raise RuntimeError(
-                        f"{product_name} 已经在运行 (PID: {pid})。"
-                        f"请先停止现有实例，或删除 {pid_file} 后重试。"
-                    )
-            else:
-                os.kill(pid, 0)
-                raise RuntimeError(
-                    f"{product_name} 已经在运行 (PID: {pid})。"
-                    f"请先停止现有实例，或删除 {pid_file} 后重试。"
-                )
-        except (ValueError, OSError, ProcessLookupError):
-            pid_file.unlink()
-
-    pid_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(pid_file, "w") as file_obj:
-        file_obj.write(str(os.getpid()))
-
-    def cleanup_pid() -> None:
-        if pid_file.exists():
-            pid_file.unlink()
-
-    atexit.register(cleanup_pid)
+    acquire_instance_guard(get_pid_file_path(), get_branding().product_name)
 
 
 def _initialize_app_database() -> Path:
     """Initialize the fixed sqlite database in the config directory."""
     db_path = get_app_db_path()
 
-    try:
-        db.init(db_path)
-        return db_path
-    except Exception as exc:
-        if not db_path.exists():
-            raise
+    # Lock contention, failed migrations and disk/permission errors must never
+    # turn a healthy account database into a new empty database. Corruption
+    # requires explicit diagnosis and recovery, including its WAL sidecars.
+    db.init(db_path)
+    return db_path
 
-        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        backup_path = db_path.with_name(
-            f"{db_path.stem}.corrupt.{timestamp}{db_path.suffix}"
-        )
-        logger.warning(f"配置数据库无法读取，已备份到 {backup_path}: {exc}")
-        try:
-            db_path.rename(backup_path)
-        except Exception:
-            logger.exception("备份损坏配置数据库失败")
-            raise
 
-        db._initialized = False
-        db.init(db_path)
-        return db_path
+def _health_response(request: Request) -> JSONResponse:
+    failed = bool(getattr(request.app.state, "startup_error", ""))
+    return JSONResponse(
+        {
+            "status": "degraded" if failed else "ok",
+            "pid": os.getpid(),
+            "edition": get_runtime_edition(),
+        },
+        status_code=503 if failed else 200,
+    )
 
-def _attach_runtime_to_app_states(runtime) -> None:
+
+def _bind_session_key(app: FastHTML, secret: str, visited: set[int] | None = None) -> None:
+    """Use the root profile's session key across its mounted page applications."""
+    visited = set() if visited is None else visited
+    if id(app) in visited:
+        return
+    visited.add(id(app))
+    for middleware in getattr(app, "user_middleware", []):
+        if middleware.cls is SessionMiddleware:
+            middleware.kwargs["secret_key"] = secret
+    if hasattr(app, "middleware_stack"):
+        app.middleware_stack = None
+    for route in getattr(app, "routes", []):
+        if isinstance(route, Mount):
+            _bind_session_key(route.app, secret, visited)
+
+
+def _attach_runtime_to_app_states(runtime: RuntimeBootstrap) -> None:
     """Attach the effective runtime to all mounted app states."""
     for mounted_app in (
         broker_api_app,
@@ -181,8 +159,8 @@ def _attach_runtime_to_app_states(runtime) -> None:
         data_db_app,
         data_market_app,
         data_stocks_app,
+        factor_app,
         init_wizard_app,
-        system_alpha_ledger_app,
         system_calendar_app,
         system_datasource_app,
         system_gateway_app,
@@ -196,7 +174,7 @@ def _attach_runtime_to_app_states(runtime) -> None:
         mounted_app.state.runtime = runtime
 
 
-def _attach_root_app_to_app_states(root_app) -> None:
+def _attach_root_app_to_app_states(root_app: FastHTML) -> None:
     """Expose the root app to mounted sub-apps for post-init runtime refresh."""
     for mounted_app in (
         broker_api_app,
@@ -208,8 +186,8 @@ def _attach_root_app_to_app_states(root_app) -> None:
         data_db_app,
         data_market_app,
         data_stocks_app,
+        factor_app,
         init_wizard_app,
-        system_alpha_ledger_app,
         system_calendar_app,
         system_datasource_app,
         system_gateway_app,
@@ -223,7 +201,7 @@ def _attach_root_app_to_app_states(root_app) -> None:
         mounted_app.state.root_app = root_app
 
 
-def _redirect_preserving_query(req, target: str) -> RedirectResponse:
+def _redirect_preserving_query(req: Request, target: str) -> RedirectResponse:
     """重定向并保留 query string（避免丢失 account_id）。"""
     query = getattr(getattr(req, "url", None), "query", "") or ""
     destination = f"{target}?{query}" if query else target
@@ -233,7 +211,7 @@ def _redirect_preserving_query(req, target: str) -> RedirectResponse:
 def create_app(
     app_config_dir: str | Path | None = None,
     enforce_single_instance: bool = True,
-):
+) -> FastHTML:
     """Create a Quantide web application.
 
     Args:
@@ -250,6 +228,7 @@ def create_app(
     tracking_store.rebind(get_app_db_path())
     model_store.rebind(get_app_config_dir() / "models")
     db_path = _initialize_app_database()
+    recover_interrupted_tasks()
     # InitWizardService is also a singleton and caches AppState.  A new app
     # config directory must read its own state before the first worker-thread
     # request, rather than inheriting the previous app's cached object.
@@ -260,6 +239,7 @@ def create_app(
         _check_single_instance()
 
     runtime = None
+    startup_error = ""
     reg = BrokerRegistry()
     try:
         if init_wizard.is_initialized():
@@ -272,16 +252,18 @@ def create_app(
             data_readiness_monitor.start()
             try:
                 _init_scheduler_jobs()
+                factor_tracking_service.start(recover=enforce_single_instance)
             except Exception as exc:
                 logger.warning(f"定时任务注册失败: {exc}")
     except Exception as exc:
+        startup_error = str(exc)
         logger.warning(f"应用运行时初始化失败，将进入初始化向导模式: {exc}")
 
     auth = AuthManager(
         db_path=str(db_path),
         config={
             "login_path": "/auth/login",
-            "public_paths": ["/init-wizard", r"/init-wizard/.*"],
+            "public_paths": ["/init-wizard", r"/init-wizard/.*", "/api/health"],
         },
     )
     # AuthManager is a process singleton, while the factory supports isolated
@@ -293,6 +275,7 @@ def create_app(
         auth.rebind_database(str(db_path))
 
     app, rt = fast_app(
+        lifespan=application_lifespan,
         hdrs=AppTheme.headers(),
         before=auth.create_beforeware(),
         middleware=[
@@ -305,21 +288,16 @@ def create_app(
             BaseTradeError: exception_handler,
         },
         routes=[
+            Route("/api/health", _health_response, methods=["GET"]),
             Mount(
                 "/static",
-                StaticFiles(
-                    directory=str(
-                        Path(__file__).resolve().parent / "web" / "static"
-                    )
-                ),
+                StaticFiles(directory=str(Path(__file__).resolve().parent / "web" / "static")),
                 name="static",
             ),
             Route(
                 "/init-wizard",
                 lambda req: RedirectResponse(
-                    f"/init-wizard/?{req.url.query}"
-                    if req.url.query
-                    else "/init-wizard/"
+                    f"/init-wizard/?{req.url.query}" if req.url.query else "/init-wizard/"
                 ),
             ),
             Mount("/init-wizard", init_wizard_app),
@@ -441,8 +419,7 @@ def create_app(
                 trade_lightning_execute,
                 methods=["POST"],
             ),
-            Route("/system/accounts", accounts_list, methods=["GET"]),
-            Route("/system/accounts/", accounts_list, methods=["GET"]),
+            Route("/system/accounts", lambda req: RedirectResponse("/system/accounts/")),
             Mount("/system/accounts", accounts_app),
             Route("/strategy", lambda req: RedirectResponse("/strategy/")),
             Route(
@@ -456,6 +433,13 @@ def create_app(
                 methods=["GET"],
             ),
             Mount("/strategy", strategy_app),
+            Route(
+                "/factors",
+                lambda req: RedirectResponse("/factors/", status_code=303),
+                methods=["GET"],
+            ),
+            Mount("/factors", factor_app),
+            Mount("/attribution", attribution_app),
             Route("/analysis", analysis_handler, methods=["GET"]),
             Mount("/broker", broker_api_app),
             Mount("/api/v1/kline", kline_router),
@@ -499,7 +483,6 @@ def create_app(
                 lambda req: RedirectResponse("/system/market/", status_code=303),
                 methods=["GET"],
             ),
-            Mount("/system/alpha-ledger", system_alpha_ledger_app),
             Mount("/system/calendar", system_calendar_app),
             Mount("/system/stocks", system_stocks_app),
             Mount("/system/market", system_market_app),
@@ -528,6 +511,12 @@ def create_app(
             ),
             Mount("/system/datasource", system_datasource_app),
             Route(
+                "/system/network",
+                lambda req: RedirectResponse("/system/network/", status_code=303),
+                methods=["GET"],
+            ),
+            Mount("/system/network", system_network_app),
+            Route(
                 "/system/risk-events",
                 lambda req: RedirectResponse("/system/risk-events/", status_code=303),
                 methods=["GET"],
@@ -543,15 +532,19 @@ def create_app(
         ],
     )
 
+    app.user_middleware.append(Middleware(AuthGuard, auth=auth))
     auth.initialize(app, prefix="/auth")
+    _bind_session_key(app, app.secret_key)
     app.state.runtime = runtime
+    app.state.startup_error = startup_error
     app.state.strategy_runtime_manager = strategy_runtime_manager
     app.state.app_config_dir = get_app_config_dir()
+    app.state.auth_manager = auth
     _attach_root_app_to_app_states(app)
     _attach_runtime_to_app_states(runtime)
 
     @rt("/trade/set-active", methods=["POST"])
-    async def trade_set_active(req, session):
+    async def trade_set_active(req: Request, session: SessionData) -> Any:
         return set_active_account(req)
 
     return app

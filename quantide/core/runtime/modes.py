@@ -1,9 +1,11 @@
 """运行时模式装配."""
 
+from __future__ import annotations
+
 import os
 import threading
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from quantide.config.features import supports_live_trading
 from quantide.config.settings import get_settings
@@ -14,12 +16,16 @@ from quantide.core.runtime.adapter_registry import AdapterRegistry
 from quantide.core.runtime.clock_bridge import SystemClockAdapter
 from quantide.core.runtime.gateway_broker import GatewayBrokerAdapter
 from quantide.core.runtime.gateway_client import GatewayClient
+from quantide.core.runtime.port_broker import PortBackedBroker
 from quantide.core.runtime.registration import register_port_backed_broker
 from quantide.core.scheduler import scheduler
 from quantide.data import db
 from quantide.service.market_data_hub import market_data_hub
 from quantide.service.registry import BrokerRegistry
 from quantide.service.sim_broker import PaperBroker
+
+if TYPE_CHECKING:
+    from quantide.providers.tencent_publisher import TencentPublisher
 
 RuntimeMode = Literal["live", "paper", "backtest"]
 
@@ -47,7 +53,7 @@ class RuntimeContext:
         portfolio_name: str = "",
         status: bool = True,
         is_connected: bool | None = None,
-    ):
+    ) -> PortBackedBroker:
         """将正式 broker port 注册到运行时。"""
         return register_port_backed_broker(
             registry=self.registry,
@@ -65,7 +71,7 @@ class RuntimeContext:
 class RuntimeBootstrap:
     """运行时装配器."""
 
-    def __init__(self, mode: RuntimeMode | None = None, clock: ClockPort | None = None):
+    def __init__(self, mode: RuntimeMode | None = None, clock: ClockPort | None = None) -> None:
         """初始化装配器.
 
         Args:
@@ -75,9 +81,7 @@ class RuntimeBootstrap:
         """
         requested_mode = mode or self._resolve_mode()
         self._mode = (
-            "paper"
-            if requested_mode == "live" and not supports_live_trading()
-            else requested_mode
+            "paper" if requested_mode == "live" and not supports_live_trading() else requested_mode
         )
         self._clock = clock if clock is not None else SystemClockAdapter()
 
@@ -143,29 +147,41 @@ class RuntimeBootstrap:
         ``QUANTIDE_QUOTE_INTERVAL`` 控制间隔（秒）。
         """
         global _quote_publisher
-        name = os.environ.get("QUANTIDE_QUOTE_PUBLISHER", "").strip().lower()
-        if name not in {"tencent", "tencent_publisher"}:
+        from quantide.config.realtime_source import realtime_source
+        from quantide.config.tencent_trial import trial_status
+        from quantide.providers.extensions import load_quote_provider, quote_provider_enabled
+
+        selected = realtime_source()
+        use_extension = selected == "extension" or (not selected and quote_provider_enabled())
+        use_tushare = selected == "tushare"
+        if selected == "none" or not (use_tushare or use_extension or trial_status().enabled):
             return
         with _quote_publisher_lock:
-            if _quote_publisher is not None:
-                publisher = _quote_publisher
-            else:
-                from quantide.providers.tencent_publisher import TencentPublisher
+            if _quote_publisher is None:
+                if use_tushare:
+                    from quantide.providers.tushare_publisher import TusharePublisher
 
-                raw_symbols = os.environ.get("QUANTIDE_QUOTE_SYMBOLS", "")
-                symbols = [
-                    part.strip() for part in raw_symbols.split(",") if part.strip()
-                ] or None
-                try:
-                    interval = float(
-                        os.environ.get("QUANTIDE_QUOTE_INTERVAL", "3") or 3
+                    _quote_publisher = TusharePublisher()
+                else:
+                    _quote_publisher = (
+                        load_quote_provider() if use_extension else self._create_tencent_publisher()
                     )
-                except ValueError:
-                    interval = 3.0
-                publisher = TencentPublisher(symbols, interval=interval)
-                publisher.start()
-                _quote_publisher = publisher
-        adapters.register("quote_publisher", "tencent", publisher)
+            publisher = _quote_publisher
+            publisher.start()
+        name = "tushare" if use_tushare else ("user" if use_extension else "tencent")
+        adapters.register("quote_publisher", name, publisher)
+
+    @staticmethod
+    def _create_tencent_publisher() -> TencentPublisher:
+        from quantide.providers.tencent_publisher import TencentPublisher
+
+        raw_symbols = os.environ.get("QUANTIDE_QUOTE_SYMBOLS", "")
+        symbols = [part.strip() for part in raw_symbols.split(",") if part.strip()] or None
+        try:
+            interval = float(os.environ.get("QUANTIDE_QUOTE_INTERVAL", "5") or 5)
+        except ValueError:
+            interval = 5.0
+        return TencentPublisher(symbols, interval=interval)
 
     def _register_broker_adapters(
         self, registry: BrokerRegistry, adapters: AdapterRegistry
@@ -209,6 +225,7 @@ class RuntimeBootstrap:
                 broker = PaperBroker.load(
                     portfolio.portfolio_id,
                     market_data=market_data,
+                    clock=self._clock,
                 )
                 registry.register(BrokerKind.SIMULATION, portfolio.portfolio_id, broker)
             except Exception:
@@ -226,8 +243,10 @@ class RuntimeBootstrap:
         broker_name = runtime.runtime_broker_adapter
         mode_name = "gateway"
         gateway_url = str(getattr(runtime, "gateway_base_url", "") or "").strip()
-        use_gateway = runtime.gateway_enabled and bool(gateway_url) and (
-            broker_name == "gateway" or mode_name == "gateway"
+        use_gateway = (
+            runtime.gateway_enabled
+            and bool(gateway_url)
+            and (broker_name == "gateway" or mode_name == "gateway")
         )
         if not use_gateway:
             return

@@ -13,14 +13,19 @@ from quantide.service.runner import BacktestRunner
 class SimpleStrategy(BaseStrategy):
     async def init(self):
         pass
+
     async def on_start(self):
         pass
+
     async def on_stop(self):
         pass
+
     async def on_day_open(self, tm):
         pass
+
     async def on_day_close(self, tm):
         pass
+
     async def on_bar(self, tm):
         pass
 
@@ -66,23 +71,28 @@ def setup_db():
     yield
     # No explicit close method in SQLiteDB, but it's fine for memory db
 
+
 @pytest.mark.asyncio
 async def test_run_daily():
     start_date = datetime.date(2024, 1, 1)
     end_date = datetime.date(2024, 1, 2)
 
     # Mock dependencies
-    with patch("quantide.service.runner.calendar") as mock_calendar, \
-         patch("quantide.service.runner.BacktestBroker") as MockBroker, \
-         patch("quantide.service.runner.daily_bars"), \
-         patch("quantide.service.runner.db"), \
-         patch("quantide.service.runner.metrics"):
-
+    with (
+        patch("quantide.service.runner.record_backtest_log"),
+        patch("quantide.service.runner.calendar") as mock_calendar,
+        patch("quantide.service.runner.BacktestBroker") as MockBroker,
+        patch("quantide.service.runner.daily_bars"),
+        patch("quantide.service.runner.db"),
+        patch("quantide.service.runner.metrics"),
+    ):
         # Setup calendar mock
         mock_calendar.ceiling.return_value = start_date
         mock_calendar.floor.return_value = end_date
         mock_calendar.get_frames.return_value = [start_date, end_date]
-        mock_calendar.replace_time.side_effect = lambda d, h, m: datetime.datetime(d.year, d.month, d.day, h, m)
+        mock_calendar.replace_time.side_effect = lambda d, h, m: datetime.datetime(
+            d.year, d.month, d.day, h, m
+        )
 
         # Setup broker mock
         mock_broker_instance = MockBroker.return_value
@@ -164,18 +174,21 @@ def test_get_bar_quote_for_daily_backtest_uses_previous_completed_bar(monkeypatc
         }
     }
 
+
 @pytest.mark.asyncio
 async def test_run_minute():
     start_date = datetime.date(2024, 1, 1)
-    end_date = datetime.date(2024, 1, 1) # 1 day
+    end_date = datetime.date(2024, 1, 1)  # 1 day
 
     # Mock dependencies
-    with patch("quantide.service.runner.calendar") as mock_calendar, \
-         patch("quantide.service.runner.BacktestBroker") as MockBroker, \
-         patch("quantide.service.runner.daily_bars"), \
-         patch("quantide.service.runner.db"), \
-         patch("quantide.service.runner.metrics"):
-
+    with (
+        patch("quantide.service.runner.record_backtest_log"),
+        patch("quantide.service.runner.calendar") as mock_calendar,
+        patch("quantide.service.runner.BacktestBroker") as MockBroker,
+        patch("quantide.service.runner.daily_bars"),
+        patch("quantide.service.runner.db"),
+        patch("quantide.service.runner.metrics"),
+    ):
         # Setup calendar mock
         mock_calendar.ceiling.return_value = start_date
         mock_calendar.floor.return_value = end_date
@@ -187,7 +200,9 @@ async def test_run_minute():
         mock_calendar.first_min_frame.return_value = datetime.datetime(2024, 1, 1, 9, 31)
         mock_calendar.last_min_frame.return_value = datetime.datetime(2024, 1, 1, 15, 0)
 
-        mock_calendar.replace_time.side_effect = lambda d, h, m: datetime.datetime(d.year, d.month, d.day, h, m)
+        mock_calendar.replace_time.side_effect = lambda d, h, m: datetime.datetime(
+            d.year, d.month, d.day, h, m
+        )
 
         # Setup broker mock
         mock_broker_instance = MockBroker.return_value
@@ -251,6 +266,22 @@ def test_base_strategy_on_bar_has_only_tm_parameter() -> None:
     )
 
 
+def test_monthly_frames_do_not_start_before_backtest_start() -> None:
+    clock = MagicMock()
+    clock.iter_frames.return_value = [
+        datetime.date(2023, 12, 29),
+        datetime.date(2024, 1, 31),
+        datetime.date(2024, 2, 29),
+    ]
+    runner = BacktestRunner(clock=clock)
+
+    frames = runner._iter_backtest_frames(
+        datetime.date(2024, 1, 2), datetime.date(2024, 3, 31), FrameType.MONTH
+    )
+
+    assert frames == [datetime.date(2024, 1, 31), datetime.date(2024, 2, 29)]
+
+
 def test_clamp_end_date_to_market_data_limits_range(monkeypatch):
     """回测结束日期超过行情数据覆盖范围时应收敛到最后有数据的交易日。"""
     monkeypatch.setattr(
@@ -270,9 +301,7 @@ def test_clamp_end_date_to_market_data_limits_range(monkeypatch):
     )
 
     runner = BacktestRunner()
-    start, end = runner._align_backtest_dates(
-        datetime.date(2024, 1, 2), datetime.date(2024, 1, 10)
-    )
+    start, end = runner._align_backtest_dates(datetime.date(2024, 1, 2), datetime.date(2024, 1, 10))
 
     assert start == datetime.date(2024, 1, 2)
     assert end == datetime.date(2024, 1, 5)
@@ -297,9 +326,7 @@ def test_clamp_end_date_keeps_range_within_market_data(monkeypatch):
     )
 
     runner = BacktestRunner()
-    start, end = runner._align_backtest_dates(
-        datetime.date(2024, 1, 2), datetime.date(2024, 1, 10)
-    )
+    start, end = runner._align_backtest_dates(datetime.date(2024, 1, 2), datetime.date(2024, 1, 10))
 
     assert end == datetime.date(2024, 1, 10)
 

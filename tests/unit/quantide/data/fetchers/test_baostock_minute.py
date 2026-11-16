@@ -13,6 +13,11 @@ from quantide.data.fetchers.baostock_minute import (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolated_budget(tmp_path, monkeypatch):
+    monkeypatch.setattr("quantide.data.fetchers.baostock_minute.get_app_config_dir", lambda: tmp_path)
+
+
 def test_code_conversion():
     """统一代码转 BaoStock 格式。"""
     f = BaostockMinuteFetcher()
@@ -24,7 +29,8 @@ def test_code_conversion():
 def test_daily_budget_stops_requests():
     """超出每日预算后拒绝继续请求。"""
     fetcher = BaostockMinuteFetcher(daily_budget=2)
-    fetcher._requests_today = 2
+    fetcher._consume()
+    fetcher._consume()
     assert fetcher.budget_remaining == 0
     with pytest.raises(BaostockThrottledError, match="预算"):
         fetcher._check_budget()
@@ -35,9 +41,10 @@ def test_blacklist_error_marks_freeze_window():
     fetcher = BaostockMinuteFetcher()
     with pytest.raises(BaostockThrottledError, match="黑名单"):
         fetcher._handle_error("抱歉，您访问接口(stk_mins)频率超限(1次/分钟)")
-    assert fetcher._blacklisted_until is not None
-    delta = fetcher._blacklisted_until - datetime.datetime.now()
-    assert 5.9 <= timedelta_hours(delta) <= 6.0
+    from quantide.core.market_time import market_now
+    until = datetime.datetime.fromisoformat(fetcher._budget.status()["blocked_until"])
+    delta = until - market_now()
+    assert 6.0 <= timedelta_hours(delta) <= 6.1
 
 
 def timedelta_hours(delta: datetime.timedelta) -> float:
@@ -48,7 +55,7 @@ def timedelta_hours(delta: datetime.timedelta) -> float:
 def test_blacklisted_fetcher_refuses_requests():
     """冻结期内直接拒绝。"""
     fetcher = BaostockMinuteFetcher()
-    fetcher._blacklisted_until = datetime.datetime.now() + datetime.timedelta(hours=1)
+    fetcher._budget.freeze()
     with pytest.raises(BaostockThrottledError, match="黑名单"):
         fetcher._check_budget()
 
@@ -58,7 +65,7 @@ def test_non_blocking_error_does_not_freeze():
     fetcher = BaostockMinuteFetcher()
     with pytest.raises(BaostockThrottledError, match="请求失败"):
         fetcher._handle_error("网络连接失败")
-    assert fetcher._blacklisted_until is None
+    assert fetcher._budget.status().get("blocked_until") is None
 
 
 def test_fetch_minute_bars_normalizes_fields():

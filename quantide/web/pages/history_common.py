@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator, Mapping
+from typing import Any
+
+import polars as pl
+
 from quantide.core.enums import OrderSide, OrderStatus
+from quantide.core.order_values import coerce_order_status
 from quantide.web.components.asset_label import resolve_asset_name
 
 _STATUS_LABELS = {
@@ -19,54 +25,17 @@ _STATUS_LABELS = {
     OrderStatus.UNKNOWN: "未知",
 }
 
-_STATUS_ALIASES = {
-    "未报": OrderStatus.UNREPORTED,
-    "待报": OrderStatus.WAIT_REPORTING,
-    "已报": OrderStatus.REPORTED,
-    "已报待撤": OrderStatus.REPORTED_CANCEL,
-    "部成待撤": OrderStatus.PARTSUCC_CANCEL,
-    "部成已撤": OrderStatus.PART_CANCEL,
-    "已撤": OrderStatus.CANCELED,
-    "部成": OrderStatus.PART_SUCC,
-    "已成": OrderStatus.SUCCEEDED,
-    "已成交": OrderStatus.SUCCEEDED,
-    "废单": OrderStatus.JUNK,
-    "已拒绝": OrderStatus.JUNK,
-}
+
+def coerce_status(value: object) -> OrderStatus:
+    return coerce_order_status(value)
 
 
-def coerce_status(value) -> OrderStatus:
-    """把数据库里的 int/str/enum 状态统一成 ``OrderStatus``。"""
-    if isinstance(value, OrderStatus):
-        return value
-    if isinstance(value, int):
-        try:
-            return OrderStatus(value)
-        except ValueError:
-            return OrderStatus.UNKNOWN
-    text = str(value).strip()
-    if text in _STATUS_ALIASES:
-        return _STATUS_ALIASES[text]
-    if text.isdigit():
-        try:
-            return OrderStatus(int(text))
-        except ValueError:
-            return OrderStatus.UNKNOWN
-    upper = text.upper()
-    if upper.startswith("ORDERSTATUS."):
-        upper = upper.split(".", 1)[1]
-    try:
-        return OrderStatus[upper]
-    except KeyError:
-        return OrderStatus.UNKNOWN
-
-
-def status_label(value) -> str:
+def status_label(value: object) -> str:
     """返回中文委托状态。"""
     return _STATUS_LABELS.get(coerce_status(value), "未知")
 
 
-def side_label(value) -> str:
+def side_label(value: object) -> str:
     """返回中文买卖方向。"""
     if isinstance(value, OrderSide):
         return "买入" if value == OrderSide.BUY else ("卖出" if value == OrderSide.SELL else "未知")
@@ -86,3 +55,46 @@ def display_name(asset: str, fallback: str = "") -> str:
         return resolve_asset_name(asset)
     except Exception:
         return asset
+
+
+def history_date_range(query_params: Mapping[str, str]) -> tuple[str, str]:
+    """Default history filters to the most recent thirty exchange-local days."""
+    import datetime
+
+    from quantide.core.market_time import market_today
+
+    today = market_today()
+    return (
+        query_params.get("start_date") or (today - datetime.timedelta(days=30)).isoformat(),
+        query_params.get("end_date") or today.isoformat(),
+    )
+
+
+def history_rows(
+    query: Callable[..., pl.DataFrame],
+    account_id: str,
+    start_date: str,
+    end_date: str,
+) -> Iterator[dict[str, Any]]:
+    """Query one account history using a consistently parsed date range."""
+    import datetime
+
+    frame = query(
+        portfolio_id=account_id,
+        start=datetime.date.fromisoformat(start_date),
+        end=datetime.date.fromisoformat(end_date),
+    )
+    return frame.iter_rows(named=True)
+
+
+def history_trade_identity(row: Mapping[str, Any]) -> dict[str, object]:
+    """Resolve shared order/trade display fields once."""
+    asset = str(row.get("asset", "") or "")
+    return {
+        "tm": str(row.get("tm", ""))[:19],
+        "asset": asset,
+        "name": display_name(asset, row.get("name", "")),
+        "side": side_label(row.get("side")),
+        "price": row.get("price") or 0,
+        "shares": row.get("shares") or 0,
+    }

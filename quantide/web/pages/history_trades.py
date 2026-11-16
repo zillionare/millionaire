@@ -1,93 +1,83 @@
 """历史成交页面"""
 
-import datetime
+from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    H1,
+    Div,
+    Form,
+    Tr,
+    to_xml,
+)
 from monsterui.all import *
+from monsterui.all import (
+    Table,
+    Tbody,
+    Td,
+)
+from starlette.requests import Request
 from starlette.responses import HTMLResponse
 
 from quantide.data.sqlite import db
+from quantide.web.components.history_filters import (
+    DateRangePicker as DateRangePicker,
+)
+from quantide.web.components.history_filters import (
+    EmptyHistory,
+    HistoryTableHeader,
+    UnselectedHistory,
+)
+from quantide.web.components.history_filters import (
+    _get_active_account as _get_active_account,
+)
 from quantide.web.layouts.main import MainLayout
-from quantide.web.pages.history_common import display_name, side_label
+from quantide.web.pages.history_common import (
+    history_date_range,
+    history_rows,
+    history_trade_identity,
+)
+from quantide.web.semantic_styles import trade_side_text
 
 
-def _get_active_account(req) -> tuple[str, str] | None:
-    """获取当前活动账户"""
-    session = req.scope.get("session", {})
-    kind = session.get("active_account_kind")
-    account_id = session.get("active_account_id")
-    if kind and account_id:
-        return kind, account_id
-    return None
-
-
-def DateRangePicker(start_date: str = "", end_date: str = ""):
-    """日期范围选择器"""
-    today = datetime.date.today().isoformat()
-    if not start_date:
-        start_date = today
-    if not end_date:
-        end_date = today
-
-    return Div(
-        Div(
-            Span("开始日期", cls="text-sm text-gray-600 mr-2"),
-            Input(type="date", name="start_date", value=start_date,
-                  cls="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"),
-            cls="flex items-center",
-        ),
-        Div(
-            Span("结束日期", cls="text-sm text-gray-600 mr-2"),
-            Input(type="date", name="end_date", value=end_date,
-                  cls="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"),
-            cls="flex items-center ml-4",
-        ),
-        Button("查询", type="submit",
-               cls="ml-4 px-4 py-2 bg-[#e41815] text-white rounded-lg hover:bg-[#c91412]"),
-        cls="flex items-center mb-6",
-    )
-
-
-def TradesTable(trades: list[dict]):
+def TradesTable(trades: list[dict[str, Any]]) -> Any:
     """成交表格"""
     if not trades:
-        return Div(P("暂无成交数据", cls="text-gray-500 text-center py-8"), cls="bg-white rounded-lg shadow")
+        return EmptyHistory("暂无成交数据")
 
     return Div(
         Table(
-            Thead(
-                Tr(
-                    Th("时间", cls="pb-3 font-medium text-left"),
-                    Th("代码", cls="pb-3 font-medium text-left"),
-                    Th("名称", cls="pb-3 font-medium text-left"),
-                    Th("方向", cls="pb-3 font-medium text-left"),
-                    Th("成交价", cls="pb-3 font-medium text-right"),
-                    Th("成交量", cls="pb-3 font-medium text-right"),
-                    Th("成交金额", cls="pb-3 font-medium text-right"),
-                    Th("手续费", cls="pb-3 font-medium text-right"),
-                ),
-                cls="text-sm text-gray-600 border-b",
+            HistoryTableHeader(
+                ["时间", "代码", "名称", "方向", "成交价", "成交量", "成交金额", "手续费"]
             ),
-            Tbody(*[
-                Tr(
-                    Td(trade.get("tm", ""), cls="py-3 text-sm"),
-                    Td(trade.get("asset", ""), cls="py-3 text-sm font-medium"),
-                    Td(trade.get("name", ""), cls="py-3 text-sm text-gray-500"),
-                    Td(trade.get("side", ""), cls=f"py-3 text-sm {'text-red-600' if trade.get('side') == '买入' else 'text-green-600'}"),
-                    Td(f"{trade.get('price', 0):.2f}", cls="py-3 text-sm text-right"),
-                    Td(f"{trade.get('shares', 0):,}", cls="py-3 text-sm text-right"),
-                    Td(f"{trade.get('amount', 0)/10000:.2f}万", cls="py-3 text-sm text-right"),
-                    Td(f"{trade.get('fee', 0):.2f}", cls="py-3 text-sm text-right"),
-                )
-                for trade in trades
-            ], cls="text-sm"),
+            Tbody(
+                *[
+                    Tr(
+                        Td(trade.get("tm", ""), cls="py-3 text-sm"),
+                        Td(trade.get("asset", ""), cls="py-3 text-sm font-medium"),
+                        Td(trade.get("name", ""), cls="py-3 text-sm text-gray-500"),
+                        Td(
+                            trade.get("side", ""),
+                            cls=(f"py-3 text-sm {trade_side_text(trade.get('side'))}"),
+                        ),
+                        Td(f"{trade.get('price', 0):.2f}", cls="py-3 text-sm text-right"),
+                        Td(f"{trade.get('shares', 0):,}", cls="py-3 text-sm text-right"),
+                        Td(
+                            f"{trade.get('amount', 0) / 10000:.2f}万", cls="py-3 text-sm text-right"
+                        ),
+                        Td(f"{trade.get('fee', 0):.2f}", cls="py-3 text-sm text-right"),
+                    )
+                    for trade in trades
+                ],
+                cls="text-sm",
+            ),
             cls="w-full",
         ),
         cls="bg-white rounded-lg shadow overflow-hidden",
     )
 
 
-def history_trades_list(request):
+def history_trades_list(request: Request) -> Any:
     """历史成交列表页面"""
     session = request.scope.get("session", {})
     layout = MainLayout(title="历史成交", user=session.get("auth"))
@@ -96,50 +86,38 @@ def history_trades_list(request):
 
     active = _get_active_account(request)
     if not active:
-        layout.main_block = lambda: Div(P("请先选择活动账户", cls="text-gray-500 text-center py-8"), cls="p-6")
-        return HTMLResponse(to_xml(layout.render()))
+        return UnselectedHistory(layout)
 
     kind, account_id = active
 
-    start_date = request.query_params.get("start_date", "")
-    end_date = request.query_params.get("end_date", "")
-
-    if not start_date:
-        start_date = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
-    if not end_date:
-        end_date = datetime.date.today().isoformat()
+    start_date, end_date = history_date_range(request.query_params)
 
     trades = []
     try:
         # 从数据库查询成交记录
-        df = db.query_trades_range(
-            start=datetime.date.fromisoformat(start_date),
-            end=datetime.date.fromisoformat(end_date),
-            portfolio_id=account_id,
-        )
-        if not df.is_empty():
-            for row in df.iter_rows(named=True):
-                asset = str(row.get("asset", "") or "")
-                trades.append({
-                    "tm": str(row.get("tm", ""))[:19],
-                    "asset": asset,
-                    "name": display_name(asset, row.get("name", "")),
-                    "side": side_label(row.get("side")),
-                    "price": row.get("price") or 0,
-                    "shares": row.get("shares") or 0,
+        for row in history_rows(db.query_trades_range, account_id, start_date, end_date):
+            trades.append(
+                {
+                    **history_trade_identity(row),
                     "amount": row.get("amount") or 0,
                     "fee": row.get("fee") or 0,
-                })
+                }
+            )
     except Exception as e:
         print(f"Failed to query trades: {e}")
 
-    def main_block():
+    def main_block() -> Any:
         return Div(
             Div(H1("历史成交", cls="text-2xl font-bold text-gray-900"), cls="mb-6"),
-            Form(DateRangePicker(start_date, end_date), action="/trade/records/history", method="GET", cls="mb-6"),
+            Form(
+                DateRangePicker(start_date, end_date),
+                action="/trade/records/history",
+                method="GET",
+                cls="mb-6",
+            ),
             TradesTable(trades),
             cls="p-6",
         )
 
-    layout.main_block = main_block
+    layout.set_main_block(main_block)
     return HTMLResponse(to_xml(layout.render()))

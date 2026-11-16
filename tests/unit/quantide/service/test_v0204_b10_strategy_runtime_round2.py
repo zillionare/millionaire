@@ -211,7 +211,7 @@ def test_build_quotes_returns_empty_when_market_data_none():
 # ---------------------------------------------------------------------------
 
 
-def test_load_specs_resets_to_empty_on_exception():
+def test_load_specs_preserves_blocks_and_refuses_restore_on_corruption():
     """[AC-NFR1101-01] _load_specs resets state on JSON parse exception (955-959)."""
     mgr = _make_manager()
     # Pre-populate with stale data to confirm reset clears it
@@ -223,12 +223,13 @@ def test_load_specs_resets_to_empty_on_exception():
     state_file = MagicMock()
     state_file.exists.return_value = True
     state_file.read_text.return_value = "{not valid json"
-    with patch.object(sr_mod, "get_strategy_runtime_state_path", return_value=state_file):
-        mgr._load_specs()
-    assert mgr._runtime_specs == {}
-    assert mgr._blocked_accounts == {}
-    assert mgr._blocked_strategies == {}
-    assert mgr._risk_events == []
+    with patch("quantide.service.runtime_state.get_strategy_runtime_state_path", return_value=state_file):
+        with pytest.raises(RuntimeError, match="运行状态损坏"):
+            mgr._load_specs()
+    assert mgr._runtime_specs == {"old": {"status": "running"}}
+    assert mgr._blocked_accounts == {"acc": {"reason": "x"}}
+    assert mgr._blocked_strategies == {"rt": {"reason": "y"}}
+    assert mgr._risk_events == [{"event": "stale"}]
 
 
 # ---------------------------------------------------------------------------

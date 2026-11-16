@@ -6,9 +6,12 @@ import datetime
 import json
 import sqlite3
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from quantide.config.output_paths import external_runtime_path
 from quantide.config.paths import get_app_db_path
 
 SCHEMA = """
@@ -87,21 +90,27 @@ class TrackingStore:
     """SQLite 跟踪存储；与主库共用应用数据库文件。"""
 
     def __init__(self, path: str | Path | None = None) -> None:
-        self.path = Path(path) if path else get_app_db_path()
+        self.path = external_runtime_path(path) if path else get_app_db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.ensure_schema()
 
     def rebind(self, path: str | Path) -> None:
         """Move the process-wide store after the app config override is set."""
-        self.path = Path(path)
+        self.path = external_runtime_path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.ensure_schema()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Own both the transaction and connection; SQLite's context alone stays open."""
         connection = sqlite3.connect(self.path, timeout=10)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        return connection
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA journal_mode=WAL")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def ensure_schema(self) -> None:
         with self._connect() as connection:
@@ -339,9 +348,7 @@ class TrackingStore:
             result.append(data)
         return result
 
-    def latest_daily(
-        self, runtime_id: str, source: str
-    ) -> dict[str, Any] | None:
+    def latest_daily(self, runtime_id: str, source: str) -> dict[str, Any] | None:
         rows = self.list_daily(runtime_id=runtime_id, source=source, limit=1)
         return rows[-1] if rows else None
 
@@ -361,10 +368,6 @@ class TrackingStore:
         target_bar: datetime.datetime | None = None,
     ) -> dict[str, Any]:
         """Insert an intent once and return the durable row on every retry."""
-        intent_id = uuid.uuid5(
-            uuid.NAMESPACE_URL, f"{runtime_id}:next_open:{intent_key}"
-        ).hex
-        created = datetime.datetime.now().isoformat(timespec="seconds")
         with self._connect() as connection:
             connection.execute(
                 """
@@ -376,7 +379,7 @@ class TrackingStore:
                  ON CONFLICT(runtime_id, intent_key) DO NOTHING
                 """,
                 (
-                    intent_id,
+                    uuid.uuid5(uuid.NAMESPACE_URL, f"{runtime_id}:next_open:{intent_key}").hex,
                     intent_key,
                     runtime_id,
                     portfolio_id,
@@ -388,12 +391,11 @@ class TrackingStore:
                     method,
                     _json(list(args)),
                     _json(kwargs),
-                    created,
+                    datetime.datetime.now().isoformat(timespec="seconds"),
                 ),
             )
             row = connection.execute(
-                "SELECT * FROM strategy_next_open_intents "
-                "WHERE runtime_id=? AND intent_key=?",
+                "SELECT * FROM strategy_next_open_intents WHERE runtime_id=? AND intent_key=?",
                 (runtime_id, intent_key),
             ).fetchone()
         if row is None:  # pragma: no cover - protected by the transaction
@@ -428,9 +430,7 @@ class TrackingStore:
             ).fetchall()
         return [self._intent_row(row) for row in rows]
 
-    def mark_next_open_intent(
-        self, intent_id: str, *, status: str, error: str = ""
-    ) -> None:
+    def mark_next_open_intent(self, intent_id: str, *, status: str, error: str = "") -> None:
         processed_at = datetime.datetime.now().isoformat(timespec="seconds")
         with self._connect() as connection:
             connection.execute(

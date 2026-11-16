@@ -1,17 +1,21 @@
 # auth/database.py
 from pathlib import Path
+from typing import Any
 
 from fastlite import database
 
+from quantide.config.output_paths import external_runtime_path
 from quantide.config.paths import get_app_db_path
 
 
 class AuthDatabase:
     """Database manager owned by auth system"""
 
-    def __init__(self, db_path: str | Path | None = None):
+    def __init__(self, db_path: str | Path | None = None) -> None:
         if db_path is None:
             db_path = get_app_db_path()
+        if str(db_path) != ":memory:":
+            db_path = external_runtime_path(db_path)
         # Ensure directory exists
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         # Create database connection
@@ -23,7 +27,7 @@ class AuthDatabase:
         self.sessions = None  # Optional session storage
         self.audit_log = None  # Optional security audit
 
-    def initialize_auth_tables(self):
+    def initialize_auth_tables(self) -> Any:
         # Force User to be fully processed as a dataclass
         import dataclasses
 
@@ -36,6 +40,10 @@ class AuthDatabase:
 
         return self.db
 
-    def get_db(self):
+    def get_db(self) -> Any:
         """Get database instance for app to add tables"""
         return self.db
+
+    def close(self) -> None:
+        """Release the authentication database's own connection and file handle."""
+        self.db.close()

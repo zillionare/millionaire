@@ -77,7 +77,8 @@ def mock_calendar():
             datetime.date(2023, 1, 5)
         ]
         mock_cal.is_trade_day.return_value = True
-        yield mock_cal
+        with mock.patch("quantide.service.backtest_snapshots.calendar", mock_cal):
+            yield mock_cal
 
 @pytest.fixture
 def mock_data_feed():

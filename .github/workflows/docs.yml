@@ -27,6 +27,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Configure temporary artifacts
+        run: python -m scripts.artifact_paths --github-env
 
       - name: Install documentation dependencies
         run: |
@@ -36,12 +38,22 @@ jobs:
             "mkdocs-material>=8.1.11,<10.0.0"
 
       - name: Build documentation
-        run: mkdocs build --strict --site-dir site
+        run: mkdocs build --strict --site-dir "${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/site"
+
+      - name: Verify documentation is self-contained
+        run: |
+          if grep -R -E "fonts\.googleapis\.com|fonts\.gstatic\.com" \
+            "${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/site"; then
+            echo "Documentation must not depend on external font hosts" >&2
+            exit 1
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: ${{ env.MILLIONAIRE_ARTIFACTS_DIR }}/site
+      - name: Verify clean checkout layout
+        run: python -m scripts.artifact_paths --check-layout
 
   deploy:
     needs: build

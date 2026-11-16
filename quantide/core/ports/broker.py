@@ -6,9 +6,11 @@ import datetime
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
-from quantide.core.enums import BidType, OrderSide
+from quantide.core.enums import BidType, FrameType, OrderSide
 
 if TYPE_CHECKING:
+    import polars as pl
+
     from quantide.data.models import Trade
 
 OrderStyle = Literal["shares", "amount", "percent", "target_pct"]
@@ -234,4 +236,145 @@ class BrokerPort(Protocol):
 
     def query_trades(self, order_id: str | None = None) -> list[Trade]:
         """查询成交."""
+        ...
+
+
+class StrategyBroker(Protocol):
+    """The execution and market-data surface exposed to a running strategy."""
+
+    @property
+    def portfolio_id(self) -> str:
+        """Portfolio identifier."""
+        ...
+
+    @property
+    def cash(self) -> float:
+        """Available cash."""
+        ...
+
+    @property
+    def positions(self) -> dict[str, Any]:
+        """Current positions keyed by asset."""
+        ...
+
+    def record(
+        self,
+        key: str,
+        value: float,
+        dt: datetime.datetime | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a strategy metric."""
+        ...
+
+    def get_history(
+        self,
+        asset: str,
+        count: int,
+        end_dt: datetime.datetime | None = None,
+        frame_type: FrameType | str = FrameType.DAY,
+        *,
+        include_forming_bar: bool = True,
+    ) -> pl.DataFrame:
+        """Return historical bars for one asset."""
+        ...
+
+    def get_prices(self, assets: list[str]) -> dict[str, float]:
+        """Return the latest prices for the requested assets."""
+        ...
+
+    def get_ticks(self, asset: str, count: int) -> pl.DataFrame:
+        """Return recent ticks or minute bars for one asset."""
+        ...
+
+    async def buy(
+        self,
+        asset: str,
+        shares: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        """Buy a number of shares."""
+        ...
+
+    async def buy_percent(
+        self,
+        asset: str,
+        percent: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        """Buy a percentage of total assets."""
+        ...
+
+    async def buy_amount(
+        self,
+        asset: str,
+        amount: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        """Buy a cash amount."""
+        ...
+
+    async def sell(
+        self,
+        asset: str,
+        shares: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        """Sell a number of shares."""
+        ...
+
+    async def sell_percent(
+        self,
+        asset: str,
+        percent: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        """Sell a percentage of the held position."""
+        ...
+
+    async def sell_amount(
+        self,
+        asset: str,
+        amount: int | float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        """Sell a cash amount."""
+        ...
+
+    async def trade_target_pct(
+        self,
+        asset: str,
+        target_pct: float,
+        price: float = 0,
+        order_time: datetime.datetime | None = None,
+        timeout: float = 0.5,
+        **kwargs: Any,
+    ) -> ExecutionResult:
+        """Adjust a position to a target portfolio percentage."""
+        ...
+
+    async def cancel_order(self, qt_oid: str) -> object:
+        """Cancel one order."""
+        ...
+
+    async def cancel_all_orders(self, side: OrderSide | None = None) -> int | None:
+        """Cancel all active orders and return the cancelled count when known."""
         ...

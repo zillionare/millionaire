@@ -15,7 +15,9 @@ from typing import Any
 
 from loguru import logger
 
+from quantide.core.market_time import market_now
 from quantide.core.scheduler import scheduler
+from quantide.service.scheduled_jobs import remove_owned_jobs
 
 _QUOTE_STALE_SECONDS = 60.0
 _LIMIT_COVERAGE_THRESHOLD = 0.80
@@ -48,7 +50,7 @@ class DataReadinessMonitor:
         self._stocks = stocks
         self._calendar = calendar
         self._quotes = quote_monitor
-        self._clock = clock or datetime.datetime.now
+        self._clock = clock or market_now
         self._record = recorder or _default_recorder
         self._states: dict[str, bool] = {}
         self._lock = threading.RLock()
@@ -57,6 +59,14 @@ class DataReadinessMonitor:
     # ------------------------------------------------------------------
     # 生命周期
     # ------------------------------------------------------------------
+    def stop(self) -> None:
+        """Remove this service's registrations before a subsequent lifespan."""
+        remove_owned_jobs(
+            self,
+            scheduler,
+            ("data_readiness_morning", "data_readiness_eod", "data_readiness_quotes"),
+        )
+
     def start(self) -> None:
         """注册定时检查；启动时立即检查一次日线/限价。"""
         with self._lock:
@@ -186,7 +196,7 @@ class DataReadinessMonitor:
             if not required.issubset(set(frame.columns)):
                 return False
             selected = frame.select(sorted(required))
-            return selected.null_count().row(0) == (0,) * len(required)
+            return bool(selected.null_count().row(0) == (0,) * len(required))
         except Exception:
             return False
 
@@ -289,9 +299,7 @@ class DataReadinessMonitor:
             adjust_cov = 0.0
             adjust_ratio = 0.0
         if {"up_limit", "down_limit"}.issubset(frame.columns):
-            limit_cov = (
-                ((frame["up_limit"] > 0) & (frame["down_limit"] > 0)).sum() / total
-            )
+            limit_cov = ((frame["up_limit"] > 0) & (frame["down_limit"] > 0)).sum() / total
         else:
             limit_cov = 0.0
         ok = (

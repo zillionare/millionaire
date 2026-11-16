@@ -1,0 +1,20 @@
+name: Weekly regression
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    uses: ./.github/workflows/ci.yml
+
+  live-data:
+    uses: ./.github/workflows/live-data.yml
+    with:
+      required: false
+    secrets:
+      TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}

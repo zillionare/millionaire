@@ -1,12 +1,16 @@
 """股票列表组件"""
 
-from fasthtml.common import *
+from typing import Any
+
+from fasthtml.common import FT, Button, Div, P
 
 
 class StockList:
     """股票列表组件"""
 
-    def __init__(self, stocks: list[dict] = None, selected_symbol: str = None):
+    def __init__(
+        self, stocks: list[dict[str, Any]] | None = None, selected_symbol: str | None = None
+    ) -> None:
         self.stocks = stocks or []
         self.selected_symbol = selected_symbol
 
@@ -30,9 +34,8 @@ class StockList:
         rows = []
         for stock in self.stocks:
             is_selected = stock.get("symbol") == self.selected_symbol
-            row_cls = (
-                "grid grid-cols-3 gap-2 px-3 py-2 cursor-pointer text-sm "
-                + ("bg-[#fff3f2]" if is_selected else "hover:bg-gray-50")
+            row_cls = "grid grid-cols-3 gap-2 px-3 py-2 cursor-pointer text-sm " + (
+                "bg-[#fff3f2]" if is_selected else "hover:bg-gray-50"
             )
 
             rows.append(

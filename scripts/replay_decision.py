@@ -22,6 +22,8 @@ import polars as pl
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from quantide.config.output_paths import external_runtime_path  # noqa: E402
+from quantide.config.paths import get_strategy_runtime_state_path  # noqa: E402
 from quantide.data import init_data  # noqa: E402
 from quantide.data.fetchers.tencent import TencentDataFetcher  # noqa: E402
 from quantide.data.models.daily_bars import daily_bars  # noqa: E402
@@ -59,9 +61,7 @@ def _normalize_quotes(quotes: dict[str, dict]) -> dict[str, dict]:
 
 def _load_quotes(args: argparse.Namespace) -> tuple[dict[str, dict], str]:
     if args.quotes:
-        data = _normalize_quotes(
-            json.loads(Path(args.quotes).read_text(encoding="utf-8"))
-        )
+        data = _normalize_quotes(json.loads(Path(args.quotes).read_text(encoding="utf-8")))
         return data, f"file:{args.quotes}"
     symbols = []
     try:
@@ -99,9 +99,7 @@ class _Broker:
     cash = 1_000_000.0
 
     def __init__(self, market_data: _MarketData, today: datetime.date) -> None:
-        self.view = LiveBarView(
-            daily_bars, market_data=market_data, today_func=lambda: today
-        )
+        self.view = LiveBarView(daily_bars, market_data=market_data, today_func=lambda: today)
 
     def get_bars_range(self, assets, start, end=None, adjust=None, include_forming_bar=True):
         return self.view.get_bars_range(
@@ -133,9 +131,7 @@ def build_report(
 
     strategy._ensure_backtest_panel(day)
     panel = strategy._cached_norm_panel
-    ranked, _prices, _ranks = strategy._rank_for_bar(
-        datetime.datetime.combine(day, tm)
-    )
+    ranked, _prices, _ranks = strategy._rank_for_bar(datetime.datetime.combine(day, tm))
     report: dict[str, Any] = {
         "date": day.isoformat(),
         "time": tm.isoformat(),
@@ -160,51 +156,41 @@ def build_report(
         "buy_candidates": [
             item["asset"]
             for item in ranked[: strategy.top_k]
-            if float(item.get("ml_score", 0) or 0) > (
-                0.0 if strategy.custom_assets and len(strategy.custom_assets) == 1 else -0.25
-            )
+            if float(item.get("ml_score", 0) or 0)
+            > (0.0 if strategy.custom_assets and len(strategy.custom_assets) == 1 else -0.25)
         ],
     }
-    if panel is not None:
-        cross = panel.filter(
-            (pl.col("date") == day)
-            & (~pl.col("is_st"))
-            & (pl.col("volume") > 0)
-            & (pl.col("close") > 0)
-        )
-        report["cross_rows"] = cross.height
-        report["is_st_null"] = cross.filter(pl.col("is_st").is_null()).height
-        if not cross.is_empty() and {"up_limit", "down_limit"}.issubset(cross.columns):
-            report["invalid_limit_order"] = cross.filter(
-                (pl.col("up_limit") > 0)
-                & (pl.col("down_limit") > 0)
-                & (pl.col("up_limit") < pl.col("down_limit"))
-            ).height
-            report["close_above_up_limit"] = cross.filter(
-                (pl.col("up_limit") > 0) & (pl.col("close") > pl.col("up_limit") * 1.02)
-            ).height
+    _add_panel_diagnostics(panel, day, report)
     return report
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-home", default="~/.quantide")
+    parser.add_argument("--data-home", default=None, help="行情目录；默认读取配置")
     parser.add_argument("--date", default=datetime.date.today().isoformat())
     parser.add_argument("--time", default="14:57")
     parser.add_argument("--runtime-id", default="")
-    parser.add_argument("--runtime-state", default="~/.config/quantide/strategy_runtimes.json")
+    parser.add_argument("--runtime-state", default=None, help="运行规格文件；默认读取配置目录")
     parser.add_argument("--quotes", default="", help="JSON quote snapshot; omit to fetch Tencent")
-    parser.add_argument("--save-quotes", default="", help="save fetched quotes to this path")
+    parser.add_argument(
+        "--save-quotes",
+        type=external_runtime_path,
+        default=None,
+        help="save fetched quotes outside the source checkout",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
     day = datetime.date.fromisoformat(args.date)
     hour, minute = (int(x) for x in args.time.split(":", 1))
     tm = datetime.time(hour, minute)
-    init_data(args.data_home, init_db=False)
+    init_data(args.data_home)
     ml._ensure_data_connected()
     config, runtime_id = _load_runtime_config(
-        Path(args.runtime_state).expanduser(), args.runtime_id or None
+        Path(args.runtime_state).expanduser()
+        if args.runtime_state
+        else get_strategy_runtime_state_path(),
+        args.runtime_id or None,
     )
     quotes, source = _load_quotes(args)
     report = build_report(day, tm, config, quotes, source)
@@ -222,8 +208,10 @@ def main() -> int:
             f"model: {report['model_key']} train_end={report['model_train_end']} "
             f"effective={report['model_effective_from']} {report['model_engine']}"
         )
-        print(f"invalid_limit_order: {report.get('invalid_limit_order')}  "
-              f"close_above_up_limit: {report.get('close_above_up_limit')}")
+        print(
+            f"invalid_limit_order: {report.get('invalid_limit_order')}  "
+            f"close_above_up_limit: {report.get('close_above_up_limit')}"
+        )
         print("ranked:")
         for item in report["ranked"]:
             print(
@@ -242,6 +230,28 @@ def main() -> int:
         print("ALARM: no ranked candidates")
         return 2
     return 0
+
+
+def _add_panel_diagnostics(panel, day, report):
+    """Add source-coverage and limit consistency diagnostics for the replay date."""
+    if panel is not None:
+        cross = panel.filter(
+            (pl.col("date") == day)
+            & (~pl.col("is_st"))
+            & (pl.col("volume") > 0)
+            & (pl.col("close") > 0)
+        )
+        report["cross_rows"] = cross.height
+        report["is_st_null"] = cross.filter(pl.col("is_st").is_null()).height
+        if not cross.is_empty() and {"up_limit", "down_limit"}.issubset(cross.columns):
+            report["invalid_limit_order"] = cross.filter(
+                (pl.col("up_limit") > 0)
+                & (pl.col("down_limit") > 0)
+                & (pl.col("up_limit") < pl.col("down_limit"))
+            ).height
+            report["close_above_up_limit"] = cross.filter(
+                (pl.col("up_limit") > 0) & (pl.col("close") > pl.col("up_limit") * 1.02)
+            ).height
 
 
 if __name__ == "__main__":

@@ -13,13 +13,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from quantide.web.services.account_models import AccountFacts
+
 ALLOWED_ACCOUNT_ACTIONS: frozenset[str] = frozenset({"hide", "unhide"})
 
 _IDLE_STATUSES: frozenset[str] = frozenset({"idle", "offline", "fault", "stopped"})
 
 
 @dataclass
-class AccountSummary:
+class AccountSummary(AccountFacts):
     """账户摘要 (interfaces.md §4.2).
 
     Attributes:
@@ -38,17 +40,6 @@ class AccountSummary:
         is_risk_control: 是否风控账户 (风控限制不可隐藏).
     """
 
-    account_id: str
-    account_name: str
-    mode: str
-    strategy_id: str | None
-    total_assets: float
-    available_cash: float
-    market_value: float
-    account_pnl: float
-    daily_pnl: float
-    hidden: bool
-    status: str
     has_position: bool = False
     is_risk_control: bool = False
 

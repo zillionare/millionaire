@@ -6,6 +6,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from quantide.data.models.stocks import StockList
+from quantide.web.application import fast_app
 
 app, rt = fast_app()
 
@@ -21,7 +22,7 @@ async def search_stocks(
     q: str = "",
     type: str = "stock",
     limit: int = 10,
-):
+) -> JSONResponse:
     """搜索个股。
 
     Args:
@@ -36,29 +37,33 @@ async def search_stocks(
         )
 
     if not q or len(q) < 1:
-        return JSONResponse({
-            "code": 0,
-            "message": "success",
-            "data": [],
-        })
+        return JSONResponse(
+            {
+                "code": 0,
+                "message": "success",
+                "data": [],
+            }
+        )
 
     stock_list = get_stock_list()
 
     if stock_list.data.is_empty():
-        return JSONResponse({
-            "code": 0,
-            "message": "success",
-            "data": [],
-        })
+        return JSONResponse(
+            {
+                "code": 0,
+                "message": "success",
+                "data": [],
+            }
+        )
 
     # 构建过滤条件
     keyword = q.lower()
 
     # 过滤数据
     filtered = stock_list.data.filter(
-        (pl.col("asset").str.to_lowercase().str.contains(keyword)) |
-        (pl.col("name").str.to_lowercase().str.contains(keyword)) |
-        (pl.col("pinyin").str.to_lowercase().str.contains(keyword))
+        (pl.col("asset").str.to_lowercase().str.contains(keyword))
+        | (pl.col("name").str.to_lowercase().str.contains(keyword))
+        | (pl.col("pinyin").str.to_lowercase().str.contains(keyword))
     )
 
     # 限制返回数量
@@ -67,15 +72,19 @@ async def search_stocks(
     # 转换为列表
     results = []
     for row in filtered.iter_rows(named=True):
-        results.append({
-            "symbol": row["asset"],
-            "name": row["name"],
-            "pinyin": row["pinyin"],
-            "list_date": row["list_date"].isoformat() if row["list_date"] else None,
-        })
+        results.append(
+            {
+                "symbol": row["asset"],
+                "name": row["name"],
+                "pinyin": row["pinyin"],
+                "list_date": row["list_date"].isoformat() if row["list_date"] else None,
+            }
+        )
 
-    return JSONResponse({
-        "code": 0,
-        "message": "success",
-        "data": results,
-    })
+    return JSONResponse(
+        {
+            "code": 0,
+            "message": "success",
+            "data": results,
+        }
+    )

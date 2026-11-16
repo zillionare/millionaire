@@ -8,15 +8,39 @@ from __future__ import annotations
 
 import datetime
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 from apscheduler.triggers.cron import CronTrigger
 from fasthtml.common import *
+from fasthtml.common import (
+    H2,
+    A,
+    Div,
+    P,
+    RedirectResponse,
+    Span,
+    Thead,
+    Tr,
+)
 from loguru import logger
 from monsterui.all import *
+from monsterui.all import (
+    H3,
+    H4,
+    Button,
+    Table,
+    Tbody,
+    Td,
+    Th,
+    UkIcon,
+)
+from starlette.requests import Request
 
 from quantide.core.scheduler import scheduler
 from quantide.data.sqlite import db
+from quantide.web.application import fast_app
 from quantide.web.layouts.main import MainLayout
 from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
@@ -26,11 +50,11 @@ system_jobs_app, rt = fast_app(hdrs=AppTheme.headers())
 
 # ========== 预置任务定义 ==========
 
-PREDEFINED_JOBS = {
+PREDEFINED_JOBS: dict[str, dict[str, Any]] = {
     "daily_bars_sync": {
-        "name": "日线数据同步",
+        "name": "每日数据维护",
         "cron": "35 17,18 * * 1-5",  # 收盘后 17:35/18:35，周一到周五
-        "description": "从数据源下载当交易日行情数据（17:35 主跑，18:35 兜底重试）",
+        "description": "统一补齐日线、30 分钟、市值、指数与成分（17:35 主跑，18:35 重试）",
         "enabled": True,
     },
     "stock_list_sync": {
@@ -65,6 +89,7 @@ JOB_SETTINGS_TABLE = "job_settings"
 
 # ========== 任务历史记录模型 ==========
 
+
 @dataclass
 class JobHistoryRecord:
     """任务执行记录"""
@@ -82,7 +107,7 @@ class JobHistoryRecord:
     duration_ms: int = 0
 
     @classmethod
-    def from_dict(cls, data: dict) -> JobHistoryRecord:
+    def from_dict(cls, data: dict[str, Any]) -> JobHistoryRecord:
         """从字典创建实例"""
         executed_at = data.get("executed_at", datetime.datetime.now())
         if isinstance(executed_at, str):
@@ -97,20 +122,22 @@ class JobHistoryRecord:
             duration_ms=data.get("duration_ms", 0),
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典"""
         return {
             "id": self.id,
             "job_id": self.job_id,
             "job_name": self.job_name,
-            "executed_at": self.executed_at.isoformat() if isinstance(self.executed_at, datetime.datetime) else self.executed_at,
+            "executed_at": self.executed_at.isoformat()
+            if isinstance(self.executed_at, datetime.datetime)
+            else self.executed_at,
             "status": self.status,
             "message": self.message,
             "duration_ms": self.duration_ms,
         }
 
 
-def _init_job_history_table():
+def _init_job_history_table() -> None:
     """初始化任务历史记录表"""
     if "job_history" not in db.table_names():
         db["job_history"].create(
@@ -128,7 +155,7 @@ def _init_job_history_table():
         logger.info("Created job_history table")
 
 
-def _init_job_settings_table():
+def _init_job_settings_table() -> None:
     """初始化任务配置表"""
     if JOB_SETTINGS_TABLE not in db.table_names():
         db[JOB_SETTINGS_TABLE].create(
@@ -168,7 +195,7 @@ def _save_job_history(
     status: str,
     message: str = "",
     duration_ms: int = 0,
-):
+) -> None:
     """保存任务执行记录"""
     record = JobHistoryRecord(
         job_id=job_id,
@@ -208,85 +235,65 @@ def _get_all_job_history(limit: int = 20) -> list[JobHistoryRecord]:
 
 # ========== 任务执行函数 ==========
 
-def _run_daily_bars_sync():
+
+def _run_daily_bars_sync() -> None:
     """日线数据同步任务"""
-    from quantide.data.models.daily_bars import daily_bars
+    from quantide.service.maintenance import maintain_data
 
-    logger.info("Running daily bars sync job")
     try:
-        from quantide.core.enums import FrameType
-        from quantide.data.models.calendar import calendar
-
-        try:
-            expected = calendar.floor(datetime.datetime.now(), FrameType.DAY)
-        except Exception:
-            expected = None
-        daily_bars.store.update()
-        actual = daily_bars.end
-        if isinstance(actual, datetime.datetime):
-            actual = actual.date()
-        if expected is not None:
-            if actual is None:
-                raise RuntimeError(f"日线未更新，期望至少 {expected}")
-            if isinstance(actual, datetime.date) and actual < expected:
-                raise RuntimeError(f"日线仅更新到 {actual}，期望至少 {expected}")
-        _save_job_history("daily_bars_sync", "日线数据同步", "success", f"已更新到 {actual}")
-        try:
-            from quantide.service.data_readiness import data_readiness_monitor
-
-            if datetime.datetime.now().time() >= datetime.time(18, 30):
-                data_readiness_monitor.check_end_of_day()
-            else:
-                data_readiness_monitor.check_morning()
-        except Exception:
-            pass
-    except Exception as e:
-        logger.error(f"Daily bars sync failed: {e}")
-        _save_job_history("daily_bars_sync", "日线数据同步", "error", str(e))
+        message = maintain_data()
+        _save_job_history("daily_bars_sync", "每日数据维护", "success", message)
+    except Exception as exc:
+        logger.exception("每日数据维护失败")
+        _save_job_history("daily_bars_sync", "每日数据维护", "error", str(exc))
 
 
-def _run_stock_list_sync():
+def _run_stock_list_sync() -> None:
     """股票列表同步任务"""
-    import asyncio
-
     from quantide.data.models.stocks import stock_list
 
     logger.info("Running stock list sync job")
     try:
-        asyncio.run(stock_list.update())
+        stock_list.update()
         _save_job_history("stock_list_sync", "股票列表同步", "success", "更新完成")
     except Exception as e:
         logger.error(f"Stock list sync failed: {e}")
         _save_job_history("stock_list_sync", "股票列表同步", "error", str(e))
 
 
-def _run_calendar_sync():
+def _run_calendar_sync() -> None:
     """交易日历同步任务"""
-    import asyncio
-
     from quantide.data.models.calendar import calendar as trade_calendar
 
     logger.info("Running calendar sync job")
     try:
-        asyncio.run(trade_calendar.update())
+        trade_calendar.update()
         _save_job_history("calendar_sync", "交易日历同步", "success", "更新完成")
     except Exception as e:
         logger.error(f"Calendar sync failed: {e}")
         _save_job_history("calendar_sync", "交易日历同步", "error", str(e))
 
 
-def _run_daily_snapshot():
-    """日终快照任务"""
-    logger.info("Running daily snapshot job")
-    # TODO: 实现持仓快照逻辑
-    _save_job_history("daily_snapshot", "日终快照", "success", "快照完成")
+def _run_snapshot(job_id: str, label: str, operation: Callable[[], str]) -> None:
+    try:
+        message = operation()
+        _save_job_history(job_id, label, "success", message)
+    except Exception as exc:
+        _save_job_history(job_id, label, "error", str(exc))
 
 
-def _run_market_snapshot():
-    """行情快照任务"""
-    logger.info("Running market snapshot job")
-    # TODO: 实现行情快照逻辑
-    _save_job_history("market_snapshot", "行情快照", "success", "快照完成")
+def _run_daily_snapshot() -> None:
+    """日终快照任务。"""
+    from quantide.service.maintenance import snapshot_accounts
+
+    _run_snapshot("daily_snapshot", "日终快照", snapshot_accounts)
+
+
+def _run_market_snapshot() -> None:
+    """行情快照任务。"""
+    from quantide.service.maintenance import snapshot_market
+
+    _run_snapshot("market_snapshot", "行情快照", snapshot_market)
 
 
 JOB_FUNCTIONS = {
@@ -303,7 +310,7 @@ JOB_FUNCTIONS = {
 _job_enabled_state: dict[str, bool] = {}
 
 
-def _init_scheduler_jobs():
+def _init_scheduler_jobs() -> None:
     """初始化调度器任务"""
     _init_job_history_table()
     _job_enabled_state.update(_load_persisted_job_enabled_state())
@@ -338,10 +345,22 @@ def _init_scheduler_jobs():
                     id=job_id,
                     name=job_def["name"],
                     replace_existing=True,
+                    coalesce=True,
+                    misfire_grace_time=None,
+                    max_instances=1,
                 )
 
+    if _job_enabled_state.get("daily_bars_sync", True):
+        scheduler.add_job(
+            _run_daily_bars_sync,
+            "date",
+            id="data_maintenance_startup",
+            replace_existing=True,
+            misfire_grace_time=None,
+        )
 
-def _toggle_job(job_id: str, enabled: bool):
+
+def _toggle_job(job_id: str, enabled: bool) -> None:
     """启用/禁用任务"""
     _job_enabled_state[job_id] = enabled
     _save_job_enabled_state(job_id, enabled)
@@ -354,7 +373,7 @@ def _toggle_job(job_id: str, enabled: bool):
             scheduler.scheduler.pause_job(job_id)
 
 
-def _run_job_now(job_id: str):
+def _run_job_now(job_id: str) -> None:
     """立即执行任务"""
     func = JOB_FUNCTIONS.get(job_id)
     if func:
@@ -387,7 +406,7 @@ def _run_job_now(job_id: str):
             raise
 
 
-def _get_job_status(job_id: str) -> dict:
+def _get_job_status(job_id: str) -> dict[str, Any]:
     """获取任务状态"""
     job = scheduler.scheduler.get_job(job_id)
     job_def = PREDEFINED_JOBS.get(job_id, {})
@@ -426,6 +445,7 @@ def _format_cron(cron: str) -> str:
 
 # ========== UI 组件 ==========
 
+
 def _build_job_status_badge(enabled: bool) -> Span:
     """构建状态徽章"""
     if enabled:
@@ -449,23 +469,28 @@ def _build_history_table(history: list[JobHistoryRecord]) -> Table:
         rows.append(
             Tr(
                 Td(record.executed_at.strftime("%Y-%m-%d %H:%M:%S"), cls="px-4 py-2 text-sm"),
-                Td(Span(f"{status_icon} {'成功' if record.status == 'success' else '失败'}", cls=status_cls), cls="px-4 py-2 text-sm"),
+                Td(
+                    Span(
+                        f"{status_icon} {'成功' if record.status == 'success' else '失败'}",
+                        cls=status_cls,
+                    ),
+                    cls="px-4 py-2 text-sm",
+                ),
                 Td(record.message or "-", cls="px-4 py-2 text-sm text-gray-500"),
                 cls="hover:bg-gray-50",
             )
         )
 
     if not rows:
-        rows.append(
-            Tr(
-                Td("暂无执行记录", colspan="3", cls="px-4 py-4 text-center text-gray-500")
-            )
-        )
+        rows.append(Tr(Td("暂无执行记录", colspan="3", cls="px-4 py-4 text-center text-gray-500")))
 
     return Table(
         Thead(
             Tr(
-                Th("执行时间", cls="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"),
+                Th(
+                    "执行时间",
+                    cls="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase",
+                ),
                 Th("状态", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
                 Th("说明", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
             )
@@ -475,7 +500,7 @@ def _build_history_table(history: list[JobHistoryRecord]) -> Table:
     )
 
 
-def _build_jobs_table(jobs_status: list[dict]) -> Table:
+def _build_jobs_table(jobs_status: list[dict[str, Any]]) -> Table:
     """构建任务列表表格"""
     rows = []
     for job in jobs_status:
@@ -490,7 +515,8 @@ def _build_jobs_table(jobs_status: list[dict]) -> Table:
                 Td(_build_job_status_badge(job["enabled"]), cls="px-4 py-3 text-sm"),
                 Td(
                     job["last_run"].executed_at.strftime("%Y-%m-%d %H:%M")
-                    if job["last_run"] else "--",
+                    if job["last_run"]
+                    else "--",
                     cls="px-4 py-3 text-sm text-gray-500",
                 ),
                 Td(
@@ -514,10 +540,19 @@ def _build_jobs_table(jobs_status: list[dict]) -> Table:
     return Table(
         Thead(
             Tr(
-                Th("任务名称", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
-                Th("调度时间", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
+                Th(
+                    "任务名称",
+                    cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase",
+                ),
+                Th(
+                    "调度时间",
+                    cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase",
+                ),
                 Th("状态", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
-                Th("上次执行", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
+                Th(
+                    "上次执行",
+                    cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase",
+                ),
                 Th("操作", cls="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"),
             )
         ),
@@ -566,8 +601,9 @@ def _build_detail_panel(job_id: str) -> Div:
 
 # ========== 路由 ==========
 
+
 @rt("/")
-async def index(req):
+async def index(req: Request) -> Any:
     """任务列表页面"""
     _init_scheduler_jobs()
 
@@ -599,12 +635,12 @@ async def index(req):
         cls="p-8",
     )
 
-    layout.main_block = page_content
+    layout.set_main_block(page_content)
     return layout.render(req)
 
 
 @rt("/toggle/{job_id}")
-async def toggle_job(job_id: str):
+async def toggle_job(job_id: str) -> Any:
     """启用/禁用任务"""
     job_def = PREDEFINED_JOBS.get(job_id)
     if not job_def:
@@ -618,7 +654,7 @@ async def toggle_job(job_id: str):
 
 
 @rt("/run/{job_id}")
-async def run_job(job_id: str):
+async def run_job(job_id: str) -> Any:
     """手动执行任务"""
     job_def = PREDEFINED_JOBS.get(job_id)
     if not job_def:
@@ -634,7 +670,7 @@ async def run_job(job_id: str):
 
 
 @rt("/detail/{job_id}")
-async def job_detail(job_id: str):
+async def job_detail(job_id: str) -> Any:
     """任务详情（HTMX 局部更新）"""
     job_def = PREDEFINED_JOBS.get(job_id)
     if not job_def:

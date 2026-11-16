@@ -10,6 +10,9 @@ Tushare ``stk_limit`` 的结果，使 Paper 撮合与 30 分钟线读取不必�
 
 import datetime
 from pathlib import Path
+from typing import Literal
+
+import polars as pl
 
 from quantide.data.models.calendar import Calendar
 from quantide.data.stores.base import ParquetStorage
@@ -18,7 +21,7 @@ from quantide.data.stores.base import ParquetStorage
 class LimitPriceStore(ParquetStorage):
     """涨跌停限价存储。"""
 
-    def __init__(self, path: str | Path, calendar: Calendar):
+    def __init__(self, path: str | Path, calendar: Calendar) -> None:
         """初始化涨跌停存储。
 
         Args:
@@ -26,7 +29,9 @@ class LimitPriceStore(ParquetStorage):
             calendar: 日历对象。
         """
         path = Path(path).expanduser()
-        partition_levels = None if path.suffix == ".parquet" else ("year", "month")
+        partition_levels: tuple[Literal["year", "month", "day"], ...] | None = (
+            None if path.suffix == ".parquet" else ("year", "month")
+        )
         super().__init__(
             "LimitPrice",
             path,
@@ -44,6 +49,8 @@ class LimitPriceStore(ParquetStorage):
     ) -> tuple[float, float]:
         """返回某资产某日的 (down_limit, up_limit)；缺失返回 (0.0, 0.0)。"""
         frame = self.get(assets=[asset], start=dt, end=dt, eager_mode=True)
+        if isinstance(frame, pl.LazyFrame):
+            frame = frame.collect()
         if frame is None or frame.is_empty():
             return 0.0, 0.0
         row = frame.row(0, named=True)
@@ -59,6 +66,8 @@ class LimitPriceStore(ParquetStorage):
     ) -> dict[str, tuple[float, float]]:
         """返回某日全部（或指定）资产的涨跌停映射。"""
         frame = self.get(assets=assets, start=dt, end=dt, eager_mode=True)
+        if isinstance(frame, pl.LazyFrame):
+            frame = frame.collect()
         if frame is None or frame.is_empty():
             return {}
         result: dict[str, tuple[float, float]] = {}

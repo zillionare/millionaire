@@ -181,13 +181,13 @@ def test_fetch_with_daily_progress_raises_on_errors(asset_dir, temp_partition_pa
     )
     store = ParquetStorage("error_store", store_path, calendar, fetch_data_func=fetch_func)
 
-    completed = store.fetch_with_daily_progress(
-        start=datetime.date(2024, 1, 2),
-        end=datetime.date(2024, 1, 2),
-        force=True,
-    )
-
-    assert completed == 0
+    with pytest.raises(RuntimeError, match="调用stk_st时出现异常"):
+        store.fetch_with_daily_progress(
+            start=datetime.date(2024, 1, 2),
+            end=datetime.date(2024, 1, 2),
+            force=True,
+        )
+    assert store.available_dates == []
 
 
 def test_available_dates(single_file_store):

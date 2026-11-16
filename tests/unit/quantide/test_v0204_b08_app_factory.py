@@ -43,15 +43,13 @@ def test_check_single_instance_creates_pid_file(tmp_path, monkeypatch):
 
 
 def test_check_single_instance_exits_cleanly_when_already_running(tmp_path, monkeypatch):
-    """When pid file points to a live process, RuntimeError is raised."""
+    """When another process owns the OS lock, RuntimeError is raised."""
     pid_file = tmp_path / "test.pid"
     pid_file.parent.mkdir(parents=True, exist_ok=True)
-    # Use current PID to simulate self-running.
-    pid_file.write_text(str(os.getpid()))
-    monkeypatch.setattr(
-        "quantide.app_factory.get_pid_file_path", lambda: pid_file
-    )
-    with pytest.raises(RuntimeError):
+    from filelock import FileLock
+
+    monkeypatch.setattr("quantide.app_factory.get_pid_file_path", lambda: pid_file)
+    with FileLock(str(pid_file) + ".lock", timeout=0), pytest.raises(RuntimeError):
         _check_single_instance()
 
 
@@ -80,38 +78,22 @@ def test_initialize_app_database_returns_path(db):
     assert out is not None
 
 
-def test_initialize_app_database_recovers_from_corrupt_db(tmp_path, monkeypatch):
-    """When init fails, the corrupt db is renamed with .corrupt.<ts>."""
+def test_initialize_app_database_preserves_original_on_error(tmp_path, monkeypatch):
+    """Transient locks must never replace a healthy database with an empty one."""
+    import sqlite3
     from quantide import app_factory
-    from quantide.data import sqlite as sqlite_mod
 
-    # Create a corrupt db file (a directory in place of file)
-    db_dir = tmp_path / "app_home"
-    db_dir.mkdir()
-    db_path = db_dir / "quantide.db"
-    db_path.write_text("not a sqlite db")
-
-    # Force db.init to raise first time, succeed on retry.
-    call_count = [0]
-    original_init = sqlite_mod.db.init
-
-    def _maybe_init(path):
-        call_count[0] += 1
-        if call_count[0] == 1:
-            raise RuntimeError("corrupt")
-        return original_init(path)
-
-    monkeypatch.setattr(app_factory, "db", sqlite_mod.db)
-    monkeypatch.setattr(sqlite_mod.db, "init", _maybe_init)
-    monkeypatch.setattr(
-        "quantide.app_factory.get_app_db_path", lambda: db_path
-    )
-
-    out = _initialize_app_database()
-    assert out == db_path
-    # The corrupt file should have been renamed.
-    backups = list(db_dir.glob("*.corrupt.*"))
-    assert len(backups) >= 1
+    db_path = tmp_path / "quantide.db"
+    original = b"original database contents"
+    db_path.write_bytes(original)
+    monkeypatch.setattr(app_factory, "get_app_db_path", lambda: db_path)
+    def locked(path):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(app_factory.db, "init", locked)
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        _initialize_app_database()
+    assert db_path.read_bytes() == original
+    assert not list(tmp_path.glob("*.corrupt.*"))
 
 
 # ---------------------------------------------------------------------------

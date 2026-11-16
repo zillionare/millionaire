@@ -1,70 +1,52 @@
 """历史持仓页面"""
 
-import datetime
+from typing import Any
 
 from fasthtml.common import *
+from fasthtml.common import (
+    Div,
+    P,
+    Thead,
+    Tr,
+    to_xml,
+)
 from monsterui.all import *
+from monsterui.all import (
+    H1,
+    Form,
+    Table,
+    Tbody,
+    Td,
+    Th,
+)
+from starlette.requests import Request
 from starlette.responses import HTMLResponse
 
 from quantide.core.enums import BrokerKind
 from quantide.data.sqlite import db
+from quantide.web.components.history_filters import (
+    DateRangePicker as DateRangePicker,
+)
+from quantide.web.components.history_filters import (
+    UnselectedHistory,
+)
+from quantide.web.components.history_filters import (
+    _get_active_account as _get_active_account,
+)
 from quantide.web.layouts.main import MainLayout
-from quantide.web.pages.history_common import display_name
+from quantide.web.pages.history_common import (
+    display_name,
+    history_date_range,
+    history_rows,
+)
+from quantide.web.semantic_styles import profit_text
 
 
-def _get_registry(req):
+def _get_registry(req: Request) -> Any:
     return req.scope.get("registry")
 
 
-def _get_active_account(req) -> tuple[str, str] | None:
-    """获取当前活动账户"""
-    session = req.scope.get("session", {})
-    kind = session.get("active_account_kind")
-    account_id = session.get("active_account_id")
-    if kind and account_id:
-        return kind, account_id
-    return None
-
-
-def DateRangePicker(start_date: str = "", end_date: str = ""):
-    """日期范围选择器"""
-    today = datetime.date.today().isoformat()
-    if not start_date:
-        start_date = today
-    if not end_date:
-        end_date = today
-
-    return Div(
-        Div(
-            Span("开始日期", cls="text-sm text-gray-600 mr-2"),
-            Input(
-                type="date",
-                name="start_date",
-                value=start_date,
-                cls="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500",
-            ),
-            cls="flex items-center",
-        ),
-        Div(
-            Span("结束日期", cls="text-sm text-gray-600 mr-2"),
-            Input(
-                type="date",
-                name="end_date",
-                value=end_date,
-                cls="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500",
-            ),
-            cls="flex items-center ml-4",
-        ),
-        Button(
-            "查询",
-            type="submit",
-            cls="ml-4 px-4 py-2 bg-[#e41815] text-white rounded-lg hover:bg-[#c91412]",
-        ),
-        cls="flex items-center mb-6",
-    )
-
-
-def PositionTable(positions: list[dict]):
+def PositionTable(positions: list[dict[str, Any]]) -> Any:
     """持仓表格"""
     if not positions:
         return Div(
@@ -97,14 +79,17 @@ def PositionTable(positions: list[dict]):
                         Td(f"{pos.get('shares', 0):,}", cls="py-3 text-sm text-right"),
                         Td(f"{pos.get('cost_price', 0):.2f}", cls="py-3 text-sm text-right"),
                         Td(f"{pos.get('current_price', 0):.2f}", cls="py-3 text-sm text-right"),
-                        Td(f"{pos.get('market_value', 0)/10000:.2f}万", cls="py-3 text-sm text-right"),
                         Td(
-                            f"{pos.get('pnl', 0)/10000:.2f}万",
-                            cls=f"py-3 text-sm text-right {'text-red-600' if pos.get('pnl', 0) >= 0 else 'text-green-600'}",
+                            f"{pos.get('market_value', 0) / 10000:.2f}万",
+                            cls="py-3 text-sm text-right",
                         ),
                         Td(
-                            f"{pos.get('pnl_pct', 0)*100:.2f}%",
-                            cls=f"py-3 text-sm text-right {'text-red-600' if pos.get('pnl_pct', 0) >= 0 else 'text-green-600'}",
+                            f"{pos.get('pnl', 0) / 10000:.2f}万",
+                            cls=(f"py-3 text-sm text-right {profit_text(pos.get('pnl', 0))}"),
+                        ),
+                        Td(
+                            f"{pos.get('pnl_pct', 0) * 100:.2f}%",
+                            cls=(f"py-3 text-sm text-right {profit_text(pos.get('pnl_pct', 0))}"),
                         ),
                     )
                     for pos in positions
@@ -117,12 +102,17 @@ def PositionTable(positions: list[dict]):
     )
 
 
-def HistoryPositionsPage(positions: list[dict], start_date: str, end_date: str, account_name: str = ""):
+def HistoryPositionsPage(
+    positions: list[dict[str, Any]], start_date: str, end_date: str, account_name: str = ""
+) -> Any:
     """历史持仓页面内容"""
     return Div(
         Div(
             H1("历史持仓", cls="text-2xl font-bold text-gray-900"),
-            P(f"当前账户: {account_name}" if account_name else "", cls="text-sm text-gray-500 mt-1"),
+            P(
+                f"当前账户: {account_name}" if account_name else "",
+                cls="text-sm text-gray-500 mt-1",
+            ),
             cls="mb-6",
         ),
         Form(
@@ -136,7 +126,7 @@ def HistoryPositionsPage(positions: list[dict], start_date: str, end_date: str, 
     )
 
 
-def history_positions_list(request):
+def history_positions_list(request: Request) -> Any:
     """历史持仓列表页面"""
     session = request.scope.get("session", {})
     layout = MainLayout(title="历史持仓", user=session.get("auth"))
@@ -146,11 +136,7 @@ def history_positions_list(request):
     # 获取活动账户
     active = _get_active_account(request)
     if not active:
-        layout.main_block = lambda: Div(
-            P("请先选择活动账户", cls="text-gray-500 text-center py-8"),
-            cls="p-6",
-        )
-        return HTMLResponse(to_xml(layout.render()))
+        return UnselectedHistory(layout)
 
     kind, account_id = active
 
@@ -163,47 +149,43 @@ def history_positions_list(request):
             account_name = broker.portfolio_name
 
     # 获取查询日期范围
-    start_date = request.query_params.get("start_date", "")
-    end_date = request.query_params.get("end_date", "")
-
-    if not start_date:
-        start_date = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
-    if not end_date:
-        end_date = datetime.date.today().isoformat()
+    start_date, end_date = history_date_range(request.query_params)
 
     # 查询持仓数据
     positions = []
     try:
-        df = db.query_positions(
-            portfolio_id=account_id,
-            start=datetime.date.fromisoformat(start_date),
-            end=datetime.date.fromisoformat(end_date),
-        )
-        if not df.is_empty():
-            for row in df.iter_rows(named=True):
-                # 计算盈亏
-                shares = row.get("shares", 0)
-                cost_price = row.get("price", 0)  # 成本价
-                current_price = row.get("current_price", cost_price)  # 当前价
-                market_value = shares * current_price
-                cost_value = shares * cost_price
-                pnl = market_value - cost_value
-                pnl_pct = (pnl / cost_value) if cost_value else 0
-
-                asset = str(row.get("asset", "") or "")
-                positions.append({
-                    "dt": row.get("dt", ""),
-                    "asset": asset,
-                    "name": display_name(asset, row.get("name", "")),
-                    "shares": shares,
-                    "cost_price": cost_price,
-                    "current_price": current_price,
-                    "market_value": market_value,
-                    "pnl": pnl,
-                    "pnl_pct": pnl_pct,
-                })
+        positions = [
+            _history_position_row(row)
+            for row in history_rows(db.query_positions, account_id, start_date, end_date)
+        ]
     except Exception as e:
         print(f"Failed to query positions: {e}")
 
-    layout.main_block = lambda: HistoryPositionsPage(positions, start_date, end_date, account_name)
+    layout.set_main_block(
+        lambda: HistoryPositionsPage(positions, start_date, end_date, account_name)
+    )
     return HTMLResponse(to_xml(layout.render()))
+
+
+def _history_position_row(row: Any) -> Any:
+    """Build one historical cost and PnL read model."""
+    shares = row.get("shares", 0)
+    cost_price = row.get("price", 0)  # 成本价
+    current_price = row.get("current_price", cost_price)  # 当前价
+    market_value = shares * current_price
+    cost_value = shares * cost_price
+    pnl = market_value - cost_value
+    pnl_pct = (pnl / cost_value) if cost_value else 0
+
+    asset = str(row.get("asset", "") or "")
+    return {
+        "dt": row.get("dt", ""),
+        "asset": asset,
+        "name": display_name(asset, row.get("name", "")),
+        "shares": shares,
+        "cost_price": cost_price,
+        "current_price": current_price,
+        "market_value": market_value,
+        "pnl": pnl,
+        "pnl_pct": pnl_pct,
+    }
