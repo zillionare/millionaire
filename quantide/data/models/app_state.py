@@ -81,6 +81,12 @@ class AppState(Entity):
     app_home: str = ""
     """应用 home 目录"""
 
+    factor_dir: str = ""
+    """用户因子插件目录"""
+
+    strategy_dir: str = ""
+    """用户策略目录"""
+
     app_host: str = "127.0.0.1"
     """应用监听地址（默认仅本机）"""
 

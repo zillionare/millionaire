@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from quantide.factors.metadata import FACTOR_METADATA
+from quantide.factors.registry import all_factor_ids
 from quantide.service import factor_tracking as ft
 from quantide.service.factor_runs import (
     CANCELLED,
@@ -154,7 +154,7 @@ def cancel_refresh(factor_id: str) -> bool:
 
 def trigger_refresh_all() -> int:
     groups: dict[str, list[str]] = {}
-    for factor_id in FACTOR_METADATA:
+    for factor_id in all_factor_ids():
         profile = ft.load_profile(factor_id)
         if profile.enabled:
             groups.setdefault(profile.lookback, []).append(factor_id)

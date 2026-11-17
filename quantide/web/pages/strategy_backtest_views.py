@@ -34,7 +34,7 @@ from quantide.config.features import (
 from quantide.core.enums import BrokerKind
 from quantide.core.strategy import Strategy
 from quantide.data.sqlite import db
-from quantide.factors import FEATURE_DOCS, FEATURE_GROUPS
+from quantide.factors.registry import feature_docs, feature_groups
 from quantide.service.backtest_params import (
     default_backtest_params,
     format_changed_params,
@@ -371,10 +371,11 @@ def _build_param_inputs(
 def _build_feature_selection_panel() -> Any:
     """构建因子勾选面板（向导第二步）。"""
     groups: list[Any] = []
-    for group, names in FEATURE_GROUPS.items():
+    docs = feature_docs()
+    for group, names in feature_groups().items():
         items: list[Any] = []
         for name in names:
-            doc = FEATURE_DOCS.get(name, "")
+            doc = docs.get(name, "")
             items.append(
                 Div(
                     fh.Label(

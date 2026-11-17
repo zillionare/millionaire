@@ -33,6 +33,7 @@ from quantide.core.init_wizard_steps import (
 from quantide.data.fetchers.registry import register_builtin_fetchers
 from quantide.data.models.app_state import AppState
 from quantide.data.sqlite import db
+from quantide.service.workspace_dirs import normalize_workspace_directories
 from quantide.web.auth.manager import AuthManager
 
 
@@ -71,6 +72,8 @@ class InitWizardService:
         settings = get_settings()
 
         state.app_home = settings.app_home
+        state.factor_dir = getattr(settings, "factor_dir", "")
+        state.strategy_dir = getattr(settings, "strategy_dir", "")
         state.app_host = settings.app_host
         state.app_port = settings.app_port
         state.app_prefix = settings.app_prefix
@@ -268,26 +271,42 @@ class InitWizardService:
         host: str,
         port: int,
         prefix: str,
+        *,
+        factor_dir: str | None = None,
+        strategy_dir: str | None = None,
     ) -> None:
-        """保存运行环境配置.
+        """保存运行环境与三个持久化工作目录.
 
         Args:
-            home: home 目录。
+            home: 数据存储目录。
             host: 服务地址。
             port: 服务端口。
             prefix: 服务前缀。
+            factor_dir: 用户因子目录；None 表示保留当前值。
+            strategy_dir: 用户策略目录；None 表示保留当前值。
         """
         from quantide.config.server_address import validate_address
 
         host, port = validate_address(host, port)
-        normalized_home = normalize_data_home(home)
-
         state = self.get_state()
-        state.app_home = normalized_home
+        directories = normalize_workspace_directories(
+            normalize_data_home(home),
+            factor_dir if factor_dir is not None else state.factor_dir,
+            strategy_dir if strategy_dir is not None else state.strategy_dir,
+        )
+        factor_changed = state.factor_dir != directories.factor_dir
+
+        state.app_home = directories.data_home
+        state.factor_dir = directories.factor_dir
+        state.strategy_dir = directories.strategy_dir
         state.app_host = host.strip()
         state.app_port = int(port)
         state.app_prefix = prefix.strip() or "/"
         self.save_state(state)
+        if factor_changed:
+            from quantide.factors.plugins import clear_plugin_cache
+
+            clear_plugin_cache()
         auth = AuthManager.get_instance()
         if auth is not None:
             db_path = str(get_app_db_path().resolve())

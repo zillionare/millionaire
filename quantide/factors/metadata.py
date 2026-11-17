@@ -268,11 +268,18 @@ FACTOR_METADATA: dict[str, FactorDefinition] = {
 
 
 def factor_definition(factor_id: str) -> FactorDefinition:
-    return FACTOR_METADATA[factor_id]
+    from quantide.factors.registry import factor_definition as _factor_definition
+
+    try:
+        return _factor_definition(factor_id)
+    except KeyError:
+        raise KeyError(factor_id) from None
 
 
 def list_factor_definitions() -> list[FactorDefinition]:
-    return [factor_definition(factor_id) for factor_id in FEATURE_COLS]
+    from quantide.factors.registry import list_factor_definitions as _list_factor_definitions
+
+    return _list_factor_definitions()
 
 
 def normalized_tracking_defaults(factor_id: str) -> NormalizedTrackingDefaults:

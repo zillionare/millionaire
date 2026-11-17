@@ -12,8 +12,8 @@ from fasthtml.common import Button as ActionButton
 from fasthtml.common import Input as TextInput
 from fasthtml.common import Select as PlainSelect
 
-from quantide.factors.alpha import FEATURE_GROUPS
 from quantide.factors.metadata import FactorDefinition
+from quantide.factors.registry import feature_groups
 from quantide.service.factor_tracking import TrackingView
 from quantide.web.components.data_tables import DatasetTable
 from quantide.web.pages.factors_ui import fmt_number, fmt_percent, fmt_time
@@ -220,7 +220,7 @@ def overview_toolbar(
                 Option("全部分组", value="", selected=not group_filter),
                 *[
                     Option(group, value=group, selected=group_filter == group)
-                    for group in FEATURE_GROUPS
+                    for group in feature_groups()
                 ],
                 name="group",
                 aria_label="按因子分组筛选",

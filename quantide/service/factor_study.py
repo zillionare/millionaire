@@ -13,7 +13,8 @@ import polars as pl
 from quantide.core.market_time import market_now
 from quantide.data.models.calendar import calendar as trade_calendar
 from quantide.factors.alphatest import load_factor_panel
-from quantide.factors.metadata import FACTOR_METADATA, Holding
+from quantide.factors.metadata import Holding
+from quantide.factors.registry import all_factor_ids
 from quantide.factors.research import (
     STATISTICS_VERSION,
     Bucket,
@@ -215,7 +216,7 @@ def validate_study_request(
     holding_days: list[int] | tuple[int, ...],
     price_field: str = "open",
 ) -> tuple[Holding, ...]:
-    if factor_id not in FACTOR_METADATA:
+    if factor_id not in all_factor_ids():
         raise KeyError(factor_id)
     if start > end:
         raise ValueError("开始日期不能晚于结束日期")

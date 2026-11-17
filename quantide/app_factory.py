@@ -65,6 +65,7 @@ from quantide.web.pages.paper import paper_app
 from quantide.web.pages.strategy import strategy_app
 from quantide.web.pages.system.calendar import system_calendar_app
 from quantide.web.pages.system.datasource import system_datasource_app
+from quantide.web.pages.system.directories import system_directories_app
 from quantide.web.pages.system.gateway import system_gateway_app
 from quantide.web.pages.system.jobs import _init_scheduler_jobs, system_jobs_app
 from quantide.web.pages.system.market import system_market_app
@@ -163,6 +164,7 @@ def _attach_runtime_to_app_states(runtime: RuntimeBootstrap) -> None:
         init_wizard_app,
         system_calendar_app,
         system_datasource_app,
+        system_directories_app,
         system_gateway_app,
         system_jobs_app,
         system_market_app,
@@ -190,6 +192,7 @@ def _attach_root_app_to_app_states(root_app: FastHTML) -> None:
         init_wizard_app,
         system_calendar_app,
         system_datasource_app,
+        system_directories_app,
         system_gateway_app,
         system_jobs_app,
         system_market_app,
@@ -516,6 +519,12 @@ def create_app(
                 methods=["GET"],
             ),
             Mount("/system/network", system_network_app),
+            Route(
+                "/system/directories",
+                lambda req: RedirectResponse("/system/directories/", status_code=303),
+                methods=["GET"],
+            ),
+            Mount("/system/directories", system_directories_app),
             Route(
                 "/system/risk-events",
                 lambda req: RedirectResponse("/system/risk-events/", status_code=303),

@@ -18,11 +18,10 @@ from quantide.data.models.daily_basic import daily_basic
 from quantide.data.models.stocks import stock_list
 from quantide.factors.alpha import (
     FACTOR_VERSION,
-    FEATURE_COLS,
-    compute_alpha_features,
     standardize_features,
 )
 from quantide.factors.catalog import resolve_feature_selection
+from quantide.factors.registry import all_factor_ids, catalog_version, compute_feature_panel
 from quantide.service.model_store import ModelArtifact, model_key, model_store
 from quantide.strategies.example._ml_explanation import MLExplanation
 from quantide.strategies.example._ml_rebalance import MLRebalance
@@ -132,9 +131,9 @@ def _cache_backtest_feature_panel(
 ) -> None:
     """Compute and cache the normalized feature panel for the backtest window."""
     stock_meta = stock_list.data if stock_list.size > 0 else None
-    feat_panel = compute_alpha_features(raw_panel, stock_meta=stock_meta)
+    feat_panel = compute_feature_panel(raw_panel, self.selected_features, stock_meta=stock_meta)
     self._cached_norm_panel = standardize_features(
-        feat_panel, self.selected_features or FEATURE_COLS
+        feat_panel, self.selected_features or all_factor_ids()
     )
     self._panel_start = signal_date
     self._panel_end = fetch_end
@@ -210,7 +209,10 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         self._model: object | None = None
         self._model_engine: str = "LightGBM" if self.use_lightgbm else "Prior-Ridge"
         #: 模型持久化键（策略名 + 模型相关配置哈希），回测/仿真/实盘共用
-        self._model_key = model_key(self.__class__.__name__, self.config)
+        self._model_key = model_key(
+            self.__class__.__name__,
+            {**self.config, "factor_catalog_version": catalog_version()},
+        )
         self._model_train_end: datetime.date | None = None
         self._model_effective_from: datetime.date | None = None
         self._model_pending: bool = False
@@ -351,7 +353,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             train_window=self.train_window,
             horizon=self.future_return_horizon,
             use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or FEATURE_COLS,
+            feature_cols=self.selected_features or all_factor_ids(),
             label_cache_key=self._panel_cache_key(day),
         )
         if model is None:
@@ -388,7 +390,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             train_window=self.train_window,
             horizon=self.future_return_horizon,
             use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or FEATURE_COLS,
+            feature_cols=self.selected_features or all_factor_ids(),
             label_cache_key=self._panel_cache_key(next_day),
         )
         if model is None:
@@ -550,7 +552,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             self.universe_mode,
             tuple(self.index_pool_codes),
             round(self.market_cap_trim_pct, 6),
-            tuple(self.selected_features or FEATURE_COLS),
+            tuple(self.selected_features or all_factor_ids()),
             tuple(self._held_assets(signal_date)),
             self.custom_assets,
             _bars_fingerprint(),
@@ -716,8 +718,8 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         if panel.height < 5:
             return [], {}, {}
 
-        feature_cols = self.selected_features or FEATURE_COLS
-        feat_df = compute_alpha_features(panel)
+        feature_cols = self.selected_features or all_factor_ids()
+        feat_df = compute_feature_panel(panel, feature_cols)
         norm_df = standardize_features(feat_df, feature_cols)
         target_date: datetime.date = norm_df["date"].max()  # type: ignore[assignment]
         if is_live and self._model is None:
@@ -856,7 +858,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             cross_df,
             self._model,
             self._model_engine,
-            self.selected_features or FEATURE_COLS,
+            self.selected_features or all_factor_ids(),
             target_date,
             self.top_k,
         )
@@ -927,9 +929,9 @@ def _rank_selection_panel(
 ) -> list[dict[str, Any]]:
     """Compute, fit and rank a fixed candidate panel."""
     stock_meta = stock_list.data if stock_list.size > 0 else None
-    features = resolve_feature_selection(selected_features) or FEATURE_COLS
+    features = resolve_feature_selection(selected_features) or all_factor_ids()
     normalized = standardize_features(
-        compute_alpha_features(panel, stock_meta=stock_meta), features
+        compute_feature_panel(panel, features, stock_meta=stock_meta), features
     )
     model, engine = _fit_ml_model(
         normalized,

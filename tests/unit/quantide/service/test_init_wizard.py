@@ -43,16 +43,10 @@ def test_get_state_loads_defaults_from_config(db, monkeypatch):
         epoch=datetime.date(2015, 1, 1),
     )
     monkeypatch.setattr(init_wizard_module, "get_settings", lambda: fake_settings)
-    monkeypatch.setattr(
-        init_wizard_module, "get_dingtalk_access_token", lambda: "dt-token"
-    )
+    monkeypatch.setattr(init_wizard_module, "get_dingtalk_access_token", lambda: "dt-token")
     monkeypatch.setattr(init_wizard_module, "get_dingtalk_secret", lambda: "dt-secret")
-    monkeypatch.setattr(
-        init_wizard_module, "get_dingtalk_keyword", lambda: "dt-keyword"
-    )
-    monkeypatch.setattr(
-        init_wizard_module, "get_mail_receivers", lambda: ["to@example.com"]
-    )
+    monkeypatch.setattr(init_wizard_module, "get_dingtalk_keyword", lambda: "dt-keyword")
+    monkeypatch.setattr(init_wizard_module, "get_mail_receivers", lambda: ["to@example.com"])
     monkeypatch.setattr(init_wizard_module, "get_mail_sender", lambda: "from@example.com")
     monkeypatch.setattr(init_wizard_module, "get_mail_server", lambda: "smtp.example.com")
     monkeypatch.setattr(init_wizard_module, "get_tushare_token", lambda: "ts-cfg-token")
@@ -242,7 +236,9 @@ def test_save_admin_password_updates_existing_admin(db, monkeypatch):
             return True
 
     fake_auth = SimpleNamespace(user_repo=FakeRepo())
-    monkeypatch.setattr(init_wizard_module.AuthManager, "get_instance", staticmethod(lambda: fake_auth))
+    monkeypatch.setattr(
+        init_wizard_module.AuthManager, "get_instance", staticmethod(lambda: fake_auth)
+    )
 
     service = InitWizardService()
     service.save_admin_password("new-secret")
@@ -426,9 +422,7 @@ class TestFeatureStatusWithRealReachableGateway:
         from tests.e2e.support.gateway_stub import running_gateway_stub
 
         monkeypatch.setattr(init_wizard_module, "supports_live_trading", lambda: True)
-        monkeypatch.setattr(
-            "quantide.data.models.app_state.supports_live_trading", lambda: True
-        )
+        monkeypatch.setattr("quantide.data.models.app_state.supports_live_trading", lambda: True)
         service = InitWizardService()
         service.save_state(
             AppState(
@@ -457,3 +451,29 @@ class TestFeatureStatusWithRealReachableGateway:
         assert status["backtest"] is True
         assert status["simulation"] is True
         assert status["live_trading"] is True
+
+
+def test_save_runtime_config_persists_workspace_directories(db, monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        init_wizard_module.AuthManager,
+        "get_instance",
+        staticmethod(lambda: None),
+    )
+    service = InitWizardService()
+    factor_dir = tmp_path / "factors"
+    strategy_dir = tmp_path / "strategies"
+
+    service.save_runtime_config(
+        home=str(tmp_path / "market"),
+        host="127.0.0.1",
+        port=8130,
+        prefix="/",
+        factor_dir=str(factor_dir),
+        strategy_dir=str(strategy_dir),
+    )
+
+    state = service.get_state(force_refresh=True)
+    assert state.factor_dir == str(factor_dir.resolve())
+    assert state.strategy_dir == str(strategy_dir.resolve())
+    assert factor_dir.is_dir()
+    assert strategy_dir.is_dir()

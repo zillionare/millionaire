@@ -110,6 +110,13 @@ SYSTEM_MAINTENANCE_MENU = [
                 "icon_path": "M4 4h16v12H4zM8 20h8m-4-4v4",
             },
             {
+                "title": "工作目录",
+                "url": "/system/directories",
+                "icon_path": (
+                    "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
+                ),
+            },
+            {
                 "title": "定时任务",
                 "url": "/system/jobs",
                 "icon_path": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",

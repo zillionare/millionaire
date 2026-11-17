@@ -38,13 +38,12 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, RedirectResponse
 
-from quantide.factors.alpha import FEATURE_GROUPS
 from quantide.factors.metadata import (
-    FACTOR_METADATA,
     FactorDefinition,
     factor_definition,
     list_factor_definitions,
 )
+from quantide.factors.registry import factor_metadata, feature_groups, plugin_skipped_entries
 from quantide.factors.research import summarize_ic
 from quantide.service.factor_study import CustomStudy
 from quantide.service.factor_study_worker import (
@@ -117,11 +116,12 @@ def _factor_menu(active_url: str = "") -> list[dict[str, Any]]:
     menu: list[dict[str, Any]] = [
         {"title": "因子总览", "url": "/factors/", "active": active_url == "/factors/"}
     ]
-    for group, ids in FEATURE_GROUPS.items():
+    metadata = factor_metadata()
+    for group, ids in feature_groups().items():
         children = [
             {
-                "title": FACTOR_METADATA[factor_id].display_name,
-                "search": f"{FACTOR_METADATA[factor_id].display_name} {factor_id}",
+                "title": metadata[factor_id].display_name,
+                "search": f"{metadata[factor_id].display_name} {factor_id}",
                 "url": f"/factors/{factor_id}",
                 "active": active_url == f"/factors/{factor_id}",
             }
@@ -129,6 +129,36 @@ def _factor_menu(active_url: str = "") -> list[dict[str, Any]]:
         ]
         menu.append({"title": group, "children": children})
     return menu
+
+
+def _known_factor(factor_id: str) -> bool:
+    return factor_id in factor_metadata()
+
+
+def _plugin_diagnostics() -> Any:
+    entries = plugin_skipped_entries()
+    if not entries:
+        return None
+    rows = [
+        Tr(
+            Td(entry.file_path, cls="px-3 py-2 text-xs text-gray-600"),
+            Td(entry.reason.value, cls="px-3 py-2 text-xs text-amber-700"),
+            Td(entry.detail, cls="px-3 py-2 text-xs text-gray-500"),
+        )
+        for entry in entries
+    ]
+    return Details(
+        Summary(
+            f"外部因子诊断：{len(entries)} 个文件未加载",
+            cls="cursor-pointer text-sm font-medium text-amber-700",
+        ),
+        Table(
+            Thead(Tr(Th("文件"), Th("原因"), Th("详情"))),
+            Tbody(*rows),
+            cls="mt-2 w-full text-left",
+        ),
+        cls="rounded-xl border border-amber-200 bg-amber-50 p-4",
+    )
 
 
 def _layout(title: str, active_url: str) -> MainLayout:
@@ -693,6 +723,7 @@ def index(req: Request) -> Any:
             ),
         ),
         _overview_summary(entries),
+        _plugin_diagnostics(),
         _tracking_onboarding(entries),
         Div(
             _overview_toolbar(
@@ -729,7 +760,7 @@ def refresh_all(req: Request) -> RedirectResponse:
 @rt("/{factor_id}/refresh", methods=["post"])
 def refresh_one(req: Request, factor_id: str) -> RedirectResponse:
     _require_maintenance(req)
-    if factor_id not in FACTOR_METADATA:
+    if not _known_factor(factor_id):
         return RedirectResponse("/factors/", status_code=303)
     trigger_refresh(factor_id)
     return RedirectResponse(f"/factors/{factor_id}?tab=report", status_code=303)
@@ -738,7 +769,7 @@ def refresh_one(req: Request, factor_id: str) -> RedirectResponse:
 @rt("/{factor_id}/profile/reset", methods=["post"])
 def reset_tracking_profile(req: Request, factor_id: str) -> RedirectResponse:
     _require_maintenance(req)
-    if factor_id not in FACTOR_METADATA:
+    if not _known_factor(factor_id):
         return RedirectResponse("/factors/", status_code=303)
     reset_profile(factor_id)
     trigger_refresh(factor_id)
@@ -748,7 +779,7 @@ def reset_tracking_profile(req: Request, factor_id: str) -> RedirectResponse:
 @rt("/{factor_id}/profile/from-study", methods=["post"])
 async def profile_from_study(req: Request, factor_id: str) -> Any:
     _require_maintenance(req)
-    if factor_id not in FACTOR_METADATA:
+    if not _known_factor(factor_id):
         return RedirectResponse("/factors/", status_code=303)
     form = await req.form()
     holdings = [int(value) for value in form.getlist("holding_days") if isinstance(value, str)]
@@ -771,7 +802,7 @@ async def profile_from_study(req: Request, factor_id: str) -> Any:
 @rt("/{factor_id}/study", methods=["post"])
 async def custom_study(req: Request, factor_id: str) -> Any:
     _require_maintenance(req)
-    if factor_id not in FACTOR_METADATA:
+    if not _known_factor(factor_id):
         return PlainTextResponse("因子不存在", status_code=404)
     meta = factor_definition(factor_id)
     form = await req.form()
@@ -796,7 +827,7 @@ async def custom_study(req: Request, factor_id: str) -> Any:
 @rt("/{factor_id}/study/{run_id}/cancel", methods=["post"])
 async def cancel_custom_study(req: Request, factor_id: str, run_id: str) -> Any:
     _require_maintenance(req)
-    if factor_id not in FACTOR_METADATA:
+    if not _known_factor(factor_id):
         return PlainTextResponse("因子不存在", status_code=404)
     task = study_run(run_id)
     if task is not None and factor_id in task.factor_ids:
@@ -807,7 +838,7 @@ async def cancel_custom_study(req: Request, factor_id: str, run_id: str) -> Any:
 @rt("/{factor_id}/profile", methods=["post"])
 async def update_profile(req: Request, factor_id: str) -> Any:
     _require_maintenance(req)
-    if factor_id not in FACTOR_METADATA:
+    if not _known_factor(factor_id):
         return RedirectResponse("/factors/", status_code=303)
     form = await req.form()
     try:
@@ -865,7 +896,7 @@ def _render_detail(
 
 @rt("/{factor_id}")
 def detail(req: Request, factor_id: str) -> Any:
-    if factor_id not in FACTOR_METADATA:
+    if not _known_factor(factor_id):
         return PlainTextResponse("因子不存在", status_code=404)
     meta = factor_definition(factor_id)
     view = tracking_view(factor_id)

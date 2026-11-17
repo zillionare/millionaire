@@ -27,6 +27,7 @@ from quantide.audit.performance import (
     attribute_period,
     link_carino,
 )
+from quantide.audit.plugin_factor import audit_factor_plugin, build_plugin_spec
 from quantide.audit.runner import AuditRunner
 from quantide.audit.statistics import (
     StatisticalProfile,
@@ -66,6 +67,8 @@ __all__ = [
     "Position",
     "assert_future_invariance",
     "audit_factor",
+    "audit_factor_plugin",
+    "build_plugin_spec",
     "callback_check",
     "attribute_period",
     "build_factor_spec",

@@ -14,10 +14,10 @@ from loguru import logger
 from quantide.core.atomic_files import read_json_dict, write_json
 from quantide.core.market_time import market_now
 from quantide.factors.metadata import (
-    FACTOR_METADATA,
     Holding,
     normalized_tracking_defaults,
 )
+from quantide.factors.registry import all_factor_ids
 
 HOLDING_CHOICES: tuple[Holding, ...] = (1, 2, 3, 5, 10, 20)
 LOOKBACKS = ("1y", "3y", "5y", "all")
@@ -97,7 +97,7 @@ def _write_profiles(path: Path, profiles: dict[str, Any]) -> None:
 
 
 def load_profile(root: Path, factor_id: str) -> TrackingProfile:
-    if factor_id not in FACTOR_METADATA:
+    if factor_id not in all_factor_ids():
         raise KeyError(factor_id)
     path = profiles_path(root)
     with PROFILE_LOCK:
@@ -137,7 +137,7 @@ def save_profile(
     enabled: bool = True,
     source_study_id: str | None = None,
 ) -> TrackingProfile:
-    if factor_id not in FACTOR_METADATA:
+    if factor_id not in all_factor_ids():
         raise KeyError(factor_id)
     path = profiles_path(root)
     with PROFILE_LOCK, FileLock(str(path) + ".profiles.lock", timeout=30):
@@ -164,7 +164,7 @@ def save_profile(
 
 
 def reset_profile(root: Path, factor_id: str) -> TrackingProfile:
-    if factor_id not in FACTOR_METADATA:
+    if factor_id not in all_factor_ids():
         raise KeyError(factor_id)
     path = profiles_path(root)
     with PROFILE_LOCK, FileLock(str(path) + ".profiles.lock", timeout=30):

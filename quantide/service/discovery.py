@@ -120,6 +120,20 @@ class StrategyLoader:
             logger.warning(f"Failed to get scan directory from db: {e}")
         return ""
 
+    def get_workspace_strategy_directory(self) -> str:
+        """返回初始化向导明确保存的用户策略目录。
+
+        未保存过的默认路径不参与额外扫描，避免在旧行为上无条件增加目录。
+        """
+        try:
+            row = db["app_state"].get(1)
+        except Exception as e:
+            logger.warning(f"Failed to get workspace strategy directory: {e}")
+            return ""
+        if not isinstance(row, dict):
+            return ""
+        return str(row.get("strategy_dir") or "").strip()
+
     def get_scan_directory(self) -> str:
         """返回当前主扫描目录。
 
@@ -127,17 +141,22 @@ class StrategyLoader:
         """
         return self.get_user_scan_directory() or self.get_builtin_scan_directory()
 
+    def _extra_scan_directories(self) -> list[Path]:
+        directories: list[Path] = []
+        candidates = (self.get_user_scan_directory(), self.get_workspace_strategy_directory())
+        for value in candidates:
+            if not str(value or "").strip():
+                continue
+            resolved = Path(value).expanduser().resolve()
+            if resolved != self._builtin_example_dir and resolved not in directories:
+                directories.append(resolved)
+        return directories
+
     def get_scan_directories(self) -> list[str]:
         """返回实际参与扫描的目录列表。"""
-        directories = [self.get_builtin_scan_directory()]
-        user_dir = self.get_user_scan_directory()
-        if not user_dir:
-            return directories
-
-        resolved_user_dir = str(Path(user_dir).expanduser().resolve())
-        if resolved_user_dir not in directories:
-            directories.append(resolved_user_dir)
-        return directories
+        return [self.get_builtin_scan_directory()] + [
+            str(path) for path in self._extra_scan_directories()
+        ]
 
     def has_scan_directory_config(self) -> bool:
         """判断是否已显式配置扫描目录"""
@@ -267,13 +286,9 @@ class StrategyLoader:
                 module_prefix=self._builtin_module_prefix,
             )
         ]
-        user_dir = self.get_user_scan_directory()
-        if not user_dir:
-            return sources
-
-        workspace = Path(user_dir).expanduser().resolve()
-        if workspace != self._builtin_example_dir:
-            sources.append(ScanSource(directory=workspace))
+        sources.extend(
+            ScanSource(directory=workspace) for workspace in self._extra_scan_directories()
+        )
         return sources
 
     def _scan_source(self, source: ScanSource) -> dict[str, StrategyInfo]:

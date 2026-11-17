@@ -24,6 +24,13 @@ from quantide.factors.metadata import (
     factor_definition,
     list_factor_definitions,
 )
+from quantide.factors.registry import (
+    all_factor_ids,
+    compute_feature_panel,
+    factor_metadata,
+    feature_docs,
+    feature_groups,
+)
 from quantide.factors.research import HorizonRequest, HorizonResult, study_horizon
 
 __all__ = [
@@ -34,6 +41,11 @@ __all__ = [
     "FACTOR_METADATA",
     "FactorDefinition",
     "FeatureSpec",
+    "all_factor_ids",
+    "compute_feature_panel",
+    "factor_metadata",
+    "feature_docs",
+    "feature_groups",
     "HorizonRequest",
     "HorizonResult",
     "SingleFactorResult",

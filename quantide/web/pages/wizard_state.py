@@ -7,7 +7,11 @@ from fasthtml.common import (
 from loguru import logger
 from monsterui.all import *
 
-from quantide.config.paths import DEFAULT_DATA_HOME
+from quantide.config.paths import (
+    DEFAULT_DATA_HOME,
+    normalize_factor_dir,
+    normalize_strategy_dir,
+)
 from quantide.web.application import fast_app
 from quantide.web.theme import AppTheme
 
@@ -86,6 +90,8 @@ ADMIN_FORM_FIELDS = {
 
 RUNTIME_FORM_FIELDS = {
     "home": "app_home",
+    "factor_dir": "factor_dir",
+    "strategy_dir": "strategy_dir",
     "host": "app_host",
     "port": "app_port",
     "prefix": "app_prefix",
@@ -113,6 +119,8 @@ DATA_INIT_FORM_FIELDS = {
 
 RUNTIME_FIELD_ALIASES = {
     RUNTIME_FORM_FIELDS["home"]: (RUNTIME_FORM_FIELDS["home"], "home"),
+    RUNTIME_FORM_FIELDS["factor_dir"]: (RUNTIME_FORM_FIELDS["factor_dir"],),
+    RUNTIME_FORM_FIELDS["strategy_dir"]: (RUNTIME_FORM_FIELDS["strategy_dir"],),
     RUNTIME_FORM_FIELDS["host"]: (RUNTIME_FORM_FIELDS["host"], "host"),
     RUNTIME_FORM_FIELDS["port"]: (RUNTIME_FORM_FIELDS["port"], "port"),
     RUNTIME_FORM_FIELDS["prefix"]: (RUNTIME_FORM_FIELDS["prefix"], "prefix"),
@@ -141,6 +149,8 @@ DATA_INIT_FIELD_ALIASES = {
 
 RUNTIME_DEFAULTS = {
     RUNTIME_FORM_FIELDS["home"]: DEFAULT_DATA_HOME,
+    RUNTIME_FORM_FIELDS["factor_dir"]: normalize_factor_dir(),
+    RUNTIME_FORM_FIELDS["strategy_dir"]: normalize_strategy_dir(),
     RUNTIME_FORM_FIELDS["host"]: "127.0.0.1",
     RUNTIME_FORM_FIELDS["port"]: 8130,
     RUNTIME_FORM_FIELDS["prefix"]: "/quantide",

@@ -14,9 +14,9 @@ from quantide.core.enums import FrameType
 from quantide.data.models.calendar import calendar
 from quantide.factors.alpha import (
     FACTOR_VERSION,
-    FEATURE_COLS,
     _zscore_1d,
 )
+from quantide.factors.registry import all_factor_ids, catalog_version
 from quantide.strategies.example._ml_support import (
     _EXPLAIN_CROSS_SECTION_CACHE as _EXPLAIN_CROSS_SECTION_CACHE,
 )
@@ -146,12 +146,13 @@ class MLExplanation:
         base = (
             self._pipeline_version,
             FACTOR_VERSION,
+            catalog_version(),
             self.train_window,
             self.future_return_horizon,
             self.universe_size,
             self.universe_mode,
             round(self.market_cap_trim_pct, 6),
-            tuple(self.selected_features or FEATURE_COLS),
+            tuple(self.selected_features or all_factor_ids()),
             tuple(self._held_assets()),
             signal_date,
             build_signal or signal_date,
@@ -263,8 +264,8 @@ class MLExplanation:
             return pl.DataFrame()
         keep = (
             ["date", "asset", "close"]
-            + [c for c in (self.selected_features or FEATURE_COLS)]
-            + [f"{c}_z" for c in (self.selected_features or FEATURE_COLS)]
+            + [c for c in (self.selected_features or all_factor_ids())]
+            + [f"{c}_z" for c in (self.selected_features or all_factor_ids())]
         )
         cross = panel.filter(pl.col("date") == target_date).select(
             [c for c in keep if c in panel.columns]
@@ -304,7 +305,7 @@ class MLExplanation:
             train_window=self.train_window,
             horizon=self.future_return_horizon,
             use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or FEATURE_COLS,
+            feature_cols=self.selected_features or all_factor_ids(),
             label_cache_key=self._panel_cache_key(build_signal),
         )
         if len(_EXPLAIN_MODEL_CACHE) >= 8:
@@ -338,7 +339,7 @@ class MLExplanation:
             return None
         values = row.row(0, named=True)
         result: list[tuple[str, float]] = []
-        for col in FEATURE_COLS:
+        for col in self.selected_features or all_factor_ids():
             value = values.get(col)
             if value is None:
                 continue
@@ -454,7 +455,7 @@ def _explain_prediction_cross(
     model, engine = self._attribution_model(
         refit_signal or target_date, refit_build or build_signal
     )
-    features = self.selected_features or FEATURE_COLS
+    features = self.selected_features or all_factor_ids()
     x = (
         cross.select([f"{name}_z" for name in features])
         .fill_null(0.0)

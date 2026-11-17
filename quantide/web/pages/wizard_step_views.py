@@ -27,7 +27,7 @@ from quantide.config.dev_stubs import (
     ensure_dev_stubs_started,
 )
 from quantide.config.features import supports_live_trading
-from quantide.config.paths import normalize_data_home
+from quantide.config.paths import normalize_data_home, normalize_factor_dir, normalize_strategy_dir
 from quantide.web.pages.wizard_components import (
     FormLabel,
     FormRow,
@@ -204,6 +204,34 @@ def Step2_Runtime(state: dict[str, Any] | None = None) -> Any:
                 name=RUNTIME_FORM_FIELDS["home"],
                 value=values[RUNTIME_FORM_FIELDS["home"]],
                 placeholder=normalize_data_home(),
+                cls="uk-input mb-4",
+            ),
+            # 用户因子目录
+            FormLabel(
+                "用户因子目录",
+                tooltip=(
+                    "AI 或你编写的因子插件保存在这里，系统会自动发现并挂载。"
+                    "默认位于系统配置目录下，升级时保留。"
+                ),
+            ),
+            Input(
+                name=RUNTIME_FORM_FIELDS["factor_dir"],
+                value=values[RUNTIME_FORM_FIELDS["factor_dir"]],
+                placeholder=normalize_factor_dir(),
+                cls="uk-input mb-4",
+            ),
+            # 用户策略目录
+            FormLabel(
+                "用户策略目录",
+                tooltip=(
+                    "自定义策略保存在这里，保存后会自动加入策略扫描目录。"
+                    "默认位于系统配置目录下，升级时保留。"
+                ),
+            ),
+            Input(
+                name=RUNTIME_FORM_FIELDS["strategy_dir"],
+                value=values[RUNTIME_FORM_FIELDS["strategy_dir"]],
+                placeholder=normalize_strategy_dir(),
                 cls="uk-input mb-4",
             ),
             # 只允许本机访问

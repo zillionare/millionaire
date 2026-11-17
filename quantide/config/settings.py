@@ -21,7 +21,7 @@ from quantide.config.dev_stubs import (
     ensure_dev_stubs_started,
 )
 from quantide.config.features import supports_live_trading
-from quantide.config.paths import normalize_data_home
+from quantide.config.paths import normalize_data_home, normalize_factor_dir, normalize_strategy_dir
 
 
 def _runtime_connection_fields(
@@ -205,6 +205,8 @@ class Settings:
     product_name: str
     release_package: str
     app_home: str
+    factor_dir: str
+    strategy_dir: str
     app_host: str
     app_port: int
     app_prefix: str
@@ -245,6 +247,8 @@ class Settings:
             product_name=branding.product_name,
             release_package=branding.release_package,
             app_home=normalize_data_home(getattr(state, "app_home", "")),
+            factor_dir=normalize_factor_dir(getattr(state, "factor_dir", "")),
+            strategy_dir=normalize_strategy_dir(getattr(state, "strategy_dir", "")),
             app_host=str(getattr(state, "app_host", "") or "127.0.0.1"),
             app_port=_as_int(getattr(state, "app_port", 8130), 8130),
             app_prefix=_normalize_path_prefix(getattr(state, "app_prefix", "") or "/quantide"),
@@ -283,6 +287,16 @@ def get_settings() -> Settings:
 def get_data_home() -> str:
     """Return the effective data home directory."""
     return get_settings().app_home
+
+
+def get_factor_dir() -> str:
+    """Return the effective user factor plugin directory."""
+    return get_settings().factor_dir
+
+
+def get_strategy_dir() -> str:
+    """Return the effective user strategy directory."""
+    return get_settings().strategy_dir
 
 
 def get_timezone() -> datetime.tzinfo:
@@ -378,6 +392,8 @@ __all__ = [
     "Settings",
     "get_settings",
     "get_data_home",
+    "get_factor_dir",
+    "get_strategy_dir",
     "get_timezone",
     "get_epoch",
     "get_data_source",

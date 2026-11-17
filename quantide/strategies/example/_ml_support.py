@@ -30,10 +30,8 @@ from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.daily_basic import daily_basic
 from quantide.data.models.stocks import stock_list
-from quantide.factors.alpha import (
-    FEATURE_COLS,
-    _zscore_1d,
-)
+from quantide.factors.alpha import _zscore_1d
+from quantide.factors.registry import all_factor_ids
 
 
 class InsufficientTrainingDataError(RuntimeError):
@@ -48,7 +46,7 @@ def _training_feature_panel(
     train_window: int,
 ) -> tuple[list[str], pl.DataFrame]:
     """Training feature panel."""
-    selected_features = tuple(feature_cols or FEATURE_COLS)
+    selected_features = tuple(feature_cols or all_factor_ids())
     z_cols = [f"{c}_z" for c in selected_features]
 
     # A cache key is optional because callers without a stable panel identity
@@ -303,7 +301,7 @@ def _retrain_replay_model(
             train_window=self.train_window,
             horizon=self.future_return_horizon,
             use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or FEATURE_COLS,
+            feature_cols=self.selected_features or all_factor_ids(),
             label_cache_key=self._panel_cache_key(signal_date),
         )
     except InsufficientTrainingDataError as exc:
@@ -524,7 +522,7 @@ def _score_cross_section(
     feature_cols: Sequence[str] | None = None,
 ) -> np.ndarray:
     """预测目标日截面的模型得分（截面 z-score，不含任何手工先验）。"""
-    cols = feature_cols or FEATURE_COLS
+    cols = feature_cols or all_factor_ids()
     if pred_df.is_empty():
         return np.array([], dtype=np.float64)
 

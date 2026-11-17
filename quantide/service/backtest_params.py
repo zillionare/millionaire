@@ -31,10 +31,10 @@ def default_backtest_params(strategy_cls: Any = None) -> dict[str, Any]:
     Returns:
         dict: 默认参数字典。
     """
-    from quantide.factors import FEATURE_COLS
+    from quantide.factors.registry import all_factor_ids
 
     defaults: dict[str, Any] = dict(DEFAULT_FEE_PARAMS)
-    defaults[FEATURE_PARAM_KEY] = list(FEATURE_COLS)
+    defaults[FEATURE_PARAM_KEY] = list(all_factor_ids())
     if strategy_cls is not None:
         params = getattr(strategy_cls, "PARAMS", None)
         if not isinstance(params, dict):

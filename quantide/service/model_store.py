@@ -23,6 +23,7 @@ MODEL_CONFIG_KEYS = (
     "retrain_days",
     "use_lightgbm",
     "features",
+    "factor_catalog_version",
     "universe_size",
     "universe_mode",
     "market_cap_trim_pct",

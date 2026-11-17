@@ -442,7 +442,7 @@ def load_factor_panel(
         pl.DataFrame: 因子面板。
     """
     from quantide.data.models.daily_bars import daily_bars
-    from quantide.factors.alpha import compute_alpha_features
+    from quantide.factors.registry import compute_feature_panel
 
     raw = daily_bars.get_bars_in_range(start, end, assets=assets, adjust=None, eager_mode=True)
     if isinstance(raw, pl.LazyFrame):
@@ -450,7 +450,7 @@ def load_factor_panel(
     if raw is None or raw.is_empty():
         return pl.DataFrame()
     raw = raw.with_columns(pl.col("date").cast(pl.Date)).sort(["asset", "date"])
-    return ensure_trading_index(compute_alpha_features(raw))
+    return ensure_trading_index(compute_feature_panel(raw))
 
 
 def format_report(results: list[SingleFactorResult]) -> str:

@@ -101,7 +101,13 @@ def _dependency_version() -> str:
     """Bind the factor/statistics source and numeric engine versions."""
     from importlib.metadata import PackageNotFoundError, version
 
-    components = {"factor": FACTOR_VERSION, "statistics": STATISTICS_VERSION}
+    from quantide.factors.registry import catalog_version
+
+    components = {
+        "factor": FACTOR_VERSION,
+        "statistics": STATISTICS_VERSION,
+        "catalog": catalog_version(),
+    }
     for package in ("numpy", "polars", "pyarrow"):
         try:
             components[package] = version(package)

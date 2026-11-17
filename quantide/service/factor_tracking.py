@@ -20,9 +20,9 @@ from quantide.config.paths import get_app_config_dir
 from quantide.core.atomic_files import atomic_path, read_json_dict, write_json
 from quantide.core.market_time import market_now
 from quantide.core.scheduler import scheduler
-from quantide.factors.alpha import FACTOR_VERSION
 from quantide.factors.alphatest import MIN_CROSS_SECTION, load_factor_panel
-from quantide.factors.metadata import FACTOR_METADATA, Holding
+from quantide.factors.metadata import Holding
+from quantide.factors.registry import all_factor_ids, factor_version
 from quantide.factors.research import (
     STATISTICS_VERSION,
     HorizonRequest,
@@ -264,7 +264,7 @@ def _config_changed(profile: TrackingProfile, current: dict[str, Any]) -> bool:
     return (
         current.get("profile_revision") != profile.revision
         or current.get("profile_hash") != _profile_hash(profile)
-        or current.get("factor_version") != FACTOR_VERSION
+        or current.get("factor_version") != factor_version(profile.factor_id)
         or current.get("statistics_version") != STATISTICS_VERSION
     )
 
@@ -374,7 +374,7 @@ def _universe_hash(panel: Any) -> str:
 def _idempotency_key(factor_id: str, profile: TrackingProfile, snapshot: dict[str, Any]) -> str:
     payload = {
         "factor_id": factor_id,
-        "factor_version": FACTOR_VERSION,
+        "factor_version": factor_version(factor_id),
         "statistics_version": STATISTICS_VERSION,
         "dependency_hash": snapshot.get("dependency_hash"),
         "profile_revision": profile.revision,
@@ -433,7 +433,7 @@ def _build_snapshot(
         "factor_id": factor_id,
         "profile_revision": profile.revision,
         "profile_hash": _profile_hash(profile),
-        "factor_version": FACTOR_VERSION,
+        "factor_version": factor_version(factor_id),
         "statistics_version": STATISTICS_VERSION,
         "dependency_hash": source.get("source_dependency_version"),
         "panel_start": panel_start(profile.lookback, data_cutoff).isoformat(),
@@ -913,7 +913,7 @@ def _recover_interrupted() -> None:
     from quantide.service.factor_tracking_worker import recover
 
     recover()
-    for factor_id in FACTOR_METADATA:
+    for factor_id in all_factor_ids():
         state = load_state(factor_id)
         attempt = state.get("last_attempt")
         if isinstance(attempt, dict) and attempt.get("status") == "running":
@@ -924,7 +924,7 @@ def _recover_interrupted() -> None:
 
 
 def _needs_backfill() -> bool:
-    for factor_id in FACTOR_METADATA:
+    for factor_id in all_factor_ids():
         profile = load_profile(factor_id)
         if not profile.enabled:
             continue
@@ -938,7 +938,7 @@ def _needs_backfill() -> bool:
 
 def _warm_summaries() -> None:
     """Migrate large snapshots to compact overview files before serving."""
-    for factor_id in FACTOR_METADATA:
+    for factor_id in all_factor_ids():
         try:
             _load_summary_state(factor_id)
         except Exception as exc:

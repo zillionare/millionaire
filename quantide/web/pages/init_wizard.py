@@ -244,6 +244,11 @@ async def _save_runtime_step(form_dict: Mapping[str, object], step: int) -> FT |
         "127.0.0.1" if state_dict[RUNTIME_FORM_FIELDS["localhost_only"]] else "0.0.0.0"
     )
     try:
+        extra = {}
+        for field in ("factor_dir", "strategy_dir"):
+            key = RUNTIME_FORM_FIELDS[field]
+            if key in form_dict:
+                extra[field] = str(form_dict[key]).strip()
         init_wizard.save_runtime_config(
             home=str(state_dict[RUNTIME_FORM_FIELDS["home"]]).strip(),
             host=str(state_dict[RUNTIME_FORM_FIELDS["host"]]).strip(),
@@ -253,6 +258,7 @@ async def _save_runtime_step(form_dict: Mapping[str, object], step: int) -> FT |
                 8130,
             ),
             prefix=str(state_dict[RUNTIME_FORM_FIELDS["prefix"]]).strip(),
+            **extra,
         )
     except Exception as e:
         state = init_wizard.get_state(force_refresh=True)

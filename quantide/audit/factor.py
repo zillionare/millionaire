@@ -9,6 +9,7 @@ from typing import Any
 import polars as pl
 
 from quantide.audit.checks import future_invariance_check
+from quantide.audit.cutoffs import interior_cutoffs
 from quantide.audit.future import NUMERIC_DTYPES, frame_digest
 from quantide.audit.models import (
     AuditCheck,
@@ -179,14 +180,7 @@ def _metadata_check(factor: str) -> AuditCheck:
 def _interior_cutoffs(frame: pl.DataFrame, count: int = 2) -> tuple[dt.date, ...]:
     if "date" not in frame.columns:
         return ()
-    dates = sorted(set(frame["date"].to_list()))
-    if len(dates) < 2:
-        return ()
-    chosen: list[dt.date] = []
-    for index in range(1, count + 1):
-        position = min(int(len(dates) * index / (count + 1)), len(dates) - 2)
-        chosen.append(dates[max(position, 0)])
-    return tuple(dict.fromkeys(chosen))
+    return interior_cutoffs(frame["date"].to_list(), count)
 
 
 def _resolve_cutoffs(

@@ -24,6 +24,32 @@ def normalize_data_home(home: str | Path | None = None) -> str:
     return str(external_runtime_path(text))
 
 
+def default_factor_dir() -> Path:
+    """Return the durable default directory for user factor plugins."""
+    return get_app_config_dir() / "factors"
+
+
+def default_strategy_dir() -> Path:
+    """Return the durable default directory for user strategies."""
+    return get_app_config_dir() / "strategies"
+
+
+def _normalize_workspace_dir(value: str | Path | None, name: str) -> str:
+    text = str(value or "").strip()
+    candidate = Path(text) if text else get_app_config_dir() / name
+    return str(external_runtime_path(candidate))
+
+
+def normalize_factor_dir(value: str | Path | None = None) -> str:
+    """Normalize ``factor_dir``; blank values use the durable app-config default."""
+    return _normalize_workspace_dir(value, "factors")
+
+
+def normalize_strategy_dir(value: str | Path | None = None) -> str:
+    """Normalize ``strategy_dir``; blank values use the durable app-config default."""
+    return _normalize_workspace_dir(value, "strategies")
+
+
 def set_app_config_dir_override(path: str | Path | None) -> Path | None:
     """Override the app config directory for the current process.
 
@@ -111,6 +137,8 @@ def get_backtest_log_path(portfolio_id: str) -> Path:
 __all__ = [
     "DEFAULT_DATA_HOME",
     "clear_app_config_dir_override",
+    "default_factor_dir",
+    "default_strategy_dir",
     "ensure_app_config_dir",
     "get_app_config_dir",
     "get_app_db_path",
@@ -120,5 +148,7 @@ __all__ = [
     "get_pid_file_path",
     "get_strategy_runtime_state_path",
     "normalize_data_home",
+    "normalize_factor_dir",
+    "normalize_strategy_dir",
     "set_app_config_dir_override",
 ]
