@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="300" viewBox="0 0 1120 300" role="img" aria-labelledby="title desc">
+  <title id="title">Millionaire 四大差异化支柱</title>
+  <desc id="desc">AI 因子工坊与确定性风洞、因子预设与 SHAP、三模式一致与开放柜台、日线与 30 分钟 Shadow-Run。</desc>
+  <rect width="1120" height="300" fill="#f8fafc"/>
+  <g font-family="Inter, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <text x="40" y="46" font-size="26" font-weight="700" fill="#0f172a">Millionaire 四大差异化支柱</text>
+    <text x="40" y="74" font-size="15" fill="#475569">面向小白与 AI 的 A 股量化风洞工作台</text>
+
+    <g>
+      <rect x="40" y="100" width="240" height="160" rx="16" fill="#ecfeff" stroke="#a5f3fc"/>
+      <circle cx="72" cy="136" r="18" fill="#0891b2"/>
+      <text x="72" y="142" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">AI</text>
+      <text x="102" y="141" font-size="18" font-weight="700" fill="#164e63">AI 因子工坊</text>
+      <text x="62" y="176" font-size="14" fill="#155e75">自然语言生成因子</text>
+      <text x="62" y="200" font-size="14" fill="#155e75">确定性风洞拦截未来函数</text>
+      <text x="62" y="224" font-size="13" fill="#0e7490">PASS / FAIL / STALE 可追溯</text>
+    </g>
+
+    <g>
+      <rect x="306" y="100" width="240" height="160" rx="16" fill="#eef2ff" stroke="#c7d2fe"/>
+      <circle cx="338" cy="136" r="18" fill="#4f46e5"/>
+      <text x="338" y="142" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">ML</text>
+      <text x="368" y="141" font-size="18" font-weight="700" fill="#312e81">预设裂变与 SHAP</text>
+      <text x="328" y="176" font-size="14" fill="#3730a3">因子组合生成 LightGBM 预设</text>
+      <text x="328" y="200" font-size="14" fill="#3730a3">基准与变体消融回测</text>
+      <text x="328" y="224" font-size="13" fill="#4338ca">单笔选股可查看 SHAP 归因</text>
+    </g>
+
+    <g>
+      <rect x="572" y="100" width="240" height="160" rx="16" fill="#f0fdf4" stroke="#bbf7d0"/>
+      <circle cx="604" cy="136" r="18" fill="#16a34a"/>
+      <text x="604" y="142" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">HTTP</text>
+      <text x="634" y="141" font-size="18" font-weight="700" fill="#14532d">三模式与开放柜台</text>
+      <text x="594" y="176" font-size="14" fill="#166534">回测 / 仿真 / 独立模拟柜台</text>
+      <text x="594" y="200" font-size="14" fill="#166534">同一策略与 Broker 接口</text>
+      <text x="594" y="224" font-size="13" fill="#15803d">可按契约适配自己的柜台</text>
+    </g>
+
+    <g>
+      <rect x="838" y="100" width="242" height="160" rx="16" fill="#fff7ed" stroke="#fed7aa"/>
+      <circle cx="870" cy="136" r="18" fill="#ea580c"/>
+      <text x="870" y="142" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">30m</text>
+      <text x="900" y="141" font-size="18" font-weight="700" fill="#7c2d12">持续影子对照</text>
+      <text x="860" y="176" font-size="14" fill="#9a3412">日线与 30 分钟独立回放</text>
+      <text x="860" y="200" font-size="14" fill="#9a3412">闭合 bar、缺口与重启恢复</text>
+      <text x="860" y="224" font-size="13" fill="#c2410c">净值、回撤、持仓逐 bar 对比</text>
+    </g>
+  </g>
+</svg>

@@ -68,7 +68,7 @@ def _load_baseline() -> dict:
 @pytest.mark.asyncio
 @pytest.mark.e2e
 @pytest.mark.release_gate
-async def test_dual_ma_backtest_matches_accuracy_contract(calendar):
+async def test_dual_ma_backtest_matches_accuracy_contract(calendar, monkeypatch):
     _ = calendar
     db.init(":memory:")
     calendar_model.load(ASSETS_ROOT / "baseline_calendar.parquet")
@@ -78,7 +78,7 @@ async def test_dual_ma_backtest_matches_accuracy_contract(calendar):
             pl.col("date").dt.date()
         )
     )
-    runner_module.daily_bars = feed
+    monkeypatch.setattr(runner_module, "daily_bars", feed)
 
     portfolio_id = "dual-ma-accuracy-contract"
     result = await BacktestRunner().run(

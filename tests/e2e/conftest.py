@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -31,6 +32,44 @@ from tests.e2e.support.system_settings_session import (
 from tests.e2e.support.tushare_stub import patched_tushare_fetcher
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_committed_assets(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """Route fixture loads through copies so tests never write into tests/assets."""
+    from quantide.data.models.calendar import calendar as calendar_instance
+    from quantide.data.models.daily_bars import daily_bars as daily_bars_instance
+
+    calendar_cls = type(calendar_instance)
+    daily_bars_cls = type(daily_bars_instance)
+    assets_root = Path(__file__).resolve().parents[1]
+    cache = tmp_path_factory.mktemp("committed-assets")
+
+    def _copy(path: str | Path) -> Path:
+        source = Path(path).expanduser()
+        try:
+            relative = source.resolve().relative_to(assets_root)
+        except (OSError, ValueError):
+            return source
+        target = cache / relative
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+        return target
+
+    original_calendar_load = calendar_cls.load
+    original_daily_connect = daily_bars_cls.connect
+
+    def calendar_load(self, path: str | Path, **kwargs):
+        return original_calendar_load(self, _copy(path), **kwargs)
+
+    def daily_connect(self, store_path: str | Path, calendar_store_path: str | Path, **kwargs):
+        return original_daily_connect(self, _copy(store_path), _copy(calendar_store_path), **kwargs)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(calendar_cls, "load", calendar_load)
+        patch.setattr(daily_bars_cls, "connect", daily_connect)
+        yield
+
+
 def _clear_runtime_manager() -> None:
     with strategy_runtime_manager._lock:
         strategy_runtime_manager._strategy_runtimes.clear()
@@ -48,9 +87,21 @@ def _clear_runtime_manager() -> None:
         strategy_runtime_manager._gateway_broker = None
 
 
+def _reset_market_data_singletons() -> None:
+    """Drop data paths opened by a previous app lifespan in this process."""
+    import quantide.data as data_module
+
+    data_module._limit_price_store = None
+
+
 @pytest.fixture(autouse=True)
 def clean_runtime_state() -> Iterator[None]:
     """Reset shared runtime state around each UI e2e test."""
+    from quantide.core.message import msg_hub
+
+    msg_hub.stop()
+    msg_hub.start()
+    _reset_market_data_singletons()
     _clear_runtime_manager()
     _reset_broker_registry()
     _reset_market_data_hub()

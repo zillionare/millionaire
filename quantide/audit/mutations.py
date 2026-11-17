@@ -5,10 +5,15 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
+from contextlib import ExitStack
 from dataclasses import dataclass, replace
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -25,7 +30,7 @@ from quantide.audit.performance import (
 )
 from quantide.core.strategy import Strategy
 
-MUTATION_VERSION = "1.0.0"
+MUTATION_VERSION = "1.1.0"
 CaseRunner = Callable[[], dict[str, Any]]
 
 
@@ -265,6 +270,330 @@ def _case_bad_link() -> dict[str, Any]:
     return _killed(detected, "naive return summation differs from Carino linking")
 
 
+def _cross_asset_frame() -> pl.DataFrame:
+    rows = []
+    for asset_index, asset in enumerate(("000001", "000002")):
+        for index, day in enumerate(
+            dt.date(2024, 1, 2) + dt.timedelta(days=offset) for offset in range(5)
+        ):
+            price = 10.0 + asset_index + index * 0.2
+            rows.append(
+                {
+                    "date": day,
+                    "asset": asset,
+                    "open": price,
+                    "high": price + 0.1,
+                    "low": price - 0.1,
+                    "close": price + 0.05,
+                    "volume": 1000.0,
+                    "amount": 10000.0,
+                }
+            )
+    return pl.DataFrame(rows).sort(["asset", "date"])
+
+
+def _cross_asset_status(leaky: bool) -> AuditStatus:
+    from quantide.audit.plugin_factor import audit_factor_plugin
+    from quantide.factors.plugins import FactorPlugin
+
+    def compute(frame: pl.DataFrame) -> pl.DataFrame:
+        shifted = pl.col("close").shift(1)
+        expression = shifted if leaky else shifted.over("asset")
+        return frame.with_columns(expression.alias("mut_5001_signal"))
+
+    plugin = FactorPlugin(
+        factor_id="mut_5001_signal",
+        display_name="MUT-5001 audit probe",
+        group="audit",
+        compute=compute,
+        source_hash="mut-5001",
+    )
+    frame = _cross_asset_frame()
+    report = audit_factor_plugin(plugin, frame, modes=("zero",), seeds=(0,))
+    return next(
+        check.status
+        for check in report.checks
+        if check.check_id == "plugin.cross_section_isolation"
+    )
+
+
+def _case_mut_5001() -> dict[str, Any]:
+    baseline = _cross_asset_status(False) is AuditStatus.PASS
+    mutant = _cross_asset_status(True) is AuditStatus.FAIL
+    return _killed(
+        baseline and mutant,
+        "baseline keeps per-asset shift; removing .over('asset') fails isolation",
+        baseline_ok=baseline,
+    )
+
+
+def _pit_frame() -> pl.DataFrame:
+    start = dt.date(2024, 1, 2)
+    return pl.DataFrame(
+        [
+            {
+                "date": start + dt.timedelta(days=offset),
+                "asset": "A",
+                "close": 10.0,
+                "volume": 1000.0,
+                "list_date": dt.date(2000, 1, 1),
+                "delist_date": None,
+            }
+            for offset in range(3)
+        ]
+    )
+
+
+def _case_mut_5002() -> dict[str, Any]:
+    from quantide.factors.universe import UniverseFilterConfig, filter_universe_for_date
+
+    history = _pit_frame()
+    dates = history["date"].to_list()
+    status = pl.DataFrame(
+        {
+            "date": dates,
+            "asset": ["A"] * 3,
+            "is_st": [False, True, True],
+        }
+    )
+    config = UniverseFilterConfig(min_listing_days=0, max_universe_size=None)
+    baseline = filter_universe_for_date(history, dates[0], config, status_frame=status).assets
+    static_names = history.with_columns(
+        pl.when(pl.col("asset") == "A").then(pl.lit(True)).otherwise(pl.lit(False)).alias("is_st")
+    )
+    mutant = filter_universe_for_date(static_names, dates[0], config, status_frame=status).assets
+    return _killed(
+        baseline == ("A",) and "A" not in mutant,
+        "PIT status keeps A on t1; latest static *ST name removes it",
+        baseline_ok=baseline == ("A",),
+    )
+
+
+def _label_frame() -> pl.DataFrame:
+    rows = []
+    for asset_index, asset in enumerate(("A", "B", "C")):
+        for index in range(6):
+            price = 10.0 * (1.0 + 0.05 * index) * (1.0 + 0.01 * index * asset_index)
+            rows.append(
+                {
+                    "date": dt.date(2024, 1, 2) + dt.timedelta(days=index),
+                    "asset": asset,
+                    "close": price,
+                }
+            )
+    return pl.DataFrame(rows).sort(["asset", "date"])
+
+
+def _date_means(frame: pl.DataFrame) -> list[float]:
+    label = "future_n_trading_day_close_return"
+    values = (
+        frame.filter(pl.col(label).is_not_null())
+        .group_by("date")
+        .agg(pl.col(label).mean().alias("mean"))
+        .sort("date")["mean"]
+        .to_list()
+    )
+    return [float(value) for value in values]
+
+
+def _case_mut_5003() -> dict[str, Any]:
+    from quantide.strategies.example._ml_support import compute_future_close_return_labels
+
+    frame = _label_frame()
+    label = "future_n_trading_day_close_return"
+    baseline = compute_future_close_return_labels(frame, horizon=1, label_kind="cs_rank")
+    raw = compute_future_close_return_labels(frame, horizon=1, label_kind="raw_return")
+    mutant = raw.with_columns(
+        (pl.col(label).rank(method="average") / pl.col(label).count() - 0.5).alias(label)
+    )
+    baseline_means = _date_means(baseline)
+    mutant_means = _date_means(mutant)
+    baseline_ok = (
+        bool(baseline_means)
+        and max(baseline_means) - min(baseline_means) <= 1e-12
+        and all(-0.5 <= value <= 0.5 for value in baseline_means)
+    )
+    return _killed(
+        baseline_ok and max(mutant_means) - min(mutant_means) > 1e-6,
+        "per-date cs_rank stays date-local; pooled ranking shifts individual dates",
+        baseline_ok=baseline_ok,
+    )
+
+
+def _badge_context(record: dict[str, Any], *, ignore_source: bool = False) -> ExitStack:
+    from quantide.service import factor_audit
+
+    discovery = SimpleNamespace(by_id=lambda _factor_id: None)
+    stack = ExitStack()
+    stack.enter_context(patch.object(factor_audit, "_load_records", lambda: {"demo": record}))
+    stack.enter_context(patch.object(factor_audit, "discover_factor_plugins", lambda: discovery))
+    stack.enter_context(patch.object(factor_audit, "factor_version", lambda _id: "new-source"))
+    stack.enter_context(
+        patch.object(factor_audit, "_current_data_hash", lambda _record: ("data", None))
+    )
+    stack.enter_context(patch.object(factor_audit, "_current_config_hash", lambda *_args: "config"))
+    if ignore_source:
+        stack.enter_context(
+            patch.object(
+                factor_audit,
+                "_fingerprints_match",
+                lambda record, source, config, data: (
+                    record.get("config_hash") == config and record.get("data_hash") == data
+                ),
+            )
+        )
+    return stack
+
+
+def _case_mut_5004() -> dict[str, Any]:
+    from quantide.service import factor_audit
+
+    record = {
+        "run_id": "run-1",
+        "status": "PASS",
+        "checked_at": "2026-01-01T00:00:00",
+        "source_hash": "old-source",
+        "config_hash": "config",
+        "data_hash": "data",
+    }
+    with _badge_context(record):
+        baseline = factor_audit.factor_wind_tunnel_badge("demo").badge_status
+    with _badge_context(record, ignore_source=True):
+        mutant = factor_audit.factor_wind_tunnel_badge("demo").badge_status
+    baseline_ok = baseline == "STALE"
+    return _killed(
+        baseline_ok and mutant == "PASS",
+        "source change downgrades PASS to STALE; ignoring source keeps PASS",
+        baseline_ok=baseline_ok,
+    )
+
+
+def _minute_frame() -> pl.DataFrame:
+    target = dt.datetime(2026, 10, 27, 10, 0)
+    rows = []
+    for bar_time in (target, target + dt.timedelta(minutes=30)):
+        rows.append(
+            {
+                "date": bar_time,
+                "asset": "000001.SZ",
+                "open": 10.0,
+                "high": 10.1,
+                "low": 9.9,
+                "close": 10.0,
+                "volume": 1000.0,
+                "amount": 10000.0,
+            }
+        )
+    return pl.DataFrame(rows)
+
+
+def _case_mut_5005() -> dict[str, Any]:
+    from quantide.service.shadow_intraday import load_closed_bar_frame
+
+    frame = _minute_frame()
+    target = dt.datetime(2026, 10, 27, 10, 0)
+
+    class _Minutes:
+        @staticmethod
+        def get_bars_in_range(
+            start: Any,
+            end: Any = None,
+            assets: Any = None,
+            adjust: Any = None,
+            eager_mode: Any = True,
+        ) -> pl.DataFrame:
+            return frame
+
+    closed = load_closed_bar_frame(target, ["000001.SZ"], minute_model=_Minutes())
+    baseline_ok = closed is not None and closed.height == 1
+    detected = closed is not None and frame.height > closed.height
+    return _killed(
+        detected,
+        "closed bucket returns only 10:00; removing the filter also consumes forming 10:30",
+        baseline_ok=baseline_ok,
+    )
+
+
+def _preset_rejects_missing(features: list[str]) -> bool:
+    from quantide.service.factor_presets import _validate_features
+
+    try:
+        _validate_features(features, "1d")
+    except ValueError as exc:
+        return "缺失因子" in str(exc)
+    return False
+
+
+def _case_mut_5006() -> dict[str, Any]:
+    from quantide.factors.registry import all_factor_ids
+
+    features = ["ma20_slope", "not_a_real_factor"]
+    baseline = _preset_rejects_missing(features)
+    known = set(all_factor_ids())
+    filtered = [factor_id for factor_id in features if factor_id in known]
+    mutant_accepts = not _preset_rejects_missing(filtered)
+    return _killed(
+        baseline and mutant_accepts,
+        "preset rejects the missing factor; silent filtering leaves a valid preset",
+        baseline_ok=baseline,
+    )
+
+
+def _sandbox_path_probe() -> tuple[bool, bool]:
+    from quantide.service import ai_factor_tools
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        root.mkdir(exist_ok=True)
+        with (
+            patch.object(ai_factor_tools, "normalize_factor_dir", lambda: str(root)),
+            patch.object(ai_factor_tools, "_FACTOR_ID", re.compile(r".+")),
+        ):
+            try:
+                ai_factor_tools._target_path("../escape")
+            except ai_factor_tools.AIToolError:
+                baseline_rejects = True
+            else:
+                baseline_rejects = False
+            mutant_rejects = False
+        return baseline_rejects, mutant_rejects
+
+
+def _wind_bypass_probe() -> tuple[bool, bool]:
+    from quantide.service import ai_factor_tools, factor_audit
+
+    day = dt.date(2026, 1, 1)
+    result = {"results": [], "study_id": "study-1", "factor_id": "bad_factor"}
+    badge = SimpleNamespace(badge_status="FAIL", message="blocked")
+    with (
+        patch.object(factor_audit, "factor_wind_tunnel_badge", lambda _factor_id: badge),
+        patch.object(ai_factor_tools, "_coverage_window", lambda: (day, day)),
+        patch.object(ai_factor_tools, "_run_process", lambda *_args, **_kwargs: result),
+    ):
+        try:
+            ai_factor_tools.run_factor_ic_study({"factor_id": "bad_factor"})
+        except ai_factor_tools.AIToolError:
+            baseline_rejects = True
+        else:
+            baseline_rejects = False
+        with patch.object(ai_factor_tools, "_require_pass", lambda _factor_id: None):
+            mutated = ai_factor_tools.run_factor_ic_study({"factor_id": "bad_factor"})
+        mutant_accepts = isinstance(mutated, dict) and mutated.get("study_id") == "study-1"
+    return baseline_rejects, mutant_accepts
+
+
+def _case_mut_5007() -> dict[str, Any]:
+    path_rejects, path_mutant_rejects = _sandbox_path_probe()
+    wind_rejects, wind_mutant_accepts = _wind_bypass_probe()
+    baseline_ok = path_rejects and wind_rejects
+    detected = baseline_ok and not path_mutant_rejects and wind_mutant_accepts
+    return _killed(
+        detected,
+        "resolve() blocks ../escape; removing it escapes and FAIL can emit a study card",
+        baseline_ok=baseline_ok,
+    )
+
+
 def _killed(detected: bool, evidence: str, *, baseline_ok: bool = True) -> dict[str, Any]:
     return {"killed": bool(detected), "baseline_ok": bool(baseline_ok), "evidence": evidence}
 
@@ -340,6 +669,55 @@ CASES: tuple[MutationCase, ...] = (
         "multi-period linking",
         "Period returns are summed instead of Carino-linked.",
     ),
+    MutationCase(
+        "MUT-5001",
+        "FR-5002",
+        "AC-5016",
+        "external factor cross-asset isolation",
+        "External factor removes .over('asset') and leaks values across securities.",
+    ),
+    MutationCase(
+        "MUT-5002",
+        "FR-5009",
+        "AC-5016",
+        "PIT universe ST status",
+        "PIT filtering reads the latest static name instead of the signal-date fact.",
+    ),
+    MutationCase(
+        "MUT-5003",
+        "FR-5010",
+        "AC-5017",
+        "cross-section label rank",
+        "cs_rank pools all dates instead of ranking inside each mature date.",
+    ),
+    MutationCase(
+        "MUT-5004",
+        "FR-5007",
+        "AC-5013",
+        "wind-tunnel badge fingerprint",
+        "Badge ignores a changed source hash and keeps PASS.",
+    ),
+    MutationCase(
+        "MUT-5005",
+        "FR-5012",
+        "AC-5019",
+        "30m shadow bar boundary",
+        "30m shadow replay consumes a forming minute bucket.",
+    ),
+    MutationCase(
+        "MUT-5006",
+        "FR-5004",
+        "AC-5007",
+        "factor preset validation",
+        "Preset silently drops a missing factor instead of failing closed.",
+    ),
+    MutationCase(
+        "MUT-5007",
+        "FR-5014",
+        "AC-5027/AC-5028",
+        "Web Agent sandbox and wind tunnel",
+        "Agent can escape factor_dir or bypass a FAIL badge to emit a study card.",
+    ),
 )
 _RUNNERS: dict[str, CaseRunner] = {
     "future_shift": _case_future_shift,
@@ -352,6 +730,13 @@ _RUNNERS: dict[str, CaseRunner] = {
     "period_override": _case_period_override,
     "attribution_sign": _case_attribution_sign,
     "bad_link": _case_bad_link,
+    "MUT-5001": _case_mut_5001,
+    "MUT-5002": _case_mut_5002,
+    "MUT-5003": _case_mut_5003,
+    "MUT-5004": _case_mut_5004,
+    "MUT-5005": _case_mut_5005,
+    "MUT-5006": _case_mut_5006,
+    "MUT-5007": _case_mut_5007,
 }
 
 

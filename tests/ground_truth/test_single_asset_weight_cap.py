@@ -3,7 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+
+
+class _Module:
+    pass
+
+
+class _Position:
+    def __init__(self, shares: int) -> None:
+        self.shares = shares
+
 
 TEMPLATE = (
     Path(__file__).resolve().parents[2]
@@ -12,7 +21,7 @@ TEMPLATE = (
     / "examples"
     / "risk_single_asset_cap.py"
 )
-MODULE = ModuleType("risk_single_asset_cap_oracle")
+MODULE = _Module()
 MODULE.__file__ = str(TEMPLATE)
 exec(compile(TEMPLATE.read_text(encoding="utf-8"), str(TEMPLATE), "exec"), MODULE.__dict__)
 
@@ -21,9 +30,7 @@ class _Broker:
     def __init__(self, equity: float, price: float, held: dict[str, int] | None = None) -> None:
         self._equity = equity
         self._price = price
-        self.positions = {
-            asset: SimpleNamespace(shares=shares) for asset, shares in (held or {}).items()
-        }
+        self.positions = {asset: _Position(shares) for asset, shares in (held or {}).items()}
 
     def risk_total_equity(self) -> float:
         return self._equity

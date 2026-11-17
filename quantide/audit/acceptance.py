@@ -155,6 +155,39 @@ ENTRIES: tuple[AcceptanceEntry, ...] = (
         (f"{S}/test_monthly_bars.py", "tests/e2e/three_mode/test_ce_parity.py"),
     ),
     AcceptanceEntry(
+        "AC-5014",
+        "FR-5008",
+        "README/index four-pillar story and no-token quick start",
+        ("tests/quality/test_v05_release_surface.py",),
+    ),
+    AcceptanceEntry(
+        "AC-5021",
+        "FR-5012",
+        "unsigned install guidance and synchronized user docs",
+        ("tests/quality/test_v05_release_surface.py",),
+    ),
+    AcceptanceEntry(
+        "AC-5022",
+        "version boundary",
+        "CE/pro defaults and open user extensions",
+        ("tests/quality/test_v05_edition_boundary.py",),
+    ),
+    AcceptanceEntry(
+        "AC-5023",
+        "scope control",
+        "no OpenAPI range CLI or alert-linkage UI",
+        ("tests/quality/test_v05_edition_boundary.py",),
+    ),
+    AcceptanceEntry(
+        "AC-5024",
+        "NFR-5004/NFR-5006",
+        "key mutations and full offline gates",
+        (
+            "tests/unit/quantide/audit/test_mutations.py",
+            "tests/quality/test_v05_edition_boundary.py",
+        ),
+    ),
+    AcceptanceEntry(
         "AC-4301",
         "FR-4301",
         "primary navigation order",

@@ -10,7 +10,36 @@
 
 macOS 官方支持范围仅包含 Apple Silicon（M 系列芯片）；不提供 Intel（x86_64）安装包或验收支持。
 
-平台验证边界见[本版能力](scope.md)。macOS 包目前没有 Developer ID 签名或 Apple 公证；内置动态库使用 ad-hoc 签名。Windows 没有配置发行者代码签名证书。WinSW 和 OpenMP 的版权许可声明随相应安装包提供。
+平台验证边界见[本版能力](scope.md)。未签名包的 SHA-256 校验、macOS Gatekeeper 与 Windows SmartScreen 放行步骤见下文“先校验，再放行”。WinSW 和 OpenMP 的版权许可声明随相应安装包提供。
+
+## 先校验，再放行
+
+Millionaire 当前发布包没有 Apple Developer ID/公证或 Windows 发行者代码签名：macOS 内置动态库使用 ad-hoc 签名，Windows 安装器没有配置发行者证书。SHA-256 只能证明下载文件与 Release 中同名校验文件一致，不能证明发布者身份；请同时核对下载来源，不要从第三方网盘或转载站获取安装包。
+
+下载安装包和同名 `.sha256` 后，先做完整性校验：
+
+```bash
+# macOS
+shasum -a 256 -c millionaire-0.3.1-macos-arm64.tar.gz.sha256
+
+# Ubuntu
+sha256sum -c millionaire-0.3.1-ubuntu-amd64.deb.sha256
+```
+
+```powershell
+# Windows PowerShell
+$package = 'millionaire-0.3.1-windows-x64.exe'
+$expected = ((Get-Content "$package.sha256" -Raw).Trim() -split '\s+')[0]
+$actual = (Get-FileHash $package -Algorithm SHA256).Hash
+if ($actual -ne $expected) { throw 'SHA256 校验失败，请重新下载' }
+```
+
+校验失败时不要继续安装，删除文件并从 Release 重新下载。校验通过后仍需处理未签名提示：
+
+- **macOS Gatekeeper**：若打开安装包或已安装的 `Millionaire.app` 时提示无法验证开发者，先在 Finder 中右键选择“打开”，或进入“系统设置 → 隐私与安全性”，在安全提示下选择“仍要打开”。必要时可在确认校验值后移除该下载文件的隔离标记：`xattr -d com.apple.quarantine millionaire-0.3.1-macos-arm64.tar.gz`；若应用仍被拦截，再对应用执行 `xattr -dr com.apple.quarantine "$HOME/Applications/Millionaire.app"`。不要全局关闭 Gatekeeper。
+- **Windows SmartScreen**：若出现“Windows 已保护你的电脑”，点击“更多信息”，核对文件名与 SHA-256 后选择“仍要运行”。可在 PowerShell 中对已校验文件执行 `Unblock-File .\millionaire-0.3.1-windows-x64.exe`；不要关闭 Defender 或系统级安全功能。
+
+这些步骤只用于显式放行本次已校验的安装包。若校验值、文件名、发布页或系统提示与本文不一致，停止安装并保留证据，先向发布方确认。
 
 ## 下载与校验
 

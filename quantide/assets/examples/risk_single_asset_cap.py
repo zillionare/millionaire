@@ -12,9 +12,12 @@ DEFAULT_MAX_WEIGHT = 0.25
 
 
 def _held_shares(broker: Any, asset: str) -> float:
-    raw = broker.positions
-    values = raw.values() if isinstance(raw, dict) else raw
-    position = next((item for item in values if item.asset == asset), None)
+    positions = broker.positions
+    position = (
+        positions.get(asset)
+        if isinstance(positions, dict)
+        else next((item for item in positions if item.asset == asset), None)
+    )
     return float(getattr(position, "shares", 0.0) or 0.0)
 
 
@@ -31,8 +34,7 @@ def capped_buy_shares(
     equity = float(broker.risk_total_equity())
     if requested <= 0 or reference <= 0 or equity <= 0:
         return 0
-    held_value = _held_shares(broker, asset) * reference
-    budget = max(0.0, max_weight * equity - held_value)
+    budget = max(0.0, max_weight * equity - _held_shares(broker, asset) * reference)
     return max(0, min(requested, int(budget / reference / 100) * 100))
 
 

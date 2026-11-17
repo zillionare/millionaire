@@ -18,6 +18,21 @@ def test_every_key_mutation_is_killed_in_process() -> None:
         "AC-4008",
         "AC-4010",
         "AC-4011",
+        "AC-5007",
+        "AC-5013",
+        "AC-5016",
+        "AC-5017",
+        "AC-5019",
+        "AC-5027/AC-5028",
+    }
+    assert {item["mutation_id"] for item in report["results"]} >= {
+        "MUT-5001",
+        "MUT-5002",
+        "MUT-5003",
+        "MUT-5004",
+        "MUT-5005",
+        "MUT-5006",
+        "MUT-5007",
     }
 
 
