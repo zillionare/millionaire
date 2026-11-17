@@ -66,7 +66,7 @@ Linux 系统服务的启停命令需要 sudo；Windows 会在需要时请求管�
 CE 不内置三重障碍、回撤卖出、成本止损或私有风险程序，风险程序注册表默认是空的。
 源码树提供 SHAP 预测解释、账户事实[收益归因](docs/prediction-explanation.md)和离线
 [策略/因子审计](docs/strategy-audit.md)；它们不是收益保证，也不是对所有策略/柜台的
-安全证明。30 分钟影子和数据源能力矩阵仍见[版本状态](docs/roadmap.md)。
+安全证明。30 分钟影子按闭合 bar 回放；数据源能力矩阵等后续方向见[版本状态](docs/roadmap.md)。
 
 ## 开发与贡献
 

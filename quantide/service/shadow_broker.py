@@ -20,6 +20,22 @@ from quantide.data.models.daily_bars import daily_bars
 from quantide.service.bar_views import HistBarView
 
 
+def _config_float(config: dict[str, Any], key: str, default: float) -> float:
+    value = config.get(key)
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _frame_rows(bar_frame: pl.DataFrame | None) -> dict[str, dict[str, Any]]:
+    if bar_frame is None:
+        return {}
+    return {str(row["asset"]): row for row in bar_frame.to_dicts() if row.get("asset")}
+
+
 class ShadowBroker:
     """只用于 dry-run 的轻量回测撮合账户。"""
 
@@ -33,6 +49,10 @@ class ShadowBroker:
         cash: float | None = None,
         positions: list[dict[str, Any]] | None = None,
         portfolio_name: str = "dry-run-shadow",
+        bar_interval: str = "1d",
+        bar_time: datetime.datetime | None = None,
+        bar_frame: pl.DataFrame | None = None,
+        minute_model: Any | None = None,
     ) -> None:
         self.portfolio_id = portfolio_id
         self.portfolio_name = portfolio_name
@@ -46,23 +66,16 @@ class ShadowBroker:
         self._price_cache: dict[str, float] = {}
         self._open_cache: dict[str, float] = {}
         self._limit_cache: dict[str, tuple[float, float]] = {}
-        self._bar_view = HistBarView(daily_bars)
-
-        def _cfg_float(key: str, default: float) -> float:
-            value = config.get(key)
-            if value is None or value == "":
-                return default
-            try:
-                return float(value)
-            except (TypeError, ValueError):
-                return default
-
-        self._commission = _cfg_float("commission", 1e-4)
-        self._stamp_tax = _cfg_float("stamp_duty", 5e-4)
-        self._transfer_fee = _cfg_float("transfer_fee", 1e-5)
-        self._min_commission = _cfg_float("min_commission", 5.0)
-        self._slippage = _cfg_float("slippage_pct", 0.001)
-        self._auction_epsilon = _cfg_float("auction_epsilon", 0.001)
+        self._bar_interval = str(bar_interval)
+        self._bar_time = bar_time
+        self._bar_rows = _frame_rows(bar_frame)
+        self._bar_view = HistBarView(daily_bars, minute_model)
+        self._commission = _config_float(config, "commission", 1e-4)
+        self._stamp_tax = _config_float(config, "stamp_duty", 5e-4)
+        self._transfer_fee = _config_float(config, "transfer_fee", 1e-5)
+        self._min_commission = _config_float(config, "min_commission", 5.0)
+        self._slippage = _config_float(config, "slippage_pct", 0.001)
+        self._auction_epsilon = _config_float(config, "auction_epsilon", 0.001)
         self.trades: list[dict[str, Any]] = []
         for item in positions or []:
             try:
@@ -178,6 +191,20 @@ class ShadowBroker:
     def _close_price(self, asset: str) -> float:
         if asset in self._price_cache:
             return self._price_cache[asset]
+        if self._bar_interval != "1d":
+            return self._cache_intraday_price(asset)
+        return self._cache_daily_price(asset)
+
+    def _cache_intraday_price(self, asset: str) -> float:
+        row = self._bar_rows.get(asset)
+        if row is None:
+            self._price_cache[asset] = 0.0
+            return 0.0
+        self._cache_limits(row)
+        self._price_cache[asset] = float(row.get("close") or 0)
+        return self._price_cache[asset]
+
+    def _cache_daily_price(self, asset: str) -> float:
         price = 0.0
         try:
             frame = daily_bars.get_bars_in_range(
@@ -190,17 +217,20 @@ class ShadowBroker:
             if isinstance(frame, pl.LazyFrame):
                 frame = frame.collect()
             if frame is not None and not frame.is_empty():
-                price = float(frame.row(0, named=True).get("close") or 0)
-                limits = frame.row(0, named=True)
-                self._open_cache[asset] = float(limits.get("open") or 0)
-                self._limit_cache[asset] = (
-                    float(limits.get("down_limit") or 0),
-                    float(limits.get("up_limit") or 0),
-                )
+                row = frame.row(0, named=True)
+                price = float(row.get("close") or 0)
+                self._cache_limits(row)
         except Exception:
             price = 0.0
         self._price_cache[asset] = price
         return price
+
+    def _cache_limits(self, row: dict[str, Any]) -> None:
+        self._open_cache[str(row.get("asset") or "")] = float(row.get("open") or 0)
+        self._limit_cache[str(row.get("asset") or "")] = (
+            float(row.get("down_limit") or 0),
+            float(row.get("up_limit") or 0),
+        )
 
     def _execution_reference_price(self, asset: str) -> float:
         """Use the target day's open only for next-open shadow orders."""
@@ -264,7 +294,7 @@ class ShadowBroker:
             shares=shares,
             price=price,
             amount=price * shares,
-            tm=datetime.datetime.combine(self._trade_date, datetime.time(15, 0)),
+            tm=self._bar_time or datetime.datetime.combine(self._trade_date, datetime.time(15, 0)),
             side=side,
             cid="shadow",
             fee=fee,

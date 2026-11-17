@@ -221,3 +221,85 @@ def test_next_open_shadow_queues_then_fills_at_target_open(tmp_path, monkeypatch
     assert state is not None and state["cash"] < 100000.0
     rows = store.list_daily(runtime_id="paper:p1", source="dry_run")
     assert rows[-1]["trades"][0]["price"] == 20.0
+
+
+def test_attach_30m_registers_intraday_job(tmp_path, monkeypatch):
+    import quantide.service.strategy_tasks as module
+
+    store = TrackingStore(tmp_path / "track-30m.db")
+    monkeypatch.setattr(module, "tracking_store", store)
+    added = []
+    monkeypatch.setattr(
+        module.scheduler, "add_job", lambda *args, **kwargs: added.append(kwargs)
+    )
+    monkeypatch.setattr(module.scheduler.scheduler, "get_job", lambda _: None)
+    manager = StrategyTaskManager()
+    runtime = SimpleNamespace(
+        runtime_id="paper:p1:Demo-30m",
+        portfolio_id="p1",
+        mode="paper",
+        status="running",
+        interval="30m",
+        config={"fill_timing": "next_open"},
+        principal=100000.0,
+        broker=_Broker(),
+    )
+
+    manager.attach(runtime)
+    assert {job["id"].rsplit(":", 1)[-1] for job in added} == {"eod", "morning", "30m"}
+    intraday = next(job for job in added if job["id"].endswith(":30m"))
+    assert intraday["hour"] == "10-11,13-15"
+    assert intraday["minute"] == "0,30"
+    run = store.get_run(runtime.runtime_id)
+    assert run is not None and run["bar_interval"] == "30m"
+
+    manager.detach(runtime.runtime_id)
+    assert manager._intraday_attached == set()
+
+
+def test_30m_eod_writes_daily_summary_from_bars(tmp_path, monkeypatch):
+    import datetime
+
+    import quantide.service.strategy_tasks as module
+
+    store = TrackingStore(tmp_path / "track-summary.db")
+    monkeypatch.setattr(module, "tracking_store", store)
+    day = datetime.date(2026, 10, 27)
+    store.ensure_run(
+        "paper:p1", "p1", start_date=day, fill_timing="next_open", bar_interval="30m"
+    )
+    for hour, minute, nav in ((14, 30, 100100.0), (15, 0, 100200.0)):
+        store.save_bar(
+            runtime_id="paper:p1",
+            portfolio_id="p1",
+            bar_slot=f"{day.isoformat()}T{hour:02d}:{minute:02d}:00+08:00",
+            bar_interval="30m",
+            source="dry_run",
+            nav=nav,
+            cash=90000.0,
+            market_value=nav - 90000.0,
+            positions=[{"asset": "000001.SZ", "shares": 1000}],
+            trades=[{"asset": "000001.SZ", "shares": 100}],
+        )
+    manager = StrategyTaskManager()
+    runtime = SimpleNamespace(
+        runtime_id="paper:p1",
+        portfolio_id="p1",
+        mode="paper",
+        status="running",
+        interval="30m",
+        config={"fill_timing": "next_open"},
+        principal=100000.0,
+        broker=_Broker(),
+    )
+    monkeypatch.setattr(manager, "_runtime", lambda _: runtime)
+    monkeypatch.setattr(manager, "_trading_day", lambda: day)
+    monkeypatch.setattr(manager, "run_30m", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(manager, "_ensure_model", lambda *_args, **_kwargs: None)
+
+    manager.run_eod(runtime.runtime_id)
+    daily = store.list_daily(runtime_id=runtime.runtime_id, source="dry_run")
+    assert len(daily) == 1
+    assert daily[0]["nav"] == 100200.0
+    assert daily[0]["bar_interval"] == "30m"
+    assert len(daily[0]["trades"]) == 2

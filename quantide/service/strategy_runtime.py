@@ -927,17 +927,9 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
         return result
 
     def _extract_symbols(self, config: dict[str, Any]) -> list[str]:
-        for key in ("symbol", "asset", "security"):
-            value = config.get(key)
-            if isinstance(value, str) and value:
-                return [value]
-        for key in ("symbols", "assets", "securities"):
-            value = config.get(key)
-            if isinstance(value, list):
-                symbols = [str(item) for item in value if item]
-                if symbols:
-                    return symbols
-        return []
+        from quantide.service.shadow_support import config_symbols
+
+        return config_symbols(config)
 
 
 strategy_runtime_manager = StrategyRuntimeManager()

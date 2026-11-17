@@ -1,9 +1,7 @@
-"""Teaching-only single-asset buy cap; no stop-loss, drawdown or triple barrier.
-
-CE's default registry stays empty; only explicit enable copies this file.
-"""
+"""Teaching cap; no stop-loss/drawdown/triple barrier; copied only when enabled."""
 
 import datetime
+from functools import partial
 from typing import Any
 
 from quantide.core.strategy import RiskStrategy
@@ -14,12 +12,9 @@ DEFAULT_MAX_WEIGHT = 0.25
 
 
 def _held_shares(broker: Any, asset: str) -> float:
-    positions = broker.positions
-    position = (
-        positions.get(asset)
-        if isinstance(positions, dict)
-        else next((item for item in positions if item.asset == asset), None)
-    )
+    raw = broker.positions
+    values = raw.values() if isinstance(raw, dict) else raw
+    position = next((item for item in values if item.asset == asset), None)
     return float(getattr(position, "shares", 0.0) or 0.0)
 
 
@@ -38,14 +33,11 @@ def capped_buy_shares(
         return 0
     held_value = _held_shares(broker, asset) * reference
     budget = max(0.0, max_weight * equity - held_value)
-    allowed = int(budget / reference / 100) * 100
-    return max(0, min(requested, allowed))
+    return max(0, min(requested, int(budget / reference / 100) * 100))
 
 
 def _guard(max_weight: float) -> Any:
-    return lambda broker, asset, shares, price, order_time: capped_buy_shares(
-        broker, asset, shares, price, order_time, max_weight
-    )
+    return partial(capped_buy_shares, max_weight=max_weight)
 
 
 class SingleAssetWeightCapOverlay:

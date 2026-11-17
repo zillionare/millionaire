@@ -62,6 +62,82 @@ def _series(rows: list[dict[str, Any]], source: str) -> dict[str, float]:
     }
 
 
+def _positions_text(bar: Mapping[str, Any] | None) -> str:
+    positions = list((bar or {}).get("positions") or [])
+    if not positions:
+        return "-"
+    return ", ".join(
+        f"{item.get('asset', '-')} {float(item.get('shares') or 0):g}" for item in positions
+    )
+
+
+def _intraday_row(slot: str, sources: Mapping[str, Mapping[str, Any]]) -> Any:
+    shadow = sources.get("dry_run")
+    actual = sources.get("actual")
+    diff = float(shadow["nav"]) - float(actual["nav"]) if shadow and actual else None
+    return Tr(
+        Td(slot.replace("T", " ").replace("+08:00", ""), cls="whitespace-nowrap"),
+        Td(f"{float(shadow['nav']):,.2f}" if shadow else "-", cls="text-right"),
+        Td(f"{float(actual['nav']):,.2f}" if actual else "-", cls="text-right"),
+        Td(f"{diff:,.2f}" if diff is not None else "-", cls="text-right"),
+        Td(_positions_text(shadow), cls="text-xs"),
+        Td(_positions_text(actual), cls="text-xs"),
+    )
+
+
+def _intraday_rows(bars: list[dict[str, Any]]) -> list[Any]:
+    by_slot: dict[str, dict[str, dict[str, Any]]] = {}
+    for bar in bars:
+        by_slot.setdefault(str(bar["bar_slot"]), {})[str(bar["source"])] = bar
+    rows = [_intraday_row(slot, by_slot[slot]) for slot in sorted(by_slot)]
+    if rows:
+        return rows
+    return [
+        Tr(
+            Td(
+                "暂无已闭合 30m bar；缺口会在下一交易时段自动回补。",
+                colspan=6,
+                cls="py-6 text-center text-gray-500",
+            )
+        )
+    ]
+
+
+def _intraday_section(portfolio_id: str, run: Mapping[str, Any] | None) -> Any:
+    """Render closed 30m bars with the persisted gap slots."""
+    bars = tracking_store.list_bars(portfolio_id=portfolio_id, bar_interval="30m")
+    if not bars and (run or {}).get("bar_interval") != "30m":
+        return Span()
+    rows = _intraday_rows(bars)
+    gaps = list((run or {}).get("gap_slots") or [])
+    gap_text = f"待回补: {', '.join(gaps[-5:])}" if gaps else "无待回补缺口"
+    return Div(
+        H2("逐 30m bar", cls="mt-6 text-base font-semibold text-gray-900"),
+        Span(
+            f"待回补缺口 {len(gaps)} 个 · {gap_text}" if gaps else gap_text,
+            cls="text-xs text-gray-500",
+        ),
+        Div(
+            Table(
+                Thead(
+                    Tr(
+                        Th("bar 槽位"),
+                        Th("dry-run 净值", cls="text-right"),
+                        Th("实际净值", cls="text-right"),
+                        Th("差异", cls="text-right"),
+                        Th("dry-run 持仓"),
+                        Th("实际持仓"),
+                    ),
+                    cls="text-xs text-gray-500 border-b",
+                ),
+                Tbody(*rows, cls="text-sm"),
+                cls="w-full",
+            ),
+            cls="mt-2 max-h-[360px] overflow-auto",
+        ),
+    )
+
+
 def _drawdown(values: list[float]) -> float:
     peak = 0.0
     worst = 0.0
@@ -157,6 +233,7 @@ def tracking_page(req: Request) -> Any:
             Div(id=f"tracking_chart_{portfolio_id}", cls="mt-4 h-[320px] w-full"),
             Script(src=ECHARTS_SRC),
             chart_script,
+            _intraday_section(portfolio_id, run),
             Div(
                 Table(
                     Thead(
