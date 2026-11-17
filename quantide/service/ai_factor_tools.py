@@ -15,6 +15,7 @@ from quantide.config.paths import (
     get_app_db_path,
     normalize_factor_dir,
 )
+from quantide.config.settings import get_factor_dir
 from quantide.core.atomic_files import atomic_path
 from quantide.factors.alpha import FEATURE_COLS
 from quantide.factors.registry import all_factor_ids, factor_metadata
@@ -71,8 +72,11 @@ def _wind_tunnel_worker(payload: dict[str, Any]) -> dict[str, Any]:
     frame = load_wind_tunnel_frame(
         dt.date.fromisoformat(payload["start"]),
         dt.date.fromisoformat(payload["end"]),
+        interval=plugin.bar_interval,
     )
-    result = run_factor_wind_tunnel(factor_id, frame=frame, plugin=plugin, save=True)
+    result = run_factor_wind_tunnel(
+        factor_id, frame=frame, plugin=plugin, interval=plugin.bar_interval, save=True
+    )
     return result.as_dict()
 
 
@@ -96,7 +100,7 @@ def _payload_base() -> dict[str, Any]:
     return {
         "config_home": str(get_app_config_dir()),
         "data_home": get_data_home(),
-        "factor_dir": normalize_factor_dir(),
+        "factor_dir": normalize_factor_dir(get_factor_dir()),
     }
 
 
@@ -173,9 +177,14 @@ def search_registered_factors(
 
 
 def _factor_root() -> Path:
-    root = Path(normalize_factor_dir()).resolve()
+    root = Path(normalize_factor_dir(get_factor_dir())).resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     return root
+
+
+def _validate_target(root: Path, target: Path, resolved: Path) -> None:
+    if target.is_symlink() or resolved.parent != root or resolved.name != target.name:
+        raise AIToolError("path_escape", "目标路径越出 factor_dir 直接子级，已拒绝写入。")
 
 
 def _target_path(factor_id: str) -> Path:
@@ -186,8 +195,7 @@ def _target_path(factor_id: str) -> Path:
     root = _factor_root()
     target = root / f"{factor_id}.py"
     resolved = target.resolve(strict=False)
-    if target.is_symlink() or resolved.parent != root or resolved.name != target.name:
-        raise AIToolError("path_escape", "目标路径越出 factor_dir 直接子级，已拒绝写入。")
+    _validate_target(root, target, resolved)
     return target
 
 

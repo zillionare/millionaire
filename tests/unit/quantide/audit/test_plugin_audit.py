@@ -122,6 +122,67 @@ def test_future_shift_fails_future_invariance(tmp_path: Path) -> None:
     assert failed.first_difference.kind == "future_dependency"
 
 
+def test_stateful_global_cache_cannot_hide_future_dependency(tmp_path: Path) -> None:
+    plugin_path = tmp_path / "ai_plugin.py"
+    plugin_path.write_text(
+        textwrap.dedent(
+            """
+            import polars as pl
+            from quantide.factors.plugins import FactorPlugin
+
+            _STATE = {"mean": None}
+
+            def _compute(panel):
+                if _STATE["mean"] is None:
+                    _STATE["mean"] = float(panel["close"].mean())
+                return panel["close"] / _STATE["mean"]
+
+            FACTOR_PLUGIN = FactorPlugin(
+                factor_id="ai_plugin",
+                display_name="AI plugin",
+                compute=_compute,
+                required_columns=("close",),
+                warmup_bars=0,
+                formula="test",
+                principle="test",
+            )
+            """
+        ),
+        encoding="utf-8",
+    )
+    plugins.clear_plugin_cache()
+    plugin = plugins.discover_factor_plugins(tmp_path).plugins[0]
+    frame = _frame()
+
+    report = audit_factor_plugin(plugin, frame, cutoffs=_cutoffs(frame))
+
+    assert report.status is AuditStatus.FAIL
+    check = next(item for item in report.checks if item.check_id == "plugin.future_invariance")
+    assert check.status is AuditStatus.FAIL
+    assert check.details["executed_branches"] == ["cold", "warm"]
+
+
+def test_source_less_plugin_cannot_claim_cold_warm_evidence(tmp_path: Path) -> None:
+    def _compute(panel: pl.DataFrame) -> pl.Series:
+        return panel.select(pl.col("close").shift(1).over("asset")).to_series()
+
+    plugin = plugins.FactorPlugin(
+        factor_id="ai_source_less",
+        display_name="source-less",
+        compute=_compute,
+        required_columns=("close",),
+        warmup_bars=1,
+    )
+    frame = _frame()
+
+    report = audit_factor_plugin(plugin, frame, cutoffs=_cutoffs(frame))
+
+    check = next(item for item in report.checks if item.check_id == "plugin.future_invariance")
+    assert check.status is AuditStatus.INCONCLUSIVE
+    assert check.details["executed_branches"] == ["cold"]
+    assert check.details["warm_branch"] == "unavailable"
+
+
 def test_contract_rejects_non_finite_values(tmp_path: Path) -> None:
     plugin = _plugin(tmp_path, 'lambda panel: panel["close"] / (panel["close"] - panel["close"])')
     frame = _frame()

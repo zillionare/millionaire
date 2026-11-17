@@ -15,7 +15,12 @@ from loguru import logger
 from quantide.core.enums import FrameType
 from quantide.data.models.calendar import calendar
 from quantide.data.sqlite import db
+from quantide.factors.universe import UniverseFilterConfig
 from quantide.service.attribution import explain_prediction
+from quantide.service.factor_audit import (
+    feature_audit_binding,
+    record_backtest_audit_binding,
+)
 from quantide.service.factor_presets import (
     FactorPreset,
     load_preset,
@@ -24,6 +29,7 @@ from quantide.service.factor_presets import (
 )
 from quantide.service.metrics import metrics
 from quantide.service.runner import BacktestRunner
+from quantide.service.shadow_support import config_symbols
 
 
 def _parse_pct(value: Any) -> float | None:
@@ -97,6 +103,97 @@ def _equity_curve(portfolio_id: str) -> list[dict[str, Any]]:
 def _annualized_turnover(turnover: float, start: dt.date, end: dt.date) -> float:
     years = max((end - start).days / 365.25, 1 / 252)
     return turnover / years
+
+
+_EXECUTION_CONTRACT_KEYS = {
+    "fill_timing",
+    "slippage_pct",
+    "commission",
+    "stamp_duty",
+    "transfer_fee",
+    "min_commission",
+    "auction_epsilon",
+    "seed",
+}
+
+_FIXED_CONTRACT_KEYS: tuple[str, ...] = (
+    "universe_mode",
+    "universe_size",
+    "index_pool_codes",
+    "market_cap_trim_pct",
+    "universe_rebalance_days",
+    "min_listing_days",
+    "exclude_st",
+    "exclude_suspended",
+    "exclude_limit_locked_on_close",
+    "max_universe_size",
+    "fill_timing",
+    "slippage_pct",
+    "commission",
+    "stamp_duty",
+    "transfer_fee",
+    "min_commission",
+    "auction_epsilon",
+    "seed",
+)
+
+
+def _canonical_filter(config: dict[str, Any]) -> dict[str, Any]:
+    nested = config.get("universe_filter")
+    merged = {**config, **(nested if isinstance(nested, dict) else {})}
+    return UniverseFilterConfig.from_mapping(merged, max_universe_size=None).as_dict()
+
+
+def _number(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _integer(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _effective_contract(config: dict[str, Any]) -> dict[str, Any]:
+    """Resolve the same effective selection/execution values the strategy consumes."""
+    filter_values = _canonical_filter(config)
+    top_k = max(1, _integer(config.get("top_k"), 5))
+    values: dict[str, Any] = {
+        key: filter_values[key]
+        for key in _FIXED_CONTRACT_KEYS
+        if key in filter_values and key not in _EXECUTION_CONTRACT_KEYS
+    }
+    values.update(
+        {
+            "universe_mode": str(config.get("universe_mode", "market_cap_trim")).strip(),
+            "universe_size": max(top_k, _integer(config.get("universe_size"), 2000)),
+            "index_pool_codes": [str(item) for item in config.get("index_pool_codes") or []],
+            "market_cap_trim_pct": min(
+                0.5, max(0.0, _number(config.get("market_cap_trim_pct"), 0.05))
+            ),
+            "universe_rebalance_days": max(1, _integer(config.get("universe_rebalance_days"), 20)),
+            "fill_timing": str(config.get("fill_timing", "auction_close")).strip().lower(),
+            "slippage_pct": _number(config.get("slippage_pct"), 0.0),
+            "commission": _number(config.get("commission"), 0.0),
+            "stamp_duty": _number(config.get("stamp_duty", config.get("stamp_tax")), 0.0),
+            "transfer_fee": _number(config.get("transfer_fee"), 0.0),
+            "min_commission": _number(config.get("min_commission"), 0.0),
+            "auction_epsilon": _number(config.get("auction_epsilon"), 0.0),
+            "seed": _integer(config.get("seed"), 0),
+            "symbols": config_symbols(config, include_universe=True) or None,
+        }
+    )
+    return values
+
+
+def _contract_conflicts(baseline: dict[str, Any], variant: dict[str, Any]) -> list[str]:
+    return [
+        key for key in sorted(set(baseline) | set(variant)) if baseline.get(key) != variant.get(key)
+    ]
 
 
 def _config_for(
@@ -244,9 +341,9 @@ def _execute_backtest(
     initial_cash: float,
     run_id: str,
     interval: str,
-) -> None:
+) -> dict[str, Any]:
     runner = BacktestRunner()
-    asyncio.run(
+    return asyncio.run(
         runner.run(
             strategy_cls=strategy_cls,
             config=config,
@@ -260,32 +357,17 @@ def _execute_backtest(
     )
 
 
-def run_single_backtest(
-    strategy_id: str,
+def _backtest_payload(
     *,
+    strategy_id: str,
+    preset: FactorPreset | None,
     start: dt.date,
     end: dt.date,
-    preset: FactorPreset | None = None,
-    params: dict[str, Any] | None = None,
-    initial_cash: float = 1_000_000.0,
-    portfolio_id: str | None = None,
-    fixed: dict[str, Any] | None = None,
+    initial_cash: float,
+    run_id: str,
+    config: dict[str, Any],
+    cls: type,
 ) -> dict[str, Any]:
-    """Execute one isolated backtest and return metrics, fees and equity curve."""
-    config = _config_for(strategy_id, preset, params)
-    if fixed:
-        config.update(fixed)
-    cls = resolve_strategy(strategy_id)
-    run_id = portfolio_id or uuid.uuid4().hex
-    _execute_backtest(
-        cls,
-        config,
-        start,
-        end,
-        initial_cash,
-        run_id,
-        strategy_interval(strategy_id),
-    )
     metrics_payload = _metrics_payload(run_id, start, end)
     costs = _trade_cost_summary(run_id)
     shap_features, shap_diagnostics = _shap_top_features(run_id, start, end, cls, config)
@@ -306,6 +388,89 @@ def run_single_backtest(
         "shap_top_features": shap_features,
         "diagnostics": shap_diagnostics,
     }
+
+
+def _freeze_experiment_binding(
+    config: dict[str, Any], interval: str, start: dt.date, end: dt.date, run_id: str
+) -> None:
+    binding = feature_audit_binding(
+        config,
+        interval,
+        start_date=start.isoformat(),
+        end_date=end.isoformat(),
+        run_id=run_id,
+    )
+    record_backtest_audit_binding(run_id, config, interval, run_id=run_id, binding=binding)
+
+
+def _record_experiment_result(
+    config: dict[str, Any],
+    interval: str,
+    start: dt.date,
+    end: dt.date,
+    run_id: str,
+    execution: dict[str, Any],
+) -> dict[str, Any]:
+    diagnostics = (execution or {}).get("universe_diagnostics") or {}
+    record_backtest_audit_binding(
+        run_id,
+        config,
+        interval,
+        start_date=start.isoformat(),
+        end_date=end.isoformat(),
+        run_id=run_id,
+        model_ref=str(execution.get("model_ref") or ""),
+        diagnostics=diagnostics,
+    )
+    return diagnostics
+
+
+def run_single_backtest(
+    strategy_id: str,
+    *,
+    start: dt.date,
+    end: dt.date,
+    preset: FactorPreset | None = None,
+    params: dict[str, Any] | None = None,
+    initial_cash: float = 1_000_000.0,
+    portfolio_id: str | None = None,
+    fixed: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Execute one isolated backtest and return metrics, fees and equity curve."""
+    from quantide.service.research_cli import _ensure_data
+
+    _ensure_data()
+    config = _config_for(strategy_id, preset, params)
+    if fixed:
+        config.update(fixed)
+    cls = resolve_strategy(strategy_id)
+    run_id = portfolio_id or uuid.uuid4().hex
+    _freeze_experiment_binding(config, strategy_interval(strategy_id), start, end, run_id)
+    execution = _execute_backtest(
+        cls,
+        config,
+        start,
+        end,
+        initial_cash,
+        run_id,
+        strategy_interval(strategy_id),
+    )
+    universe_diagnostics = _record_experiment_result(
+        config, strategy_interval(strategy_id), start, end, run_id, execution
+    )
+    payload = _backtest_payload(
+        strategy_id=strategy_id,
+        preset=preset,
+        start=start,
+        end=end,
+        initial_cash=initial_cash,
+        run_id=run_id,
+        config=config,
+        cls=cls,
+    )
+    payload["universe_diagnostics"] = universe_diagnostics
+    payload["model_ref"] = str(execution.get("model_ref") or "")
+    return payload
 
 
 @dataclass(frozen=True)
@@ -381,19 +546,30 @@ def _comparison(baseline: dict[str, Any], variant: dict[str, Any]) -> dict[str, 
 
 def run_ablation(spec: AblationStudySpec) -> dict[str, Any]:
     """Run baseline and variants sequentially under identical fixed conditions."""
+    from quantide.service.research_cli import _ensure_data
+
+    _ensure_data()
     baseline_preset = load_preset(spec.baseline_preset_id)
     variants = [load_preset(preset_id) for preset_id in spec.variant_preset_ids]
     strategy_id = spec.strategy_id or baseline_preset.strategy_id
     for preset in (baseline_preset, *variants):
         if preset.strategy_id != strategy_id:
             raise ValueError("Baseline/Variant 必须绑定同一策略")
-    fixed = spec.fixed_config()
-    if not fixed["universe_filter"]:
-        baseline_filter = _config_for(strategy_id, baseline_preset, None).get("universe_filter")
-        if isinstance(baseline_filter, dict) and baseline_filter:
-            fixed["universe_filter"] = dict(baseline_filter)
-        else:
-            fixed.pop("universe_filter")
+    baseline_config = _config_for(strategy_id, baseline_preset, None)
+    baseline_contract = _effective_contract(baseline_config)
+    for preset in variants:
+        variant_config = _config_for(strategy_id, preset, None)
+        conflicts = _contract_conflicts(baseline_contract, _effective_contract(variant_config))
+        if conflicts:
+            raise ValueError(
+                "Variant 必须保持与 Baseline 相同的有效选池/执行合同: " + ", ".join(conflicts)
+            )
+    fixed = {**baseline_contract}
+    fixed.update(spec.fixed_config())
+    if not spec.universe_filter:
+        fixed["universe_filter"] = _canonical_filter(baseline_config)
+    if baseline_contract.get("symbols"):
+        fixed["symbols"] = list(baseline_contract["symbols"])
     baseline = run_single_backtest(
         strategy_id,
         start=spec.start,

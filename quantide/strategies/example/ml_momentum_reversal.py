@@ -24,102 +24,44 @@ from quantide.factors.catalog import resolve_feature_selection
 from quantide.factors.registry import all_factor_ids, catalog_version, compute_feature_panel
 from quantide.factors.universe import UniverseFilterConfig
 from quantide.service.model_store import ModelArtifact, model_key, model_store
+from quantide.strategies.example import _ml_support
 from quantide.strategies.example._ml_explanation import MLExplanation
 from quantide.strategies.example._ml_rebalance import MLRebalance
 from quantide.strategies.example._ml_selection import SelectionOptions
-from quantide.strategies.example._ml_support import (
-    _EXPLAIN_CROSS_SECTION_CACHE as _EXPLAIN_CROSS_SECTION_CACHE,
-)
-from quantide.strategies.example._ml_support import (
-    _EXPLAIN_MODEL_CACHE as _EXPLAIN_MODEL_CACHE,
-)
-from quantide.strategies.example._ml_support import (
-    _HAS_LIGHTGBM as _HAS_LIGHTGBM,
-)
-from quantide.strategies.example._ml_support import (
-    _INDEX_POOL_CACHE as _INDEX_POOL_CACHE,
-)
-from quantide.strategies.example._ml_support import (
-    _LABEL_CACHE as _LABEL_CACHE,
-)
-from quantide.strategies.example._ml_support import (
-    _LABEL_CACHE_MAX as _LABEL_CACHE_MAX,
-)
-from quantide.strategies.example._ml_support import (
-    _PANEL_CACHE as _PANEL_CACHE,
-)
-from quantide.strategies.example._ml_support import (
-    _PANEL_CACHE_MAX as _PANEL_CACHE_MAX,
-)
-from quantide.strategies.example._ml_support import LABEL_KINDS, _pipeline_version
-from quantide.strategies.example._ml_support import (
-    _bars_fingerprint as _bars_fingerprint,
-)
-from quantide.strategies.example._ml_support import (
-    _cap_universe as _cap_universe,
-)
-from quantide.strategies.example._ml_support import (
-    _coerce_date as _coerce_date,
-)
-from quantide.strategies.example._ml_support import (
-    _describe_kline_pattern as _describe_kline_pattern,
-)
-from quantide.strategies.example._ml_support import (
-    _describe_moving_average_signal as _describe_moving_average_signal,
-)
-from quantide.strategies.example._ml_support import (
-    _describe_signal_reason as _describe_signal_reason,
-)
-from quantide.strategies.example._ml_support import (
-    _ensure_data_connected as _ensure_data_connected,
-)
-from quantide.strategies.example._ml_support import (
-    _filter_liquid_universe as _filter_liquid_universe,
-)
-from quantide.strategies.example._ml_support import (
-    _filter_universe as _filter_universe,
-)
-from quantide.strategies.example._ml_support import (
-    _fit_ml_model as _fit_ml_model,
-)
-from quantide.strategies.example._ml_support import (
-    _format_candidate_rows as _format_candidate_rows,
-)
-from quantide.strategies.example._ml_support import (
-    _future_return_horizon as _future_return_horizon,
-)
-from quantide.strategies.example._ml_support import (
-    _index_pit_universe as _index_pit_universe,
-)
-from quantide.strategies.example._ml_support import (
-    _parse_custom_assets as _parse_custom_assets,
-)
-from quantide.strategies.example._ml_support import (
-    _ranked_prediction_result as _ranked_prediction_result,
-)
-from quantide.strategies.example._ml_support import (
-    _resolve_explanation_training_windows as _resolve_explanation_training_windows,
-)
-from quantide.strategies.example._ml_support import (
-    _resolve_stock_name as _resolve_stock_name,
-)
-from quantide.strategies.example._ml_support import (
-    _retrain_replay_model as _retrain_replay_model,
-)
-from quantide.strategies.example._ml_support import (
-    _score_cross_section as _score_cross_section,
-)
-from quantide.strategies.example._ml_support import (
-    _stable_universe_rank as _stable_universe_rank,
-)
-from quantide.strategies.example._ml_support import (
-    _training_return_labels as _training_return_labels,
-)
-from quantide.strategies.example._ml_support import (
-    compute_future_close_return_labels as compute_future_close_return_labels,
-)
-from quantide.strategies.example._ml_support import (
-    lgb as lgb,
+from quantide.strategies.example._ml_support import (  # noqa: F401
+    _EXPLAIN_CROSS_SECTION_CACHE,
+    _EXPLAIN_MODEL_CACHE,
+    _HAS_LIGHTGBM,
+    _INDEX_POOL_CACHE,
+    _LABEL_CACHE,
+    _LABEL_CACHE_MAX,
+    _PANEL_CACHE,
+    _PANEL_CACHE_MAX,
+    LABEL_KINDS,
+    _bars_fingerprint,
+    _cap_universe,
+    _coerce_date,
+    _describe_kline_pattern,
+    _describe_moving_average_signal,
+    _describe_signal_reason,
+    _ensure_data_connected,
+    _filter_liquid_universe,
+    _filter_universe,
+    _fit_ml_model,
+    _format_candidate_rows,
+    _future_return_horizon,
+    _index_pit_universe,
+    _parse_custom_assets,
+    _pipeline_version,
+    _ranked_prediction_result,
+    _resolve_explanation_training_windows,
+    _resolve_stock_name,
+    _retrain_replay_model,
+    _score_cross_section,
+    _stable_universe_rank,
+    _training_return_labels,
+    compute_future_close_return_labels,
+    lgb,
 )
 
 
@@ -132,10 +74,13 @@ def _cache_backtest_feature_panel(
 ) -> None:
     """Compute and cache the normalized feature panel for the backtest window."""
     stock_meta = stock_list.data if stock_list.size > 0 else None
-    feat_panel = compute_feature_panel(raw_panel, self.selected_features, stock_meta=stock_meta)
-    self._cached_norm_panel = standardize_features(
-        feat_panel, self.selected_features or all_factor_ids()
+    feat_panel = compute_feature_panel(
+        raw_panel, self.selected_features, stock_meta=stock_meta, interval=self.bar_interval
     )
+    self._cached_norm_panel = standardize_features(
+        feat_panel, self.selected_features or all_factor_ids(self.bar_interval)
+    )
+    self._panel_identity_token = _ml_support._panel_identity(self)
     self._panel_start = signal_date
     self._panel_end = fetch_end
     is_live = getattr(self.broker, "_bt_start", None) is None
@@ -192,6 +137,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         if config and "future_return_horizon" not in config and "horizon" in config:
             merged["future_return_horizon"] = config["horizon"]
         super().__init__(broker, merged)
+        self.bar_interval = str(self.config.get("bar_interval") or self.BAR_INTERVAL)
         self.top_k = max(1, int(self.config.get("top_k", 5)))
         self.universe_size = max(self.top_k, int(self.config.get("universe_size", 2000)))
         self.universe_mode = str(self.config.get("universe_mode", "market_cap_trim")).strip()
@@ -211,7 +157,9 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             raise ValueError(f"不支持的 label_kind: {self.label_kind}")
         self.retrain_days = max(1, int(self.config.get("retrain_days", 5)))
         self.use_lightgbm = bool(self.config.get("use_lightgbm", True))
-        self.selected_features: list[str] = resolve_feature_selection(self.config.get("features"))
+        self.selected_features: list[str] = resolve_feature_selection(
+            self.config.get("features"), self.bar_interval
+        )
         self.custom_assets = _parse_custom_assets(self.config)
         filter_values = dict(self.config)
         if isinstance(self.config.get("universe_filter"), dict):
@@ -224,6 +172,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         self._shadow_mode = bool(self.config.get("_shadow_mode", False))
 
         self._model: object | None = None
+        self._model_ref: str = ""
         self._model_engine: str = "LightGBM" if self.use_lightgbm else "Prior-Ridge"
         #: 模型持久化键（策略名 + 模型相关配置哈希），回测/仿真/实盘共用
         self._model_key = model_key(
@@ -247,6 +196,8 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         self._cached_norm_panel: pl.DataFrame | None = None
         self._panel_start: datetime.date | None = None
         self._panel_end: datetime.date | None = None
+        self._panel_identity_token: tuple[Any, ...] | None = None
+        self._universe_diagnostics: dict[str, Any] = {}
 
     async def init(self) -> None:
         """Initialize strategy state and log configuration."""
@@ -273,9 +224,12 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
     def _is_live_mode(self) -> bool:
         return getattr(self.broker, "_bt_start", None) is None
 
-    def _load_model_from_store(self, day: datetime.date | None = None) -> bool:
-        """加载最新模型；只接受 effective_from <= day 的版本。"""
-        model, meta = model_store.load(self._model_key)
+    def _load_model_from_store(
+        self, day: datetime.date | None = None, model_ref: str | None = None
+    ) -> bool:
+        """加载最新或指定不可变模型；只接受 effective_from <= day 的版本。"""
+        ref = model_ref or str(self.config.get("_model_ref") or "") or None
+        model, meta = model_store.load_ref(ref) if ref else model_store.load(self._model_key)
         if model is None or meta is None:
             self._model_pending = True
             return False
@@ -293,6 +247,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             self._model_pending = True
             return False
         self._model = model
+        self._model_ref = str((meta.extra or {}).get("model_ref") or "")
         self._model_engine = meta.engine or self._model_engine
         self._model_train_end = train_end
         self._model_effective_from = effective
@@ -344,7 +299,13 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
                     "train_window": self.train_window,
                 },
             )
-            model_store.save(key=self._model_key, model=model, metadata=meta)
+            is_research = getattr(self.broker, "_bt_start", None) is not None
+            saved = (
+                model_store.save_version(key=self._model_key, model=model, metadata=meta)
+                if is_research
+                else model_store.save(key=self._model_key, model=model, metadata=meta)
+            )
+            self._model_ref = str((saved.extra or {}).get("model_ref") or "")
             self._model_train_end = train_end
             self._model_effective_from = effective_from
         except Exception as exc:  # pragma: no cover - 持久化失败不应中断策略
@@ -372,7 +333,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             train_window=self.train_window,
             horizon=self.future_return_horizon,
             use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or all_factor_ids(),
+            feature_cols=self.selected_features or all_factor_ids(self.bar_interval),
             label_cache_key=self._panel_cache_key(day),
             label_kind=self.label_kind,
         )
@@ -410,7 +371,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             train_window=self.train_window,
             horizon=self.future_return_horizon,
             use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or all_factor_ids(),
+            feature_cols=self.selected_features or all_factor_ids(self.bar_interval),
             label_cache_key=self._panel_cache_key(next_day),
             label_kind=self.label_kind,
         )
@@ -580,7 +541,8 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             self.universe_mode,
             tuple(self.index_pool_codes),
             round(self.market_cap_trim_pct, 6),
-            tuple(self.selected_features or all_factor_ids()),
+            tuple(self.selected_features or all_factor_ids(self.bar_interval)),
+            _ml_support._panel_identity(self),
             tuple(self._held_assets(signal_date)),
             self.custom_assets,
             tuple(sorted(self.universe_filter.as_dict().items())),
@@ -641,6 +603,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             and self._panel_start is not None
             and self._panel_end is not None
             and self._panel_start <= signal_date <= self._panel_end
+            and self._panel_identity_token == _ml_support._panel_identity(self)
         ):
             return
 
@@ -648,6 +611,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         cached_panel = _PANEL_CACHE.get(panel_key)
         if cached_panel is not None:
             self._cached_norm_panel = cached_panel
+            self._panel_identity_token = _ml_support._panel_identity(self)
             self._panel_start = signal_date
             self._panel_end = self._panel_end_for(signal_date)
             return
@@ -688,6 +652,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
                 index_codes=self.index_pool_codes,
                 universe_filter=self.universe_filter,
                 fill_timing=self.fill_timing,
+                diagnostics=self._universe_diagnostics,
             )
             self._live_universe_assets = set(universe_assets)
             self.log(
@@ -750,8 +715,8 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         if panel.height < 5:
             return [], {}, {}
 
-        feature_cols = self.selected_features or all_factor_ids()
-        feat_df = compute_feature_panel(panel, feature_cols)
+        feature_cols = self.selected_features or all_factor_ids(self.bar_interval)
+        feat_df = compute_feature_panel(panel, feature_cols, interval=self.bar_interval)
         norm_df = standardize_features(feat_df, feature_cols)
         target_date: datetime.date = norm_df["date"].max()  # type: ignore[assignment]
         if is_live and self._model is None:
@@ -891,7 +856,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             cross_df,
             self._model,
             self._model_engine,
-            self.selected_features or all_factor_ids(),
+            self.selected_features or all_factor_ids(self.bar_interval),
             target_date,
             self.top_k,
         )
@@ -962,9 +927,14 @@ def _rank_selection_panel(
 ) -> list[dict[str, Any]]:
     """Compute, fit and rank a fixed candidate panel."""
     stock_meta = stock_list.data if stock_list.size > 0 else None
-    features = resolve_feature_selection(selected_features) or all_factor_ids()
+    features = resolve_feature_selection(selected_features, options.bar_interval) or all_factor_ids(
+        options.bar_interval
+    )
     normalized = standardize_features(
-        compute_feature_panel(panel, features, stock_meta=stock_meta), features
+        compute_feature_panel(
+            panel, features, stock_meta=stock_meta, interval=options.bar_interval
+        ),
+        features,
     )
     model, engine = _fit_ml_model(
         normalized,

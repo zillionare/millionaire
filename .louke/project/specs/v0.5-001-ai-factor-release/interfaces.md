@@ -54,7 +54,7 @@ class FactorPlugin:
     golden_cases: tuple[GoldenCase, ...] = field(default_factory=tuple)
 ```
 
-- **输入约定**：当 `price_adjustment="hfq"`（默认）时，框架传入的 `open/high/low/close` 已统一完成后复权转换，插件不得再次乘 `adjust`；当 `price_adjustment="raw"` 时传入原始价与 `adjust` 列。面板保证按 `["asset", "date"]`（或 `["asset", "dt"]`）严格排序且无重复键。
+- **输入约定**：当 `price_adjustment="hfq"`（默认）时，框架传入的 `open/high/low/close` 已统一完成后复权转换，插件不得再次乘 `adjust`；`adjust` 是 hfq 输入中的框架保留列，若插件在 `required_columns` 中再次声明它，契约检查以结构化 `PluginContractError` 拒绝，而不是静默删除或二次复权。当 `price_adjustment="raw"` 时传入原始价与 `adjust` 列；用户自定义扩展列不设列名黑名单，满足 `required_columns` 即原样放行。面板保证按 `["asset", "date"]`（或 `["asset", "dt"]`）严格排序且无重复键。
 - **输出约定**：返回与输入等长的 `pl.Series`，或含 `["asset", "date", factor_id]` 的 `pl.DataFrame`；缺失/预热期统一用 Polars `null` 表示，禁止返回残留 `NaN` 或 `±Inf`。
 - **跳过诊断枚举 `SkippedFactorReason`**：`SyntaxError`、`ImportError`、`MissingPluginDeclaration`、`InvalidMetadata`、`BuiltinIdConflict`、`DuplicatePluginId`、`SourceCheckoutRejected`。
 
@@ -262,3 +262,10 @@ Web Agent 循环通过标准 OpenAI Chat Completions `tools` 协议仅注册以�
   - `POST /factors/studio/sessions/{session_id}/messages`：提交用户自然语言需求并启动异步受控 Agent 轮次；
   - `GET /factors/studio/sessions/{session_id}/stream`（或状态片段轮询端点）：增量渲染“生成草稿 → 风洞自检/自动修复（`1..max_repair_rounds`）→ IC 与查重结论卡片”；
   - `POST /factors/studio/sessions/{session_id}/cancel`：中断正在运行的模型请求与子进程风洞/检验任务。
+
+## 2026-11-18 接口补充
+
+- `ModelStore.save_version(key, model, metadata)` 只发布不可变 `key/artifact_hash`，不写 `latest.pkl`/`latest.json`。研究/回测/解释路径使用该入口；Paper 启动与决策前刷新仍解析正式 `latest` 或显式 `model_ref`。
+- `StrategySession` 的 durable `last_signal_slot` 与 actual bar 存在性共同阻止同一闭合槽位重复回调；`process_next_open_30m_intents` 在 completed/last_bar 早退之前每 tick 独立推进。
+- `AiRound` generation 在所有状态、消息和卡片提交前校验，而不是仅依赖当前 `_ACTIVE` 事件是否存在。
+- `compute_future_close_return_labels` 使用权威交易日历的精确退出日；退出日无该证券行情返回 `null`。`_training_feature_panel` 只在完整成熟且符合历史资格的截面上训练。

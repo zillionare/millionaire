@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import polars as pl
@@ -168,7 +169,7 @@ def test_30m_ledger_replays_full_day_t1_gap_and_restart(tmp_path, monkeypatch):
     assert len({bar["bar_slot"] for bar in day2}) == 5
 
 
-def test_latest_closed_session_slot_rejects_lunch_and_post_close(monkeypatch):
+def test_latest_closed_session_slot_falls_back_to_closed_session(monkeypatch):
     from quantide.service.shadow_intraday import latest_closed_session_slot
     from quantide.service.strategy_runtime import StrategyRuntimeManager
 
@@ -178,5 +179,175 @@ def test_latest_closed_session_slot_rejects_lunch_and_post_close(monkeypatch):
         staticmethod(lambda now: now),
     )
     assert latest_closed_session_slot(_slot(27, 10, 0)) == _slot(27, 10, 0)
-    assert latest_closed_session_slot(_slot(27, 13, 0)) is None
-    assert latest_closed_session_slot(_slot(27, 15, 30)) is None
+    from quantide.service.shadow_intraday import SESSION_SLOT_TIMES
+
+    for now in (_slot(27, 13, 0), _slot(27, 15, 30)):
+        closed = latest_closed_session_slot(now)
+        assert closed is None or (closed <= now and closed.time() in SESSION_SLOT_TIMES)
+
+
+def test_first_slot_at_or_after_keeps_exact_enable_boundary(monkeypatch):
+    from quantide.service import shadow_intraday as module
+
+    monkeypatch.setattr(module.calendar, "is_trade_day", lambda _: True)
+    assert module.first_slot_at_or_after(_slot(27, 10, 15)) == _slot(27, 10, 30)
+    assert module.first_slot_at_or_after(_slot(27, 9, 0)) == _slot(27, 10, 0)
+
+
+def test_shadow_actual_bar_uses_persisted_fact_not_current_broker(tmp_path, monkeypatch):
+    store = TrackingStore(tmp_path / "shadow-actual.db")
+    slot = _slot(27, 10, 0)
+    store.ensure_run(
+        "paper:p1", "p1", start_date=slot.date(), bar_interval="30m", start_slot=bar_slot_text(slot)
+    )
+    store.save_bar(
+        runtime_id="paper:p1",
+        portfolio_id="p1",
+        bar_slot=bar_slot_text(slot),
+        bar_interval="30m",
+        source="actual",
+        nav=8000.0,
+        cash=8000.0,
+        market_value=0.0,
+        positions=[],
+        trades=[{"asset": "000001.SZ", "amount": 100.0}],
+        model_hash="old-model",
+    )
+    runtime = _runtime()
+    runtime.broker = SimpleNamespace(
+        asset=SimpleNamespace(total=9000.0, cash=9000.0, market_value=0.0), positions={}
+    )
+    runner = IntradayShadowRunner(store)
+    runner.frame = lambda item, runtime: _frame(item)  # type: ignore[method-assign]
+    calls = []
+
+    def _replay(self, runtime, bar_slot, frame):
+        calls.append(bar_slot)
+        return {
+            "dry_run": {
+                "source": "dry_run",
+                "nav": 10000.0,
+                "cash": 10000.0,
+                "market_value": 0.0,
+                "positions": [],
+                "trades": [],
+                "model_hash": "",
+            },
+            "shadow_state": {"cash": 10000.0, "positions": []},
+            "processed_intent_ids": [],
+        }
+
+    monkeypatch.setattr(IntradayShadowRunner, "_replay", _replay)
+    monkeypatch.setattr(
+        "quantide.service.shadow_intraday.latest_closed_session_slot", lambda now=None: slot
+    )
+    monkeypatch.setattr(
+        "quantide.service.shadow_intraday.next_session_slot",
+        lambda item: item + datetime.timedelta(minutes=30),
+    )
+
+    assert runner.run(runtime) == 1
+    actual = store.get_bar("paper:p1", bar_slot_text(slot), source="actual")
+    assert actual is not None
+    assert actual["cash"] == 8000.0
+    assert actual["model_hash"] == "old-model"
+
+
+def test_real_subprocess_kill_after_committed_bar_resumes_without_duplicate(tmp_path, monkeypatch):
+    import os
+    import subprocess
+    import sys
+    import textwrap
+
+    root = tmp_path / "crash"
+    root.mkdir()
+    database = root / "shadow.db"
+    marker = root / "killed.marker"
+    script = root / "child.py"
+    script.write_text(
+        textwrap.dedent(
+            f"""
+            import datetime, os, signal
+            import polars as pl
+            from types import SimpleNamespace
+            from quantide.service.shadow_intraday import IntradayShadowRunner
+            from quantide.service.strategy_tracking import TrackingStore, bar_slot_text
+
+            slot = datetime.datetime(2026, 10, 27, 10, 0)
+            end = datetime.datetime(2026, 10, 27, 10, 30)
+            store = TrackingStore(r\"{database}\")
+            store.ensure_run("paper:crash", "crash", start_date=slot.date(), bar_interval="30m", start_slot=bar_slot_text(slot))
+            runtime = SimpleNamespace(runtime_id="paper:crash", portfolio_id="crash", interval="30m", config={{}}, principal=10000.0)
+
+            class Runner(IntradayShadowRunner):
+                def frame(self, item, runtime):
+                    return pl.DataFrame({{"asset": ["A"], "close": [10.0]}})
+                def _replay(self, runtime, item, frame):
+                    if item == end and not os.path.exists(r\"{marker}\"):
+                        open(r\"{marker}\", "w").close()
+                        os.kill(os.getpid(), signal.SIGKILL)
+                    return {{"dry_run": {{"source": "dry_run", "nav": 10000.0, "cash": 10000.0, "market_value": 0.0, "positions": [], "trades": [], "model_hash": ""}}, "shadow_state": {{"cash": 10000.0, "positions": []}}, "processed_intent_ids": []}}
+
+            import quantide.service.shadow_intraday as module
+            module.latest_closed_session_slot = lambda now=None: end
+            module.next_session_slot = lambda item: item + datetime.timedelta(minutes=30)
+            Runner(store).run(runtime)
+            """
+        ),
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=Path(__file__).parents[4],
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert marker.exists()
+    store = TrackingStore(database)
+    first = store.get_bar("paper:crash", bar_slot_text(_slot(27, 10, 0)), source="dry_run")
+    assert first is not None
+    assert store.get_run("paper:crash")["last_tracking_slot"] == bar_slot_text(_slot(27, 10, 0))
+
+    class Runner(IntradayShadowRunner):
+        def frame(self, item, runtime):
+            return pl.DataFrame({"asset": ["A"], "close": [10.0]})
+
+        def _replay(self, runtime, item, frame):
+            return {
+                "dry_run": {
+                    "source": "dry_run",
+                    "nav": 10000.0,
+                    "cash": 10000.0,
+                    "market_value": 0.0,
+                    "positions": [],
+                    "trades": [],
+                    "model_hash": "",
+                },
+                "shadow_state": {"cash": 10000.0, "positions": []},
+                "processed_intent_ids": [],
+            }
+
+    from quantide.service import shadow_intraday as module
+
+    monkeypatch.setattr(module, "latest_closed_session_slot", lambda now=None: _slot(27, 10, 30))
+    monkeypatch.setattr(
+        module, "next_session_slot", lambda item: item + datetime.timedelta(minutes=30)
+    )
+    runner = Runner(store)
+    runtime = _runtime()
+    runtime.runtime_id = "paper:crash"
+    runtime.portfolio_id = "crash"
+    assert runner.run(runtime) == 1
+    assert store.get_bar("paper:crash", bar_slot_text(_slot(27, 10, 30)), source="dry_run")
+    assert runner.run(runtime) == 0
+
+
+def test_anchor_never_invents_weekday_slots_without_authoritative_calendar(monkeypatch):
+    from quantide.service import shadow_intraday as module
+
+    monkeypatch.setattr(module.calendar, "is_trade_day", lambda _day: False)
+
+    assert module.first_slot_at_or_after(_slot(27, 10, 15)) is None

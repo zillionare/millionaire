@@ -20,6 +20,7 @@ from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.sqlite import db
 from quantide.service.discovery import strategy_loader
+from quantide.service.factor_audit import feature_audit_binding
 from quantide.service.registry import BrokerRegistry
 from quantide.service.risk_programs import build_live_risk_strategies
 from quantide.service.runtime_config import _float_or
@@ -253,6 +254,13 @@ class StrategyRuntimeManager(RuntimeRiskControls, RuntimeStatePersistence, Runti
                 "interval": interval,
                 "cheat_on_close": cheat,
                 "cheat_on_close_time": cheat_tm,
+                "feature_audit": feature_audit_binding(
+                    config,
+                    interval,
+                    start_date=start_date,
+                    end_date=end_date,
+                    run_id=run.runtime_id,
+                ),
             }
             self._save_specs()
 

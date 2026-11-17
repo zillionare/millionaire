@@ -1,4 +1,4 @@
-"""Machine-readable acceptance matrix for v0.4-001."""
+"""Machine-readable acceptance matrix for CE v0.4/v0.5 contracts."""
 
 from __future__ import annotations
 
@@ -155,10 +155,130 @@ ENTRIES: tuple[AcceptanceEntry, ...] = (
         (f"{S}/test_monthly_bars.py", "tests/e2e/three_mode/test_ce_parity.py"),
     ),
     AcceptanceEntry(
+        "AC-5001",
+        "FR-5001",
+        "external plugins discovered in Web and same-interval backtests",
+        (f"{F}/test_plugins.py", f"{S}/test_v0204_svc2_discovery_gaps.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5002",
+        "FR-5001/NFR-5002",
+        "bad external files isolated with precise diagnostics",
+        (f"{F}/test_plugins.py", f"{S}/test_v0204_svc2_discovery_gaps.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5003",
+        "FR-5001/NFR-5003",
+        "source changes invalidate caches and evidence",
+        (f"{S}/test_factor_tracking.py", f"{S}/test_factor_audit_badge.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5004",
+        "FR-5002",
+        "contracts, isolation, truncations and cold/warm invariance",
+        (f"{A}/test_plugin_audit.py", f"{S}/test_factor_wind_tunnel.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5005",
+        "FR-5002",
+        "leaky and cross-sectional plugins fail with first difference",
+        (f"{A}/test_plugin_audit.py", f"{S}/test_factor_wind_tunnel.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5006",
+        "FR-5003",
+        "orthogonality top peers and missing-value controls",
+        (f"{F}/test_factor_research.py", f"{S}/test_factor_wind_tunnel.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5007",
+        "FR-5004",
+        "named presets reject missing or broken factors",
+        (f"{S}/test_v05_factor_presets.py", f"{S}/test_v05_ai_studio.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5008",
+        "FR-5004",
+        "fixed-condition ablation and SHAP contribution",
+        (f"{S}/test_v05_factor_presets.py", f"{S}/test_v05_ai_studio.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5009",
+        "FR-5005/NFR-5001",
+        "offline demo bundle quick start",
+        (f"{S}/test_v05_demo_bundle.py", "tests/e2e/web/test_demo_bundle_flow.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5010",
+        "FR-5005/NFR-5004",
+        "demo mode isolation and visible indicator",
+        ("tests/e2e/web/test_demo_bundle_flow.py", f"{T}/web/test_demo_bundle_pages.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5011",
+        "FR-5006",
+        "CLI JSON envelopes and 0/2/3/4 exit semantics",
+        (f"{T}/test_research_cli.py",),
+    ),
+    AcceptanceEntry(
+        "AC-5012",
+        "FR-5006",
+        "official Skill end-to-end research without touching paper state",
+        ("tests/e2e/test_v05_research_cli_skill.py", f"{T}/test_research_cli.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5013",
+        "FR-5007",
+        "five-state wind-tunnel badges and staleness",
+        (f"{S}/test_factor_audit_badge.py", f"{W}/test_factors.py"),
+    ),
+    AcceptanceEntry(
         "AC-5014",
         "FR-5008",
         "README/index four-pillar story and no-token quick start",
         ("tests/quality/test_v05_release_surface.py",),
+    ),
+    AcceptanceEntry(
+        "AC-5015",
+        "FR-5009",
+        "BaoStock SQEP daily data and explicit liquidity fallback",
+        ("tests/unit/quantide/data/fetchers/test_baostock_daily.py", f"{S}/test_init_wizard.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5016",
+        "FR-5009",
+        "point-in-time universe uses only information known at t0",
+        (f"{T}/strategies/test_v05_pit_and_labels.py", f"{S}/test_strategy_runtime.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5017",
+        "FR-5010",
+        "three label kinds, independent oracle and model keys",
+        (
+            f"{T}/strategies/test_v05_pit_and_labels.py",
+            f"{T}/strategies/example/test_ml_momentum_reversal.py",
+        ),
+    ),
+    AcceptanceEntry(
+        "AC-5018",
+        "FR-5011",
+        "risk extension registry empty by default and opt-in example",
+        (
+            f"{T}/providers/test_risk_extensions.py",
+            f"{T}/web/test_risk_extension_page.py",
+        ),
+    ),
+    AcceptanceEntry(
+        "AC-5019",
+        "FR-5012",
+        "closed 30m bars trigger shadow replay exactly once",
+        (f"{S}/test_shadow_intraday.py",),
+    ),
+    AcceptanceEntry(
+        "AC-5020",
+        "FR-5012",
+        "30m lunch, T+1, gaps and restart ledger parity",
+        (f"{S}/test_shadow_intraday.py",),
     ),
     AcceptanceEntry(
         "AC-5021",
@@ -185,6 +305,42 @@ ENTRIES: tuple[AcceptanceEntry, ...] = (
         (
             "tests/unit/quantide/audit/test_mutations.py",
             "tests/quality/test_v05_edition_boundary.py",
+        ),
+    ),
+    AcceptanceEntry(
+        "AC-5025",
+        "FR-5013",
+        "wizard persists writable data/factor/strategy homes",
+        (
+            f"{S}/test_init_wizard.py",
+            f"{S}/test_v0204_svc4_init_wizard_gaps.py",
+            "tests/e2e/web/test_directories_settings.py",
+        ),
+    ),
+    AcceptanceEntry(
+        "AC-5026",
+        "FR-5013/NFR-5007",
+        "optional AI configuration, accurate errors and secret redaction",
+        (
+            f"{S}/test_v05_ai_agent.py",
+            f"{S}/test_v05_ai_studio.py",
+            "tests/e2e/web/test_network_settings.py",
+        ),
+    ),
+    AcceptanceEntry(
+        "AC-5027",
+        "FR-5014/NFR-5001",
+        "Web AI closed loop repairs, reports and runs ablation",
+        ("tests/e2e/web/test_ai_studio_closed_loop.py", f"{S}/test_v05_ai_agent.py"),
+    ),
+    AcceptanceEntry(
+        "AC-5028",
+        "FR-5014/NFR-5007",
+        "AI sandbox containment, persistence and cancellation",
+        (
+            f"{S}/test_v05_ai_agent.py",
+            f"{S}/test_v05_ai_studio.py",
+            "tests/e2e/web/test_ai_studio_closed_loop.py",
         ),
     ),
     AcceptanceEntry(
@@ -470,7 +626,7 @@ def matrix(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Print the v0.4-001 acceptance matrix")
+    parser = argparse.ArgumentParser(description="Print the CE acceptance matrix")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--results", action="append", default=[])
     parser.add_argument("--manifest", type=Path)

@@ -14,7 +14,8 @@ from quantide.core.market_time import market_now
 from quantide.data.models.calendar import calendar as trade_calendar
 from quantide.factors.alphatest import load_factor_panel
 from quantide.factors.metadata import Holding
-from quantide.factors.registry import all_factor_ids
+from quantide.factors.plugins import discover_factor_plugins
+from quantide.factors.registry import all_factor_ids, compute_feature_panel
 from quantide.factors.research import (
     STATISTICS_VERSION,
     Bucket,
@@ -61,6 +62,9 @@ class CustomStudy:
     created_at: str
     calendar_version: str = ""
     statistics_version: str = STATISTICS_VERSION
+    bar_interval: str = "1d"
+    sampling_interval: str = "1d"
+    holding_unit: str = "trading_day"
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> CustomStudy:
@@ -79,6 +83,9 @@ class CustomStudy:
             created_at=str(payload["created_at"]),
             calendar_version=str(payload.get("calendar_version", "")),
             statistics_version=str(payload.get("statistics_version", STATISTICS_VERSION)),
+            bar_interval=str(payload.get("bar_interval", "1d")),
+            sampling_interval=str(payload.get("sampling_interval", "1d")),
+            holding_unit=str(payload.get("holding_unit", "trading_day")),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -96,6 +103,9 @@ class CustomStudy:
             "created_at": self.created_at,
             "calendar_version": self.calendar_version,
             "statistics_version": self.statistics_version,
+            "bar_interval": self.bar_interval,
+            "sampling_interval": self.sampling_interval,
+            "holding_unit": self.holding_unit,
         }
 
 
@@ -225,13 +235,41 @@ def validate_study_request(
     return _holdings(holding_days)
 
 
+def load_native_daily_panel(
+    factor_id: str, plugin: Any, start: dt.date, end: dt.date
+) -> pl.DataFrame | None:
+    """Load native non-daily plugin bars and aggregate them into a daily study panel."""
+    if plugin is None or plugin.bar_interval == "1d":
+        return None
+    from quantide.service.factor_wind_tunnel import load_wind_tunnel_frame
+
+    native = load_wind_tunnel_frame(start, end, interval=plugin.bar_interval)
+    values = compute_feature_panel(native, [factor_id], interval=plugin.bar_interval)
+    return (
+        native.join(values, on=["asset", "dt"], how="left")
+        .with_columns(pl.col("dt").dt.date().alias("date"))
+        .group_by(["date", "asset"])
+        .agg(
+            pl.col(factor_id).last().alias(factor_id),
+            pl.col("open").first().alias("open"),
+            pl.col("close").last().alias("close"),
+            *(
+                [pl.col("available_at").max().alias("available_at")]
+                if "available_at" in native.columns
+                else []
+            ),
+        )
+        .sort(["asset", "date"])
+    )
+
+
 def _load_study_panel(
     factor_id: str,
     start: dt.date,
     end: dt.date,
     should_cancel: Any,
     checkpoint: Any,
-) -> tuple[pl.DataFrame, dt.date, tuple[dt.date, ...]]:
+) -> tuple[pl.DataFrame, dt.date, tuple[dt.date, ...], str]:
     load_start = start - dt.timedelta(days=140)
     load_end = end + dt.timedelta(days=90)
     if callable(should_cancel) and should_cancel():
@@ -241,13 +279,22 @@ def _load_study_panel(
             "load",
             {"factor": factor_id, "start": start.isoformat(), "end": end.isoformat()},
         )
-    panel = load_factor_panel(load_start, load_end)
+    plugin = discover_factor_plugins().by_id(factor_id)
+    if plugin is not None and plugin.bar_interval != "1d":
+        panel = load_native_daily_panel(factor_id, plugin, load_start, load_end)
+    else:
+        panel = load_factor_panel(load_start, load_end)
+    assert panel is not None
     if panel.is_empty():
         raise ValueError("指定区间没有可用行情")
     data_cutoff = panel["date"].max()
     if not isinstance(data_cutoff, dt.date) or data_cutoff < start:
         raise ValueError("指定区间没有可用行情")
-    return panel, data_cutoff, trading_days(load_start, data_cutoff)
+    if plugin is not None and plugin.bar_interval != "1d":
+        days = tuple(sorted(set(panel["date"].to_list())))
+    else:
+        days = trading_days(load_start, data_cutoff)
+    return panel, data_cutoff, days, plugin.bar_interval if plugin is not None else "1d"
 
 
 def run_custom_study(
@@ -261,7 +308,9 @@ def run_custom_study(
     checkpoint: Any = None,
 ) -> CustomStudy:
     holdings = validate_study_request(factor_id, start, end, holding_days, price_field)
-    panel, data_cutoff, days = _load_study_panel(factor_id, start, end, should_cancel, checkpoint)
+    panel, data_cutoff, days, bar_interval = _load_study_panel(
+        factor_id, start, end, should_cancel, checkpoint
+    )
     results: list[HorizonResult] = []
     for holding in holdings:
         if callable(should_cancel) and should_cancel():
@@ -295,6 +344,9 @@ def run_custom_study(
         cohort=common_cohort(results),
         created_at=now.isoformat(),
         calendar_version=calendar_version(days),
+        bar_interval=bar_interval,
+        sampling_interval="1d",
+        holding_unit="trading_day",
     )
 
 

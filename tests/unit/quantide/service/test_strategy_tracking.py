@@ -8,7 +8,7 @@ import polars as pl
 import pytest
 
 from quantide.service.shadow_broker import ShadowBroker
-from quantide.service.strategy_tracking import TrackingStore
+from quantide.service.strategy_tracking import TrackingStore, bar_slot_text
 
 
 def test_tracking_store_roundtrip(tmp_path):
@@ -222,3 +222,128 @@ def test_tracking_store_migrates_existing_daily_schema(tmp_path):
         positions=[],
     )
     assert len(store.list_bars("paper:old", "old")) == 1
+
+
+def test_actual_snapshot_uses_durable_fills_and_is_write_once(tmp_path):
+    import datetime
+    from types import SimpleNamespace
+
+    from quantide.service.strategy_session import StrategySession
+
+    store = TrackingStore(tmp_path / "actual.db")
+    runtime = SimpleNamespace(runtime_id="paper:actual", portfolio_id="actual")
+    strategy = SimpleNamespace(_model_ref="Demo/model-artifact")
+    slot = datetime.datetime(2026, 10, 27, 10, 0)
+    first_fill = SimpleNamespace(
+        tid="t1",
+        tm=datetime.datetime(2026, 10, 27, 9, 59),
+        to_dict=lambda: {"tid": "t1", "tm": "2026-10-27T09:59:00", "asset": "A"},
+    )
+    future_fill = SimpleNamespace(
+        tid="t2",
+        tm=datetime.datetime(2026, 10, 27, 10, 30),
+        to_dict=lambda: {"tid": "t2", "tm": "2026-10-27T10:30:00", "asset": "A"},
+    )
+    broker = SimpleNamespace(
+        asset=SimpleNamespace(total=9000.0, cash=9000.0, market_value=0.0),
+        positions={},
+        query_trades=lambda: [first_fill, future_fill],
+    )
+    session = object.__new__(StrategySession)
+    session.manager = SimpleNamespace(tracking_store=store)
+    session.runtime = runtime
+    session.strategy = strategy
+    session.broker = broker
+
+    session._record_actual_bar(slot)
+    saved = store.get_bar("paper:actual", bar_slot_text(slot), source="actual")
+    assert saved is not None
+    assert [trade["tid"] for trade in saved["trades"]] == ["t1"]
+    assert saved["model_ref"] == "Demo/model-artifact"
+    assert saved["model_hash"] == "model-artifact"
+
+    broker.asset = SimpleNamespace(total=1.0, cash=1.0, market_value=0.0)
+    broker.query_trades = lambda: [first_fill, future_fill]
+    session._record_actual_bar(slot)
+    unchanged = store.get_bar("paper:actual", bar_slot_text(slot), source="actual")
+    assert unchanged is not None and unchanged["cash"] == 9000.0
+    assert unchanged["created_at"] == saved["created_at"]
+
+
+def test_new_session_does_not_repeat_same_closed_slot_callback(tmp_path):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+
+    from quantide.service.strategy_session import StrategySession
+
+    slot = datetime.datetime(2024, 1, 2, 10, 0)
+    store = TrackingStore(tmp_path / "restart.db")
+    runtime = SimpleNamespace(runtime_id="paper:owned", portfolio_id="owned")
+    manager = SimpleNamespace(
+        tracking_store=store,
+        _lock=threading.RLock(),
+        _runtime_specs={},
+        _latest_completed_30m_bar=lambda now: slot,
+    )
+    broker = SimpleNamespace(
+        asset=SimpleNamespace(total=10000.0, cash=10000.0, market_value=0.0), positions={}
+    )
+    calls = []
+
+    class Strategy:
+        _model_ref = ""
+
+        async def on_bar(self, tm):
+            calls.append(tm.isoformat())
+
+    def session():
+        return StrategySession(manager, runtime, Strategy(), [], broker, "30m", "close", (None, None))
+
+    asyncio.run(session()._minute_signal(slot))
+    asyncio.run(session()._minute_signal(slot))
+
+    assert calls == ["2024-01-02T10:00:00"]
+    assert store.get_bar("paper:owned", bar_slot_text(slot), source="actual") is not None
+
+
+def test_same_closed_bar_tick_still_advances_next_open_queue(tmp_path):
+    import asyncio
+    import threading
+    from types import SimpleNamespace
+
+    from quantide.service.strategy_session import StrategySession
+
+    slot = datetime.datetime(2024, 1, 2, 10, 0)
+    store = TrackingStore(tmp_path / "queue-tick.db")
+    runtime = SimpleNamespace(runtime_id="paper:owned", portfolio_id="owned")
+    calls: list[str] = []
+
+    async def process(runtime_id, now):
+        calls.append(now.isoformat())
+        return 0
+
+    manager = SimpleNamespace(
+        tracking_store=store,
+        _lock=threading.RLock(),
+        _runtime_specs={},
+        _latest_completed_30m_bar=lambda now: slot,
+        process_next_open_30m_intents=process,
+    )
+    broker = SimpleNamespace(
+        asset=SimpleNamespace(total=10000.0, cash=10000.0, market_value=0.0), positions={}
+    )
+
+    class Strategy:
+        _model_ref = ""
+
+        async def on_bar(self, tm):
+            raise AssertionError("same bar callback must not repeat")
+
+    session = StrategySession(
+        manager, runtime, Strategy(), [], broker, "30m", "next_open", (None, None)
+    )
+    session.last_bar = slot
+    asyncio.run(session._minute_signal(slot + datetime.timedelta(minutes=1)))
+
+    assert calls == ["2024-01-02T10:01:00"]

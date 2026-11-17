@@ -269,3 +269,43 @@ def test_panel_filter_drops_an_asset_only_on_its_st_date() -> None:
         (pl.col("asset") == "A") & (pl.col("date") == days[0])
     ).height == 1
     assert filtered.filter(pl.col("asset") == "B").height == 3
+
+
+def test_labels_use_authoritative_exit_session_and_never_skip_a_gap(monkeypatch):
+    from types import SimpleNamespace
+
+    from quantide.strategies.example import _ml_support
+
+    days = [dt.date(2024, 1, day) for day in (2, 3, 4, 5, 8, 9, 10)]
+    index = {day: position for position, day in enumerate(days)}
+    monkeypatch.setattr(
+        _ml_support,
+        "calendar",
+        SimpleNamespace(
+            day_frames=object(),
+            day_shift=lambda day, offset: days[min(len(days) - 1, index[day] + offset)],
+            get_trade_dates=lambda start, end: [day for day in days if start <= day <= end],
+        ),
+    )
+    rows = []
+    for asset in ("A", "B", "C"):
+        for position, day in enumerate(days):
+            if asset == "A" and day == dt.date(2024, 1, 3):
+                continue
+            rows.append(
+                {"date": day, "asset": asset, "close": 10.0 + position, "f_z": float(position)}
+            )
+    panel = pl.DataFrame(rows).sort(["asset", "date"])
+
+    raw = compute_future_close_return_labels(panel, horizon=1, label_kind="raw_return")
+    a_first = raw.filter(
+        (pl.col("asset") == "A") & (pl.col("date") == dt.date(2024, 1, 2))
+    )
+
+    assert a_first["future_n_trading_day_close_return"].to_list() == [None]
+    from quantide.strategies.example._ml_support import _training_feature_panel
+
+    _z_cols, training = _training_feature_panel(
+        ["f"], None, panel, 1, 45, "cs_rank"
+    )
+    assert training.filter(pl.col("date") == dt.date(2024, 1, 2)).is_empty()

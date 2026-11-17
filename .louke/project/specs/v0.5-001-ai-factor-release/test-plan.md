@@ -67,3 +67,11 @@ $PY -m scripts.artifact_paths --run .venv/bin/mkdocs build --strict --site-dir "
 $PY -m scripts.artifact_paths --check-layout
 git --no-pager status --short
 ```
+
+## 5. 2026-11-18 补充反例
+
+- 缺失退出交易日：A 在信号日后第 1 个权威交易日无行情时，`raw_return` 必须为 `null`；`cs_rank` 该信号日整日不进入训练，不能顺延使用下一存在行。
+- 研究模型隔离：Paper 先加载 active 模型，研究实例保存同 key 的历史模型后，Paper 再刷新仍必须加载 active latest；实验 `model_ref` 仍可独立回放。
+- 轮次身份：旧轮次风洞 PASS 后自动 IC 阻塞，新轮次完成并清理 `_ACTIVE`，释放旧 IC 后最终状态、卡片和 active factor 仍属于新轮次。
+- Session 队列：`last_bar` 等于当前闭合 bar 时，下一 tick 仍调用一次 `process_next_open_30m_intents`，但不重复策略回调。
+- 30m 数据修订：只修改分钟文件、不修改日线文件时，依赖身份必须变化，旧徽章不得继续命中旧 `data_hash`。

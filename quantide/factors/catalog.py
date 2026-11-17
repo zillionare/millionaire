@@ -28,16 +28,18 @@ class FeatureSpec:
     doc: str
 
 
-def list_feature_specs() -> list[FeatureSpec]:
+def list_feature_specs(interval: str | None = None) -> list[FeatureSpec]:
     """按分组顺序返回全部因子元信息。"""
     docs = feature_docs()
     specs: list[FeatureSpec] = []
-    for group, names in feature_groups().items():
+    for group, names in feature_groups(interval).items():
         for name in names:
             specs.append(FeatureSpec(name=name, group=group, doc=docs.get(name, "")))
     return specs
 
 
-def resolve_feature_selection(requested: Sequence[str] | None) -> list[str]:
+def resolve_feature_selection(
+    requested: Sequence[str] | None, interval: str | None = None
+) -> list[str]:
     """归一化勾选的因子列表；``None`` 或空表示使用全部已注册因子。"""
-    return _resolve_feature_selection(requested)
+    return _resolve_feature_selection(requested, interval)

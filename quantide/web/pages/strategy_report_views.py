@@ -27,8 +27,10 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 
 from quantide.service.factor_audit import (
+    backtest_audit_binding,
     backtest_factor_ids,
     backtest_wind_tunnel_badge,
+    bind_backtest_audit_records,
     latest_report_payload,
     report_markdown,
 )
@@ -266,16 +268,38 @@ def run_backtest_wind_tunnel(req: Request, portfolio_id: str) -> RedirectRespons
             check_factor(factor_id)
         except (KeyError, ValueError, FileNotFoundError, RuntimeError):
             continue
+    bind_backtest_audit_records(portfolio_id)
     return RedirectResponse(f"/strategy/backtest/{portfolio_id}", status_code=303)
+
+
+def _bound_report_payloads(
+    binding: dict[str, Any] | None, factor_ids: list[str]
+) -> list[dict[str, Any]]:
+    versions = (binding or {}).get("factor_versions") or {}
+    audit_run_ids = (binding or {}).get("audit_run_ids") or {}
+    payloads = []
+    for factor_id in factor_ids:
+        run_id = str(audit_run_ids.get(factor_id) or "")
+        if not run_id:
+            continue
+        payload = latest_report_payload({"run_id": run_id}, factor_id=factor_id)
+        bound = str(versions.get(factor_id) or "")
+        if payload is not None and (not bound or str(payload.get("source_hash") or "") == bound):
+            payloads.append(payload)
+    return payloads
 
 
 @rt("/backtest/{portfolio_id}/audit/export")
 def export_backtest_wind_tunnel(req: Request, portfolio_id: str) -> Response:
-    payloads = [
-        payload
-        for factor_id in backtest_factor_ids(portfolio_id)
-        if (payload := latest_report_payload(factor_id=factor_id)) is not None
-    ]
+    binding = backtest_audit_binding(portfolio_id)
+    factor_ids = backtest_factor_ids(portfolio_id)
+    if binding is None and factor_ids:
+        return Response(
+            "回测缺少不可变审计身份，不能导出最新报告冒充历史证据",
+            status_code=404,
+            media_type="text/plain; charset=utf-8",
+        )
+    payloads = _bound_report_payloads(binding, factor_ids)
     if not payloads:
         return Response("尚无风洞报告", status_code=404, media_type="text/plain; charset=utf-8")
     view = backtest_wind_tunnel_badge(portfolio_id)

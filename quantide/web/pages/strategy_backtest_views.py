@@ -416,11 +416,11 @@ def _preset_selector() -> Any:
     )
 
 
-def _build_feature_selection_panel() -> Any:
+def _build_feature_selection_panel(interval: str = "1d") -> Any:
     """构建因子勾选面板（向导第二步）。"""
     groups: list[Any] = []
     docs = feature_docs()
-    for group, names in feature_groups().items():
+    for group, names in feature_groups(interval).items():
         items: list[Any] = []
         for name in names:
             doc = docs.get(name, "")
@@ -655,7 +655,7 @@ def _build_backtest_steps(
     """Build only the steps relevant to the selected strategy."""
     steps: list[Any] = [step1]
     if supports_feature_selection:
-        steps.append(Div(_build_feature_selection_panel(), data_bt_step="2", cls="hidden"))
+        steps.append(Div(_build_feature_selection_panel(interval), data_bt_step="2", cls="hidden"))
     steps.append(
         Div(
             _build_risk_selection_panel(cls, interval),

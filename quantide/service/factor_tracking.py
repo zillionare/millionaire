@@ -29,14 +29,9 @@ from quantide.factors.research import (
     common_cohort,
     study_horizon,
 )
+from quantide.service import factor_profiles as _fp
 from quantide.service import factor_tracking_summary as _summary
-from quantide.service.factor_profiles import (
-    PROFILE_LOCK as _PROFILE_LOCK,
-)
-from quantide.service.factor_profiles import (
-    TrackingProfile,
-    profiles_path,
-)
+from quantide.service.factor_profiles import TrackingProfile, profiles_path
 from quantide.service.factor_profiles import (
     default_profile as _default_profile,
 )
@@ -55,7 +50,7 @@ from quantide.service.factor_profiles import (
 from quantide.service.factor_profiles import (
     save_profile as _save_profile,
 )
-from quantide.service.factor_sources import (
+from quantide.service.factor_sources import (  # noqa: F401
     SOURCE_FIELDS as _SOURCE_FIELDS,
 )
 from quantide.service.factor_sources import (
@@ -347,15 +342,22 @@ def _attempt_payload(
 def _load_panel(
     profile: TrackingProfile, end: datetime.date
 ) -> tuple[Any, datetime.date, tuple[datetime.date, ...]]:
+    from quantide.factors.plugins import discover_factor_plugins
+    from quantide.service.factor_study import load_native_daily_panel
+
     start = panel_start(profile.lookback, end)
-    panel = load_factor_panel(start, end)
+    plugin = discover_factor_plugins().by_id(profile.factor_id)
+    panel = load_native_daily_panel(profile.factor_id, plugin, start, end)
+    native = panel is not None
+    if panel is None:
+        panel = load_factor_panel(start, end)
     if panel.is_empty():
         raise RuntimeError("no market data available for factor tracking")
-    data_cutoff = panel["date"].max()
-    if not isinstance(data_cutoff, datetime.date):
+    cutoff = panel["date"].max()
+    if not isinstance(cutoff, datetime.date):
         raise RuntimeError("factor panel has no data cutoff")
-    days = trading_days(start, data_cutoff)
-    return panel, data_cutoff, days
+    days = tuple(sorted(set(panel["date"].to_list()))) if native else trading_days(start, cutoff)
+    return panel, cutoff, days
 
 
 def _panel_fingerprint(panel: Any) -> str:
@@ -526,7 +528,7 @@ def _publish_snapshot(
 ) -> dict[str, Any]:
     lock_path = getattr(fence, "lock_path", None)
     commit_lock = FileLock(str(lock_path), timeout=30) if lock_path else nullcontext()
-    with _PROFILE_LOCK, _STATE_LOCK:
+    with _fp.PROFILE_LOCK, _STATE_LOCK:
         if callable(fence) and not fence():
             return load_state(factor_id)
         with commit_lock:
@@ -685,6 +687,8 @@ def refresh_factor(
     fence: Any = None,
 ) -> dict[str, Any]:
     profile = load_profile(factor_id)
+    if not _fp.profile_can_track(profile, profile.lookback):
+        raise ValueError("因子风洞体检为 FAIL，禁止启用跟踪。")
     now = market_now()
     if not profile.enabled:
         return _disabled_attempt(factor_id, now)
@@ -713,7 +717,7 @@ def _requeue_if_advanced(factor_id: str, source: dict[str, Any]) -> None:
 
 def _active_profiles(factor_ids: list[str], lookback: str) -> list[TrackingProfile]:
     profiles = [load_profile(factor_id) for factor_id in factor_ids]
-    return [profile for profile in profiles if profile.enabled and profile.lookback == lookback]
+    return [profile for profile in profiles if _fp.profile_can_track(profile, lookback)]
 
 
 def _begin_group_runs(

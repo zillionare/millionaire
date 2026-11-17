@@ -994,6 +994,44 @@ def test_panel_cache_key_covers_lookback_and_window_inputs(monkeypatch) -> None:
     assert base_key == base._panel_cache_key(signal_date)
 
 
+def test_panel_cache_key_tracks_selected_factor_versions(monkeypatch) -> None:
+    """因子版本变化必须使历史面板缓存键失效。"""
+    days = _weekdays(dt.date(2024, 1, 1), 20)
+    strategy = _stub_strategy(monkeypatch, days)
+    signal_date = days[5]
+    before = strategy._panel_cache_key(signal_date)
+
+    monkeypatch.setattr(
+        "quantide.strategies.example._ml_support._panel_identity",
+        lambda _strategy: ("version", "v2"),
+    )
+
+    assert strategy._panel_cache_key(signal_date) != before
+
+
+def test_instance_panel_cache_rechecks_factor_identity(monkeypatch) -> None:
+    """实例缓存命中前必须校验因子版本身份，不能只看日期区间。"""
+    days = _weekdays(dt.date(2024, 1, 1), 20)
+    strategy = _stub_strategy(monkeypatch, days)
+    signal_date = days[5]
+    strategy._cached_norm_panel = pl.DataFrame({"asset": ["600001.SH"]})
+    strategy._panel_start = days[0]
+    strategy._panel_end = days[-1]
+    strategy._panel_identity_token = ("version", "v1")
+
+    monkeypatch.setattr(
+        "quantide.strategies.example._ml_support._panel_identity",
+        lambda _strategy: ("version", "v2"),
+    )
+
+    def _fail_reload(*args, **kwargs):
+        raise AssertionError("identity changed; panel must be rebuilt")
+
+    monkeypatch.setattr(strategy, "_load_bars", _fail_reload)
+    with pytest.raises(AssertionError, match="rebuilt"):
+        strategy._ensure_backtest_panel(signal_date)
+
+
 def test_panel_cache_key_tracks_backtest_end_date(monkeypatch) -> None:
     """回测结束日不同（面板窗口不同）时缓存键必须不同。"""
     days = _weekdays(dt.date(2024, 1, 1), 20)
@@ -1154,3 +1192,52 @@ async def test_on_bar_skips_decisions_before_auction_in_live_mode() -> None:
     strategy._rank_for_bar = lambda tm: ([], {"600001.SH": 10.0}, {})
     await strategy.on_bar(dt.datetime(2024, 6, 3, 10, 0))
     assert strategy._last_executed_signal_date is None
+
+
+def test_research_model_artifact_does_not_move_paper_latest(tmp_path, monkeypatch):
+    from quantide.service.model_store import ModelArtifact, ModelStore
+
+    store = ModelStore(tmp_path)
+    monkeypatch.setattr(ml_momentum_reversal, "model_store", store)
+    config = {**MLMomentumReversalStrategy.default_config(), "features": ["ma20_slope"]}
+    live = MLMomentumReversalStrategy(
+        SimpleNamespace(portfolio_id="paper:owned"), dict(config)
+    )
+    research = MLMomentumReversalStrategy(
+        SimpleNamespace(portfolio_id="research:owned", _bt_start=dt.date(2024, 1, 2)),
+        dict(config),
+    )
+    active = store.save(
+        key=live._model_key,
+        model={"weights": "active-paper"},
+        metadata=ModelArtifact(
+            model_key=live._model_key,
+            strategy_name="MLMomentumReversalStrategy",
+            config_hash="active",
+            train_end="2024-01-15",
+            effective_from="2024-01-16",
+        ),
+    )
+    live._load_model_from_store(dt.date(2024, 1, 17))
+    history = pl.DataFrame(
+        {
+            "date": [dt.date(2024, 1, 8), dt.date(2024, 1, 9)],
+            "asset": ["A", "A"],
+            "close": [1.0, 2.0],
+        }
+    )
+
+    research._save_model_artifact(
+        {"weights": "historical-research"},
+        "test",
+        history,
+        effective_from=dt.date(2024, 1, 10),
+    )
+    live._load_model_from_store(dt.date(2024, 1, 17))
+
+    assert live._model == {"weights": "active-paper"}
+    current, _ = store.load(live._model_key)
+    assert current == {"weights": "active-paper"}
+    historical, _ = store.load_ref(research._model_ref)
+    assert historical == {"weights": "historical-research"}
+    assert active.extra["model_ref"] != research._model_ref

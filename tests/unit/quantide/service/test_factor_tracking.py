@@ -95,6 +95,30 @@ def test_save_profile_increments_revision_and_reloads() -> None:
     assert factor_tracking.tracking_view("bias_5").status == "disabled"
 
 
+def test_failed_badge_blocks_enabling_tracking(monkeypatch) -> None:
+    """服务层必须阻止 FAIL 因子启用或重置跟踪，而不只依赖 UI 禁用。"""
+    from types import SimpleNamespace
+
+    from quantide.service import factor_audit
+
+    monkeypatch.setattr(
+        factor_audit,
+        "factor_wind_tunnel_badge",
+        lambda factor_id, **kwargs: SimpleNamespace(badge_status="FAIL"),
+    )
+
+    with pytest.raises(ValueError, match="FAIL"):
+        factor_tracking.save_profile(
+            "bias_5",
+            lookback="3y",
+            primary_holding_days=5,
+            comparison_holding_days=[1, 3, 5],
+            enabled=True,
+        )
+    with pytest.raises(ValueError, match="FAIL"):
+        factor_tracking.reset_profile("bias_5")
+
+
 def test_refresh_writes_snapshot_with_horizons(monkeypatch) -> None:
     monkeypatch.setattr(factor_tracking, "load_factor_panel", lambda start, end: _panel())
     state = factor_tracking.refresh_factor("bias_5")

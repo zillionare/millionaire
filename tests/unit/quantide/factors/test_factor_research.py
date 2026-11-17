@@ -367,3 +367,49 @@ def test_study_panel_missing_factor_does_not_change_good_factor():
     alone = study_panel(panel, ["good"], request)["good"]
     together = study_panel(panel, ["good", "missing"], request)["good"]
     assert alone.as_dict() == together.as_dict()
+
+
+def test_pit_single_day_amount_cap_cannot_use_future_history():
+    from quantide.factors.universe import UniverseFilterConfig, filter_universe_for_date
+
+    start = dt.date(2024, 1, 1)
+    rows = []
+    for index in range(25):
+        day = start + dt.timedelta(days=index)
+        rows.append({"date": day, "asset": "A", "close": 10.0, "amount": 1.0 if index < 24 else 1000.0})
+        rows.append({"date": day, "asset": "B", "close": 10.0, "amount": 2.0 if index < 24 else 1.0})
+    frame = pl.DataFrame(rows)
+    trade_date = start + dt.timedelta(days=23)
+    config = UniverseFilterConfig(
+        exclude_st=False,
+        min_listing_days=0,
+        exclude_suspended=False,
+        exclude_limit_locked_on_close=False,
+        max_universe_size=1,
+    )
+
+    result = filter_universe_for_date(frame, trade_date, config)
+
+    assert result.assets == ("B",)
+    assert result.size_basis == "amount_20d"
+
+
+def test_horizon_uses_exact_exit_bar_and_never_stale_suspension_price():
+    days = [dt.date(2024, 1, day) for day in (2, 3, 4, 5, 8)]
+    rows = []
+    for asset, prices in {
+        "suspended": [10.0, None, 12.0, 13.0, 14.0],
+        "delisted": [10.0, 11.0, 12.0, 13.0, None],
+        "healthy": [10.0, 11.0, 12.0, 13.0, 14.0],
+    }.items():
+        for day, price in zip(days, prices, strict=True):
+            if price is not None:
+                rows.append({"date": day, "asset": asset, "f": 1.0, "open": price})
+    panel = pl.DataFrame(rows)
+
+    first = study_horizon(
+        panel,
+        HorizonRequest("f", 1, days[0], days[0], days[-1], min_cross_section=2),
+    )
+    assert first.diagnostics.exclusion_counts["missing_price_or_calendar"] == 1
+    assert first.diagnostics.n_valid_pairs == 2

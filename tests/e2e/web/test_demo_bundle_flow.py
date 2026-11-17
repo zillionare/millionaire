@@ -110,6 +110,7 @@ def test_offline_demo_bundle_wizard_flow_runs_study_wind_tunnel_ml_and_shap() ->
 
 
 @pytest.mark.e2e
+@pytest.mark.release_gate
 def test_init_wizard_session_restores_outer_database(tmp_path: Path) -> None:
     before = capture_sqlite_state()
     outer = tmp_path / "outer.db"

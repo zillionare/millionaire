@@ -345,7 +345,7 @@ def _pit_frame() -> pl.DataFrame:
 
 
 def _case_mut_5002() -> dict[str, Any]:
-    from quantide.factors.universe import UniverseFilterConfig, filter_universe_for_date
+    from quantide.factors import universe
 
     history = _pit_frame()
     dates = history["date"].to_list()
@@ -356,15 +356,36 @@ def _case_mut_5002() -> dict[str, Any]:
             "is_st": [False, True, True],
         }
     )
-    config = UniverseFilterConfig(min_listing_days=0, max_universe_size=None)
-    baseline = filter_universe_for_date(history, dates[0], config, status_frame=status).assets
-    static_names = history.with_columns(
-        pl.when(pl.col("asset") == "A").then(pl.lit(True)).otherwise(pl.lit(False)).alias("is_st")
-    )
-    mutant = filter_universe_for_date(static_names, dates[0], config, status_frame=status).assets
+    config = universe.UniverseFilterConfig(min_listing_days=0, max_universe_size=None)
+    baseline = universe.filter_universe_for_date(
+        history, dates[0], config, status_frame=status
+    ).assets
+
+    def stale_status(
+        frame: pl.DataFrame,
+        _trade_date: dt.date,
+        status_frame: pl.DataFrame | None,
+        warnings: list[str],
+    ) -> pl.DataFrame:
+        if status_frame is None or status_frame.is_empty():
+            warnings.append("st_history_unavailable")
+            return frame.with_columns(pl.lit(False).alias("is_st"))
+        latest = (
+            status_frame.sort("date").group_by("asset").agg(pl.col("is_st").last().alias("is_st"))
+        )
+        return (
+            frame.drop("is_st", strict=False)
+            .join(latest, on="asset", how="left")
+            .with_columns(pl.col("is_st").fill_null(False).cast(pl.Boolean))
+        )
+
+    with patch.object(universe, "_attach_status", stale_status):
+        mutant = universe.filter_universe_for_date(
+            history, dates[0], config, status_frame=status
+        ).assets
     return _killed(
         baseline == ("A",) and "A" not in mutant,
-        "PIT status keeps A on t1; latest static *ST name removes it",
+        "PIT status keeps A on t1; static latest status removes it",
         baseline_ok=baseline == ("A",),
     )
 
@@ -397,15 +418,24 @@ def _date_means(frame: pl.DataFrame) -> list[float]:
 
 
 def _case_mut_5003() -> dict[str, Any]:
-    from quantide.strategies.example._ml_support import compute_future_close_return_labels
+    from quantide.strategies.example import _ml_support
 
     frame = _label_frame()
     label = "future_n_trading_day_close_return"
-    baseline = compute_future_close_return_labels(frame, horizon=1, label_kind="cs_rank")
-    raw = compute_future_close_return_labels(frame, horizon=1, label_kind="raw_return")
-    mutant = raw.with_columns(
-        (pl.col(label).rank(method="average") / pl.col(label).count() - 0.5).alias(label)
+    baseline = _ml_support.compute_future_close_return_labels(
+        frame, horizon=1, label_kind="cs_rank"
     )
+
+    def pooled_rank(value_frame: pl.DataFrame, label_kind: str) -> pl.DataFrame:
+        if label_kind == "raw_return":
+            return value_frame
+        value = pl.col(label).rank(method="average") / pl.col(label).count() - 0.5
+        return value_frame.with_columns(value.alias(label))
+
+    with patch.object(_ml_support, "_cross_section_label", pooled_rank):
+        mutant = _ml_support.compute_future_close_return_labels(
+            frame, horizon=1, label_kind="cs_rank"
+        )
     baseline_means = _date_means(baseline)
     mutant_means = _date_means(mutant)
     baseline_ok = (
@@ -415,7 +445,7 @@ def _case_mut_5003() -> dict[str, Any]:
     )
     return _killed(
         baseline_ok and max(mutant_means) - min(mutant_means) > 1e-6,
-        "per-date cs_rank stays date-local; pooled ranking shifts individual dates",
+        "production cs_rank stays date-local; pooled operator shifts dates",
         baseline_ok=baseline_ok,
     )
 
@@ -488,7 +518,7 @@ def _minute_frame() -> pl.DataFrame:
 
 
 def _case_mut_5005() -> dict[str, Any]:
-    from quantide.service.shadow_intraday import load_closed_bar_frame
+    from quantide.service import shadow_intraday
 
     frame = _minute_frame()
     target = dt.datetime(2026, 10, 27, 10, 0)
@@ -504,12 +534,21 @@ def _case_mut_5005() -> dict[str, Any]:
         ) -> pl.DataFrame:
             return frame
 
-    closed = load_closed_bar_frame(target, ["000001.SZ"], minute_model=_Minutes())
-    baseline_ok = closed is not None and closed.height == 1
-    detected = closed is not None and frame.height > closed.height
+    baseline = shadow_intraday.load_closed_bar_frame(target, ["000001.SZ"], minute_model=_Minutes())
+    with patch.object(shadow_intraday, "_closed_bucket", lambda value, _slot: value):
+        mutant = shadow_intraday.load_closed_bar_frame(
+            target, ["000001.SZ"], minute_model=_Minutes()
+        )
+    baseline_ok = baseline is not None and baseline.height == 1
+    detected = (
+        mutant is not None
+        and baseline is not None
+        and mutant.height > baseline.height
+        and set(mutant["date"].to_list()) != set(baseline["date"].to_list())
+    )
     return _killed(
         detected,
-        "closed bucket returns only 10:00; removing the filter also consumes forming 10:30",
+        "production closed-bucket filter returns 10:00 only; disabling it consumes 10:30",
         baseline_ok=baseline_ok,
     )
 
@@ -525,16 +564,20 @@ def _preset_rejects_missing(features: list[str]) -> bool:
 
 
 def _case_mut_5006() -> dict[str, Any]:
-    from quantide.factors.registry import all_factor_ids
+    from quantide.service import factor_presets
 
     features = ["ma20_slope", "not_a_real_factor"]
     baseline = _preset_rejects_missing(features)
-    known = set(all_factor_ids())
-    filtered = [factor_id for factor_id in features if factor_id in known]
-    mutant_accepts = not _preset_rejects_missing(filtered)
+    original = factor_presets.all_factor_ids
+    with patch.object(
+        factor_presets,
+        "all_factor_ids",
+        lambda: [*original(), "not_a_real_factor"],
+    ):
+        mutant_accepts = not _preset_rejects_missing(features)
     return _killed(
         baseline and mutant_accepts,
-        "preset rejects the missing factor; silent filtering leaves a valid preset",
+        "production preset validator rejects missing factor; injected known-set accepts it",
         baseline_ok=baseline,
     )
 
@@ -543,10 +586,9 @@ def _sandbox_path_probe() -> tuple[bool, bool]:
     from quantide.service import ai_factor_tools
 
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        root.mkdir(exist_ok=True)
+        root = Path(directory).resolve()
         with (
-            patch.object(ai_factor_tools, "normalize_factor_dir", lambda: str(root)),
+            patch.object(ai_factor_tools, "normalize_factor_dir", lambda _value=None: str(root)),
             patch.object(ai_factor_tools, "_FACTOR_ID", re.compile(r".+")),
         ):
             try:
@@ -555,8 +597,14 @@ def _sandbox_path_probe() -> tuple[bool, bool]:
                 baseline_rejects = True
             else:
                 baseline_rejects = False
-            mutant_rejects = False
-        return baseline_rejects, mutant_rejects
+            with patch.object(
+                ai_factor_tools,
+                "_validate_target",
+                lambda _root, _target, _resolved: None,
+            ):
+                escaped = ai_factor_tools._target_path("../escape")
+                mutant_escaped = not escaped.resolve().is_relative_to(root)
+    return baseline_rejects, mutant_escaped
 
 
 def _wind_bypass_probe() -> tuple[bool, bool]:
@@ -583,13 +631,13 @@ def _wind_bypass_probe() -> tuple[bool, bool]:
 
 
 def _case_mut_5007() -> dict[str, Any]:
-    path_rejects, path_mutant_rejects = _sandbox_path_probe()
+    path_rejects, path_mutant_escaped = _sandbox_path_probe()
     wind_rejects, wind_mutant_accepts = _wind_bypass_probe()
     baseline_ok = path_rejects and wind_rejects
-    detected = baseline_ok and not path_mutant_rejects and wind_mutant_accepts
+    detected = baseline_ok and path_mutant_escaped and wind_mutant_accepts
     return _killed(
         detected,
-        "resolve() blocks ../escape; removing it escapes and FAIL can emit a study card",
+        "production path guard blocks ../escape; disabling it escapes factor_dir",
         baseline_ok=baseline_ok,
     )
 
@@ -672,7 +720,7 @@ CASES: tuple[MutationCase, ...] = (
     MutationCase(
         "MUT-5001",
         "FR-5002",
-        "AC-5016",
+        "AC-5004/AC-5005",
         "external factor cross-asset isolation",
         "External factor removes .over('asset') and leaks values across securities.",
     ),

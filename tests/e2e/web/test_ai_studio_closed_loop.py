@@ -7,11 +7,15 @@ import urllib.parse
 from collections.abc import Callable
 from typing import Any
 
+import pytest
+
 from quantide.service import ai_agent
 from quantide.service.ai_studio_store import get_session
 from quantide.web.pages import factors_studio
 from tests.e2e.support.openai_stub import OpenAIStub, _assistant
 from tests.e2e.support.system_settings_session import system_settings_e2e_session
+
+pytestmark = [pytest.mark.e2e, pytest.mark.release_gate]
 
 WIND_FAIL = {
     "ok": False,
@@ -231,3 +235,58 @@ def test_web_studio_stops_after_max_repair_rounds(monkeypatch) -> None:
         assert "连续 3 轮未通过" in panel.text
         assert wind_calls == ["ai_bad", "ai_bad", "ai_bad"]
         assert server.request_count == 6
+
+
+def test_web_studio_real_tools_repair_against_demo_market() -> None:
+    from quantide.service.demo_bundle import activate_demo_bundle
+    from quantide.service.factor_audit import factor_wind_tunnel_badge
+    from quantide.service.research_cli import _template
+
+    good = _template("ai_web_real", "自定义因子")
+    bad = good.replace(
+        'previous = pl.col("close").shift(1).over("asset")',
+        'previous = pl.col("close").shift(1)',
+    )
+    responses = [
+        _assistant(
+            calls=[
+                (
+                    "write_factor_plugin",
+                    {"factor_id": "ai_web_real", "code": bad},
+                )
+            ]
+        ),
+        _assistant(calls=[("run_factor_wind_tunnel", {"factor_id": "ai_web_real"})]),
+        _assistant(
+            calls=[
+                (
+                    "write_factor_plugin",
+                    {"factor_id": "ai_web_real", "code": good},
+                )
+            ]
+        ),
+        _assistant(calls=[("run_factor_wind_tunnel", {"factor_id": "ai_web_real"})]),
+        _assistant(content="真实风洞与 IC 检验已完成。"),
+    ]
+    with OpenAIStub(responses) as server, system_settings_e2e_session() as session:
+        activate_demo_bundle()
+        _save_ai_config(session, server.base_url, server.api_key)
+        session_id = _start_conversation(session)
+        _wait_until(
+            lambda: (get_session(session_id) or {}).get("status") == "completed",
+            timeout=60,
+        )
+
+        panel = session.client.get(f"/factors/studio/sessions/{session_id}/panel")
+        assert panel.status_code == 200
+        for text in ("风洞体检", "自动修复第 1 轮", "RankIC", "D1-D10"):
+            assert text in panel.text
+        assert factor_wind_tunnel_badge("ai_web_real").badge_status == "PASS"
+
+        preset = session.client.post(
+            f"/factors/studio/sessions/{session_id}/actions/preset",
+            follow_redirects=False,
+        )
+        assert preset.status_code == 303
+        refreshed = session.client.get(f"/factors/studio/sessions/{session_id}/panel")
+        assert "已保存因子预设。" in refreshed.text

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import math
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 
@@ -211,6 +211,81 @@ def _interior_cutoffs(frame: pl.DataFrame, date_col: str, count: int = 3) -> tup
     return interior_cutoffs(frame[date_col].to_list(), count)
 
 
+def _warm_pipeline(checked: pl.DataFrame, plugin: FactorPlugin) -> Any:
+    """Return a pipeline that warms the plugin module with the full baseline first."""
+    from quantide.factors.plugin_worker import compute_sequence
+    from quantide.factors.plugins import _plugin_budget, _plugin_outcome_value
+    from quantide.service.process_runner import run_isolated
+
+    def pipeline(data: pl.DataFrame) -> pl.DataFrame:
+        if not plugin.source_path:
+            return compute_plugin(data, plugin)
+        timeout, memory_bytes = _plugin_budget()
+        outcome = run_isolated(
+            compute_sequence,
+            plugin.source_path,
+            plugin.source_hash,
+            [checked, data],
+            timeout=timeout,
+            memory_bytes=memory_bytes,
+        )
+        return cast(pl.DataFrame, _plugin_outcome_value(outcome, timeout)[-1])
+
+    return pipeline
+
+
+def _merge_branch_checks(checks: list[AuditCheck]) -> AuditCheck:
+    failure = next((check for check in checks if check.status is AuditStatus.FAIL), None)
+    if failure is not None:
+        return failure
+    incomplete = next((check for check in checks if check.status is not AuditStatus.PASS), None)
+    if incomplete is not None:
+        return incomplete
+    return AuditCheck(
+        "plugin.future_invariance",
+        True,
+        AuditStatus.PASS,
+        sample_size=checks[0].sample_size if checks else None,
+        details={"branches": [check.check_id for check in checks]},
+    )
+
+
+def _merge_invariance_checks(
+    cold: AuditCheck, warm: AuditCheck, details: dict[str, Any]
+) -> AuditCheck:
+    merged_details = {
+        **details,
+        "executed_branches": ["cold", "warm"],
+        "cold": cold.details,
+        "warm": warm.details,
+    }
+    for branch in (cold, warm):
+        if branch.status is AuditStatus.FAIL:
+            return AuditCheck(
+                "plugin.future_invariance",
+                True,
+                AuditStatus.FAIL,
+                message=branch.message,
+                first_difference=branch.first_difference,
+                details=merged_details,
+            )
+    if cold.status is not AuditStatus.PASS or warm.status is not AuditStatus.PASS:
+        return AuditCheck(
+            "plugin.future_invariance",
+            True,
+            AuditStatus.INCONCLUSIVE,
+            message=cold.message or warm.message,
+            details=merged_details,
+        )
+    return AuditCheck(
+        "plugin.future_invariance",
+        True,
+        AuditStatus.PASS,
+        sample_size=cold.sample_size,
+        details=merged_details,
+    )
+
+
 def _future_check(
     frame: pl.DataFrame,
     plugin: FactorPlugin,
@@ -229,55 +304,89 @@ def _future_check(
     checked = _with_availability(frame, date_col)
 
     def pipeline(data: pl.DataFrame) -> pl.DataFrame:
-        return compute_plugin(data, plugin)
+        if not plugin.source_path:
+            return compute_plugin(data, plugin)
+        from quantide.factors.plugin_worker import compute_once
+        from quantide.factors.plugins import _plugin_budget, _plugin_outcome_value
+        from quantide.service.process_runner import run_isolated
 
-    failures: list[AuditCheck] = []
-    inconclusive: list[AuditCheck] = []
-    for cutoff in cutoffs:
-        check = future_invariance_check(
-            f"plugin.future_invariance:{cutoff.isoformat()}",
-            pipeline,
-            checked,
-            cutoff,
-            modes=modes,
-            seeds=seeds,
-            date_col=date_col,
-            positive_columns=_POSITIVE_COLUMNS,
+        timeout, memory_bytes = _plugin_budget()
+        outcome = run_isolated(
+            compute_once,
+            plugin.source_path,
+            plugin.source_hash,
+            data,
+            timeout=timeout,
+            memory_bytes=memory_bytes,
         )
-        if check.status is AuditStatus.FAIL:
-            failures.append(check)
-        elif check.status is not AuditStatus.PASS:
-            inconclusive.append(check)
-    details = {
-        "cutoffs": [value.isoformat() for value in cutoffs],
-        "modes": list(modes),
-        "seeds": list(seeds),
-    }
-    if failures:
-        first = failures[0]
-        return AuditCheck(
-            "plugin.future_invariance",
-            True,
-            AuditStatus.FAIL,
-            message=first.message,
-            first_difference=first.first_difference,
-            details={**details, "failed_cutoffs": [item.check_id for item in failures]},
-        )
-    if inconclusive:
+        return cast(pl.DataFrame, _plugin_outcome_value(outcome, timeout))
+
+    cold_checks: list[AuditCheck] = []
+    warm_checks: list[AuditCheck] = []
+    if not plugin.source_path:
+        cold_checks = [
+            future_invariance_check(
+                f"plugin.future_invariance:{cutoff.isoformat()}",
+                pipeline,
+                checked,
+                cutoff,
+                modes=modes,
+                seeds=seeds,
+                date_col=date_col,
+                positive_columns=_POSITIVE_COLUMNS,
+            )
+            for cutoff in cutoffs
+        ]
+        cold = _merge_branch_checks(cold_checks)
+        if cold.status is AuditStatus.FAIL:
+            return cold
         return AuditCheck(
             "plugin.future_invariance",
             True,
             AuditStatus.INCONCLUSIVE,
-            message=inconclusive[0].message,
-            details={**details, "inconclusive_cutoffs": [item.check_id for item in inconclusive]},
+            message="程序化 FactorPlugin 缺少可重建 source_path，无法证明冷/热隔离。",
+            details={
+                "executed_branches": ["cold"],
+                "cold": cold.details,
+                "warm_branch": "unavailable",
+            },
         )
-    return AuditCheck(
-        "plugin.future_invariance",
-        True,
-        AuditStatus.PASS,
-        sample_size=frame.height,
-        details=details,
-    )
+    warm_pipeline = _warm_pipeline(checked, plugin)
+    for cutoff in cutoffs:
+        cold_checks.append(
+            future_invariance_check(
+                f"plugin.future_invariance:{cutoff.isoformat()}",
+                pipeline,
+                checked,
+                cutoff,
+                modes=modes,
+                seeds=seeds,
+                date_col=date_col,
+                positive_columns=_POSITIVE_COLUMNS,
+            )
+        )
+        warm_checks.append(
+            future_invariance_check(
+                f"plugin.future_invariance:{cutoff.isoformat()}",
+                warm_pipeline,
+                checked,
+                cutoff,
+                modes=modes,
+                seeds=seeds,
+                date_col=date_col,
+                positive_columns=_POSITIVE_COLUMNS,
+            )
+        )
+    details = {
+        "cutoffs": [value.isoformat() for value in cutoffs],
+        "modes": list(modes),
+        "seeds": list(seeds),
+        "cold_cutoffs": [item.check_id for item in cold_checks],
+        "warm_cutoffs": [item.check_id for item in warm_checks],
+    }
+    cold = _merge_branch_checks(cold_checks)
+    warm = _merge_branch_checks(warm_checks)
+    return _merge_invariance_checks(cold, warm, details)
 
 
 def _golden_case_mismatch(

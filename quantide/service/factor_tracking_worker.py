@@ -122,6 +122,13 @@ def enqueue(
     profile_revisions: dict[str, int] | None = None,
 ) -> list[str]:
     profiles = {factor_id: ft.load_profile(factor_id) for factor_id in factor_ids}
+    blocked = [
+        factor_id
+        for factor_id, profile in profiles.items()
+        if not ft._fp.profile_can_track(profile, profile.lookback)
+    ]
+    if blocked:
+        raise ValueError(f"因子 {blocked[0]} 的风洞体检为 FAIL，禁止启用跟踪。")
     if lookback is None:
         lookbacks = {profile.lookback for profile in profiles.values()}
         if len(lookbacks) != 1:
@@ -156,7 +163,7 @@ def trigger_refresh_all() -> int:
     groups: dict[str, list[str]] = {}
     for factor_id in all_factor_ids():
         profile = ft.load_profile(factor_id)
-        if profile.enabled:
+        if ft._fp.profile_can_track(profile, profile.lookback):
             groups.setdefault(profile.lookback, []).append(factor_id)
     count = 0
     for lookback, factor_ids in groups.items():

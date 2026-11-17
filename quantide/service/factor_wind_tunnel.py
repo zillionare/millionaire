@@ -13,6 +13,7 @@ from quantide.audit.factor import audit_factor
 from quantide.audit.models import AuditReport, AuditStatus
 from quantide.audit.plugin_factor import audit_factor_plugin
 from quantide.audit.store import ReportStore
+from quantide.data.utils.resampler import ohlcv_aggregations
 from quantide.factors.metadata import factor_definition
 from quantide.factors.orthogonality import (
     DEFAULT_COLLINEARITY_THRESHOLD,
@@ -67,28 +68,103 @@ class WindTunnelResult:
         }
 
 
+class MonthlyCalendarUnavailable(ValueError):
+    """The authoritative calendar cannot prove whether a month is closed."""
+
+
+def _closed_month_filter(monthly: pl.DataFrame) -> pl.DataFrame:
+    from quantide.data.models.calendar import calendar
+
+    drops: list[tuple[str, dt.date]] = []
+    for asset_key, values in monthly.group_by("asset"):
+        asset = asset_key[0] if isinstance(asset_key, tuple) else asset_key
+        last = values["dt"].max()
+        if not isinstance(last, dt.date):
+            continue
+        try:
+            following = calendar.day_shift(last, 1)
+        except Exception as exc:
+            raise MonthlyCalendarUnavailable(
+                f"交易日历不可用，无法判定 {asset} {last} 所在月是否闭合: {exc}"
+            ) from exc
+        if following <= last:
+            raise MonthlyCalendarUnavailable(f"交易日历未能越过 {asset} {last}，无法判定月线闭合")
+        if following.year == last.year and following.month == last.month:
+            drops.append((str(asset), last))
+    for asset, last in drops:
+        monthly = monthly.filter(~((pl.col("asset") == asset) & (pl.col("dt") == last)))
+    return monthly
+
+
+def _monthly_frame(frame: pl.DataFrame, price_adjustment: str = "hfq") -> pl.DataFrame:
+    """Aggregate closed monthly OHLC with correct per-day adjustment provenance."""
+    frame = frame.sort(["asset", "date"])
+    adjusted = price_adjustment == "hfq" and "adjust" in frame.columns
+    if adjusted:
+        frame = frame.with_columns(
+            (pl.col(column) * pl.col("adjust")).alias(column)
+            for column in ("open", "high", "low", "close")
+        ).drop("adjust")
+    provenance = (
+        [pl.col("adjust").last().alias("adjust")]
+        if not adjusted and "adjust" in frame.columns
+        else []
+    )
+    monthly = (
+        frame.with_columns(pl.col("date").dt.truncate("1mo").alias("dt"))
+        .group_by(["asset", "dt"])
+        .agg(*ohlcv_aggregations(), *provenance, pl.col("date").max().alias("date"))
+        .with_columns(pl.col("date").alias("dt"))
+        .sort(["asset", "dt"])
+    )
+    if monthly.is_empty():
+        return monthly
+    monthly = _closed_month_filter(monthly)
+    if not adjusted and "adjust" not in monthly.columns:
+        monthly = monthly.with_columns(pl.lit(1.0).alias("adjust"))
+    return monthly
+
+
 def load_wind_tunnel_frame(
     start: dt.date,
     end: dt.date,
     *,
     assets: list[str] | None = None,
+    interval: str = "1d",
+    price_adjustment: str = "hfq",
 ) -> pl.DataFrame:
-    """Load raw daily bars and add the availability column used by audits."""
-    from quantide.data.models.daily_bars import daily_bars
+    """Load native bars for the requested audit interval."""
+    if interval == "30m":
+        from quantide.data.models.minute_bars import minute_bars
 
-    frame = daily_bars.get_bars_in_range(start, end, assets=assets, adjust=None, eager_mode=True)
+        frame = minute_bars.get_bars_in_range(start, end, assets=assets, adjust=None)
+    else:
+        from quantide.data.models.daily_bars import daily_bars
+
+        frame = daily_bars.get_bars_in_range(
+            start, end, assets=assets, adjust=None, eager_mode=True
+        )
     if isinstance(frame, pl.LazyFrame):
         frame = frame.collect()
     if frame is None or frame.is_empty():
         raise ValueError("指定区间没有可用行情")
-    frame = frame.with_columns(pl.col("date").cast(pl.Date)).sort(["asset", "date"])
+    if interval == "1M":
+        frame = _monthly_frame(frame, price_adjustment)
+        date_col = "dt"
+    elif interval == "30m":
+        frame = frame.with_columns(pl.col("date").cast(pl.Datetime("ms")).alias("dt"))
+        date_col = "dt"
+    else:
+        frame = frame.with_columns(pl.col("date").cast(pl.Date))
+        date_col = "date"
+    frame = frame.sort(["asset", date_col])
     if "available_at" not in frame.columns:
-        frame = frame.with_columns(pl.col("date").alias("available_at"))
+        frame = frame.with_columns(pl.col(date_col).alias("available_at"))
     return frame
 
 
-def _cutoffs_for(frame: pl.DataFrame, count: int = 3) -> tuple[dt.date, ...]:
-    return interior_cutoffs(frame["date"].to_list(), count)
+def _cutoffs_for(frame: pl.DataFrame, count: int = 3, date_col: str = "date") -> tuple[Any, ...]:
+    return interior_cutoffs(frame[date_col].to_list(), count)
 
 
 def _audit(
@@ -124,22 +200,21 @@ def _empty_orthogonality(factor_id: str) -> FactorOrthogonalitySummary:
 def _orthogonality_for(
     factor_id: str, raw: pl.DataFrame, plugin: FactorPlugin | None = None
 ) -> FactorOrthogonalitySummary:
-    panel = compute_feature_panel(raw)
-    if plugin is not None and factor_id not in panel.columns:
-        try:
+    interval = plugin.bar_interval if plugin is not None else "1d"
+    date_col = "date" if interval == "1d" else "dt"
+    try:
+        panel = compute_feature_panel(raw, interval=interval)
+        if plugin is not None and factor_id not in panel.columns:
             computed = compute_plugin(raw, plugin)
             panel = panel.join(
-                computed.select(["asset", "date", factor_id]),
-                on=["asset", "date"],
+                computed.select(["asset", date_col, factor_id]),
+                on=["asset", date_col],
                 how="left",
             )
-        except Exception:
+        if factor_id not in panel.columns:
             return _empty_orthogonality(factor_id)
-    if factor_id not in panel.columns:
-        return _empty_orthogonality(factor_id)
-    try:
-        return orthogonality_summary(factor_id, panel)
-    except ValueError:
+        return orthogonality_summary(factor_id, panel, date_col=date_col)
+    except (ValueError, Exception):
         return _empty_orthogonality(factor_id)
 
 
@@ -174,6 +249,151 @@ def _save_result(
     )
 
 
+def _wind_inputs(
+    factor_id: str,
+    frame: pl.DataFrame | None,
+    start: dt.date | None,
+    end: dt.date | None,
+    assets: list[str] | None,
+    plugin: FactorPlugin | None,
+    interval: str | None,
+) -> tuple[pl.DataFrame, FactorPlugin | None, str, str]:
+    resolved_plugin = plugin or discover_factor_plugins().by_id(factor_id)
+    bar_interval = interval or (resolved_plugin.bar_interval if resolved_plugin else "1d")
+    raw = frame
+    if raw is None:
+        if start is None or end is None:
+            raise ValueError("必须提供 frame 或 start/end")
+        adjustment = str(getattr(resolved_plugin, "price_adjustment", "hfq") or "hfq")
+        raw = load_wind_tunnel_frame(
+            start, end, assets=assets, interval=bar_interval, price_adjustment=adjustment
+        )
+    date_col = "date" if bar_interval == "1d" else "dt"
+    return raw, resolved_plugin, bar_interval, date_col
+
+
+def _wind_evidence(
+    factor_id: str,
+    raw: pl.DataFrame,
+    cutoffs: tuple[Any, ...],
+    modes: tuple[str, ...] | None,
+    seeds: tuple[int, ...],
+    plugin: FactorPlugin | None,
+    resolved_plugin: FactorPlugin | None,
+) -> tuple[AuditReport, FactorOrthogonalitySummary]:
+    report = _audit(
+        factor_id,
+        raw,
+        cutoffs=cutoffs,
+        modes=_resolve_modes(factor_id, plugin, modes),
+        seeds=seeds,
+        plugin=plugin,
+    )
+    orthogonality = _empty_orthogonality(factor_id)
+    if report.status is AuditStatus.PASS:
+        orthogonality = _orthogonality_for(factor_id, raw, resolved_plugin)
+    return report, orthogonality
+
+
+@dataclass(frozen=True)
+class _WindRequest:
+    factor_id: str
+    frame: pl.DataFrame | None
+    start: dt.date | None
+    end: dt.date | None
+    assets: list[str] | None
+    cutoffs: tuple[dt.date, ...] | list[dt.date] | None
+    modes: tuple[str, ...] | None
+    seeds: tuple[int, ...]
+    plugin: FactorPlugin | None
+    interval: str | None
+    save: bool
+
+
+def _inconclusive_calendar_result(factor_id: str, message: str) -> WindTunnelResult:
+    import uuid
+
+    from quantide.audit.models import AuditCheck, AuditSpec
+
+    spec = AuditSpec(
+        spec_id=f"factor:{factor_id}",
+        object_type="factor",
+        object_id=factor_id,
+        source_hash="",
+        data_hash="",
+        config_hash="",
+        interval="1M",
+        timezone="Asia/Shanghai",
+        availability_contract="calendar_unavailable",
+    )
+    check = AuditCheck(
+        check_id="monthly_calendar",
+        required=True,
+        status=AuditStatus.INCONCLUSIVE,
+        message=message,
+    )
+    report = AuditReport(
+        run_id=uuid.uuid4().hex,
+        spec=spec,
+        status=AuditStatus.INCONCLUSIVE,
+        checks=(check,),
+        generated_at=dt.datetime.now(dt.UTC).isoformat(),
+    )
+    return WindTunnelResult(
+        factor_id=factor_id,
+        report=report,
+        orthogonality=_empty_orthogonality(factor_id),
+        metadata={"diagnostic": message},
+    )
+
+
+def _execute_wind_request(request: _WindRequest) -> WindTunnelResult:
+    try:
+        raw, resolved_plugin, _bar_interval, date_col = _wind_inputs(
+            request.factor_id,
+            request.frame,
+            request.start,
+            request.end,
+            request.assets,
+            request.plugin,
+            request.interval,
+        )
+    except MonthlyCalendarUnavailable as exc:
+        return _inconclusive_calendar_result(request.factor_id, str(exc))
+    resolved_cutoffs = (
+        tuple(request.cutoffs)
+        if request.cutoffs is not None
+        else _cutoffs_for(raw, date_col=date_col)
+    )
+    report, orthogonality = _wind_evidence(
+        request.factor_id,
+        raw,
+        resolved_cutoffs,
+        request.modes,
+        request.seeds,
+        request.plugin,
+        resolved_plugin,
+    )
+    result = WindTunnelResult(
+        factor_id=request.factor_id,
+        report=report,
+        orthogonality=orthogonality,
+        metadata={
+            "cutoffs": [value.isoformat() for value in resolved_cutoffs],
+            "price_adjustment": str(getattr(resolved_plugin, "price_adjustment", "hfq") or "hfq"),
+        },
+    )
+    if request.save:
+        _save_result(
+            result,
+            raw,
+            resolved_cutoffs,
+            _resolve_modes(request.factor_id, request.plugin, request.modes),
+            request.seeds,
+        )
+    return result
+
+
 def run_factor_wind_tunnel(
     factor_id: str,
     *,
@@ -185,41 +405,24 @@ def run_factor_wind_tunnel(
     modes: tuple[str, ...] | None = None,
     seeds: tuple[int, ...] = (0,),
     plugin: FactorPlugin | None = None,
+    interval: str | None = None,
     save: bool = True,
 ) -> WindTunnelResult:
     """Run the deterministic audit and orthogonality check for one factor."""
-    raw = frame
-    if raw is None:
-        if start is None or end is None:
-            raise ValueError("必须提供 frame 或 start/end")
-        raw = load_wind_tunnel_frame(start, end, assets=assets)
-    resolved_cutoffs = tuple(cutoffs) if cutoffs is not None else _cutoffs_for(raw)
-    report = _audit(
-        factor_id,
-        raw,
-        cutoffs=resolved_cutoffs,
-        modes=_resolve_modes(factor_id, plugin, modes),
+    request = _WindRequest(
+        factor_id=factor_id,
+        frame=frame,
+        start=start,
+        end=end,
+        assets=assets,
+        cutoffs=cutoffs,
+        modes=modes,
         seeds=seeds,
         plugin=plugin,
+        interval=interval,
+        save=save,
     )
-    orthogonality = _empty_orthogonality(factor_id)
-    if report.status is AuditStatus.PASS:
-        orthogonality = _orthogonality_for(factor_id, raw, plugin)
-    result = WindTunnelResult(
-        factor_id=factor_id,
-        report=report,
-        orthogonality=orthogonality,
-        metadata={"cutoffs": [value.isoformat() for value in resolved_cutoffs]},
-    )
-    if save:
-        _save_result(
-            result,
-            raw,
-            resolved_cutoffs,
-            _resolve_modes(factor_id, plugin, modes),
-            seeds,
-        )
-    return result
+    return _execute_wind_request(request)
 
 
 __all__ = [

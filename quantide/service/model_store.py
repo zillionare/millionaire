@@ -16,6 +16,7 @@ from loguru import logger
 
 from quantide.config.output_paths import external_runtime_path
 from quantide.config.paths import get_model_store_dir
+from quantide.core.atomic_files import write_json
 
 MODEL_CONFIG_KEYS = (
     "train_window",
@@ -110,6 +111,84 @@ class ModelStore:
     def _lock_path(directory: Path) -> Path:
         return directory / ".lock"
 
+    def _version_dir(self, key: str) -> Path:
+        path = self._dir(key) / "versions"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @staticmethod
+    def _atomic_pickle(path: Path, model: Any, directory: Path) -> None:
+        fd, temporary = tempfile.mkstemp(dir=directory, suffix=".pkl.tmp")
+        os.close(fd)
+        try:
+            with open(temporary, "wb") as handle:
+                pickle.dump(model, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    @staticmethod
+    def _artifact_hash(model: Any, metadata: ModelArtifact) -> str:
+        payload = metadata.to_dict()
+        extra = dict(payload.get("extra") or {})
+        for key in ("model_ref", "artifact_hash"):
+            extra.pop(key, None)
+        payload["extra"] = extra
+        payload.pop("created_at", None)
+        digest = hashlib.sha256()
+        digest.update(pickle.dumps(model, protocol=pickle.HIGHEST_PROTOCOL))
+        digest.update(json.dumps(payload, sort_keys=True, default=_json_default).encode("utf-8"))
+        return digest.hexdigest()[:20]
+
+    def _migrate_legacy_latest(self, key: str, model_path: Path, meta_path: Path) -> None:
+        if not model_path.is_file() or not meta_path.is_file():
+            return
+        try:
+            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            if (data.get("extra") or {}).get("model_ref"):
+                return
+            model = pickle.loads(model_path.read_bytes())
+            metadata = ModelArtifact.from_dict(data)
+        except Exception:
+            return
+        artifact_hash = self._artifact_hash(model, metadata)
+        metadata.extra = {
+            **dict(metadata.extra or {}),
+            "artifact_hash": artifact_hash,
+            "model_ref": f"{key}/{artifact_hash}",
+        }
+        payload = metadata.to_dict()
+        self._save_version(key, model, metadata, payload)
+        write_json(meta_path, payload)
+
+    def _save_version(
+        self, key: str, model: Any, metadata: ModelArtifact, payload: dict[str, Any]
+    ) -> None:
+        versions = self._version_dir(key)
+        artifact_hash = str(metadata.extra.get("artifact_hash") or metadata.model_hash)
+        version_model = versions / f"{artifact_hash}.pkl"
+        version_meta = versions / f"{artifact_hash}.json"
+        if not version_model.exists():
+            self._atomic_pickle(version_model, model, versions)
+        if not version_meta.exists():
+            write_json(version_meta, payload)
+
+    def save_version(self, *, key: str, model: Any, metadata: ModelArtifact) -> ModelArtifact:
+        """Publish an immutable experiment artifact without moving latest."""
+        directory, _, _ = self._paths(key)
+        directory.mkdir(parents=True, exist_ok=True)
+        if not metadata.model_hash:
+            metadata.model_hash = hashlib.sha1(pickle.dumps(model)).hexdigest()[:16]
+        artifact_hash = self._artifact_hash(model, metadata)
+        metadata.extra = {
+            **dict(metadata.extra or {}),
+            "artifact_hash": artifact_hash,
+            "model_ref": f"{key}/{artifact_hash}",
+        }
+        self._save_version(key, model, metadata, metadata.to_dict())
+        return metadata
+
     def save(
         self,
         *,
@@ -117,9 +196,17 @@ class ModelStore:
         model: Any,
         metadata: ModelArtifact,
     ) -> ModelArtifact:
-        """原子保存最新模型与元数据。"""
+        """Atomically save latest plus an immutable content-addressed version."""
         directory, model_path, meta_path = self._paths(key)
         directory.mkdir(parents=True, exist_ok=True)
+        if not metadata.model_hash:
+            metadata.model_hash = hashlib.sha1(pickle.dumps(model)).hexdigest()[:16]
+        artifact_hash = self._artifact_hash(model, metadata)
+        metadata.extra = {
+            **dict(metadata.extra or {}),
+            "artifact_hash": artifact_hash,
+            "model_ref": f"{key}/{artifact_hash}",
+        }
         lock_path = self._lock_path(directory)
         lock_file = open(lock_path, "a+")
         try:
@@ -129,26 +216,13 @@ class ModelStore:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
             except Exception:
                 pass
-            fd, tmp_model = tempfile.mkstemp(dir=directory, suffix=".pkl.tmp")
-            os.close(fd)
-            try:
-                with open(tmp_model, "wb") as handle:
-                    pickle.dump(model, handle, protocol=pickle.HIGHEST_PROTOCOL)
-                os.replace(tmp_model, model_path)
-            finally:
-                if os.path.exists(tmp_model):
-                    os.unlink(tmp_model)
-
+            self._migrate_legacy_latest(key, model_path, meta_path)
             payload = metadata.to_dict()
-            fd, tmp_meta = tempfile.mkstemp(dir=directory, suffix=".json.tmp")
-            os.close(fd)
-            try:
-                with open(tmp_meta, "w", encoding="utf-8") as handle:
-                    json.dump(payload, handle, ensure_ascii=False, indent=2, default=_json_default)
-                os.replace(tmp_meta, meta_path)
-            finally:
-                if os.path.exists(tmp_meta):
-                    os.unlink(tmp_meta)
+            # Publish the immutable artifact first. A crash before latest.json lands
+            # leaves the previous latest pointer valid and self-consistent.
+            self._save_version(key, model, metadata, payload)
+            self._atomic_pickle(model_path, model, directory)
+            write_json(meta_path, payload)
         finally:
             try:
                 import fcntl
@@ -158,6 +232,53 @@ class ModelStore:
                 pass
             lock_file.close()
         return metadata
+
+    def _legacy_candidates(self, ref: str, digest: str | None) -> list[Path]:
+        if digest is not None:
+            key = ref.rsplit("/", 1)[0]
+            paths = sorted((self._dir(key) / "versions").glob("*.json"))
+            wanted = digest
+        else:
+            paths = sorted(self.root.glob("*/versions/*.json"))
+            wanted = ref
+        found: list[Path] = []
+        for meta_path in paths:
+            try:
+                data = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if str(data.get("model_hash") or "") == wanted:
+                found.append(meta_path.with_suffix(".pkl"))
+        return found
+
+    def load_ref(self, model_ref: str) -> tuple[Any | None, ModelArtifact | None]:
+        """Load an immutable model by ``key/hash`` or a bare content hash."""
+        ref = str(model_ref or "").strip()
+        if not ref:
+            return None, None
+        candidates: list[Path] = []
+        digest: str | None = None
+        if "/" in ref:
+            key, digest = ref.rsplit("/", 1)
+            candidates.append(self._dir(key) / "versions" / f"{digest}.pkl")
+        else:
+            candidates.extend(sorted(self.root.glob(f"*/versions/{ref}.pkl")))
+        candidates.extend(self._legacy_candidates(ref, digest))
+        unique = sorted({path.resolve() for path in candidates if path.is_file()})
+        if len(unique) > 1:
+            logger.warning("模型引用不唯一，拒绝按文件名猜测: {}", ref)
+            return None, None
+        for model_path in unique:
+            meta_path = model_path.with_suffix(".json")
+            try:
+                data = json.loads(meta_path.read_text(encoding="utf-8"))
+                metadata = ModelArtifact.from_dict(data)
+                with open(model_path, "rb") as handle:
+                    return pickle.load(handle), metadata
+            except Exception as exc:
+                logger.warning("加载不可变模型失败 {}: {}", model_path, exc)
+                continue
+        return None, None
 
     def metadata(self, key: str) -> ModelArtifact | None:
         _, _, meta_path = self._paths(key)
@@ -173,7 +294,12 @@ class ModelStore:
     def load(self, key: str) -> tuple[Any | None, ModelArtifact | None]:
         _, model_path, _ = self._paths(key)
         meta = self.metadata(key)
-        if not model_path.exists() or meta is None:
+        if meta is None:
+            return None, None
+        ref = str((meta.extra or {}).get("model_ref") or "")
+        if ref:
+            return self.load_ref(ref)
+        if not model_path.exists():
             return None, meta
         try:
             with open(model_path, "rb") as handle:

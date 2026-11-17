@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
+import os
 import re
 import sys
 import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from functools import partial
 from pathlib import Path
 from types import ModuleType
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import polars as pl
 from loguru import logger
@@ -28,6 +29,8 @@ _AVAILABILITY = {"bar_close", "next_open"}
 _DIRECTIONS = {"positive", "negative", "nonlinear"}
 _OhlcColumn = Literal["open", "high", "low", "close"]
 _OHLC_COLUMNS: tuple[_OhlcColumn, ...] = ("open", "high", "low", "close")
+_DEFAULT_PLUGIN_TIMEOUT = 15.0
+_DEFAULT_PLUGIN_MEMORY_MB = 512
 
 
 class SkippedFactorReason(StrEnum):
@@ -35,6 +38,8 @@ class SkippedFactorReason(StrEnum):
 
     SYNTAX_ERROR = "SyntaxError"
     IMPORT_ERROR = "ImportError"
+    IMPORT_TIMEOUT = "ImportTimeout"
+    MEMORY_LIMIT = "MemoryLimit"
     MISSING_PLUGIN_DECLARATION = "MissingPluginDeclaration"
     INVALID_METADATA = "InvalidMetadata"
     BUILTIN_ID_CONFLICT = "BuiltinIdConflict"
@@ -54,7 +59,14 @@ class GoldenCase:
 
 @dataclass(frozen=True)
 class FactorPlugin:
-    """Declarative external factor contract."""
+    """Declarative external factor contract.
+
+    ``adjust`` is a reserved framework price-provenance column.  For
+    ``price_adjustment="hfq"`` the framework applies it exactly once and removes it
+    before calling ``compute``; a plugin must not request it in this mode.  For
+    ``price_adjustment="raw"`` it remains available when present in the caller's
+    frame.  Other caller-supplied extension columns stay untouched in both modes.
+    """
 
     factor_id: str
     display_name: str
@@ -114,6 +126,114 @@ _CACHE_LOCK = threading.RLock()
 _CACHE: dict[str, tuple[tuple[tuple[str, int, int], ...], PluginDiscovery]] = {}
 
 
+def _plugin_budget() -> tuple[float, int | None]:
+    """Return configurable timeout and real child RSS budget for plugin workers."""
+    try:
+        timeout = max(
+            0.1,
+            float(os.environ.get("QUANTIDE_FACTOR_PLUGIN_TIMEOUT", _DEFAULT_PLUGIN_TIMEOUT)),
+        )
+    except ValueError:
+        timeout = _DEFAULT_PLUGIN_TIMEOUT
+    try:
+        memory_mb = int(
+            os.environ.get("QUANTIDE_FACTOR_PLUGIN_MEMORY_MB", _DEFAULT_PLUGIN_MEMORY_MB)
+        )
+    except ValueError:
+        memory_mb = _DEFAULT_PLUGIN_MEMORY_MB
+    return timeout, (memory_mb * 1024 * 1024 if memory_mb > 0 else None)
+
+
+def _plugin_outcome_value(outcome: Any, timeout: float) -> Any:
+    from quantide.service.process_runner import MEMORY, TIMEOUT
+
+    if outcome.status == TIMEOUT:
+        raise PluginContractError(f"插件计算超过 {timeout:g}s 时间预算")
+    if outcome.status == MEMORY:
+        raise PluginContractError("插件计算超过内存预算")
+    if outcome.status != "succeeded":
+        raise PluginContractError(f"插件计算失败: {outcome.error}")
+    return outcome.value
+
+
+def _remote_compute(path: Path, source_hash: str, frame: pl.DataFrame) -> pl.DataFrame:
+    """Compute a discovered plugin through the shared bounded worker."""
+    from quantide.factors.plugin_worker import compute_once
+    from quantide.service.process_runner import run_isolated
+
+    timeout, memory_bytes = _plugin_budget()
+    outcome = run_isolated(
+        compute_once,
+        str(path),
+        source_hash,
+        frame,
+        timeout=timeout,
+        memory_bytes=memory_bytes,
+    )
+    return cast(pl.DataFrame, _plugin_outcome_value(outcome, timeout))
+
+
+def _golden_cases(payload: Any) -> tuple[GoldenCase, ...]:
+    cases = []
+    for item in payload or ():
+        if isinstance(item, GoldenCase):
+            cases.append(item)
+        elif isinstance(item, dict):
+            cases.append(GoldenCase(**item))
+    return tuple(cases)
+
+
+def _plugin_from_payload(path: Path, source_hash: str, payload: dict[str, Any]) -> FactorPlugin:
+    data = dict(payload)
+    data.pop("compute", None)
+    data["golden_cases"] = _golden_cases(data.get("golden_cases"))
+    data["source_path"] = str(path)
+    data["source_hash"] = source_hash
+    return FactorPlugin(compute=partial(_remote_compute, path, source_hash), **data)
+
+
+def _isolated_candidate(
+    path: Path, source_hash: str
+) -> tuple[FactorPlugin | None, SkippedFactorEntry | None]:
+    from quantide.factors.plugin_worker import inspect_plugin
+    from quantide.service.process_runner import MEMORY, TIMEOUT, run_isolated
+
+    timeout, memory_bytes = _plugin_budget()
+    outcome = run_isolated(
+        inspect_plugin,
+        str(path),
+        source_hash,
+        timeout=timeout,
+        memory_bytes=memory_bytes,
+    )
+    if outcome.status == TIMEOUT:
+        return None, SkippedFactorEntry(
+            str(path),
+            SkippedFactorReason.IMPORT_TIMEOUT,
+            f"插件导入超过 {timeout:g}s 时间预算",
+        )
+    if outcome.status == MEMORY:
+        return None, SkippedFactorEntry(
+            str(path), SkippedFactorReason.MEMORY_LIMIT, "插件导入超过内存预算"
+        )
+    if outcome.status != "succeeded":
+        return None, SkippedFactorEntry(str(path), SkippedFactorReason.IMPORT_ERROR, outcome.error)
+    payload = outcome.value if isinstance(outcome.value, dict) else {}
+    problem = payload.get("problem")
+    if isinstance(problem, dict):
+        try:
+            reason = SkippedFactorReason(str(problem.get("reason") or "ImportError"))
+        except ValueError:
+            reason = SkippedFactorReason.IMPORT_ERROR
+        return None, SkippedFactorEntry(str(path), reason, str(problem.get("detail") or ""))
+    plugin_payload = payload.get("plugin")
+    if not isinstance(plugin_payload, dict):
+        return None, SkippedFactorEntry(
+            str(path), SkippedFactorReason.IMPORT_ERROR, "worker returned no plugin metadata"
+        )
+    return _plugin_from_payload(path, source_hash, plugin_payload), None
+
+
 def _directory_signature(path: Path) -> tuple[tuple[str, int, int], ...]:
     if not path.is_dir():
         return ()
@@ -147,19 +267,19 @@ def _module_name(path: Path, source_hash: str) -> str:
     return f"_millionaire_factor_{source_hash[:10]}_{stem}"
 
 
-def _load_module(path: Path, source_hash: str) -> ModuleType:
+def _load_module(path: Path, source_hash: str, raw: bytes) -> ModuleType:
+    """Execute the verified source bytes, never a potentially stale adjacent .pyc."""
     name = _module_name(path, source_hash)
     cached = sys.modules.get(name)
     if cached is not None:
         return cached
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:
-        raise _PluginLoadError(SkippedFactorReason.IMPORT_ERROR, "无法创建模块加载器")
-    module = importlib.util.module_from_spec(spec)
+    module = ModuleType(name)
+    module.__file__ = str(path)
+    module.__package__ = ""
     sys.modules[name] = module
     try:
-        spec.loader.exec_module(module)
-    except Exception:
+        exec(compile(raw, str(path), "exec"), module.__dict__)
+    except BaseException:
         sys.modules.pop(name, None)
         raise
     return module
@@ -206,7 +326,7 @@ def _load_plugin(path: Path) -> FactorPlugin:
     raw = path.read_bytes()
     source_hash = hashlib.sha256(raw).hexdigest()[:16]
     try:
-        module = _load_module(path, source_hash)
+        module = _load_module(path, source_hash, raw)
     except SyntaxError as exc:
         raise _PluginLoadError(
             SkippedFactorReason.SYNTAX_ERROR, f"{exc.msg}（第 {exc.lineno} 行）"
@@ -276,7 +396,14 @@ def _scan_directory(directory: Path) -> tuple[list[FactorPlugin], list[SkippedFa
     for path in sorted(directory.glob("*.py"), key=lambda item: item.name):
         if _skip_name(path.name):
             continue
-        plugin, problem = _load_candidate(path)
+        try:
+            source_hash = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+        except OSError as exc:
+            skipped.append(
+                SkippedFactorEntry(str(path), SkippedFactorReason.IMPORT_ERROR, str(exc))
+            )
+            continue
+        plugin, problem = _isolated_candidate(path, source_hash)
         if problem is not None:
             skipped.append(problem)
         elif plugin is not None:
@@ -328,11 +455,26 @@ def factor_source_hash(factor_id: str) -> str:
 
 
 def load_factor_plugin(path: str | Path) -> FactorPlugin:
-    """Load one plugin file for a CLI check without registering it globally."""
+    """Load one plugin file through the bounded worker for a CLI check."""
     candidate = Path(path).expanduser()
     if candidate.suffix != ".py" or not candidate.is_file():
         raise FileNotFoundError(str(candidate))
-    return _load_plugin(candidate)
+    source_hash = hashlib.sha256(candidate.read_bytes()).hexdigest()[:16]
+    plugin, problem = _isolated_candidate(candidate, source_hash)
+    if problem is not None:
+        raise PluginContractError(problem.detail)
+    if plugin is None:
+        raise PluginContractError("无法加载插件")
+    return plugin
+
+
+def _apply_price_adjustment(panel: pl.DataFrame, plugin: FactorPlugin) -> pl.DataFrame:
+    if plugin.price_adjustment != "hfq" or "adjust" not in panel.columns:
+        return panel
+    columns = [column for column in _OHLC_COLUMNS if column in panel.columns]
+    return panel.with_columns(
+        (pl.col(column) * pl.col("adjust")).alias(column) for column in columns
+    ).drop("adjust")
 
 
 def _input_frame(panel: pl.DataFrame, plugin: FactorPlugin) -> tuple[pl.DataFrame, str]:
@@ -341,14 +483,35 @@ def _input_frame(panel: pl.DataFrame, plugin: FactorPlugin) -> tuple[pl.DataFram
     absent = sorted(required - set(panel.columns))
     if absent:
         raise PluginContractError(f"输入面板缺少列: {', '.join(absent)}")
-    frame = panel
-    if plugin.price_adjustment == "hfq" and "adjust" in panel.columns:
-        frame = frame.with_columns(
-            (pl.col(column) * pl.col("adjust")).alias(column)
-            for column in _OHLC_COLUMNS
-            if column in panel.columns
+    if plugin.price_adjustment == "hfq" and "adjust" in plugin.required_columns:
+        raise PluginContractError(
+            "hfq 输入已由框架应用 adjust；required_columns 不能再声明保留列 adjust。"
+            '如需原始复权因子，请改用 price_adjustment="raw" 或自定义扩展列名。'
         )
+    frame = _apply_price_adjustment(panel, plugin)
     return frame.sort(["asset", date_col]), date_col
+
+
+def _dataframe_result_frame(
+    result: pl.DataFrame, keys: pl.DataFrame, key_columns: list[str], factor_id: str
+) -> pl.DataFrame:
+    missing = [column for column in (*key_columns, factor_id) if column not in result.columns]
+    if missing:
+        raise PluginContractError(f"compute 返回的 DataFrame 缺少列: {', '.join(missing)}")
+    frame = result.select([*key_columns, factor_id])
+    _validate_result_keys(frame, keys, key_columns)
+    return keys.join(frame, on=key_columns, how="left")
+
+
+def _validate_result_keys(frame: pl.DataFrame, keys: pl.DataFrame, key_columns: list[str]) -> None:
+    if frame.select(key_columns).is_duplicated().any():
+        raise PluginContractError("compute 返回的键重复")
+    if frame.height != keys.height:
+        raise PluginContractError("compute 返回的 DataFrame 行数与输入不一致")
+    missing_keys = keys.join(frame.select(key_columns), on=key_columns, how="anti")
+    extra_keys = frame.select(key_columns).join(keys, on=key_columns, how="anti")
+    if missing_keys.height or extra_keys.height:
+        raise PluginContractError("compute 返回的键集与输入不一致")
 
 
 def _series_frame(
@@ -363,13 +526,7 @@ def _series_frame(
             raise PluginContractError("compute 返回的 Series 长度与输入不一致")
         frame = keys.with_columns(result.alias(factor_id))
     elif isinstance(result, pl.DataFrame):
-        missing = [column for column in (*key_columns, factor_id) if column not in result.columns]
-        if missing:
-            raise PluginContractError(f"compute 返回的 DataFrame 缺少列: {', '.join(missing)}")
-        frame = result.select([*key_columns, factor_id])
-        if frame.select(key_columns).is_duplicated().any():
-            raise PluginContractError("compute 返回的键重复")
-        frame = keys.join(frame, on=key_columns, how="left")
+        frame = _dataframe_result_frame(result, keys, key_columns, factor_id)
     else:
         raise PluginContractError("compute 必须返回 pl.Series 或 pl.DataFrame")
     values = frame[factor_id]
@@ -396,6 +553,7 @@ def augment_panel_with_plugins(
     factor_ids: Iterable[str] | None = None,
     *,
     strict: bool = False,
+    interval: str | None = None,
 ) -> pl.DataFrame:
     """Join selected external factor columns onto a built-in factor panel."""
     discovery = discover_factor_plugins()
@@ -403,6 +561,8 @@ def augment_panel_with_plugins(
     result = panel
     for plugin in discovery.plugins:
         if requested is not None and plugin.factor_id not in requested:
+            continue
+        if interval is not None and plugin.bar_interval != interval:
             continue
         try:
             computed = compute_plugin(panel, plugin)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from types import SimpleNamespace
 
 import polars as pl
 import pytest
@@ -69,3 +70,59 @@ def test_custom_study_rejects_invalid_input(monkeypatch) -> None:
         factor_study.run_custom_study("bias_5", dt.date(2024, 1, 8), dt.date(2024, 1, 2), [1])
     with pytest.raises(ValueError):
         factor_study.run_custom_study("bias_5", dt.date(2024, 1, 2), dt.date(2024, 1, 8), [4])
+
+
+def test_external_30m_study_loads_native_bars_and_aggregates_daily(monkeypatch) -> None:
+    start = dt.datetime(2024, 1, 2, 10, 0)
+    rows = []
+    for asset in ("a", "b", "c"):
+        for day in range(5):
+            for bar in range(4):
+                moment = start + dt.timedelta(days=day, minutes=30 * bar)
+                rows.append(
+                    {
+                        "dt": moment,
+                        "asset": asset,
+                        "open": 10.0 + day + bar * 0.1,
+                        "close": 10.1 + day + bar * 0.1,
+                    }
+                )
+    native = pl.DataFrame(rows)
+    plugin = SimpleNamespace(factor_id="ai_30m", bar_interval="30m")
+    discovered = SimpleNamespace(by_id=lambda _factor_id: plugin)
+    monkeypatch.setattr(factor_study, "discover_factor_plugins", lambda: discovered)
+    monkeypatch.setattr(factor_study, "all_factor_ids", lambda *_args, **_kwargs: ["ai_30m"])
+    monkeypatch.setattr(
+        factor_study,
+        "load_wind_tunnel_frame",
+        lambda _start, _end, interval=None: native,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "quantide.service.factor_wind_tunnel.load_wind_tunnel_frame",
+        lambda _start, _end, interval=None: native,
+    )
+    monkeypatch.setattr(
+        factor_study,
+        "compute_feature_panel",
+        lambda frame, features, interval=None: frame.select(
+            ["dt", "asset", pl.lit(1.0).alias(features[0])]
+        ),
+        raising=False,
+    )
+
+    study = factor_study.run_custom_study(
+        "ai_30m",
+        dt.date(2024, 1, 2),
+        dt.date(2024, 1, 4),
+        [1],
+        "open",
+    )
+
+    assert study.factor_id == "ai_30m"
+    assert study.bar_interval == "30m"
+    assert study.sampling_interval == "1d"
+    assert study.holding_unit == "trading_day"
+    assert study.as_dict()["sampling_interval"] == "1d"
+    assert study.results
+    assert study.results[0].diagnostics.n_valid_pairs > 0

@@ -78,7 +78,7 @@ def test_tool_set_is_exactly_six_and_has_no_shell() -> None:
 def factor_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     target = tmp_path / "factors"
     target.mkdir()
-    monkeypatch.setattr(ai_factor_tools, "normalize_factor_dir", lambda: str(target))
+    monkeypatch.setattr(ai_factor_tools, "get_factor_dir", lambda: str(target))
     return target
 
 

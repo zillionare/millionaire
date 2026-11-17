@@ -33,8 +33,9 @@ def default_backtest_params(strategy_cls: Any = None) -> dict[str, Any]:
     """
     from quantide.factors.registry import all_factor_ids
 
+    interval = str(getattr(strategy_cls, "BAR_INTERVAL", "1d")) if strategy_cls else "1d"
     defaults: dict[str, Any] = dict(DEFAULT_FEE_PARAMS)
-    defaults[FEATURE_PARAM_KEY] = list(all_factor_ids())
+    defaults[FEATURE_PARAM_KEY] = list(all_factor_ids(interval))
     if strategy_cls is not None:
         params = getattr(strategy_cls, "PARAMS", None)
         if not isinstance(params, dict):

@@ -8,13 +8,14 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
+from quantide.core.market_time import market_now
 from quantide.core.scheduler import scheduler
 from quantide.data.models.calendar import calendar
 from quantide.service.model_store import model_store
 from quantide.service.shadow_broker import ShadowBroker
-from quantide.service.shadow_intraday import intraday_shadow_runner
+from quantide.service.shadow_intraday import first_slot_at_or_after, intraday_shadow_runner
 from quantide.service.shadow_support import build_shadow_strategy, position_snapshots
-from quantide.service.strategy_tracking import tracking_store
+from quantide.service.strategy_tracking import bar_slot_text, tracking_store
 
 if TYPE_CHECKING:
     from quantide.service.strategy_runtime import StrategyRuntime
@@ -82,6 +83,83 @@ class StrategyTaskManager:
         self._next_open_attached: set[str] = set()
         self._intraday_attached: set[str] = set()
 
+    @staticmethod
+    def _interval_and_slot(runtime: StrategyRuntime) -> tuple[str, str]:
+        interval = str(getattr(runtime, "interval", "1d"))
+        if interval != "30m":
+            return interval, ""
+        anchor = first_slot_at_or_after(market_now())
+        return interval, bar_slot_text(anchor) if anchor is not None else ""
+
+    def _add_base_jobs(self, runtime_id: str) -> None:
+        scheduler.add_job(
+            self.run_eod,
+            "cron",
+            hour=_EOD_HOUR,
+            minute=_EOD_MINUTE,
+            day_of_week="mon-fri",
+            args=[runtime_id],
+            id=f"{_job_prefix(runtime_id)}:eod",
+            name=f"strategy tracking eod {runtime_id}",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=None,
+        )
+        scheduler.add_job(
+            self.run_morning,
+            "cron",
+            hour=_MORNING_HOUR,
+            minute=_MORNING_MINUTE,
+            day_of_week="mon-fri",
+            args=[runtime_id],
+            id=f"{_job_prefix(runtime_id)}:morning",
+            name=f"strategy tracking morning {runtime_id}",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=None,
+        )
+
+    def _add_intraday_job(self, runtime_id: str) -> None:
+        scheduler.add_job(
+            self.run_30m,
+            "cron",
+            hour="10-11,13-15",
+            minute="0,30",
+            day_of_week="mon-fri",
+            args=[runtime_id],
+            id=f"{_job_prefix(runtime_id)}:30m",
+            name=f"strategy tracking 30m {runtime_id}",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=None,
+        )
+        self._intraday_attached.add(runtime_id)
+
+    def _add_next_open_job(self, runtime_id: str) -> None:
+        scheduler.add_job(
+            self.run_next_open,
+            "cron",
+            hour=9,
+            minute=25,
+            day_of_week="mon-fri",
+            args=[runtime_id],
+            id=f"{_job_prefix(runtime_id)}:next_open",
+            name=f"strategy tracking next_open {runtime_id}",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=None,
+        )
+        self._next_open_attached.add(runtime_id)
+        # A process may restart after the 09:25 trigger. Reconcile durable
+        # orders once at attach time; never invokes the strategy.
+        now = datetime.datetime.now()
+        if now.time() >= datetime.time(9, 25):
+            self.run_next_open(runtime_id, now)
+
     def attach(self, runtime: StrategyRuntime) -> None:
         runtime_id = str(getattr(runtime, "runtime_id", "") or "")
         if not runtime_id:
@@ -90,85 +168,25 @@ class StrategyTaskManager:
             return
         if runtime_id in self._attached:
             return
+        interval, start_slot = self._interval_and_slot(runtime)
         tracking_store.ensure_run(
             runtime_id,
             runtime.portfolio_id,
             backtest_id=str(getattr(runtime, "source_backtest_portfolio_id", "") or ""),
-            start_date=datetime.date.today(),
+            start_date=market_now().date(),
             fill_timing=str((runtime.config or {}).get("fill_timing", "auction_close")),
             dry_run_enabled=True,
-            bar_interval=str(getattr(runtime, "interval", "1d")),
+            bar_interval=interval,
+            start_slot=start_slot,
         )
         self._init_shadow_state(runtime)
         try:
-            scheduler.add_job(
-                self.run_eod,
-                "cron",
-                hour=_EOD_HOUR,
-                minute=_EOD_MINUTE,
-                day_of_week="mon-fri",
-                args=[runtime_id],
-                id=f"{_job_prefix(runtime_id)}:eod",
-                name=f"strategy tracking eod {runtime_id}",
-                replace_existing=True,
-                max_instances=1,
-                coalesce=True,
-                misfire_grace_time=None,
-            )
-            scheduler.add_job(
-                self.run_morning,
-                "cron",
-                hour=_MORNING_HOUR,
-                minute=_MORNING_MINUTE,
-                day_of_week="mon-fri",
-                args=[runtime_id],
-                id=f"{_job_prefix(runtime_id)}:morning",
-                name=f"strategy tracking morning {runtime_id}",
-                replace_existing=True,
-                max_instances=1,
-                coalesce=True,
-                misfire_grace_time=None,
-            )
-            if str(getattr(runtime, "interval", "1d")) == "30m":
-                scheduler.add_job(
-                    self.run_30m,
-                    "cron",
-                    hour="10-11,13-15",
-                    minute="0,30",
-                    day_of_week="mon-fri",
-                    args=[runtime_id],
-                    id=f"{_job_prefix(runtime_id)}:30m",
-                    name=f"strategy tracking 30m {runtime_id}",
-                    replace_existing=True,
-                    max_instances=1,
-                    coalesce=True,
-                    misfire_grace_time=None,
-                )
-                self._intraday_attached.add(runtime_id)
-            if str(getattr(runtime, "interval", "1d")) == "1d" and str(
-                (runtime.config or {}).get("fill_timing", "")
-            ).lower() in {"next_open", "open"}:
-                scheduler.add_job(
-                    self.run_next_open,
-                    "cron",
-                    hour=9,
-                    minute=25,
-                    day_of_week="mon-fri",
-                    args=[runtime_id],
-                    id=f"{_job_prefix(runtime_id)}:next_open",
-                    name=f"strategy tracking next_open {runtime_id}",
-                    replace_existing=True,
-                    max_instances=1,
-                    coalesce=True,
-                    misfire_grace_time=None,
-                )
-                self._next_open_attached.add(runtime_id)
-                # A process may restart after the 09:25 trigger.  Reconcile
-                # durable orders once at attach time; this submits an already
-                # persisted intent only and never invokes the strategy.
-                now = datetime.datetime.now()
-                if now.time() >= datetime.time(9, 25):
-                    self.run_next_open(runtime_id, now)
+            self._add_base_jobs(runtime_id)
+            if interval == "30m":
+                self._add_intraday_job(runtime_id)
+            fill_timing = str((runtime.config or {}).get("fill_timing", "")).lower()
+            if interval == "1d" and fill_timing in {"next_open", "open"}:
+                self._add_next_open_job(runtime_id)
         except Exception as exc:  # pragma: no cover - 调度器未启动
             logger.warning("注册策略任务失败 {}: {}", runtime_id, exc)
             return

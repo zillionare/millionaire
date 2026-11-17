@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import multiprocessing
+import os
+import signal
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -22,9 +26,13 @@ from quantide.service.process_runner import (
     CANCELLED as PROCESS_CANCELLED,
 )
 from quantide.service.process_runner import (
+    MEMORY,
+    ProcessOutcome,
+    run_isolated,
+)
+from quantide.service.process_runner import (
     TIMEOUT as PROCESS_TIMEOUT,
 )
-from quantide.service.process_runner import ProcessOutcome, run_isolated
 
 
 @pytest.fixture(autouse=True)
@@ -68,6 +76,150 @@ def test_task_ledger_is_idempotent_scoped_and_stores_result(tmp_path) -> None:
     assert claimed.payload == payload
     assert store.set_result(first, {"kind": "custom_study", "study_id": "s1"}, owner="study")
     assert store.get(first).result == {"kind": "custom_study", "study_id": "s1"}
+
+
+def _allocate_beyond_budget() -> int:
+    data = bytearray(256 * 1024 * 1024)
+    time.sleep(float(len(data)) / 1e9)
+    return len(data)
+
+
+def test_process_runner_enforces_memory_budget() -> None:
+    outcome = run_isolated(
+        _allocate_beyond_budget,
+        timeout=15,
+        memory_bytes=64 * 1024 * 1024,
+    )
+
+    assert outcome.status != SUCCEEDED
+    assert outcome.status in {MEMORY, FAILED}
+
+
+def _collect_worker_semaphores(path: str) -> None:
+    import inspect
+    import json
+
+    frame = inspect.currentframe()
+    names: list[str] = []
+    while frame is not None:
+        queue = frame.f_locals.get("messages")
+        if queue is not None and all(
+            hasattr(queue, key) for key in ("_rlock", "_wlock", "_sem")
+        ):
+            for key in ("_rlock", "_wlock", "_sem"):
+                lock = getattr(queue, key)._semlock
+                if lock.name:
+                    names.append(lock.name)
+            break
+        frame = frame.f_back
+    Path(path).write_text(json.dumps(names), encoding="utf-8")
+    time.sleep(30)
+
+
+def _nested_semaphore_outer(path: str) -> str:
+    return run_isolated(_collect_worker_semaphores, path, timeout=25).status
+
+
+def _large_result(size: int) -> bytes:
+    return b"x" * size
+
+
+def _stubborn_descendant(path: str) -> None:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    Path(path).write_text(str(os.getpid()), encoding="utf-8")
+    while True:
+        time.sleep(0.1)
+
+
+def _spawn_stubborn_descendant(path: str) -> None:
+    child = multiprocessing.get_context("spawn").Process(
+        target=_stubborn_descendant, args=(path,), daemon=False
+    )
+    child.start()
+    while not Path(path).exists():
+        time.sleep(0.01)
+    while True:
+        time.sleep(0.1)
+
+
+def _nested_inner(path: str) -> None:
+    Path(path).write_text(str(os.getpid()), encoding="utf-8")
+    time.sleep(30)
+
+
+def _nested_outer(path: str) -> str:
+    return run_isolated(_nested_inner, path, timeout=25).status
+
+
+def _spawn_leftover_and_return(path: str) -> None:
+    child = multiprocessing.get_context("spawn").Process(
+        target=_stubborn_descendant, args=(path,), daemon=False
+    )
+    child.start()
+    while not Path(path).exists():
+        time.sleep(0.01)
+
+
+def _assert_dead(pid: int) -> None:
+    time.sleep(0.2)
+    state = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    assert not state or state.startswith("Z")
+
+
+def test_runner_kills_nested_worker_group_after_outer_timeout(tmp_path) -> None:
+    pid_file = tmp_path / "nested-inner.pid"
+    outcome = run_isolated(_nested_outer, str(pid_file), timeout=3)
+    assert outcome.status == PROCESS_TIMEOUT
+    assert pid_file.exists()
+    pid = int(pid_file.read_text(encoding="utf-8"))
+    try:
+        _assert_dead(pid)
+    finally:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def test_runner_kills_leftover_child_after_normal_return(tmp_path) -> None:
+    pid_file = tmp_path / "leftover.pid"
+    outcome = run_isolated(_spawn_leftover_and_return, str(pid_file), timeout=5)
+    assert outcome.status == SUCCEEDED
+    assert pid_file.exists()
+    pid = int(pid_file.read_text(encoding="utf-8"))
+    try:
+        _assert_dead(pid)
+    finally:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def test_runner_kills_term_ignoring_descendants_after_timeout(tmp_path) -> None:
+    pid_file = tmp_path / "descendant.pid"
+    outcome = run_isolated(_spawn_stubborn_descendant, str(pid_file), timeout=2)
+    assert outcome.status == PROCESS_TIMEOUT
+    pid = int(pid_file.read_text(encoding="utf-8"))
+    try:
+        time.sleep(0.2)
+        state = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        assert not state or state.startswith("Z")
+    finally:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 def test_process_runner_terminates_timeout_cancel_and_failure() -> None:
@@ -176,3 +328,21 @@ def test_real_subprocess_study_initializes_data_home(tmp_path, monkeypatch) -> N
     assert run.result is not None and run.result["results"]
     assert worker.load_study(run_id) is not None
     worker.stop_worker()
+
+
+
+def test_nested_timeout_leaves_no_named_semaphores_in_live_service(tmp_path) -> None:
+    import json
+
+    for index in range(3):
+        path = tmp_path / f"semaphores-{index}.json"
+        outcome = run_isolated(_nested_semaphore_outer, str(path), timeout=3)
+        assert outcome.status == PROCESS_TIMEOUT
+        assert json.loads(path.read_text(encoding="utf-8")) == []
+
+
+def test_isolated_result_file_handles_large_payload() -> None:
+    outcome = run_isolated(_large_result, 4 * 1024 * 1024, timeout=10)
+    assert outcome.status == SUCCEEDED
+    assert isinstance(outcome.value, bytes)
+    assert len(outcome.value) == 4 * 1024 * 1024

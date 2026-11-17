@@ -31,7 +31,7 @@ from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.daily_basic import daily_basic
 from quantide.data.models.stocks import stock_list
 from quantide.factors.alpha import _zscore_1d
-from quantide.factors.registry import all_factor_ids
+from quantide.factors.registry import all_factor_ids, catalog_version, factor_version
 from quantide.factors.universe import (
     UniverseFilterConfig,
     filter_universe_for_date,
@@ -54,7 +54,7 @@ def _training_feature_panel(
     label_kind: str = "raw_return",
 ) -> tuple[list[str], pl.DataFrame]:
     """Training feature panel."""
-    selected_features = tuple(feature_cols or all_factor_ids())
+    selected_features = tuple(feature_cols or all_factor_ids("1d"))
     z_cols = [f"{c}_z" for c in selected_features]
 
     # A cache key is optional because callers without a stable panel identity
@@ -303,7 +303,8 @@ def _retrain_replay_model(
             train_window=self.train_window,
             horizon=self.future_return_horizon,
             use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or all_factor_ids(),
+            feature_cols=self.selected_features
+            or all_factor_ids(getattr(self, "bar_interval", "1d")),
             label_cache_key=self._panel_cache_key(signal_date),
             label_kind=getattr(self, "label_kind", "raw_return"),
         )
@@ -325,6 +326,17 @@ def _retrain_replay_model(
         effective_from=signal_date,
     )
     self._mark_retrained()
+
+
+def _panel_identity(strategy: MLMomentumReversalStrategy) -> tuple[Any, ...]:
+    """Identify the catalog and exact factor versions used to build a panel."""
+    features = strategy.selected_features or all_factor_ids(strategy.bar_interval)
+    return (
+        catalog_version(),
+        strategy.bar_interval,
+        tuple((name, factor_version(name)) for name in features),
+        _bars_fingerprint(),
+    )
 
 
 def _bars_fingerprint() -> tuple[object, ...]:
@@ -360,17 +372,11 @@ _EXPLAIN_CROSS_SECTION_CACHE: dict[tuple[Any, ...], pl.DataFrame] = {}
 
 
 def _parse_custom_assets(config: dict[str, Any]) -> list[str] | None:
-    """Extract custom asset list from strategy config if specified."""
-    raw = config.get("symbols") or config.get("universe") or config.get("symbol")
-    if raw is None:
-        return None
-    if isinstance(raw, str):
-        items = [s.strip() for s in raw.split(",") if s.strip()]
-        return items or None
-    if isinstance(raw, (list, tuple, set)):
-        items = [str(s).strip() for s in raw if str(s).strip()]
-        return items or None
-    return None
+    """Extract custom assets through the shared strategy/config parser."""
+    from quantide.service.shadow_support import config_symbols
+
+    items = config_symbols(config, include_universe=True)
+    return items or None
 
 
 def _coerce_date(
@@ -452,16 +458,40 @@ def _cross_section_label(frame: pl.DataFrame, label_kind: str) -> pl.DataFrame:
     )
 
 
+def _authoritative_exit_dates(
+    dates: list[datetime.date], horizon: int
+) -> dict[datetime.date, datetime.date] | None:
+    """Map each signal date to the exact authoritative session ``h`` days later."""
+    if not dates or calendar.day_frames is None:
+        return None
+    start, end = min(dates), max(dates)
+    try:
+        tail = calendar.day_shift(end, horizon)
+        sessions = list(calendar.get_trade_dates(start, max(end, tail)))
+    except Exception:
+        return None
+    if not sessions or not set(dates).issubset(set(sessions)):
+        return None
+    index = {day: position for position, day in enumerate(sessions)}
+    mapping: dict[datetime.date, datetime.date] = {}
+    for day in dates:
+        position = index[day] + horizon
+        if position < len(sessions):
+            mapping[day] = sessions[position]
+    return mapping
+
+
 def compute_future_close_return_labels(
     df: pl.DataFrame, horizon: int = 3, label_kind: str = "raw_return"
 ) -> pl.DataFrame:
     """Attach a supervised future close-return target to a daily-bar panel.
 
-    ``horizon`` counts rows within each asset's sorted daily-bar history, so it
-    represents trading days rather than calendar days.  ``excess_mean`` and
-    ``cs_rank`` are computed strictly inside each signal date's mature cross
-    section; a date with any missing forward price is excluded as a whole.
-    Callers must pass a history frame cut off at the signal date when training.
+    ``horizon`` counts authoritative trading sessions.  A missing exit-day quote
+    yields a missing label; it is never silently replaced by the next existing
+    row.  ``excess_mean`` and ``cs_rank`` are computed strictly inside each
+    signal date's mature cross section; a date with any missing forward price is
+    excluded as a whole.  Callers must pass a history frame cut off at the
+    signal date when training.
     """
     horizon = max(1, int(horizon))
     if label_kind not in LABEL_KINDS:
@@ -471,14 +501,43 @@ def compute_future_close_return_labels(
             pl.lit(None, dtype=pl.Float64).alias("future_n_trading_day_close_return")
         )
     ordered = df.sort(["asset", "date"])
-    close = pl.col("close").cast(pl.Float64)
-    future_close = close.shift(-horizon).over("asset")
-    labeled = ordered.with_columns(
-        pl.when(future_close.is_not_null() & (close != 0.0))
-        .then(future_close / close - 1.0)
-        .otherwise(pl.lit(None, dtype=pl.Float64))
-        .alias("future_n_trading_day_close_return")
+    dates = sorted(
+        {value for value in ordered["date"].to_list() if isinstance(value, datetime.date)}
     )
+    mapping = _authoritative_exit_dates(dates, horizon)
+    close = pl.col("close").cast(pl.Float64)
+    if mapping is not None:
+        exits = pl.DataFrame(
+            {
+                "date": list(mapping),
+                "_exit_date": list(mapping.values()),
+            },
+            schema={"date": pl.Date, "_exit_date": pl.Date},
+        )
+        future = ordered.select(
+            "asset",
+            pl.col("date").alias("_exit_date"),
+            pl.col("close").cast(pl.Float64).alias("_exit_close"),
+        )
+        labeled = (
+            ordered.join(exits, on="date", how="left")
+            .join(future, on=["asset", "_exit_date"], how="left")
+            .with_columns(
+                pl.when(pl.col("_exit_close").is_not_null() & (close != 0.0))
+                .then(pl.col("_exit_close") / close - 1.0)
+                .otherwise(pl.lit(None, dtype=pl.Float64))
+                .alias("future_n_trading_day_close_return")
+            )
+            .drop("_exit_date", "_exit_close")
+        )
+    else:
+        future_close = close.shift(-horizon).over("asset")
+        labeled = ordered.with_columns(
+            pl.when(future_close.is_not_null() & (close != 0.0))
+            .then(future_close / close - 1.0)
+            .otherwise(pl.lit(None, dtype=pl.Float64))
+            .alias("future_n_trading_day_close_return")
+        )
     return _cross_section_label(labeled, label_kind)
 
 
@@ -551,7 +610,7 @@ def _score_cross_section(
     feature_cols: Sequence[str] | None = None,
 ) -> np.ndarray:
     """预测目标日截面的模型得分（截面 z-score，不含任何手工先验）。"""
-    cols = feature_cols or all_factor_ids()
+    cols = feature_cols or all_factor_ids("1d")
     if pred_df.is_empty():
         return np.array([], dtype=np.float64)
 
@@ -724,19 +783,23 @@ def _pit_on_date(
     target_date: datetime.date,
     universe_filter: UniverseFilterConfig | None,
     fill_timing: str,
-) -> pl.DataFrame:
-    on_date = bars_df.filter(pl.col("date") == target_date)
-    if on_date.is_empty():
-        return on_date
+) -> tuple[pl.DataFrame, Any]:
+    on_date = bars_df.filter(pl.col("date") <= target_date)
+    if on_date.filter(pl.col("date") == target_date).is_empty():
+        return on_date.head(0), None
     pit = filter_universe_for_date(
-        bars_df,
+        on_date,
         target_date,
         universe_filter or UniverseFilterConfig(max_universe_size=None, min_listing_days=0),
         fill_timing=fill_timing,
         status_frame=load_st_status_frame(),
         stock_meta=stock_list.data if stock_list.size > 0 else None,
     )
-    return on_date.filter(pl.col("asset").is_in(pit.assets)) if pit.assets else on_date.head(0)
+    current = on_date.filter(pl.col("date") == target_date)
+    return (
+        current.filter(pl.col("asset").is_in(pit.assets)) if pit.assets else current.head(0),
+        pit,
+    )
 
 
 def _select_from_pit(
@@ -777,10 +840,13 @@ def _filter_universe(
     index_codes: list[str] | None = None,
     universe_filter: UniverseFilterConfig | None = None,
     fill_timing: str = "auction_close",
+    diagnostics: dict[str, Any] | None = None,
 ) -> list[str]:
     """Select a tradable point-in-time pool, retaining eligible held securities."""
     raw_on_date = bars_df.filter(pl.col("date") == target_date)
-    on_date = _pit_on_date(bars_df, target_date, universe_filter, fill_timing)
+    on_date, pit = _pit_on_date(bars_df, target_date, universe_filter, fill_timing)
+    if diagnostics is not None and pit is not None:
+        diagnostics[target_date.isoformat()] = pit.as_dict()
     if on_date.is_empty():
         return []
     return _select_from_pit(

@@ -71,3 +71,158 @@ def test_failed_audit_returns_result_without_crashing(tmp_path: Path, monkeypatc
     assert result.orthogonality.status == "INCONCLUSIVE"
     assert result.orthogonality.max_abs_rank_corr is None
     plugins.clear_plugin_cache()
+
+
+def test_monthly_hfq_ohlc_uses_each_day_adjustment_and_month_end_availability(monkeypatch):
+    import datetime as dt
+
+    import polars as pl
+
+    from quantide.data.models.calendar import calendar
+    from quantide.factors.plugins import FactorPlugin, compute_plugin
+    from quantide.service.factor_wind_tunnel import _monthly_frame
+
+    monkeypatch.setattr(
+        calendar, "day_shift", lambda start, offset: start + dt.timedelta(days=offset)
+    )
+
+    daily = pl.DataFrame(
+        {
+            "asset": ["A", "A", "A"],
+            "date": [dt.date(2024, 1, 2), dt.date(2024, 1, 15), dt.date(2024, 1, 31)],
+            "open": [10.0, 8.0, 6.0],
+            "high": [11.0, 9.0, 7.0],
+            "low": [9.0, 7.0, 5.0],
+            "close": [10.0, 8.0, 6.0],
+            "volume": [100.0, 100.0, 100.0],
+            "amount": [1000.0, 800.0, 600.0],
+            "adjust": [1.0, 1.5, 2.0],
+        }
+    )
+    frame = _monthly_frame(daily)
+    plugin = FactorPlugin(
+        factor_id="monthly_probe",
+        display_name="monthly",
+        bar_interval="1M",
+        required_columns=("close",),
+        warmup_bars=0,
+        compute=lambda panel: panel["close"],
+    )
+
+    output = compute_plugin(frame, plugin)
+    row = frame.row(0, named=True)
+
+    assert row["dt"] == dt.date(2024, 1, 31)
+    assert row["open"] == 10.0
+    assert row["high"] == 14.0
+    assert row["low"] == 9.0
+    assert row["close"] == 12.0
+    assert output["monthly_probe"].to_list() == [12.0]
+
+
+def test_monthly_partial_month_is_filtered_per_security(monkeypatch):
+    import datetime as dt
+
+    import polars as pl
+
+    from quantide.data.models.calendar import calendar
+    from quantide.service.factor_wind_tunnel import _monthly_frame
+
+    monkeypatch.setattr(
+        calendar, "day_shift", lambda start, offset: start + dt.timedelta(days=offset)
+    )
+    daily = pl.DataFrame(
+        {
+            "asset": ["A", "A", "B", "B"],
+            "date": [
+                dt.date(2024, 1, 2),
+                dt.date(2024, 1, 31),
+                dt.date(2024, 1, 2),
+                dt.date(2024, 1, 15),
+            ],
+            "open": [1.0, 1.0, 2.0, 2.0],
+            "high": [1.0, 1.0, 2.0, 2.0],
+            "low": [1.0, 1.0, 2.0, 2.0],
+            "close": [1.0, 1.0, 2.0, 2.0],
+            "volume": [1.0] * 4,
+            "amount": [1.0] * 4,
+            "adjust": [1.0] * 4,
+        }
+    )
+
+    frame = _monthly_frame(daily)
+
+    assert frame.filter(pl.col("asset") == "A")["dt"].to_list() == [dt.date(2024, 1, 31)]
+    assert frame.filter(pl.col("asset") == "B").is_empty()
+
+
+def test_monthly_raw_preserves_source_adjustment(monkeypatch):
+    import datetime as dt
+
+    import polars as pl
+
+    from quantide.data.models.calendar import calendar
+    from quantide.service.factor_wind_tunnel import _monthly_frame
+
+    monkeypatch.setattr(
+        calendar, "day_shift", lambda start, offset: start + dt.timedelta(days=offset)
+    )
+    daily = pl.DataFrame(
+        {
+            "asset": ["A", "A"],
+            "date": [dt.date(2024, 1, 2), dt.date(2024, 1, 31)],
+            "open": [10.0, 10.0],
+            "high": [10.0, 10.0],
+            "low": [10.0, 10.0],
+            "close": [10.0, 10.0],
+            "volume": [1.0, 1.0],
+            "amount": [1.0, 1.0],
+            "adjust": [1.0, 2.0],
+        }
+    )
+
+    frame = _monthly_frame(daily, "raw")
+
+    assert frame.row(0, named=True)["adjust"] == 2.0
+    assert frame.row(0, named=True)["close"] == 10.0
+
+
+def test_monthly_unknown_calendar_is_inconclusive(monkeypatch):
+    import datetime as dt
+
+    import polars as pl
+
+    from quantide.data.models.calendar import calendar
+    from quantide.service.factor_wind_tunnel import (
+        MonthlyCalendarUnavailable,
+        _inconclusive_calendar_result,
+        _monthly_frame,
+    )
+
+    def unavailable(start, offset):
+        raise ValueError("calendar not loaded")
+
+    monkeypatch.setattr(calendar, "day_shift", unavailable)
+    daily = pl.DataFrame(
+        {
+            "asset": ["A"],
+            "date": [dt.date(2024, 1, 31)],
+            "open": [1.0],
+            "high": [1.0],
+            "low": [1.0],
+            "close": [1.0],
+            "volume": [1.0],
+            "amount": [1.0],
+            "adjust": [1.0],
+        }
+    )
+
+    try:
+        _monthly_frame(daily)
+    except MonthlyCalendarUnavailable:
+        pass
+    else:
+        raise AssertionError("unknown calendar must not be treated as closed")
+    result = _inconclusive_calendar_result("demo", "calendar unavailable")
+    assert result.status == "INCONCLUSIVE"
+    assert result.orthogonality.status == "INCONCLUSIVE"

@@ -25,6 +25,7 @@ class SelectionOptions:
     trim_pct: float
     custom_assets: list[str] | None
     as_of: datetime.date | None
+    bar_interval: str = "1d"
 
     @classmethod
     def from_config(
@@ -45,4 +46,5 @@ class SelectionOptions:
             trim_pct=min(0.5, max(0.0, float(cfg.get("market_cap_trim_pct", 0.05)))),
             custom_assets=_parse_custom_assets(cfg),
             as_of=_coerce_date(as_of),
+            bar_interval=str(cfg.get("bar_interval") or "1d"),
         )

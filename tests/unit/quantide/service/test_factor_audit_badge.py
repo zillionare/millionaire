@@ -96,6 +96,58 @@ def test_unverified_then_pass_then_stale_on_source_change(tmp_path: Path, monkey
     assert factor_audit.factor_wind_tunnel_badge("ai_badge").badge_status == "STALE"
 
 
+def test_bound_backtest_badge_uses_recorded_factor_version(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """历史回测徽章绑定审计时的因子版本，不随当前插件源码漂移。"""
+    from quantide.service.strategy_runtime import strategy_runtime_manager
+
+    path = _write(tmp_path, "ai_bound")
+    frame = _frame()
+    result = run_factor_wind_tunnel(
+        "ai_bound", frame=frame, cutoffs=_cutoffs(frame), save=True
+    )
+    bound = result.report.spec.source_hash
+    monkeypatch.setitem(
+        strategy_runtime_manager._runtime_specs,
+        "backtest:p-bound",
+        {
+            "feature_audit": {
+                "features": ["ai_bound"],
+                "factor_versions": {"ai_bound": bound},
+                "audit_run_ids": {"ai_bound": result.report.run_id},
+            }
+        },
+    )
+
+    path.write_text(path.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+    plugins.clear_plugin_cache()
+
+    assert factor_audit.factor_wind_tunnel_badge("ai_bound").badge_status == "STALE"
+    bound_badge = factor_audit.factor_wind_tunnel_badge(
+        "ai_bound", bound_source_hash=bound, bound_run_id=result.report.run_id
+    )
+    assert bound_badge.badge_status == "PASS"
+    assert factor_audit.backtest_wind_tunnel_badge("p-bound").badge_status == "PASS"
+
+
+def test_legacy_backtest_without_binding_is_stale(tmp_path: Path, monkeypatch) -> None:
+    """缺少不可变身份旧记录不能沿用当前因子状态冒充历史证据。"""
+    from quantide.service.strategy_runtime import strategy_runtime_manager
+
+    _write(tmp_path, "ai_legacy")
+    monkeypatch.setitem(
+        strategy_runtime_manager._runtime_specs,
+        "backtest:p-legacy",
+        {"config": {"features": ["ai_legacy"]}},
+    )
+
+    badge = factor_audit.backtest_wind_tunnel_badge("p-legacy")
+
+    assert badge.badge_status == "STALE"
+    assert "不可变" in badge.message
+
+
 def test_data_fingerprint_change_downgrades_pass_to_stale(tmp_path: Path, monkeypatch) -> None:
     _write(tmp_path, "ai_data")
     frame = _frame()
@@ -130,3 +182,124 @@ def test_failed_audit_keeps_fail_badge_and_first_difference(tmp_path: Path, monk
     assert "ai_bad_badge" not in resolve_feature_selection(None)
     with pytest.raises(ValueError, match="风洞 FAIL"):
         resolve_feature_selection(["ai_bad_badge"])
+
+
+def test_bound_evidence_without_run_id_never_falls_back_to_latest(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from quantide.service.strategy_runtime import strategy_runtime_manager
+
+    _write(tmp_path, "ai_no_run")
+    frame = _frame()
+    result = run_factor_wind_tunnel(
+        "ai_no_run", frame=frame, cutoffs=_cutoffs(frame), save=True
+    )
+    bound = result.report.spec.source_hash
+    monkeypatch.setitem(
+        strategy_runtime_manager._runtime_specs,
+        "backtest:p-no-run",
+        {
+            "feature_audit": {
+                "features": ["ai_no_run"],
+                "factor_versions": {"ai_no_run": bound},
+                "audit_run_ids": {},
+            }
+        },
+    )
+
+    badge = factor_audit.backtest_wind_tunnel_badge("p-no-run")
+
+    assert badge.badge_status == "UNVERIFIED"
+    assert badge.run_id is None
+
+
+def test_reaudit_same_source_does_not_rewrite_frozen_binding(tmp_path: Path, monkeypatch) -> None:
+    from quantide.service.strategy_runtime import strategy_runtime_manager
+
+    _write(tmp_path, "ai_frozen")
+    frame = _frame()
+    first = run_factor_wind_tunnel(
+        "ai_frozen", frame=frame, cutoffs=_cutoffs(frame), save=True
+    )
+    binding = {
+        "features": ["ai_frozen"],
+        "factor_versions": {"ai_frozen": first.report.spec.source_hash},
+        "audit_run_ids": {"ai_frozen": first.report.run_id},
+    }
+    monkeypatch.setitem(
+        strategy_runtime_manager._runtime_specs,
+        "backtest:p-frozen",
+        {"feature_audit": dict(binding)},
+    )
+    run_factor_wind_tunnel(
+        "ai_frozen",
+        frame=frame.filter(pl.col("date") <= frame["date"].unique().sort()[20]),
+        cutoffs=_cutoffs(frame),
+        save=True,
+    )
+
+    assert factor_audit.bind_backtest_audit_records("p-frozen") == binding
+    assert factor_audit.backtest_wind_tunnel_badge("p-frozen").run_id == first.report.run_id
+
+
+def test_experiment_freezes_audit_evidence_before_model_is_known(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from quantide.service import factor_audit
+    from quantide.service.factor_wind_tunnel import run_factor_wind_tunnel
+    from quantide.service.strategy_runtime import strategy_runtime_manager
+
+    _write(tmp_path, "ai_pre_freeze")
+    frame = _frame()
+    result = run_factor_wind_tunnel(
+        "ai_pre_freeze", frame=frame, cutoffs=_cutoffs(frame), save=True
+    )
+    config = {"features": ["ai_pre_freeze"]}
+    start = frame["date"].min().isoformat()
+    end = frame["date"].max().isoformat()
+    monkeypatch.setattr(
+        factor_audit, "_range_data_hash", lambda *_args: result.report.spec.data_hash
+    )
+    frozen = factor_audit.feature_audit_binding(
+        config, "1d", start_date=start, end_date=end, run_id="bt:pre-freeze"
+    )
+    assert frozen["audit_run_ids"] == {"ai_pre_freeze": result.report.run_id}
+    monkeypatch.setitem(
+        strategy_runtime_manager._runtime_specs,
+        "backtest:pre-freeze",
+        {"feature_audit": dict(frozen)},
+    )
+    factor_audit.record_backtest_audit_binding(
+        "pre-freeze", config, "1d", run_id="bt:pre-freeze", binding=frozen
+    )
+    factor_audit.record_backtest_audit_binding(
+        "pre-freeze",
+        config,
+        "1d",
+        run_id="bt:pre-freeze",
+        model_ref="Demo/model-1",
+        diagnostics={"universe": "ok"},
+    )
+
+    stored = factor_audit.backtest_audit_binding("pre-freeze")
+
+    assert stored is not None
+    assert stored["audit_run_ids"] == frozen["audit_run_ids"]
+    assert stored["model_ref"] == "Demo/model-1"
+
+
+def test_data_signature_tracks_minute_and_pit_dependency_revisions(tmp_path, monkeypatch):
+    from quantide.service import factor_audit
+
+    monkeypatch.setattr("quantide.config.settings.get_data_home", lambda: str(tmp_path))
+    minute = tmp_path / "data/bars/minute30/partition_key_year=2024/part.parquet"
+    minute.parent.mkdir(parents=True)
+    minute.write_bytes(b"first")
+    first = factor_audit._data_signature()
+    minute.write_bytes(b"second")
+    second = factor_audit._data_signature()
+    status = tmp_path / "data/stock_status_pit.parquet"
+    status.write_bytes(b"st-history")
+    third = factor_audit._data_signature()
+
+    assert first != second != third

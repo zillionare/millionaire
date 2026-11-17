@@ -12,19 +12,24 @@ if TYPE_CHECKING:
     from quantide.service.runtime_models import StrategyRuntime
 
 
-def config_symbols(config: Mapping[str, Any] | None) -> list[str]:
-    """Extract configured securities from a strategy config."""
+def config_symbols(
+    config: Mapping[str, Any] | None, *, include_universe: bool = False
+) -> list[str]:
+    """Extract configured securities using the strategy's alias precedence."""
     values = config or {}
-    for key in ("symbol", "asset", "security"):
+    keys = ["symbols", "symbol", "asset", "assets", "security", "securities"]
+    if include_universe:
+        keys.insert(1, "universe")
+    for key in keys:
         value = values.get(key)
-        if isinstance(value, str) and value:
-            return [value]
-    for key in ("symbols", "assets", "securities"):
-        value = values.get(key)
-        if isinstance(value, list):
-            symbols = [str(item) for item in value if item]
-            if symbols:
-                return symbols
+        if isinstance(value, str):
+            symbols = [item.strip() for item in value.split(",") if item.strip()]
+        elif isinstance(value, (list, tuple, set)):
+            symbols = [str(item).strip() for item in value if str(item).strip()]
+        else:
+            symbols = []
+        if symbols:
+            return symbols
     return []
 
 

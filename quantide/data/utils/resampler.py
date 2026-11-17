@@ -6,6 +6,18 @@
 import polars as pl
 
 
+def ohlcv_aggregations() -> list[pl.Expr]:
+    """Return the canonical OHLCV aggregation projection."""
+    return [
+        pl.col("open").first().alias("open"),
+        pl.col("high").max().alias("high"),
+        pl.col("low").min().alias("low"),
+        pl.col("close").last().alias("close"),
+        pl.col("volume").sum().alias("volume"),
+        pl.col("amount").sum().alias("amount"),
+    ]
+
+
 class Resampler:
     """K线数据重采样器"""
 
@@ -35,14 +47,7 @@ class Resampler:
         df = df.with_columns(pl.col("dt").cast(pl.Date))
 
         # 构建聚合表达式
-        agg_exprs = [
-            pl.col("open").first().alias("open"),
-            pl.col("high").max().alias("high"),
-            pl.col("low").min().alias("low"),
-            pl.col("close").last().alias("close"),
-            pl.col("volume").sum().alias("volume"),
-            pl.col("amount").sum().alias("amount"),
-        ]
+        agg_exprs = ohlcv_aggregations()
 
         # 个股有 adjust 字段，指数没有
         if "adjust" in df.columns:
@@ -82,14 +87,7 @@ class Resampler:
         df = df.with_columns(pl.col("dt").cast(pl.Date))
 
         # 构建聚合表达式
-        agg_exprs = [
-            pl.col("open").first().alias("open"),
-            pl.col("high").max().alias("high"),
-            pl.col("low").min().alias("low"),
-            pl.col("close").last().alias("close"),
-            pl.col("volume").sum().alias("volume"),
-            pl.col("amount").sum().alias("amount"),
-        ]
+        agg_exprs = ohlcv_aggregations()
 
         # 个股有 adjust 字段，指数没有
         if "adjust" in df.columns:

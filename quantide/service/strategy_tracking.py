@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS strategy_tracking_bars (
     positions TEXT NOT NULL DEFAULT '[]',
     trades TEXT NOT NULL DEFAULT '[]',
     model_hash TEXT NOT NULL DEFAULT '',
+    model_ref TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     UNIQUE(runtime_id, bar_slot, source)
 );
@@ -68,7 +69,9 @@ CREATE TABLE IF NOT EXISTS strategy_tracking_runs (
     gap_dates TEXT NOT NULL DEFAULT '[]',
     bar_interval TEXT NOT NULL DEFAULT '1d',
     last_tracking_slot TEXT NOT NULL DEFAULT '',
+    last_signal_slot TEXT NOT NULL DEFAULT '',
     gap_slots TEXT NOT NULL DEFAULT '[]',
+    shadow_start_slot TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS strategy_next_open_intents (
@@ -177,6 +180,16 @@ class TrackingStore:
                     "bar_interval": "TEXT NOT NULL DEFAULT '1d'",
                 },
             )
+            self._ensure_columns(
+                connection,
+                "strategy_tracking_bars",
+                {"model_ref": "TEXT NOT NULL DEFAULT ''"},
+            )
+            self._ensure_columns(
+                connection,
+                "strategy_tracking_runs",
+                {"shadow_start_slot": "TEXT NOT NULL DEFAULT ''"},
+            )
             connection.execute("UPDATE strategy_tracking_daily SET bar_slot=date WHERE bar_slot=''")
             self._ensure_columns(
                 connection,
@@ -189,6 +202,7 @@ class TrackingStore:
                 {
                     "bar_interval": "TEXT NOT NULL DEFAULT '1d'",
                     "last_tracking_slot": "TEXT NOT NULL DEFAULT ''",
+                    "last_signal_slot": "TEXT NOT NULL DEFAULT ''",
                     "gap_slots": "TEXT NOT NULL DEFAULT '[]'",
                 },
             )
@@ -218,6 +232,7 @@ class TrackingStore:
         fill_timing: str = "auction_close",
         dry_run_enabled: bool = True,
         bar_interval: str = "1d",
+        start_slot: str = "",
     ) -> None:
         now = datetime.datetime.now().isoformat(timespec="seconds")
         start = (start_date or datetime.date.today()).isoformat()
@@ -227,13 +242,18 @@ class TrackingStore:
                 INSERT INTO strategy_tracking_runs
                 (runtime_id, portfolio_id, backtest_id, start_date, fill_timing,
                  dry_run_enabled, last_tracking_date, last_retrain_date, gap_dates,
-                 bar_interval, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, '', '', '[]', ?, ?)
+                 bar_interval, shadow_start_slot, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, '', '', '[]', ?, ?, ?)
                 ON CONFLICT(runtime_id) DO UPDATE SET
                     portfolio_id=excluded.portfolio_id,
                     fill_timing=excluded.fill_timing,
                     dry_run_enabled=excluded.dry_run_enabled,
                     bar_interval=excluded.bar_interval,
+                    shadow_start_slot=CASE
+                        WHEN strategy_tracking_runs.shadow_start_slot=''
+                        THEN excluded.shadow_start_slot
+                        ELSE strategy_tracking_runs.shadow_start_slot
+                    END,
                     updated_at=excluded.updated_at
                 """,
                 (
@@ -244,9 +264,43 @@ class TrackingStore:
                     fill_timing,
                     1 if dry_run_enabled else 0,
                     bar_interval,
+                    str(start_slot or ""),
                     now,
                 ),
             )
+
+    def set_shadow_anchor(self, runtime_id: str, start_slot: str) -> str:
+        """Persist the first replay slot once; restart must not replace it."""
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE strategy_tracking_runs SET shadow_start_slot=?, updated_at=? "
+                "WHERE runtime_id=? AND shadow_start_slot=''",
+                (
+                    start_slot,
+                    datetime.datetime.now().isoformat(timespec="seconds"),
+                    runtime_id,
+                ),
+            )
+            row = connection.execute(
+                "SELECT shadow_start_slot FROM strategy_tracking_runs WHERE runtime_id=?",
+                (runtime_id,),
+            ).fetchone()
+        return str(row["shadow_start_slot"] if row is not None else start_slot)
+
+    def get_bar(self, runtime_id: str, bar_slot: str, *, source: str) -> dict[str, Any] | None:
+        """Read one persisted factual bar without falling back to current broker state."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM strategy_tracking_bars "
+                "WHERE runtime_id=? AND bar_slot=? AND source=?",
+                (runtime_id, bar_slot, source),
+            ).fetchone()
+        if row is None:
+            return None
+        data = dict(row)
+        data["positions"] = _load_json(data.get("positions"), [])
+        data["trades"] = _load_json(data.get("trades"), [])
+        return data
 
     def update_run(self, runtime_id: str, **updates: Any) -> None:
         fields: list[str] = []
@@ -261,7 +315,9 @@ class TrackingStore:
             "gap_dates",
             "bar_interval",
             "last_tracking_slot",
+            "last_signal_slot",
             "gap_slots",
+            "shadow_start_slot",
         ):
             if key in updates:
                 value = updates[key]
@@ -476,6 +532,8 @@ class TrackingStore:
         positions: list[dict[str, Any]],
         trades: list[dict[str, Any]] | None = None,
         model_hash: str = "",
+        model_ref: str = "",
+        write_once: bool | None = None,
     ) -> None:
         """Persist one closed-bar snapshot without disturbing daily rows."""
         with self._connect() as connection:
@@ -492,6 +550,8 @@ class TrackingStore:
                 positions=positions,
                 trades=trades,
                 model_hash=model_hash,
+                model_ref=model_ref,
+                write_once=source == "actual" if write_once is None else write_once,
             )
 
     @staticmethod
@@ -509,14 +569,13 @@ class TrackingStore:
         positions: list[dict[str, Any]],
         trades: list[dict[str, Any]] | None,
         model_hash: str,
+        model_ref: str = "",
+        write_once: bool = False,
     ) -> None:
-        connection.execute(
-            """
-            INSERT INTO strategy_tracking_bars
-            (runtime_id, portfolio_id, bar_slot, bar_interval, source, nav, cash,
-             market_value, positions, trades, model_hash, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(runtime_id, bar_slot, source) DO UPDATE SET
+        conflict = (
+            "DO NOTHING"
+            if write_once
+            else """DO UPDATE SET
                 portfolio_id=excluded.portfolio_id,
                 bar_interval=excluded.bar_interval,
                 nav=excluded.nav,
@@ -525,7 +584,16 @@ class TrackingStore:
                 positions=excluded.positions,
                 trades=excluded.trades,
                 model_hash=excluded.model_hash,
-                created_at=excluded.created_at
+                model_ref=excluded.model_ref,
+                created_at=excluded.created_at"""
+        )
+        connection.execute(
+            f"""
+            INSERT INTO strategy_tracking_bars
+            (runtime_id, portfolio_id, bar_slot, bar_interval, source, nav, cash,
+             market_value, positions, trades, model_hash, model_ref, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(runtime_id, bar_slot, source) {conflict}
             """,
             (
                 runtime_id,
@@ -539,6 +607,7 @@ class TrackingStore:
                 _json(positions),
                 _json(trades or []),
                 model_hash,
+                model_ref,
                 datetime.datetime.now().isoformat(timespec="seconds"),
             ),
         )
@@ -623,6 +692,8 @@ class TrackingStore:
                     positions=list(bar.get("positions") or []),
                     trades=list(bar.get("trades") or []),
                     model_hash=str(bar.get("model_hash") or ""),
+                    model_ref=str(bar.get("model_ref") or ""),
+                    write_once=str(bar.get("source") or "") == "actual",
                 )
             if shadow_state is not None:
                 self._write_shadow_state(

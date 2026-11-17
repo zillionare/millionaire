@@ -168,7 +168,7 @@ def _listing_days(list_date: Any, trade_date: dt.date, calendar_obj: Any) -> int
     try:
         return len(tuple(calendar_obj.get_trade_dates(start, trade_date)))
     except Exception:
-        return max(0, (trade_date - start).days)
+        return None
 
 
 def _listing_mask(
@@ -193,6 +193,7 @@ def _listing_mask(
         delisted = _as_date(delist_dates[index])
         if days is None:
             missing += 1
+            counts["calendar_unavailable"] = counts.get("calendar_unavailable", 0) + 1
             keep.append(True)
             continue
         keep.append(days >= config.min_listing_days and (delisted is None or delisted > trade_date))
@@ -279,6 +280,7 @@ def filter_universe_for_date(
         from quantide.data.models.calendar import calendar as calendar_obj
     warnings: list[str] = []
     history = _attach_stock_meta(history, stock_meta)
+    history = history.filter(pl.col("date") <= trade_date)
     on_date = history.filter(pl.col("date") == trade_date)
     if on_date.is_empty():
         return UniverseFilterResult((), {"empty_cross_section": 1}, tuple(warnings))

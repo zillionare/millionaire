@@ -77,15 +77,27 @@ def factor_plugin(factor_id: str) -> FactorPlugin | None:
     return discovery().by_id(factor_id)
 
 
-def all_factor_ids() -> list[str]:
-    return [*FEATURE_COLS, *(plugin.factor_id for plugin in discovery().plugins)]
+def all_factor_ids(interval: str | None = None) -> list[str]:
+    """Return builtins and external factor IDs, optionally for one interval."""
+    builtins = list(FEATURE_COLS) if interval in (None, "1d") else []
+    return [
+        *builtins,
+        *(
+            plugin.factor_id
+            for plugin in discovery().plugins
+            if interval is None or plugin.bar_interval == interval
+        ),
+    ]
 
 
-def feature_groups() -> OrderedDict[str, list[str]]:
-    groups: OrderedDict[str, list[str]] = OrderedDict(
-        (group, list(ids)) for group, ids in FEATURE_GROUPS.items()
-    )
+def feature_groups(interval: str | None = None) -> OrderedDict[str, list[str]]:
+    """Return factor groups, optionally filtered to one bar interval."""
+    groups: OrderedDict[str, list[str]] = OrderedDict()
+    if interval in (None, "1d"):
+        groups.update((group, list(ids)) for group, ids in FEATURE_GROUPS.items())
     for plugin in discovery().plugins:
+        if interval is not None and plugin.bar_interval != interval:
+            continue
         groups.setdefault(plugin.group or EXTERNAL_GROUP, []).append(plugin.factor_id)
     return groups
 
@@ -103,10 +115,11 @@ def feature_docs() -> dict[str, str]:
     return docs
 
 
-def factor_metadata() -> dict[str, FactorDefinition]:
-    metadata = _builtin_definitions()
+def factor_metadata(interval: str | None = None) -> dict[str, FactorDefinition]:
+    metadata = _builtin_definitions() if interval in (None, "1d") else {}
     for plugin in discovery().plugins:
-        metadata[plugin.factor_id] = plugin_definition(plugin)
+        if interval is None or plugin.bar_interval == interval:
+            metadata[plugin.factor_id] = plugin_definition(plugin)
     return metadata
 
 
@@ -117,9 +130,9 @@ def factor_definition(factor_id: str) -> FactorDefinition:
     return metadata[factor_id]
 
 
-def list_factor_definitions() -> list[FactorDefinition]:
-    metadata = factor_metadata()
-    return [metadata[factor_id] for factor_id in all_factor_ids()]
+def list_factor_definitions(interval: str | None = None) -> list[FactorDefinition]:
+    metadata = factor_metadata(interval)
+    return [metadata[factor_id] for factor_id in all_factor_ids(interval)]
 
 
 def plugin_skipped_entries() -> tuple[SkippedFactorEntry, ...]:
@@ -139,14 +152,23 @@ def _failed_wind_tunnel_ids(candidates: Sequence[str]) -> set[str]:
         return set()
 
 
-def resolve_feature_selection(requested: Sequence[str] | None) -> list[str]:
-    groups = feature_groups()
+def resolve_feature_selection(
+    requested: Sequence[str] | None, interval: str | None = None
+) -> list[str]:
+    groups = feature_groups(interval)
     ordered = [name for names in groups.values() for name in names]
     if not requested:
         failed = _failed_wind_tunnel_ids(ordered)
         return [name for name in ordered if name not in failed]
     known = set(ordered)
+    all_known = set(all_factor_ids())
     unknown = [name for name in requested if name not in known]
+    cross_period = [name for name in unknown if name in all_known]
+    if cross_period:
+        raise ValueError(
+            f"因子周期与策略周期 {interval or '全部'} 不匹配: "
+            f"{', '.join(sorted(set(cross_period)))}"
+        )
     if unknown:
         raise ValueError(f"未知因子: {', '.join(sorted(set(unknown)))}")
     failed = _failed_wind_tunnel_ids(requested)
@@ -173,11 +195,16 @@ def catalog_version() -> str:
     return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
 
 
-def external_feature_ids(requested: Sequence[str] | None = None) -> list[str]:
-    if requested is None:
-        return [plugin.factor_id for plugin in discovery().plugins]
-    selected = set(requested)
-    return [plugin.factor_id for plugin in discovery().plugins if plugin.factor_id in selected]
+def external_feature_ids(
+    requested: Sequence[str] | None = None, interval: str | None = None
+) -> list[str]:
+    selected = set(requested) if requested is not None else None
+    return [
+        plugin.factor_id
+        for plugin in discovery().plugins
+        if (selected is None or plugin.factor_id in selected)
+        and (interval is None or plugin.bar_interval == interval)
+    ]
 
 
 def _raw_plugin_panel(panel: pl.DataFrame) -> pl.DataFrame:
@@ -185,6 +212,8 @@ def _raw_plugin_panel(panel: pl.DataFrame) -> pl.DataFrame:
     exprs = []
     if "date" in panel.columns:
         exprs.append(pl.col("date").cast(pl.Date).alias("date"))
+    if "dt" in panel.columns:
+        exprs.append(pl.col("dt").cast(pl.Datetime("ms")).alias("dt"))
     if "asset" in panel.columns:
         exprs.append(pl.col("asset").cast(pl.Utf8).alias("asset"))
     return panel.with_columns(exprs) if exprs else panel
@@ -196,6 +225,7 @@ def compute_feature_panel(
     *,
     stock_meta: pl.DataFrame | None = None,
     strict_plugins: bool = False,
+    interval: str = "1d",
 ) -> pl.DataFrame:
     """Compute built-in factors and join raw-price external factor columns.
 
@@ -203,18 +233,22 @@ def compute_feature_panel(
     always fed the raw panel, so their declared ``price_adjustment`` is applied
     exactly once inside ``compute_plugin``.
     """
-    result = compute_alpha_features(panel, stock_meta=stock_meta)
-    external = external_feature_ids(feature_cols)
+    date_col = "dt" if interval != "1d" else "date"
+    if interval == "1d":
+        result = compute_alpha_features(panel, stock_meta=stock_meta)
+    else:
+        result = panel.select(["asset", date_col])
+    external = external_feature_ids(feature_cols, interval)
     if not external:
         return result
     raw = _raw_plugin_panel(panel)
-    augmented = augment_panel_with_plugins(raw, external, strict=strict_plugins)
+    augmented = augment_panel_with_plugins(raw, external, strict=strict_plugins, interval=interval)
     columns = [name for name in external if name in augmented.columns]
     if not columns:
         return result
     return result.join(
-        augmented.select(["asset", "date", *columns]),
-        on=["asset", "date"],
+        augmented.select(["asset", date_col, *columns]),
+        on=["asset", date_col],
         how="left",
     )
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
+import py_compile
 import textwrap
 from pathlib import Path
 
@@ -10,7 +12,11 @@ import polars as pl
 import pytest
 
 from quantide.factors import plugins
-from quantide.factors.registry import compute_feature_panel, feature_groups
+from quantide.factors.registry import (
+    compute_feature_panel,
+    feature_groups,
+    resolve_feature_selection,
+)
 from quantide.service.backtest_params import default_backtest_params
 
 
@@ -71,11 +77,206 @@ def test_bad_files_are_isolated_with_structured_reasons(tmp_path: Path) -> None:
     assert reasons["dupe_b.py"] is plugins.SkippedFactorReason.DUPLICATE_PLUGIN_ID
 
 
+def test_discovery_isolates_system_exit(tmp_path: Path) -> None:
+    _write(tmp_path, "valid.py", _valid_plugin())
+    _write(tmp_path, "exit.py", "raise SystemExit(7)\n")
+
+    result = plugins.discover_factor_plugins(tmp_path)
+
+    assert [plugin.factor_id for plugin in result.plugins] == ["ai_close_open"]
+    skipped = {Path(item.file_path).name: item for item in result.skipped}
+    assert skipped["exit.py"].reason is plugins.SkippedFactorReason.IMPORT_ERROR
+    assert "SystemExit" in skipped["exit.py"].detail
+
+
+def test_discovery_enforces_import_timeout(tmp_path: Path, monkeypatch) -> None:
+    _write(tmp_path, "slow.py", "import time\ntime.sleep(30)\n")
+    monkeypatch.setenv("QUANTIDE_FACTOR_PLUGIN_TIMEOUT", "0.5")
+
+    result = plugins.discover_factor_plugins(tmp_path)
+
+    assert result.plugins == ()
+    assert result.skipped[0].reason is plugins.SkippedFactorReason.IMPORT_TIMEOUT
+
+
 def test_source_checkout_directory_is_rejected() -> None:
     result = plugins.discover_factor_plugins(Path.cwd() / "quantide")
 
     assert result.plugins == ()
     assert result.skipped[0].reason is plugins.SkippedFactorReason.SOURCE_CHECKOUT_REJECTED
+
+
+def test_interval_filtering_rejects_cross_period_factor(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _write(
+        tmp_path,
+        "ai_intraday.py",
+        """
+        from quantide.factors.plugins import FactorPlugin
+
+        FACTOR_PLUGIN = FactorPlugin(
+            factor_id="ai_intraday",
+            display_name="intraday",
+            compute=lambda panel: panel["close"],
+            required_columns=("close",),
+            bar_interval="30m",
+        )
+        """,
+    )
+
+    monkeypatch.setattr("quantide.config.settings.get_factor_dir", lambda: str(tmp_path))
+    plugins.clear_plugin_cache()
+    discovery = plugins.discover_factor_plugins(tmp_path)
+    assert "ai_intraday" in feature_groups("30m")["自定义因子"]
+    intraday_ids = [name for names in feature_groups("30m").values() for name in names]
+    assert "ma20_slope" not in intraday_ids
+    assert resolve_feature_selection(["ai_intraday"], "30m") == ["ai_intraday"]
+    with pytest.raises(ValueError, match="周期"):
+        resolve_feature_selection(["ma20_slope"], "30m")
+    assert discovery.plugins[0].bar_interval == "30m"
+
+
+class _IntradayStrategy:
+    BAR_INTERVAL = "30m"
+
+
+def test_default_backtest_params_follow_strategy_interval() -> None:
+    defaults = default_backtest_params(_IntradayStrategy)
+
+    assert defaults["features"] == []
+
+
+def test_hfq_plugin_cannot_request_reserved_adjust_column(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "ai_bad_adjust.py",
+        """
+        from quantide.factors.plugins import FactorPlugin
+
+        FACTOR_PLUGIN = FactorPlugin(
+            factor_id="ai_bad_adjust",
+            display_name="bad",
+            compute=lambda panel: panel["adjust"],
+            required_columns=("adjust",),
+            price_adjustment="hfq",
+            warmup_bars=0,
+        )
+        """,
+    )
+    plugin = plugins.discover_factor_plugins(tmp_path).plugins[0]
+    panel = pl.DataFrame(
+        {
+            "date": [dt.date(2025, 1, 2)],
+            "asset": ["600001.SH"],
+            "close": [10.0],
+            "adjust": [2.0],
+        }
+    )
+
+    with pytest.raises(plugins.PluginContractError, match="adjust"):
+        plugins.compute_plugin(panel, plugin)
+
+
+def test_compute_receives_adjusted_prices_without_adjust_column(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "ai_adjust_aware.py",
+        """
+        from quantide.factors.plugins import FactorPlugin
+
+        def _compute(panel):
+            assert "adjust" not in panel.columns
+            return panel["close"]
+
+        FACTOR_PLUGIN = FactorPlugin(
+            factor_id="ai_adjust_aware",
+            display_name="adjust aware",
+            compute=_compute,
+            required_columns=("close",),
+            price_adjustment="hfq",
+            warmup_bars=0,
+        )
+        """,
+    )
+    panel = pl.DataFrame(
+        {
+            "date": [dt.date(2025, 1, 2)],
+            "asset": ["600001.SH"],
+            "close": [10.0],
+            "adjust": [2.0],
+        }
+    )
+
+    plugin = plugins.discover_factor_plugins(tmp_path).plugins[0]
+    computed = plugins.compute_plugin(panel, plugin)
+
+    assert computed["ai_adjust_aware"][0] == pytest.approx(20.0)
+
+
+def test_compute_rejects_partial_dataframe_keys(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "ai_partial.py",
+        """
+        import polars as pl
+
+        from quantide.factors.plugins import FactorPlugin
+
+        FACTOR_PLUGIN = FactorPlugin(
+            factor_id="ai_partial",
+            display_name="partial",
+            compute=lambda panel: (
+                panel.select("asset", "date")
+                .head(1)
+                .with_columns(pl.lit(1.0).alias("ai_partial"))
+            ),
+            required_columns=("close",),
+            warmup_bars=0,
+        )
+        """,
+    )
+    panel = pl.DataFrame(
+        {
+            "date": [dt.date(2025, 1, 2), dt.date(2025, 1, 3)],
+            "asset": ["600001.SH", "600001.SH"],
+            "close": [10.0, 11.0],
+        }
+    )
+
+    plugin = plugins.discover_factor_plugins(tmp_path).plugins[0]
+    with pytest.raises(plugins.PluginContractError, match="行数"):
+        plugins.compute_plugin(panel, plugin)
+
+
+def test_verified_source_bytes_beat_stale_adjacent_pyc(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        "ai_pyc.py",
+        """
+        import polars as pl
+        from quantide.factors.plugins import FactorPlugin
+
+        FACTOR_PLUGIN = FactorPlugin(
+            factor_id="ai_pyc",
+            display_name="pyc",
+            compute=lambda panel: panel["close"] * 1,
+            required_columns=("close",),
+            warmup_bars=0,
+        )
+        """,
+    )
+    py_compile.compile(str(path), doraise=True)
+    before = plugins.load_factor_plugin(path)
+    old_mtime = path.stat().st_mtime_ns
+    path.write_text(path.read_text().replace("* 1", "* 2"), encoding="utf-8")
+    os.utime(path, ns=(old_mtime, old_mtime))
+    plugins.clear_plugin_cache()
+    after = plugins.load_factor_plugin(path)
+    frame = pl.DataFrame({"date": [dt.date(2025, 1, 2)], "asset": ["A"], "close": [10.0]})
+
+    assert before.source_hash != after.source_hash
+    assert plugins.compute_plugin(frame, after)["ai_pyc"][0] == pytest.approx(20.0)
 
 
 def test_source_change_invalidates_cache_and_hash(tmp_path: Path) -> None:

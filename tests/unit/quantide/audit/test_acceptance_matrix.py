@@ -151,3 +151,20 @@ def test_skipped_instance_cannot_be_overwritten_by_later_pass(tmp_path) -> None:
     payload = matrix([skipped, passed], {"AC-4302": [_ALPHA_NODE]})
     statuses = {entry["ac"]: entry["status"] for entry in payload["entries"]}
     assert statuses["AC-4302"] == "mapped"
+
+
+def test_v05_acceptance_declares_all_28_evidence_entries() -> None:
+    from pathlib import Path
+
+    from quantide.audit.acceptance import ENTRIES
+
+    expected = {f"AC-50{index:02d}" for index in range(1, 29)}
+    entries = {entry.ac: entry for entry in ENTRIES}
+    assert expected <= set(entries)
+    for ac in sorted(expected):
+        entry = entries[ac]
+        assert entry.requirement
+        assert entry.behavior
+        assert entry.evidence
+        assert all(Path(path).exists() for path in entry.evidence), (ac, entry.evidence)
+        assert entry.status not in {"skip", "xfail"}

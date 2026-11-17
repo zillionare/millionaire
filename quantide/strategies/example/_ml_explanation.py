@@ -154,7 +154,7 @@ class MLExplanation:
             self.universe_size,
             self.universe_mode,
             round(self.market_cap_trim_pct, 6),
-            tuple(self.selected_features or all_factor_ids()),
+            tuple(self.selected_features or all_factor_ids(getattr(self, "bar_interval", "1d"))),
             tuple(self._held_assets()),
             signal_date,
             build_signal or signal_date,
@@ -266,8 +266,18 @@ class MLExplanation:
             return pl.DataFrame()
         keep = (
             ["date", "asset", "close"]
-            + [c for c in (self.selected_features or all_factor_ids())]
-            + [f"{c}_z" for c in (self.selected_features or all_factor_ids())]
+            + [
+                c
+                for c in (
+                    self.selected_features or all_factor_ids(getattr(self, "bar_interval", "1d"))
+                )
+            ]
+            + [
+                f"{c}_z"
+                for c in (
+                    self.selected_features or all_factor_ids(getattr(self, "bar_interval", "1d"))
+                )
+            ]
         )
         cross = panel.filter(pl.col("date") == target_date).select(
             [c for c in keep if c in panel.columns]
@@ -307,7 +317,8 @@ class MLExplanation:
             train_window=self.train_window,
             horizon=self.future_return_horizon,
             use_lightgbm=self.use_lightgbm,
-            feature_cols=self.selected_features or all_factor_ids(),
+            feature_cols=self.selected_features
+            or all_factor_ids(getattr(self, "bar_interval", "1d")),
             label_cache_key=self._panel_cache_key(build_signal),
             label_kind=self.label_kind,
         )
@@ -342,7 +353,7 @@ class MLExplanation:
             return None
         values = row.row(0, named=True)
         result: list[tuple[str, float]] = []
-        for col in self.selected_features or all_factor_ids():
+        for col in self.selected_features or all_factor_ids(getattr(self, "bar_interval", "1d")):
             value = values.get(col)
             if value is None:
                 continue
@@ -458,7 +469,7 @@ def _explain_prediction_cross(
     model, engine = self._attribution_model(
         refit_signal or target_date, refit_build or build_signal
     )
-    features = self.selected_features or all_factor_ids()
+    features = self.selected_features or all_factor_ids(getattr(self, "bar_interval", "1d"))
     x = (
         cross.select([f"{name}_z" for name in features])
         .fill_null(0.0)

@@ -38,26 +38,27 @@ def _daily_rank_corr(
     panel: pl.DataFrame,
     factor_id: str,
     peer_id: str,
+    date_col: str = "date",
 ) -> pl.DataFrame:
     frame = (
-        panel.select(["date", "asset", factor_id, peer_id])
+        panel.select([date_col, "asset", factor_id, peer_id])
         .drop_nulls()
         .filter(pl.col(factor_id).is_finite() & pl.col(peer_id).is_finite())
     )
     if frame.is_empty():
         return pl.DataFrame()
     ranked = frame.with_columns(
-        pl.col(factor_id).rank(method="average").over("date").alias("_factor_rank"),
-        pl.col(peer_id).rank(method="average").over("date").alias("_peer_rank"),
+        pl.col(factor_id).rank(method="average").over(date_col).alias("_factor_rank"),
+        pl.col(peer_id).rank(method="average").over(date_col).alias("_peer_rank"),
     )
     return (
-        ranked.group_by("date")
+        ranked.group_by(date_col)
         .agg(
             pl.len().alias("n"),
             pl.corr("_factor_rank", "_peer_rank").alias("corr"),
         )
         .filter((pl.col("n") >= 2) & pl.col("corr").is_not_null() & pl.col("corr").is_finite())
-        .sort("date")
+        .sort(date_col)
     )
 
 
@@ -65,8 +66,9 @@ def _peer_summary(
     panel: pl.DataFrame,
     factor_id: str,
     peer_id: str,
+    date_col: str = "date",
 ) -> FactorCorrelationPeer | None:
-    daily = _daily_rank_corr(panel, factor_id, peer_id)
+    daily = _daily_rank_corr(panel, factor_id, peer_id, date_col)
     if daily.is_empty():
         return None
     mean = float(cast(Any, daily["corr"].mean()))
@@ -93,6 +95,7 @@ def orthogonality_summary(
     peers: list[str] | tuple[str, ...] | None = None,
     threshold: float = DEFAULT_COLLINEARITY_THRESHOLD,
     min_common_days: int = 5,
+    date_col: str = "date",
 ) -> FactorOrthogonalitySummary:
     """Compare one factor with every registered peer independently by day."""
     if factor_id not in panel.columns:
@@ -108,7 +111,7 @@ def orthogonality_summary(
         summary
         for peer in sorted(set(candidates) - {factor_id})
         if peer in panel.columns
-        and (summary := _peer_summary(panel, factor_id, peer)) is not None
+        and (summary := _peer_summary(panel, factor_id, peer, date_col)) is not None
         and summary.n_common_days >= min_common_days
     ]
     summaries.sort(key=lambda item: (-item.abs_mean_rank_corr, item.peer_factor_id))

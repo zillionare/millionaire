@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from quantide.service import factor_presets, research_cli, research_backtest
+from quantide.service import factor_presets, research_backtest, research_cli
 from quantide.service.factor_presets import (
     delete_preset,
     load_preset,
@@ -150,7 +150,9 @@ def test_ablation_locks_all_shared_conditions(
     assert first["start"] == second["start"] == spec.start
     assert first["end"] == second["end"] == spec.end
     assert first["initial_cash"] == second["initial_cash"] == 2_000_000.0
-    assert first["fixed"] == second["fixed"] == spec.fixed_config()
+    assert first["fixed"] == second["fixed"]
+    for key, value in spec.fixed_config().items():
+        assert first["fixed"][key] == value
     assert first["fixed"]["commission"] == 0.0002
     assert first["fixed"]["stamp_duty"] == 0.0006
     assert first["fixed"]["seed"] == 7
@@ -292,3 +294,40 @@ def test_shap_summary_falls_back_to_strategy_class_without_loader_cache(
     assert features == [
         {"feature": "new_factor", "name": "new_factor", "mean_abs_shap": 2.0, "share": 1.0}
     ]
+
+
+def test_ablation_rejects_nested_universe_contract_conflict(preset_home: Path) -> None:
+    save_preset("baseline", "Baseline", ["ma20_slope"], strategy_params={"min_listing_days": 60})
+    save_preset(
+        "variant",
+        "Variant",
+        ["ma20_slope", "bias_5"],
+        strategy_params={"universe_filter": {"min_listing_days": 120}},
+    )
+    spec = AblationStudySpec(
+        baseline_preset_id="baseline",
+        variant_preset_ids=("variant",),
+        start=dt.date(2024, 1, 2),
+        end=dt.date(2024, 12, 31),
+    )
+
+    with pytest.raises(ValueError, match="min_listing_days|universe_filter"):
+        run_ablation(spec)
+
+
+def test_effective_contract_uses_strategy_asset_alias_and_canonical_filter():
+    from quantide.service.research_backtest import _effective_contract
+    from quantide.strategies.example.ml_momentum_reversal import MLMomentumReversalStrategy
+
+    base = MLMomentumReversalStrategy.default_config()
+    left = _effective_contract({**base, "universe": ["A"]})
+    right = _effective_contract({**base, "universe": ["B"]})
+    nested = _effective_contract(
+        {**base, "universe_filter": {"min_listing_days": base["min_listing_days"]}}
+    )
+    flat = _effective_contract(base)
+
+    assert left["symbols"] == ["A"]
+    assert right["symbols"] == ["B"]
+    assert left["symbols"] != right["symbols"]
+    assert nested == flat

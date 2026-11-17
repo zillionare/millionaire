@@ -10,6 +10,7 @@ import polars as pl
 from loguru import logger
 
 from quantide.core.enums import FrameType
+from quantide.core.market_time import market_now
 from quantide.data.models.calendar import calendar
 from quantide.data.models.minute_bars import minute_bars
 from quantide.service.model_store import model_store
@@ -60,14 +61,65 @@ def next_session_slot(slot: datetime.datetime) -> datetime.datetime:
     return shifted.replace(tzinfo=None)
 
 
+def _exchange_naive(value: datetime.datetime) -> datetime.datetime:
+    """Convert any aware input to exchange-local naive time; keep naive input as-is."""
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(datetime.timezone(datetime.timedelta(hours=8))).replace(tzinfo=None)
+
+
+def _previous_session_close(day: datetime.date) -> datetime.datetime | None:
+    current = day
+    for _ in range(10):
+        try:
+            current = calendar.day_shift(current, -1)
+        except Exception:
+            current = current - datetime.timedelta(days=1)
+        try:
+            if calendar.is_trade_day(current):
+                return datetime.datetime.combine(current, datetime.time(15, 0))
+        except Exception:
+            continue
+    return None
+
+
 def latest_closed_session_slot(now: datetime.datetime | None = None) -> datetime.datetime | None:
-    """Return only an exchange 30m bucket that is already closed."""
+    """Return the latest closed slot, including previous-session backlog before 10:00."""
     from quantide.service.strategy_runtime import StrategyRuntimeManager
 
-    candidate = StrategyRuntimeManager._latest_completed_30m_bar(now or datetime.datetime.now())
-    if candidate is None or candidate.time() not in SESSION_SLOT_TIMES:
-        return None
-    return candidate
+    current = _exchange_naive(now or market_now())
+    candidate = StrategyRuntimeManager._latest_completed_30m_bar(current)
+    if candidate is not None and candidate.time() in SESSION_SLOT_TIMES:
+        return candidate
+    return _previous_session_close(current.date())
+
+
+def _first_slot_where(current: datetime.datetime, predicate: Any) -> datetime.datetime | None:
+    for day_offset in range(10):
+        day = current.date() + datetime.timedelta(days=day_offset)
+        if not predicate(day):
+            continue
+        for slot in sorted(SESSION_SLOT_TIMES):
+            candidate = datetime.datetime.combine(day, slot)
+            if candidate >= current:
+                return candidate
+    return None
+
+
+def _is_trade_day(day: datetime.date) -> bool:
+    try:
+        return bool(calendar.is_trade_day(day))
+    except Exception:
+        return False
+
+
+def first_slot_at_or_after(moment: datetime.datetime) -> datetime.datetime | None:
+    """Return the first authoritative exchange slot, never inventing weekdays."""
+    return _first_slot_where(_exchange_naive(moment), _is_trade_day)
+
+
+def _closed_bucket(frame: pl.DataFrame, bar_slot: datetime.datetime) -> pl.DataFrame:
+    return frame.filter(pl.col("date").cast(pl.Datetime("ms")) == bar_slot)
 
 
 def load_closed_bar_frame(
@@ -87,7 +139,7 @@ def load_closed_bar_frame(
         return None
     if not isinstance(frame, pl.DataFrame) or frame.is_empty():
         return None
-    frame = frame.filter(pl.col("date").cast(pl.Datetime("ms")) == bar_slot)
+    frame = _closed_bucket(frame, bar_slot)
     if frame.is_empty():
         return None
     if symbols:
@@ -122,6 +174,40 @@ class IntradayShadowRunner:
             bar_slot, runtime_symbols(runtime), minute_model=self.minute_model
         )
 
+    def _default_start(
+        self,
+        run: dict[str, Any],
+        last: datetime.datetime | None,
+        now: datetime.datetime | None,
+    ) -> datetime.datetime | None:
+        if last is not None:
+            return next_session_slot(last)
+        try:
+            started = datetime.datetime.combine(
+                datetime.date.fromisoformat(str(run.get("start_date") or "")),
+                datetime.time.min,
+            )
+        except ValueError:
+            started = now or market_now()
+        return first_slot_at_or_after(started)
+
+    def _shadow_start(
+        self,
+        runtime: StrategyRuntime,
+        run: dict[str, Any],
+        last: datetime.datetime | None,
+        now: datetime.datetime | None,
+    ) -> datetime.datetime | None:
+        start = parse_bar_slot(str(run.get("shadow_start_slot") or ""))
+        if start is not None:
+            return start
+        default_start = self._default_start(run, last, now)
+        if default_start is None:
+            return None
+        return parse_bar_slot(
+            self.store.set_shadow_anchor(runtime.runtime_id, bar_slot_text(default_start))
+        )
+
     def run(self, runtime: StrategyRuntime, now: datetime.datetime | None = None) -> int:
         """Advance every ready slot in order; stop at the first missing bucket."""
         run = self.store.get_run(runtime.runtime_id) or {}
@@ -131,7 +217,12 @@ class IntradayShadowRunner:
         if latest is None:
             return 0
         last = parse_bar_slot(str(run.get("last_tracking_slot") or ""))
-        cursor = next_session_slot(last) if last is not None else latest
+        start = self._shadow_start(runtime, run, last, now)
+        if start is None:
+            return 0
+        cursor = next_session_slot(last) if last is not None else start
+        if cursor < start:
+            cursor = start
         gaps = [str(item) for item in run.get("gap_slots") or []]
         processed = 0
         while cursor <= latest and self._advance_slot(runtime, cursor, gaps):
@@ -173,6 +264,9 @@ class IntradayShadowRunner:
     ) -> dict[str, Any] | None:
         state = self.store.get_shadow_state(runtime.runtime_id) or {}
         config = dict(runtime.config or {})
+        actual = self.store.get_bar(runtime.runtime_id, bar_slot_text(bar_slot), source="actual")
+        if actual and (actual.get("model_ref") or actual.get("model_hash")):
+            config["_model_ref"] = str(actual.get("model_ref") or actual["model_hash"])
         broker = ShadowBroker(
             portfolio_id=runtime.portfolio_id,
             principal=float(getattr(runtime, "principal", 0) or 0),
@@ -253,24 +347,8 @@ class IntradayShadowRunner:
     def _actual_bar(
         self, runtime: StrategyRuntime, bar_slot: datetime.datetime
     ) -> dict[str, Any] | None:
-        broker = getattr(runtime, "broker", None)
-        if broker is None:
-            return None
-        try:
-            asset = broker.asset
-            positions = position_snapshots(broker)
-        except Exception as exc:
-            logger.warning("30m 实际账户快照失败 {}: {}", runtime.runtime_id, exc)
-            return None
-        return {
-            "source": "actual",
-            "nav": float(getattr(asset, "total", 0) or 0),
-            "cash": float(getattr(asset, "cash", 0) or 0),
-            "market_value": float(getattr(asset, "market_value", 0) or 0),
-            "positions": positions,
-            "trades": [],
-            "model_hash": "",
-        }
+        """Use only the actual fact persisted at the real slot; never current broker state."""
+        return self.store.get_bar(runtime.runtime_id, bar_slot_text(bar_slot), source="actual")
 
 
 intraday_shadow_runner = IntradayShadowRunner()
@@ -279,6 +357,7 @@ __all__ = [
     "IntradayShadowRunner",
     "SESSION_SLOT_TIMES",
     "intraday_shadow_runner",
+    "first_slot_at_or_after",
     "latest_closed_session_slot",
     "load_closed_bar_frame",
     "next_session_slot",

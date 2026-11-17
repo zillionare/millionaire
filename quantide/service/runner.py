@@ -511,7 +511,10 @@ class BacktestRunner:
             f"回测结束：portfolio_id={portfolio_id}",
             save_logs,
         )
-        return self._run_metrics(portfolio_id, config, start_date, end_date)
+        metrics = self._run_metrics(portfolio_id, config, start_date, end_date)
+        metrics["universe_diagnostics"] = getattr(strategy, "_universe_diagnostics", {})
+        metrics["model_ref"] = str(getattr(strategy, "_model_ref", "") or "")
+        return metrics
 
     def _normalized_run_config(
         self, strategy_cls: type[BaseStrategy], config: dict[str, Any], frame_type: FrameType

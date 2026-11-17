@@ -13,11 +13,10 @@ DEFAULT_MAX_WEIGHT = 0.25
 
 def _held_shares(broker: Any, asset: str) -> float:
     positions = broker.positions
-    position = (
-        positions.get(asset)
-        if isinstance(positions, dict)
-        else next((item for item in positions if item.asset == asset), None)
-    )
+    if isinstance(positions, dict):
+        position = positions.get(asset)
+    else:
+        position = next((item for item in positions if item.asset == asset), None)
     return float(getattr(position, "shares", 0.0) or 0.0)
 
 

@@ -46,6 +46,34 @@ def profiles_path(root: Path) -> Path:
     return root / "profiles.json"
 
 
+def tracking_block_reason(factor_id: str) -> str | None:
+    """Return why a factor may not enter tracking, or ``None`` when allowed."""
+    try:
+        from quantide.service.factor_audit import factor_wind_tunnel_badge
+
+        badge = factor_wind_tunnel_badge(factor_id)
+    except Exception:
+        return None
+    if badge.badge_status == "FAIL":
+        return f"因子 {factor_id} 的风洞体检为 FAIL，禁止启用跟踪。"
+    return None
+
+
+def _require_tracking_allowed(factor_id: str) -> None:
+    reason = tracking_block_reason(factor_id)
+    if reason:
+        raise ValueError(reason)
+
+
+def profile_can_track(profile: TrackingProfile, lookback: str) -> bool:
+    """Return whether a stored profile may run under the current audit state."""
+    return (
+        profile.enabled
+        and profile.lookback == lookback
+        and tracking_block_reason(profile.factor_id) is None
+    )
+
+
 def default_profile(factor_id: str) -> TrackingProfile:
     defaults = normalized_tracking_defaults(factor_id)
     return TrackingProfile(
@@ -139,6 +167,8 @@ def save_profile(
 ) -> TrackingProfile:
     if factor_id not in all_factor_ids():
         raise KeyError(factor_id)
+    if enabled:
+        _require_tracking_allowed(factor_id)
     path = profiles_path(root)
     with PROFILE_LOCK, FileLock(str(path) + ".profiles.lock", timeout=30):
         current = load_profile(root, factor_id)
@@ -166,6 +196,7 @@ def save_profile(
 def reset_profile(root: Path, factor_id: str) -> TrackingProfile:
     if factor_id not in all_factor_ids():
         raise KeyError(factor_id)
+    _require_tracking_allowed(factor_id)
     path = profiles_path(root)
     with PROFILE_LOCK, FileLock(str(path) + ".profiles.lock", timeout=30):
         current = load_profile(root, factor_id)

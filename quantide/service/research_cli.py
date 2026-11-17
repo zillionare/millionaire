@@ -268,7 +268,9 @@ def _resolve_target(target: str) -> tuple[str, FactorPlugin | None]:
     raise KeyError(target)
 
 
-def _check_window(start: dt.date | None, end: dt.date | None) -> tuple[dt.date, dt.date, Any]:
+def _check_window(
+    start: dt.date | None, end: dt.date | None, interval: str = "1d"
+) -> tuple[dt.date, dt.date, Any]:
     dates = _bar_dates()
     if not dates:
         raise ValueError("本地日线为空，无法运行因子风洞。")
@@ -276,7 +278,10 @@ def _check_window(start: dt.date | None, end: dt.date | None) -> tuple[dt.date, 
     resolved_end = end or dates[-1]
     if resolved_start > resolved_end:
         raise ValueError("开始日期不能晚于结束日期")
-    frame = load_wind_tunnel_frame(resolved_start, resolved_end)
+    if interval == "1d":
+        frame = load_wind_tunnel_frame(resolved_start, resolved_end)
+    else:
+        frame = load_wind_tunnel_frame(resolved_start, resolved_end, interval=interval)
     return resolved_start, resolved_end, frame
 
 
@@ -295,15 +300,36 @@ def _inconclusive_payload(factor_id: str, code: str, message: str) -> tuple[dict
 
 
 def _check_frame(
-    factor_id: str, start: dt.date | None, end: dt.date | None
+    factor_id: str,
+    start: dt.date | None,
+    end: dt.date | None,
+    interval: str = "1d",
 ) -> tuple[Any, tuple[dict[str, Any], int] | None]:
     try:
-        _, _, frame = _check_window(start, end)
+        _, _, frame = _check_window(start, end, interval)
     except ValueError as exc:
         if "没有可用行情" not in str(exc) and "日线为空" not in str(exc):
             raise
         return None, _inconclusive_payload(factor_id, "INSUFFICIENT_DATA", str(exc))
     return frame, None
+
+
+def _check_diagnostics(report: Any) -> list[dict[str, Any]]:
+    diagnostics = []
+    for check in report.checks:
+        if check.status.value not in {"FAIL", "INCONCLUSIVE"}:
+            continue
+        difference = check.first_difference.as_dict() if check.first_difference else None
+        if difference is not None:
+            difference.setdefault("date", difference.get("time"))
+        diagnostics.append(
+            {"code": check.check_id, "message": check.message, "first_difference": difference}
+        )
+    return diagnostics
+
+
+def _check_exit_code(status: str) -> int:
+    return 0 if status == "PASS" else (3 if status == "FAIL" else 4)
 
 
 def check_factor(
@@ -319,7 +345,8 @@ def check_factor(
         return _inconclusive_payload(
             factor_id, "INSUFFICIENT_CUTOFFS", "至少需要 3 个未来截断点才能形成风洞证据。"
         )
-    frame, error = _check_frame(factor_id, start, end)
+    interval = plugin.bar_interval if plugin is not None else "1d"
+    frame, error = _check_frame(factor_id, start, end, interval)
     if error is not None:
         return error
     result = run_factor_wind_tunnel(
@@ -327,20 +354,12 @@ def check_factor(
         frame=frame,
         cutoffs=tuple(cutoffs) if cutoffs else None,
         plugin=plugin,
+        interval=interval,
         save=True,
     )
     status = result.status
-    exit_code = 0 if status == "PASS" else (3 if status == "FAIL" else 4)
-    diagnostics = []
-    for check in result.report.checks:
-        if check.status.value not in {"FAIL", "INCONCLUSIVE"}:
-            continue
-        difference = check.first_difference.as_dict() if check.first_difference else None
-        if difference is not None:
-            difference.setdefault("date", difference.get("time"))
-        diagnostics.append(
-            {"code": check.check_id, "message": check.message, "first_difference": difference}
-        )
+    exit_code = _check_exit_code(status)
+    diagnostics = _check_diagnostics(result.report)
     payload = envelope(
         "factor.check",
         ok=status == "PASS",
@@ -366,6 +385,7 @@ def run_study(
     price_field: str,
 ) -> tuple[dict[str, Any], int]:
     """Run the shared factor study and expose the requested statistics."""
+    _ensure_data()
     study = run_custom_study(factor_id, start, end, holdings, price_field)
     rows: list[dict[str, Any]] = []
     for result in study.results:
