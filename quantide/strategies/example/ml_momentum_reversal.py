@@ -22,6 +22,7 @@ from quantide.factors.alpha import (
 )
 from quantide.factors.catalog import resolve_feature_selection
 from quantide.factors.registry import all_factor_ids, catalog_version, compute_feature_panel
+from quantide.factors.universe import UniverseFilterConfig
 from quantide.service.model_store import ModelArtifact, model_key, model_store
 from quantide.strategies.example._ml_explanation import MLExplanation
 from quantide.strategies.example._ml_rebalance import MLRebalance
@@ -50,6 +51,7 @@ from quantide.strategies.example._ml_support import (
 from quantide.strategies.example._ml_support import (
     _PANEL_CACHE_MAX as _PANEL_CACHE_MAX,
 )
+from quantide.strategies.example._ml_support import LABEL_KINDS, _pipeline_version
 from quantide.strategies.example._ml_support import (
     _bars_fingerprint as _bars_fingerprint,
 )
@@ -92,7 +94,6 @@ from quantide.strategies.example._ml_support import (
 from quantide.strategies.example._ml_support import (
     _parse_custom_assets as _parse_custom_assets,
 )
-from quantide.strategies.example._ml_support import _pipeline_version
 from quantide.strategies.example._ml_support import (
     _ranked_prediction_result as _ranked_prediction_result,
 )
@@ -165,6 +166,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         "universe_rebalance_days": 20,
         "train_window": 45,
         "future_return_horizon": 3,
+        "label_kind": "raw_return",
         "retrain_days": 5,
         "slippage_pct": 0.001,
         "use_lightgbm": True,
@@ -172,6 +174,11 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         "fill_timing": "auction_close",
         "auction_epsilon": 0.001,
         "index_pool_codes": ["000300.SH", "000905.SH", "000852.SH"],
+        "exclude_st": True,
+        "min_listing_days": 60,
+        "exclude_suspended": True,
+        "exclude_limit_locked_on_close": True,
+        "max_universe_size": 2000,
     }
     params = PARAMS
 
@@ -199,10 +206,20 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         self.universe_rebalance_days = max(1, int(self.config.get("universe_rebalance_days", 20)))
         self.train_window = max(10, int(self.config.get("train_window", 45)))
         self.future_return_horizon = _future_return_horizon(config or self.config)
+        self.label_kind = str(self.config.get("label_kind", "raw_return")).strip()
+        if self.label_kind not in LABEL_KINDS:
+            raise ValueError(f"不支持的 label_kind: {self.label_kind}")
         self.retrain_days = max(1, int(self.config.get("retrain_days", 5)))
         self.use_lightgbm = bool(self.config.get("use_lightgbm", True))
         self.selected_features: list[str] = resolve_feature_selection(self.config.get("features"))
         self.custom_assets = _parse_custom_assets(self.config)
+        filter_values = dict(self.config)
+        if isinstance(self.config.get("universe_filter"), dict):
+            filter_values.update(self.config["universe_filter"])
+        self.universe_filter = UniverseFilterConfig.from_mapping(
+            filter_values, max_universe_size=None
+        )
+        self.fill_timing = str(self.config.get("fill_timing", "auction_close")).strip().lower()
         #: dry-run 影子模式：只加载模型，不训练
         self._shadow_mode = bool(self.config.get("_shadow_mode", False))
 
@@ -240,6 +257,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             f"market_cap_trim_pct={self.market_cap_trim_pct}, "
             f"train_window={self.train_window}, "
             f"future_return_horizon={self.future_return_horizon}, "
+            f"label_kind={self.label_kind}, "
             f"use_lightgbm={self.use_lightgbm}, "
         )
         if self._is_live_mode():
@@ -322,6 +340,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
                 extra={
                     "retrain_days": self.retrain_days,
                     "future_return_horizon": self.future_return_horizon,
+                    "label_kind": self.label_kind,
                     "train_window": self.train_window,
                 },
             )
@@ -355,6 +374,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             use_lightgbm=self.use_lightgbm,
             feature_cols=self.selected_features or all_factor_ids(),
             label_cache_key=self._panel_cache_key(day),
+            label_kind=self.label_kind,
         )
         if model is None:
             self._model_pending = True
@@ -392,6 +412,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             use_lightgbm=self.use_lightgbm,
             feature_cols=self.selected_features or all_factor_ids(),
             label_cache_key=self._panel_cache_key(next_day),
+            label_kind=self.label_kind,
         )
         if model is None:
             return False
@@ -441,6 +462,9 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             candidates = sorted(panel["asset"].unique().to_list())
         else:
             panel = daily_basic.attach(panel)
+            filter_cfg = dict(cfg)
+            if isinstance(cfg.get("universe_filter"), dict):
+                filter_cfg.update(cfg["universe_filter"])
             candidates = _filter_universe(
                 panel,
                 target_date,
@@ -448,6 +472,10 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
                 mode=options.universe_mode,
                 trim_pct=options.trim_pct,
                 index_codes=cfg.get("index_pool_codes"),
+                universe_filter=UniverseFilterConfig.from_mapping(
+                    filter_cfg, max_universe_size=None
+                ),
+                fill_timing=str(cfg.get("fill_timing", "auction_close")),
             )
         if not candidates:
             return []
@@ -555,6 +583,8 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             tuple(self.selected_features or all_factor_ids()),
             tuple(self._held_assets(signal_date)),
             self.custom_assets,
+            self.universe_filter.as_dict(),
+            self.fill_timing,
             _bars_fingerprint(),
             "live" if is_live else "backtest",
         )
@@ -656,6 +686,8 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
                 trim_pct=self.market_cap_trim_pct,
                 holdings=self._held_assets(latest_init_dt),
                 index_codes=self.index_pool_codes,
+                universe_filter=self.universe_filter,
+                fill_timing=self.fill_timing,
             )
             self._live_universe_assets = set(universe_assets)
             self.log(
@@ -741,6 +773,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
                 horizon=self.future_return_horizon,
                 use_lightgbm=self.use_lightgbm,
                 feature_cols=feature_cols,
+                label_kind=self.label_kind,
             )
             self._save_model_artifact(
                 self._model,
@@ -939,6 +972,7 @@ def _rank_selection_panel(
         horizon=options.horizon,
         use_lightgbm=options.use_lightgbm,
         feature_cols=features,
+        label_kind=options.label_kind,
     )
     cross = normalized.filter(pl.col("date") == target_date)
     if cross.is_empty():

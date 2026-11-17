@@ -40,7 +40,19 @@ millionaire factor check ai_momentum --json
 millionaire factor study ai_momentum --start 2020-01-01 --end 2024-12-31 \
   --holdings 1,3,5 --json
 
-# 5. Only PASS factors may enter a preset or ablation backtest.
+# 5. Save only PASS, sufficiently orthogonal factors into a named preset.
+#    `--features` is comma-separated; loading re-validates existence,
+#    interval and wind-tunnel status, and never silently drops a factor.
+millionaire preset save --id ai_momentum_v1 --name "量价+AI动量" \
+  --features ma20_slope,bias_5,ai_momentum --label-kind cs_rank \
+  --params '{"top_k": 20, "train_window": 252}' --json
+
+# 6. Run the same preset and lock baseline/variant to one interval, cash,
+#    fee model, PIT universe rule and seed. `--preset` is the Variant.
+millionaire preset list --json
+millionaire backtest run --strategy MLMomentumReversalStrategy \
+  --preset ai_momentum_v1 --ablation-vs baseline_25 \
+  --start 2020-01-01 --end 2024-12-31 --initial-cash 1000000 --json
 ```
 
 Exit codes are part of the contract:
@@ -65,5 +77,9 @@ Exit codes are part of the contract:
 ## Evidence to report
 
 Always return the run id, status, source/config/data fingerprints, failed check
-names, and first-difference date/asset/expected/actual. Link the JSON or
-Markdown export from the factor detail page instead of paraphrasing a pass.
+names, and first-difference date/asset/expected/actual. For presets and
+ablations, report `preset_hash`, the shared `start`/`end`/`principal`/fee/seed
+conditions, each `portfolio_id`, annual excess, drawdown/turnover deltas and the
+changed-factor SHAP share table. `diagnostics: ["shap_unavailable"]` means the
+SHAP claim is not supported by evidence. Link the JSON or Markdown export from
+the factor detail page instead of paraphrasing a pass.

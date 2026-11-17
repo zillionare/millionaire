@@ -20,6 +20,7 @@ from quantide.config.paths import get_model_store_dir
 MODEL_CONFIG_KEYS = (
     "train_window",
     "future_return_horizon",
+    "label_kind",
     "retrain_days",
     "use_lightgbm",
     "features",
@@ -30,6 +31,8 @@ MODEL_CONFIG_KEYS = (
     "universe_rebalance_days",
     "index_pool_codes",
     "top_k",
+    "fill_timing",
+    "universe_filter",
 )
 
 

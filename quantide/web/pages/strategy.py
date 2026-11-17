@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import importlib
 import json
 import uuid
 from collections.abc import Mapping
@@ -439,6 +440,7 @@ def index(req: Request, session: SessionData) -> Any:
                 "2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
             ),
         },
+        {"title": "因子预设与消融", "url": "/strategy/presets"},
     ]
 
     strategy_loader.ensure_builtin_strategies()
@@ -988,3 +990,6 @@ def _launch_backtest_job(
             raise
 
     start_background(run_blocking(_job, on_cancel=runner.stop))
+
+
+importlib.import_module("quantide.web.pages.strategy_presets")

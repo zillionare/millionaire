@@ -20,6 +20,7 @@ class SelectionOptions:
     train_window: int
     horizon: int
     use_lightgbm: bool
+    label_kind: str
     universe_mode: str
     trim_pct: float
     custom_assets: list[str] | None
@@ -39,6 +40,7 @@ class SelectionOptions:
             train_window=max(10, int(cfg.get("train_window", 45))),
             horizon=_future_return_horizon(overrides or cfg),
             use_lightgbm=bool(cfg.get("use_lightgbm", True)),
+            label_kind=str(cfg.get("label_kind", "raw_return")).strip(),
             universe_mode=str(cfg.get("universe_mode", "market_cap_trim")).strip(),
             trim_pct=min(0.5, max(0.0, float(cfg.get("market_cap_trim_pct", 0.05)))),
             custom_assets=_parse_custom_assets(cfg),

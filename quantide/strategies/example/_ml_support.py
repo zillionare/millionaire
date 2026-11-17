@@ -32,6 +32,13 @@ from quantide.data.models.daily_basic import daily_basic
 from quantide.data.models.stocks import stock_list
 from quantide.factors.alpha import _zscore_1d
 from quantide.factors.registry import all_factor_ids
+from quantide.factors.universe import (
+    UniverseFilterConfig,
+    filter_universe_for_date,
+    load_st_status_frame,
+)
+
+LABEL_KINDS = ("raw_return", "excess_mean", "cs_rank")
 
 
 class InsufficientTrainingDataError(RuntimeError):
@@ -44,6 +51,7 @@ def _training_feature_panel(
     hist_df: pl.DataFrame,
     horizon: int,
     train_window: int,
+    label_kind: str = "raw_return",
 ) -> tuple[list[str], pl.DataFrame]:
     """Training feature panel."""
     selected_features = tuple(feature_cols or all_factor_ids())
@@ -66,10 +74,11 @@ def _training_feature_panel(
             tuple(label_cache_key),
             history_key,
             int(horizon),
+            str(label_kind),
         )
 
     labels = _LABEL_CACHE.get(label_key) if label_key is not None else None
-    labels = _training_return_labels(hist_df, horizon, label_key, labels)
+    labels = _training_return_labels(hist_df, horizon, label_key, labels, label_kind)
 
     # Labels may be reused across feature subsets, but the normalized inputs
     # must always come from the caller's historical frame.  This keeps feature
@@ -89,19 +98,9 @@ def _training_feature_panel(
     if valid_train.is_empty():
         raise InsufficientTrainingDataError("训练样本不足：训练窗口内没有可用的标签")
 
-    n_assets = valid_train["asset"].n_unique()
-    if n_assets > 1:
-        valid_train = valid_train.with_columns(
-            (
-                pl.col("future_n_trading_day_close_return").rank().over("date")
-                / pl.len().over("date").clip(lower_bound=1)
-                - 0.5
-            ).alias("label_y")
-        )
-    else:
-        valid_train = valid_train.with_columns(
-            (pl.col("future_n_trading_day_close_return").clip(-0.2, 0.2) * 2.5).alias("label_y")
-        )
+    valid_train = valid_train.with_columns(
+        pl.col("future_n_trading_day_close_return").alias("label_y")
+    )
     return z_cols, valid_train
 
 
@@ -224,11 +223,14 @@ def _training_return_labels(
     horizon: int,
     label_key: tuple[Any, ...] | None,
     labels: pl.DataFrame | None,
+    label_kind: str = "raw_return",
 ) -> pl.DataFrame:
     """Training return labels."""
     if labels is None:
         labels = compute_future_close_return_labels(
-            hist_df.select(["date", "asset", "close"]), horizon=horizon
+            hist_df.select(["date", "asset", "close"]),
+            horizon=horizon,
+            label_kind=label_kind,
         ).select(["date", "asset", "future_n_trading_day_close_return"])
         if label_key is not None:
             if len(_LABEL_CACHE) >= _LABEL_CACHE_MAX:
@@ -303,6 +305,7 @@ def _retrain_replay_model(
             use_lightgbm=self.use_lightgbm,
             feature_cols=self.selected_features or all_factor_ids(),
             label_cache_key=self._panel_cache_key(signal_date),
+            label_kind=getattr(self, "label_kind", "raw_return"),
         )
     except InsufficientTrainingDataError as exc:
         self._model_pending = self._model is None
@@ -431,31 +434,74 @@ def _resolve_stock_name(asset: str) -> str:
     return asset
 
 
-def compute_future_close_return_labels(df: pl.DataFrame, horizon: int = 3) -> pl.DataFrame:
+def _cross_section_label(frame: pl.DataFrame, label_kind: str) -> pl.DataFrame:
+    label = "future_n_trading_day_close_return"
+    if label_kind == "raw_return":
+        return frame
+    date_count = pl.len().over("date")
+    immature = pl.col(label).is_null().any().over("date")
+    if label_kind == "excess_mean":
+        value = pl.col(label) - pl.col(label).mean().over("date")
+    else:
+        value = pl.col(label).rank(method="average").over("date") / date_count - 0.5
+    return frame.with_columns(
+        pl.when(~immature & (date_count >= 2))
+        .then(value)
+        .otherwise(pl.lit(None, dtype=pl.Float64))
+        .alias(label)
+    )
+
+
+def compute_future_close_return_labels(
+    df: pl.DataFrame, horizon: int = 3, label_kind: str = "raw_return"
+) -> pl.DataFrame:
     """Attach a supervised future close-return target to a daily-bar panel.
 
     ``horizon`` counts rows within each asset's sorted daily-bar history, so it
-    represents trading days rather than calendar days.  The target is used only
-    when fitting the model; it is never consulted by the daily exit policy.
-    Rows without a complete forward window remain null.  Callers must pass a
-    history frame cut off at the signal date when training, which leaves the
-    signal-day target null and prevents lookahead at decision time.
+    represents trading days rather than calendar days.  ``excess_mean`` and
+    ``cs_rank`` are computed strictly inside each signal date's mature cross
+    section; a date with any missing forward price is excluded as a whole.
+    Callers must pass a history frame cut off at the signal date when training.
     """
     horizon = max(1, int(horizon))
+    if label_kind not in LABEL_KINDS:
+        raise ValueError(f"unsupported label_kind: {label_kind}")
     if df.is_empty():
         return df.with_columns(
             pl.lit(None, dtype=pl.Float64).alias("future_n_trading_day_close_return")
         )
-
     ordered = df.sort(["asset", "date"])
     close = pl.col("close").cast(pl.Float64)
     future_close = close.shift(-horizon).over("asset")
-    return ordered.with_columns(
+    labeled = ordered.with_columns(
         pl.when(future_close.is_not_null() & (close != 0.0))
         .then(future_close / close - 1.0)
         .otherwise(pl.lit(None, dtype=pl.Float64))
         .alias("future_n_trading_day_close_return")
     )
+    return _cross_section_label(labeled, label_kind)
+
+
+def _fit_lightgbm(x_train: np.ndarray, y_train: np.ndarray) -> object:
+    min_child = max(5, min(20, len(x_train) // 10))
+    model = lgb.LGBMRegressor(
+        n_estimators=50,
+        max_depth=4,
+        num_leaves=15,
+        learning_rate=0.05,
+        min_child_samples=min_child,
+        subsample_for_bin=5000,
+        random_state=42,
+        verbosity=-1,
+        n_jobs=1,
+    )
+    model.fit(x_train, y_train)
+    return model
+
+
+def _fit_ridge(x_train: np.ndarray, y_train: np.ndarray) -> np.ndarray:
+    reg = 10.0 * np.eye(x_train.shape[1], dtype=np.float64)
+    return np.linalg.solve(x_train.T @ x_train + reg, x_train.T @ y_train)
 
 
 def _fit_ml_model(
@@ -465,6 +511,7 @@ def _fit_ml_model(
     use_lightgbm: bool = True,
     feature_cols: list[str] | None = None,
     label_cache_key: tuple[Any, ...] | None = None,
+    label_kind: str = "raw_return",
 ) -> tuple[object | None, str]:
     """Train the ranking model strictly on leak-free historical samples.
 
@@ -484,34 +531,16 @@ def _fit_ml_model(
         tuple: (模型, 引擎名)。
     """
     z_cols, valid_train = _training_feature_panel(
-        feature_cols, label_cache_key, hist_df, horizon, train_window
+        feature_cols, label_cache_key, hist_df, horizon, train_window, label_kind
     )
 
     x_train = valid_train.select(z_cols).fill_null(0.0).fill_nan(0.0).to_numpy().astype(np.float64)
     y_train = valid_train["label_y"].fill_null(0.0).fill_nan(0.0).to_numpy().astype(np.float64)
 
     if use_lightgbm and _HAS_LIGHTGBM and len(x_train) >= 30:
-        min_child = max(5, min(20, len(x_train) // 10))
-        model = lgb.LGBMRegressor(
-            n_estimators=50,
-            max_depth=4,
-            num_leaves=15,
-            learning_rate=0.05,
-            min_child_samples=min_child,
-            subsample_for_bin=5000,
-            random_state=42,
-            verbosity=-1,
-            n_jobs=1,
-        )
-        model.fit(x_train, y_train)
-        return model, "LightGBM"
-
+        return _fit_lightgbm(x_train, y_train), "LightGBM"
     if len(x_train) >= 8:
-        n_feat = x_train.shape[1]
-        reg = 10.0 * np.eye(n_feat, dtype=np.float64)
-        ridge_w = np.linalg.solve(x_train.T @ x_train + reg, x_train.T @ y_train)
-        return ridge_w, "Prior-Ridge"
-
+        return _fit_ridge(x_train, y_train), "Prior-Ridge"
     return None, "Prior-Ridge"
 
 
@@ -690,6 +719,54 @@ def _cap_universe(
     return sorted(cap["asset"].unique().to_list())
 
 
+def _pit_on_date(
+    bars_df: pl.DataFrame,
+    target_date: datetime.date,
+    universe_filter: UniverseFilterConfig | None,
+    fill_timing: str,
+) -> pl.DataFrame:
+    on_date = bars_df.filter(pl.col("date") == target_date)
+    if on_date.is_empty():
+        return on_date
+    pit = filter_universe_for_date(
+        bars_df,
+        target_date,
+        universe_filter or UniverseFilterConfig(max_universe_size=None, min_listing_days=0),
+        fill_timing=fill_timing,
+        status_frame=load_st_status_frame(),
+        stock_meta=stock_list.data if stock_list.size > 0 else None,
+    )
+    return on_date.filter(pl.col("asset").is_in(pit.assets)) if pit.assets else on_date.head(0)
+
+
+def _select_from_pit(
+    bars_df: pl.DataFrame,
+    on_date: pl.DataFrame,
+    raw_on_date: pl.DataFrame,
+    target_date: datetime.date,
+    universe_size: int,
+    mode: str,
+    trim_pct: float,
+    holdings: list[str] | None,
+    index_codes: list[str] | None,
+) -> list[str]:
+    if mode == "index_pit":
+        pool = _index_pit_universe(target_date, index_codes)
+        if pool:
+            cap = _eligible_universe(on_date.filter(pl.col("asset").is_in(pool)), False)
+            return _cap_universe(cap, universe_size, holdings, mode)
+        mode = "market_cap_trim"
+    if mode == "market_cap_trim" and "total_mv" in on_date.columns:
+        trimmed_cap = _trim_market_cap(raw_on_date, trim_pct)
+        if trimmed_cap is not None:
+            trimmed_cap = trimmed_cap.filter(pl.col("asset").is_in(on_date["asset"].to_list()))
+            return _cap_universe(trimmed_cap, universe_size, holdings, mode)
+    eligible = _eligible_universe(on_date, True)
+    if eligible.is_empty():
+        return []
+    return _liquidity_universe(bars_df, eligible, universe_size)
+
+
 def _filter_universe(
     bars_df: pl.DataFrame,
     target_date: datetime.date,
@@ -698,25 +775,25 @@ def _filter_universe(
     trim_pct: float = 0.05,
     holdings: list[str] | None = None,
     index_codes: list[str] | None = None,
+    universe_filter: UniverseFilterConfig | None = None,
+    fill_timing: str = "auction_close",
 ) -> list[str]:
     """Select a tradable point-in-time pool, retaining eligible held securities."""
-    on_date = bars_df.filter(pl.col("date") == target_date)
+    raw_on_date = bars_df.filter(pl.col("date") == target_date)
+    on_date = _pit_on_date(bars_df, target_date, universe_filter, fill_timing)
     if on_date.is_empty():
         return []
-    if mode == "index_pit":
-        pool = _index_pit_universe(target_date, index_codes)
-        if pool:
-            cap = _eligible_universe(on_date.filter(pl.col("asset").is_in(pool)), False)
-            return _cap_universe(cap, universe_size, holdings, mode)
-        mode = "market_cap_trim"
-    if mode == "market_cap_trim" and "total_mv" in on_date.columns:
-        trimmed_cap = _trim_market_cap(on_date, trim_pct)
-        if trimmed_cap is not None:
-            return _cap_universe(trimmed_cap, universe_size, holdings, mode)
-    eligible = _eligible_universe(on_date, True)
-    if eligible.is_empty():
-        return []
-    return _liquidity_universe(bars_df, eligible, universe_size)
+    return _select_from_pit(
+        bars_df,
+        on_date,
+        raw_on_date,
+        target_date,
+        universe_size,
+        mode,
+        trim_pct,
+        holdings,
+        index_codes,
+    )
 
 
 def _filter_liquid_universe(
@@ -775,7 +852,7 @@ def _eligible_universe(frame: pl.DataFrame, require_close: bool) -> pl.DataFrame
         condition = condition & (pl.col("close") > 0)
     if "is_st" in frame.columns:
         condition = condition & ~pl.col("is_st").fill_null(False)
-    return _drop_st_names(frame.filter(condition))
+    return frame.filter(condition)
 
 
 def _trim_market_cap(on_date: pl.DataFrame, trim_pct: float) -> pl.DataFrame | None:

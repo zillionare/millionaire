@@ -406,7 +406,78 @@ def run_study(
     return payload, exit_code
 
 
+def preset_list_payload() -> dict[str, Any]:
+    """List persisted presets without executing any backtest."""
+    from quantide.service.factor_presets import list_presets
+
+    presets = [preset.as_dict() for preset in list_presets()]
+    return {"presets": presets}
+
+
+def preset_save_payload(
+    preset_id: str,
+    name: str,
+    features: list[str],
+    *,
+    label_kind: str = "raw_return",
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate and persist one factor preset."""
+    from quantide.service.factor_presets import save_preset
+
+    preset = save_preset(
+        preset_id,
+        name,
+        features,
+        label_kind=label_kind,
+        strategy_params=params or {},
+    )
+    return preset.as_dict()
+
+
+def backtest_run_payload(
+    strategy_id: str,
+    *,
+    start: dt.date,
+    end: dt.date,
+    preset_id: str | None = None,
+    params: dict[str, Any] | None = None,
+    ablation_vs: str | None = None,
+    initial_cash: float = 1_000_000.0,
+) -> dict[str, Any]:
+    """Run one backtest or a baseline-vs-variant ablation."""
+    from quantide.service.factor_presets import load_preset
+    from quantide.service.research_backtest import (
+        AblationStudySpec,
+        run_ablation,
+        run_single_backtest,
+    )
+
+    if ablation_vs is not None:
+        if preset_id is None:
+            raise ValueError("--ablation-vs 需要同时提供 --preset 作为 Variant")
+        spec = AblationStudySpec(
+            baseline_preset_id=ablation_vs,
+            variant_preset_ids=(preset_id,),
+            start=start,
+            end=end,
+            principal=initial_cash,
+            strategy_id=strategy_id,
+        )
+        return run_ablation(spec)
+    preset = load_preset(preset_id) if preset_id else None
+    return run_single_backtest(
+        strategy_id,
+        start=start,
+        end=end,
+        preset=preset,
+        params=params,
+        initial_cash=initial_cash,
+    )
+
+
 __all__ = [
+    "backtest_run_payload",
     "check_factor",
     "data_status",
     "envelope",
@@ -414,5 +485,7 @@ __all__ = [
     "init_factor",
     "json_safe",
     "list_factors",
+    "preset_list_payload",
+    "preset_save_payload",
     "run_study",
 ]

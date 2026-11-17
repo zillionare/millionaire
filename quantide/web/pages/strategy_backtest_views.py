@@ -1,5 +1,6 @@
 """Strategy backtest views."""
 
+import json
 from collections.abc import Mapping
 from typing import Any
 
@@ -9,6 +10,7 @@ from fasthtml.common import *
 from fasthtml.common import (
     A,
     Div,
+    NotStr,
     P,
     Script,
     Span,
@@ -41,6 +43,7 @@ from quantide.service.backtest_params import (
 )
 from quantide.service.discovery import strategy_loader
 from quantide.service.factor_audit import factor_wind_tunnel_badge
+from quantide.service.factor_presets import list_presets
 from quantide.service.risk_programs import (
     ALLOW_SAME_BAR_REPURCHASE_KEY,
     available_risk_programs,
@@ -369,6 +372,50 @@ def _build_param_inputs(
     return inputs
 
 
+def _preset_selector() -> Any:
+    presets = list_presets()
+    if not presets:
+        return Div(
+            Span("尚未保存因子预设。", cls="text-xs text-gray-500"),
+            A("前往保存", href="/strategy/presets", cls="ml-2 text-xs text-[#e41815]"),
+            cls="mb-2",
+        )
+    options = [
+        fh.Option(
+            f"{preset.name} ({preset.preset_id})",
+            value=preset.preset_id,
+            data_features=json.dumps(list(preset.features)),
+            data_label_kind=preset.label_kind,
+        )
+        for preset in presets
+    ]
+    script = """
+(function (select) {
+  var option = select.options[select.selectedIndex];
+  var raw = option && option.dataset.features;
+  if (!raw) return;
+  var enabled = new Set(JSON.parse(raw));
+  document.querySelectorAll('#strategy-modal input[name="param_features"]').forEach(function (box) {
+    if (!box.disabled) box.checked = enabled.has(box.value);
+  });
+  var label = document.querySelector('#strategy-modal select[name="param_label_kind"]');
+  if (label && option.dataset.labelKind) label.value = option.dataset.labelKind;
+})(this);
+"""
+    return Div(
+        Span("因子预设", cls="text-xs font-medium text-gray-600"),
+        fh.Select(
+            fh.Option("不使用预设", value=""),
+            *options,
+            name="preset_select",
+            onchange=NotStr(script),
+            cls="q-input h-8 ml-2",
+        ),
+        A("管理预设", href="/strategy/presets", cls="ml-2 text-xs text-[#e41815]"),
+        cls="mb-3 flex items-center",
+    )
+
+
 def _build_feature_selection_panel() -> Any:
     """构建因子勾选面板（向导第二步）。"""
     groups: list[Any] = []
@@ -388,6 +435,7 @@ def _build_feature_selection_panel() -> Any:
                             value=name,
                             checked=not blocked,
                             disabled=blocked,
+                            data_factor_id=name,
                             cls="checkbox checkbox-sm",
                         ),
                         Span(
@@ -424,6 +472,18 @@ def _build_feature_selection_panel() -> Any:
             P(
                 "取消勾选即不参与训练与打分（全部取消表示使用全部因子）。鼠标悬停因子名可查看计算方法、含义与示例。",
                 cls="text-xs text-gray-500 mb-2",
+            ),
+            _preset_selector(),
+            Div(
+                Span("训练标签", cls="text-xs font-medium text-gray-600"),
+                fh.Select(
+                    fh.Option("raw_return（未来收益）", value="raw_return", selected=True),
+                    fh.Option("excess_mean（截面超额）", value="excess_mean"),
+                    fh.Option("cs_rank（截面秩）", value="cs_rank"),
+                    name="param_label_kind",
+                    cls="q-input h-8 ml-2",
+                ),
+                cls="mb-3 flex items-center",
             ),
             *groups,
         )

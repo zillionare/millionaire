@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import os
 import sys
 import threading
@@ -14,12 +15,15 @@ from typing import Any
 import uvicorn
 
 from quantide.service.research_cli import (
+    backtest_run_payload,
     check_factor,
     data_status,
     envelope,
     envelope_json,
     init_factor,
     list_factors,
+    preset_list_payload,
+    preset_save_payload,
     run_study,
 )
 
@@ -48,12 +52,14 @@ def _run_web(args: argparse.Namespace) -> int:
     return 0
 
 
-def _add_research_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+def _add_data_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     data = commands.add_parser("data", help="inspect the active market data")
     data_commands = data.add_subparsers(dest="data_command")
-    data_status_parser = data_commands.add_parser("status", help="show data coverage and schema")
-    data_status_parser.add_argument("--json", action="store_true")
+    status = data_commands.add_parser("status", help="show data coverage and schema")
+    status.add_argument("--json", action="store_true")
 
+
+def _add_factor_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     factor = commands.add_parser("factor", help="list, create, check and study factors")
     factor_commands = factor.add_subparsers(dest="factor_command")
     factor_list = factor_commands.add_parser("list", help="list discovered factors")
@@ -76,6 +82,56 @@ def _add_research_parsers(commands: argparse._SubParsersAction[argparse.Argument
     factor_study.add_argument("--holdings", default="1,3,5")
     factor_study.add_argument("--price", choices=["open", "close"], default="open")
     factor_study.add_argument("--json", action="store_true")
+
+
+def _add_preset_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    preset = commands.add_parser("preset", help="manage factor presets")
+    preset_commands = preset.add_subparsers(dest="preset_command")
+    preset_list = preset_commands.add_parser("list", help="list saved presets")
+    preset_list.add_argument("--json", action="store_true")
+    preset_save = preset_commands.add_parser("save", help="validate and save a preset")
+    preset_save.add_argument("--id", required=True, dest="preset_id")
+    preset_save.add_argument("--name", required=True)
+    preset_save.add_argument("--features", required=True)
+    preset_save.add_argument(
+        "--label-kind", choices=["raw_return", "excess_mean", "cs_rank"], default="raw_return"
+    )
+    preset_save.add_argument("--params", default="{}")
+    preset_save.add_argument("--json", action="store_true")
+
+
+def _add_backtest_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    backtest = commands.add_parser("backtest", help="run research backtests")
+    backtest_commands = backtest.add_subparsers(dest="backtest_command")
+    backtest_run = backtest_commands.add_parser("run", help="run one strategy backtest")
+    backtest_run.add_argument("--strategy", required=True)
+    source = backtest_run.add_mutually_exclusive_group()
+    source.add_argument("--preset")
+    source.add_argument("--params")
+    backtest_run.add_argument("--start", required=True, metavar="YYYY-MM-DD")
+    backtest_run.add_argument("--end", required=True, metavar="YYYY-MM-DD")
+    backtest_run.add_argument("--ablation-vs", metavar="BASELINE_PRESET_ID")
+    backtest_run.add_argument("--initial-cash", type=float, default=1_000_000.0)
+    backtest_run.add_argument("--json", action="store_true")
+
+
+def _add_research_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    _add_data_parsers(commands)
+    _add_factor_parsers(commands)
+    _add_preset_parsers(commands)
+    _add_backtest_parsers(commands)
+
+
+def _params_json(value: str | None) -> dict[str, Any]:
+    if value is None:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except ValueError as exc:
+        raise ValueError("--params 必须是合法 JSON 对象") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("--params 必须是 JSON 对象")
+    return parsed
 
 
 def _date(value: str | None, *, default: dt.date | None = None) -> dt.date | None:
@@ -113,6 +169,10 @@ def _emit(payload: dict[str, Any], as_json: bool) -> None:
 def _command_name(args: argparse.Namespace) -> str:
     if args.command == "data":
         return f"data.{args.data_command}"
+    if args.command == "preset":
+        return f"preset.{args.preset_command}"
+    if args.command == "backtest":
+        return f"backtest.{args.backtest_command}"
     return f"factor.{args.factor_command}"
 
 
@@ -158,12 +218,48 @@ def _factor_study_command(args: argparse.Namespace) -> tuple[dict[str, Any], int
     )
 
 
+def _preset_list_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    return envelope("preset.list", ok=True, status="OK", exit_code=0, data=preset_list_payload()), 0
+
+
+def _preset_save_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    features = [item.strip() for item in args.features.split(",") if item.strip()]
+    data = preset_save_payload(
+        args.preset_id,
+        args.name,
+        features,
+        label_kind=args.label_kind,
+        params=_params_json(args.params),
+    )
+    return envelope("preset.save", ok=True, status="OK", exit_code=0, data=data), 0
+
+
+def _backtest_run_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    start = _date(args.start)
+    end = _date(args.end)
+    if start is None or end is None:
+        raise ValueError("--start 与 --end 必须是有效日期")
+    data = backtest_run_payload(
+        args.strategy,
+        start=start,
+        end=end,
+        preset_id=args.preset,
+        params=_params_json(args.params),
+        ablation_vs=args.ablation_vs,
+        initial_cash=args.initial_cash,
+    )
+    return envelope("backtest.run", ok=True, status="OK", exit_code=0, data=data), 0
+
+
 _COMMANDS = {
     ("data", "status"): _data_status_command,
     ("factor", "list"): _factor_list_command,
     ("factor", "init"): _factor_init_command,
     ("factor", "check"): _factor_check_command,
     ("factor", "study"): _factor_study_command,
+    ("preset", "list"): _preset_list_command,
+    ("preset", "save"): _preset_save_command,
+    ("backtest", "run"): _backtest_run_command,
 }
 
 
@@ -190,9 +286,13 @@ def _error_payload(command: str, exc: Exception) -> tuple[dict[str, Any], int]:
 
 def _run_research(args: argparse.Namespace) -> int:
     command = _command_name(args)
-    handler = _COMMANDS.get(
-        (args.command, args.data_command if args.command == "data" else args.factor_command)
-    )
+    subcommand = {
+        "data": getattr(args, "data_command", None),
+        "factor": getattr(args, "factor_command", None),
+        "preset": getattr(args, "preset_command", None),
+        "backtest": getattr(args, "backtest_command", None),
+    }.get(args.command)
+    handler = _COMMANDS.get((str(args.command), str(subcommand or "")))
     if handler is None:
         print("缺少子命令", file=sys.stderr)
         return 2
@@ -255,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
     _add_research_parsers(commands)
     args = parser.parse_args(argv)
 
-    if args.command in {"data", "factor"}:
+    if args.command in {"data", "factor", "preset", "backtest"}:
         return _run_research(args)
     if args.command == "web-url":
         from quantide.config.server_address import controller_url

@@ -143,3 +143,108 @@ def test_factor_check_missing_target_is_contract_error(capsys) -> None:
 
     assert payload["status"] == "ERROR"
     assert payload["diagnostics"][0]["code"] == "INVALID_REQUEST"
+
+
+def test_preset_cli_save_and_list_use_research_envelope(capsys) -> None:
+    assert (
+        cli.main(
+            [
+                "preset",
+                "save",
+                "--id",
+                "cli_preset",
+                "--name",
+                "CLI Preset",
+                "--features",
+                "ma20_slope,bias_5",
+                "--label-kind",
+                "cs_rank",
+                "--params",
+                '{"top_k": 12}',
+                "--json",
+            ]
+        )
+        == 0
+    )
+    saved = json.loads(capsys.readouterr().out)
+    assert saved["command"] == "preset.save"
+    assert saved["data"]["preset_id"] == "cli_preset"
+    assert saved["data"]["label_kind"] == "cs_rank"
+    assert saved["data"]["preset_hash"]
+
+    assert cli.main(["preset", "list", "--json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert listed["command"] == "preset.list"
+    assert listed["data"]["presets"][0]["preset_id"] == "cli_preset"
+
+
+def test_backtest_cli_rejects_ablation_without_preset(capsys) -> None:
+    assert (
+        cli.main(
+            [
+                "backtest",
+                "run",
+                "--strategy",
+                "MLMomentumReversalStrategy",
+                "--ablation-vs",
+                "base",
+                "--start",
+                "2024-01-02",
+                "--end",
+                "2024-01-31",
+                "--json",
+            ]
+        )
+        == 2
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert payload["diagnostics"][0]["code"] == "INVALID_REQUEST"
+
+
+def test_backtest_cli_serializes_isolated_run_payload(monkeypatch, capsys) -> None:
+    from quantide.service import research_backtest
+
+    def fake_run(strategy_id: str, **kwargs) -> dict[str, object]:
+        return {
+            "portfolio_id": "research-run",
+            "strategy_id": strategy_id,
+            "preset_id": None,
+            "start": kwargs["start"].isoformat(),
+            "end": kwargs["end"].isoformat(),
+            "initial_cash": kwargs["initial_cash"],
+            "config": {},
+            "features": [],
+            "metrics": {"annual_return": 0.1},
+            "turnover": 1.0,
+            "total_fees": 10.0,
+            "trade_count": 1,
+            "equity_curve": [],
+            "shap_top_features": [],
+            "diagnostics": ["shap_unavailable"],
+        }
+
+    monkeypatch.setattr(research_backtest, "run_single_backtest", fake_run)
+    assert (
+        cli.main(
+            [
+                "backtest",
+                "run",
+                "--strategy",
+                "MLMomentumReversalStrategy",
+                "--params",
+                "{}",
+                "--start",
+                "2024-01-02",
+                "--end",
+                "2024-01-31",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["command"] == "backtest.run"
+    assert payload["data"]["portfolio_id"] == "research-run"
+    assert payload["data"]["start"] == "2024-01-02"
+    assert payload["data"]["diagnostics"] == ["shap_unavailable"]

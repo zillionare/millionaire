@@ -430,6 +430,9 @@ def load_factor_panel(
     start: datetime.date,
     end: datetime.date,
     assets: list[str] | None = None,
+    *,
+    universe_filter: Any = None,
+    fill_timing: str = "auction_close",
 ) -> pl.DataFrame:
     """加载日线并计算因子面板（含交易日序号）。
 
@@ -450,6 +453,10 @@ def load_factor_panel(
     if raw is None or raw.is_empty():
         return pl.DataFrame()
     raw = raw.with_columns(pl.col("date").cast(pl.Date)).sort(["asset", "date"])
+    if universe_filter is not None:
+        from quantide.factors.universe import filter_universe_panel
+
+        raw, _ = filter_universe_panel(raw, universe_filter, fill_timing=fill_timing)
     return ensure_trading_index(compute_feature_panel(raw))
 
 

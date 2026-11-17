@@ -32,6 +32,13 @@ from quantide.factors.registry import (
     feature_groups,
 )
 from quantide.factors.research import HorizonRequest, HorizonResult, study_horizon
+from quantide.factors.universe import (
+    UniverseFilterConfig,
+    UniverseFilterResult,
+    filter_universe_for_date,
+    filter_universe_panel,
+    load_st_status_frame,
+)
 
 __all__ = [
     "FACTOR_VERSION",
@@ -49,6 +56,11 @@ __all__ = [
     "HorizonRequest",
     "HorizonResult",
     "SingleFactorResult",
+    "UniverseFilterConfig",
+    "UniverseFilterResult",
+    "filter_universe_for_date",
+    "filter_universe_panel",
+    "load_st_status_frame",
     "load_factor_panel",
     "study_single_factor",
     "compute_alpha_features",

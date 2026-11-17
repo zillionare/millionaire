@@ -119,6 +119,7 @@ class MLExplanation:
         _pipeline_version: str
         train_window: int
         future_return_horizon: int
+        label_kind: str
         universe_size: int
         universe_mode: str
         market_cap_trim_pct: float
@@ -149,6 +150,7 @@ class MLExplanation:
             catalog_version(),
             self.train_window,
             self.future_return_horizon,
+            self.label_kind,
             self.universe_size,
             self.universe_mode,
             round(self.market_cap_trim_pct, 6),
@@ -307,6 +309,7 @@ class MLExplanation:
             use_lightgbm=self.use_lightgbm,
             feature_cols=self.selected_features or all_factor_ids(),
             label_cache_key=self._panel_cache_key(build_signal),
+            label_kind=self.label_kind,
         )
         if len(_EXPLAIN_MODEL_CACHE) >= 8:
             _EXPLAIN_MODEL_CACHE.pop(next(iter(_EXPLAIN_MODEL_CACHE)))
