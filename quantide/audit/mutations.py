@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-import re
 import subprocess
 import sys
 import tempfile
@@ -418,12 +417,14 @@ def _date_means(frame: pl.DataFrame) -> list[float]:
 
 
 def _case_mut_5003() -> dict[str, Any]:
-    from quantide.strategies.example import _ml_support
+    from quantide.strategies.example import _ml_labels, _ml_support
 
     frame = _label_frame()
     label = "future_n_trading_day_close_return"
-    baseline = _ml_support.compute_future_close_return_labels(
-        frame, horizon=1, label_kind="cs_rank"
+    days = sorted(frame["date"].unique().to_list())
+    calendar = SimpleNamespace(
+        day_frames=object(),
+        get_trade_dates=lambda start, end: [day for day in days if start <= day <= end],
     )
 
     def pooled_rank(value_frame: pl.DataFrame, label_kind: str) -> pl.DataFrame:
@@ -432,10 +433,14 @@ def _case_mut_5003() -> dict[str, Any]:
         value = pl.col(label).rank(method="average") / pl.col(label).count() - 0.5
         return value_frame.with_columns(value.alias(label))
 
-    with patch.object(_ml_support, "_cross_section_label", pooled_rank):
-        mutant = _ml_support.compute_future_close_return_labels(
+    with patch.object(_ml_support, "calendar", calendar):
+        baseline = _ml_support.compute_future_close_return_labels(
             frame, horizon=1, label_kind="cs_rank"
         )
+        with patch.object(_ml_labels, "_cross_section_label", pooled_rank):
+            mutant = _ml_support.compute_future_close_return_labels(
+                frame, horizon=1, label_kind="cs_rank"
+            )
     baseline_means = _date_means(baseline)
     mutant_means = _date_means(mutant)
     baseline_ok = (
@@ -467,7 +472,7 @@ def _badge_context(record: dict[str, Any], *, ignore_source: bool = False) -> Ex
             patch.object(
                 factor_audit,
                 "_fingerprints_match",
-                lambda record, source, config, data: (
+                lambda record, source, config, data, oracle: (
                     record.get("config_hash") == config and record.get("data_hash") == data
                 ),
             )
@@ -586,13 +591,16 @@ def _sandbox_path_probe() -> tuple[bool, bool]:
     from quantide.service import ai_factor_tools
 
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory).resolve()
-        with (
-            patch.object(ai_factor_tools, "normalize_factor_dir", lambda _value=None: str(root)),
-            patch.object(ai_factor_tools, "_FACTOR_ID", re.compile(r".+")),
-        ):
+        base = Path(directory).resolve()
+        root = base / "factors"
+        root.mkdir()
+        outside = base / "outside.py"
+        outside.write_text("outside", encoding="utf-8")
+        linked = root / "linked.py"
+        linked.symlink_to(outside)
+        with patch.object(ai_factor_tools, "normalize_factor_dir", lambda _value=None: str(root)):
             try:
-                ai_factor_tools._target_path("../escape")
+                ai_factor_tools._target_path("linked")
             except ai_factor_tools.AIToolError:
                 baseline_rejects = True
             else:
@@ -602,8 +610,8 @@ def _sandbox_path_probe() -> tuple[bool, bool]:
                 "_validate_target",
                 lambda _root, _target, _resolved: None,
             ):
-                escaped = ai_factor_tools._target_path("../escape")
-                mutant_escaped = not escaped.resolve().is_relative_to(root)
+                accepted = ai_factor_tools._target_path("linked")
+                mutant_escaped = accepted.is_symlink() and accepted.resolve() == outside
     return baseline_rejects, mutant_escaped
 
 
@@ -637,7 +645,7 @@ def _case_mut_5007() -> dict[str, Any]:
     detected = baseline_ok and path_mutant_escaped and wind_mutant_accepts
     return _killed(
         detected,
-        "production path guard blocks ../escape; disabling it escapes factor_dir",
+        "path guard rejects a valid-name symlink escape; disabling it accepts outside",
         baseline_ok=baseline_ok,
     )
 
@@ -764,7 +772,7 @@ CASES: tuple[MutationCase, ...] = (
         "FR-5014",
         "AC-5027/AC-5028",
         "Web Agent sandbox and wind tunnel",
-        "Agent can escape factor_dir or bypass a FAIL badge to emit a study card.",
+        "Agent can follow a symlink outside factor_dir or bypass a FAIL badge.",
     ),
 )
 _RUNNERS: dict[str, CaseRunner] = {

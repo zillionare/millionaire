@@ -114,7 +114,7 @@ def _normalize_status_frame(frame: pl.DataFrame) -> pl.DataFrame:
     frame = frame.rename({date_col: "date"})
     frame = frame.with_columns(pl.col("date").cast(pl.Date), pl.col("asset").cast(pl.Utf8))
     if "is_st" in frame.columns:
-        return frame.with_columns(pl.col("is_st").fill_null(False).cast(pl.Boolean))
+        return frame.with_columns(pl.col("is_st").cast(pl.Boolean))
     for column in _ST_COLUMNS:
         if column in frame.columns:
             values = pl.col(column).cast(pl.Utf8).fill_null("")
@@ -139,26 +139,98 @@ def _attach_stock_meta(frame: pl.DataFrame, stock_meta: pl.DataFrame | None) -> 
     return left.join(stock_meta.select(columns), on="asset", how="left")
 
 
+def _record_status_count(
+    warnings: list[str], counts: dict[str, int] | None, name: str, value: int
+) -> None:
+    if value <= 0:
+        return
+    warnings.append(name)
+    if counts is not None:
+        counts[name] = counts.get(name, 0) + value
+
+
+def _combine_status_columns(joined: pl.DataFrame) -> pl.DataFrame:
+    return joined.with_columns(
+        (pl.col("is_st").fill_null(False) | pl.col("_status_st").fill_null(False)).alias("is_st")
+    )
+
+
+def _status_input(frame: pl.DataFrame) -> tuple[pl.DataFrame, bool, int]:
+    if "is_st" not in frame.columns:
+        return frame, False, 0
+    frame = frame.with_columns(pl.col("is_st").cast(pl.Boolean))
+    return frame, True, frame.filter(pl.col("is_st").is_null()).height
+
+
+def _status_without_history(
+    frame: pl.DataFrame,
+    has_input: bool,
+    unknown_input: int,
+    warnings: list[str],
+    counts: dict[str, int] | None,
+) -> pl.DataFrame:
+    if unknown_input <= 0 and has_input:
+        return frame
+    warnings.append("st_history_unavailable")
+    _record_status_count(warnings, counts, "st_history_incomplete", unknown_input)
+    if not has_input:
+        return frame.with_columns(pl.lit(False).alias("is_st"))
+    return frame.with_columns(pl.col("is_st").fill_null(False))
+
+
+def _merge_status(
+    joined: pl.DataFrame,
+    has_input: bool,
+    warnings: list[str],
+    counts: dict[str, int] | None,
+) -> pl.DataFrame:
+    status = pl.col("_status_st")
+    unresolved = (
+        joined.filter(status.is_null() & pl.col("is_st").is_null()).height
+        if has_input
+        else joined.filter(status.is_null()).height
+    )
+    _record_status_count(warnings, counts, "st_history_incomplete", unresolved)
+    if not has_input:
+        return joined.with_columns(status.fill_null(False).alias("is_st")).drop("_status_st")
+    conflicts = joined.filter(
+        pl.col("is_st").is_not_null() & status.is_not_null() & (pl.col("is_st") != status)
+    ).height
+    _record_status_count(warnings, counts, "st_status_conflict", conflicts)
+    return _combine_status_columns(joined).drop("_status_st")
+
+
+def attach_status_contract(
+    frame: pl.DataFrame,
+    status_frame: pl.DataFrame | None,
+    warnings: list[str],
+    counts: dict[str, int] | None = None,
+) -> pl.DataFrame:
+    """Apply one shared ST contract with OR semantics and explicit diagnostics."""
+    if frame.is_empty():
+        return frame
+    frame, has_input, unknown_input = _status_input(frame)
+    if status_frame is None or status_frame.is_empty():
+        return _status_without_history(frame, has_input, unknown_input, warnings, counts)
+    status = (
+        status_frame.select(["date", "asset", "is_st"])
+        .unique(["date", "asset"])
+        .rename({"is_st": "_status_st"})
+    )
+    joined = frame.join(status, on=["date", "asset"], how="left")
+    return _merge_status(joined, has_input, warnings, counts)
+
+
 def _attach_status(
     frame: pl.DataFrame,
     trade_date: dt.date,
     status_frame: pl.DataFrame | None,
     warnings: list[str],
 ) -> pl.DataFrame:
-    if "is_st" in frame.columns:
-        return frame.with_columns(pl.col("is_st").fill_null(False).cast(pl.Boolean))
-    if status_frame is None or status_frame.is_empty():
-        warnings.append("st_history_unavailable")
-        return frame.with_columns(pl.lit(False).alias("is_st"))
-    day = status_frame.filter(pl.col("date") == trade_date).select(["asset", "is_st"])
-    if day.is_empty():
-        warnings.append("st_history_unavailable")
-        return frame.with_columns(pl.lit(False).alias("is_st"))
-    return (
-        frame.drop("is_st", strict=False)
-        .join(day, on="asset", how="left")
-        .with_columns(pl.col("is_st").fill_null(False).cast(pl.Boolean))
-    )
+    """Compatibility wrapper around the shared multi-date status contract."""
+    if "date" not in frame.columns:
+        frame = frame.with_columns(pl.lit(trade_date).alias("date"))
+    return attach_status_contract(frame, status_frame, warnings)
 
 
 def _listing_days(list_date: Any, trade_date: dt.date, calendar_obj: Any) -> int | None:
@@ -171,6 +243,23 @@ def _listing_days(list_date: Any, trade_date: dt.date, calendar_obj: Any) -> int
         return None
 
 
+def _listing_row_ok(
+    list_date: Any,
+    delist_date: Any,
+    trade_date: dt.date,
+    config: UniverseFilterConfig,
+    calendar_obj: Any,
+) -> tuple[bool, bool]:
+    start = _as_date(list_date)
+    delisted = _as_date(delist_date)
+    listed_ok = start is None or start <= trade_date
+    delisted_ok = delisted is None or delisted > trade_date
+    days = _listing_days(list_date, trade_date, calendar_obj)
+    if days is None:
+        return listed_ok and delisted_ok, True
+    return listed_ok and days >= config.min_listing_days and delisted_ok, False
+
+
 def _listing_mask(
     frame: pl.DataFrame,
     trade_date: dt.date,
@@ -180,24 +269,21 @@ def _listing_mask(
 ) -> pl.DataFrame:
     if "list_date" not in frame.columns and "delist_date" not in frame.columns:
         return frame
-    list_dates = frame.get_column("list_date").to_list()
     delist_dates = (
         frame.get_column("delist_date").to_list()
         if "delist_date" in frame.columns
         else [None] * frame.height
     )
-    keep = []
+    keep: list[bool] = []
     missing = 0
-    for index, list_date in enumerate(list_dates):
-        days = _listing_days(list_date, trade_date, calendar_obj)
-        delisted = _as_date(delist_dates[index])
-        if days is None:
-            missing += 1
-            counts["calendar_unavailable"] = counts.get("calendar_unavailable", 0) + 1
-            keep.append(True)
-            continue
-        keep.append(days >= config.min_listing_days and (delisted is None or delisted > trade_date))
+    for list_date, delist_date in zip(
+        frame.get_column("list_date").to_list(), delist_dates, strict=True
+    ):
+        allowed, unknown = _listing_row_ok(list_date, delist_date, trade_date, config, calendar_obj)
+        keep.append(allowed)
+        missing += int(unknown)
     if missing:
+        counts["calendar_unavailable"] = counts.get("calendar_unavailable", 0) + missing
         counts["list_date_unavailable"] = counts.get("list_date_unavailable", 0) + missing
     if not keep:
         return frame
@@ -294,10 +380,11 @@ def filter_universe_for_date(
     if config.exclude_suspended and "volume" in frame.columns:
         frame = frame.filter(pl.col("volume").fill_null(0) > 0)
         counts["suspended"] = before - frame.height
-    if config.min_listing_days > 0:
-        before = frame.height
-        frame = _listing_mask(frame, trade_date, config, calendar_obj, counts)
-        counts["listing_days"] = before - frame.height
+    before = frame.height
+    frame = _listing_mask(frame, trade_date, config, calendar_obj, counts)
+    counts["listing_days"] = before - frame.height
+    if counts.get("calendar_unavailable"):
+        warnings.append("calendar_unavailable")
     if config.exclude_limit_locked_on_close and str(fill_timing).strip().lower() in {
         "auction_close",
         "auction",
@@ -381,9 +468,54 @@ def filter_universe_panel(
     )
 
 
+def attach_universe_eligibility(
+    frame: pl.DataFrame,
+    config: UniverseFilterConfig | None = None,
+    *,
+    fill_timing: str = "auction_close",
+    status_frame: pl.DataFrame | None = None,
+    stock_meta: pl.DataFrame | None = None,
+    calendar_obj: Any = None,
+) -> tuple[pl.DataFrame, dict[str, Any]]:
+    """Mark signal rows eligible without removing price rows used by labels."""
+    config = config or UniverseFilterConfig()
+    if frame.is_empty():
+        return frame, {"applied": True, "config": config.as_dict(), "by_date": {}}
+    if status_frame is None:
+        status_frame = load_st_status_frame()
+    if stock_meta is None:
+        from quantide.data.models.stocks import stock_list
+
+        stock_meta = stock_list.data if stock_list.size > 0 else None
+    frame = frame.with_columns(pl.col("date").cast(pl.Date))
+    pairs: list[tuple[dt.date, str]] = []
+    by_date: dict[str, Any] = {}
+    for trade_date in sorted(frame["date"].unique().to_list()):
+        result = filter_universe_for_date(
+            frame.filter(pl.col("date") <= trade_date),
+            trade_date,
+            config,
+            fill_timing=fill_timing,
+            status_frame=status_frame,
+            stock_meta=stock_meta,
+            calendar_obj=calendar_obj,
+        )
+        pairs.extend((trade_date, asset) for asset in result.assets)
+        by_date[trade_date.isoformat()] = result.as_dict()
+    eligible = pl.DataFrame(
+        pairs or [(dt.date(1900, 1, 1), "__none__")], schema=["date", "asset"], orient="row"
+    ).unique()
+    marked = frame.join(
+        eligible.with_columns(pl.lit(True).alias("_eligible")), on=["date", "asset"], how="left"
+    ).with_columns(pl.col("_eligible").fill_null(False))
+    return marked, {"applied": True, "config": config.as_dict(), "by_date": by_date}
+
+
 __all__ = [
     "UniverseFilterConfig",
     "UniverseFilterResult",
+    "attach_status_contract",
+    "attach_universe_eligibility",
     "filter_universe_for_date",
     "filter_universe_panel",
     "load_st_status_frame",

@@ -48,9 +48,15 @@ except ImportError:  # pragma: no cover - exercised only without the optional de
 def _ohlc_panel(rows: list[tuple[float, float, float, float]]) -> pl.DataFrame:
     """Build a single-asset OHLC panel from ``(open, high, low, close)`` rows."""
     start = dt.date(2024, 1, 2)
+    dates = []
+    cursor = start
+    while len(dates) < len(rows):
+        if cursor.weekday() < 5:
+            dates.append(cursor)
+        cursor += dt.timedelta(days=1)
     return pl.DataFrame(
         {
-            "date": [start + dt.timedelta(days=i) for i in range(len(rows))],
+            "date": dates,
             "asset": ["600001.SH"] * len(rows),
             "open": [row[0] for row in rows],
             "high": [row[1] for row in rows],
@@ -93,12 +99,8 @@ def test_strategy_discovery_finds_clean_metadata() -> None:
     assert metadata.strategy_type == "independent"
     assert metadata.default_config == MLMomentumReversalStrategy.default_config()
 
-    not_a_strategy = [
-        d for d in result.diagnostics if d.reason.value == "NotAStrategy"
-    ]
-    invalid_config = [
-        d for d in result.diagnostics if d.reason.value == "InvalidConfig"
-    ]
+    not_a_strategy = [d for d in result.diagnostics if d.reason.value == "NotAStrategy"]
+    invalid_config = [d for d in result.diagnostics if d.reason.value == "InvalidConfig"]
     assert not_a_strategy == []
     assert invalid_config == []
     assert result.diagnostics == []
@@ -115,17 +117,34 @@ def test_default_config_and_params_expose_required_keys() -> None:
     }
     assert required <= set(MLMomentumReversalStrategy.PARAMS)
     assert required <= set(MLMomentumReversalStrategy.default_config())
-    assert MLMomentumReversalStrategy.default_config() == (
-        MLMomentumReversalStrategy.PARAMS
-    )
-    assert MLMomentumReversalStrategy.default_config() is not (
-        MLMomentumReversalStrategy.PARAMS
-    )
+    assert MLMomentumReversalStrategy.default_config() == (MLMomentumReversalStrategy.PARAMS)
+    assert MLMomentumReversalStrategy.default_config() is not (MLMomentumReversalStrategy.PARAMS)
 
 
 # ---------------------------------------------------------------------------
 # 2. Feature engineering (5 groups)
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _explicit_synthetic_calendar(monkeypatch):
+    from quantide.strategies.example import _ml_support
+
+    class _Calendar:
+        day_frames = object()
+
+        def __init__(self) -> None:
+            cursor = dt.date(2019, 1, 1)
+            self.days = []
+            while cursor <= dt.date(2025, 12, 31):
+                if cursor.weekday() < 5:
+                    self.days.append(cursor)
+                cursor += dt.timedelta(days=1)
+
+        def get_trade_dates(self, start, end):
+            return tuple(day for day in self.days if start <= day <= end)
+
+    monkeypatch.setattr(_ml_support, "calendar", _Calendar())
 
 
 # ---------------------------------------------------------------------------
@@ -144,30 +163,19 @@ def test_future_close_return_label_uses_n_trading_day_close() -> None:
     labeled = compute_future_close_return_labels(_ohlc_panel(rows), horizon=3)
 
     first = labeled.row(0, named=True)
-    assert first["future_n_trading_day_close_return"] == pytest.approx(
-        106.0 / 100.0 - 1.0
-    )
+    assert first["future_n_trading_day_close_return"] == pytest.approx(106.0 / 100.0 - 1.0)
 
 
 def test_future_close_return_label_has_no_lookahead_on_last_horizon_rows() -> None:
     horizon = 3
-    labeled = compute_future_close_return_labels(
-        _make_synthetic_panel(), horizon=horizon
-    )
+    labeled = compute_future_close_return_labels(_make_synthetic_panel(), horizon=horizon)
 
     null_counts = labeled.group_by("asset").agg(
-        pl.col("future_n_trading_day_close_return")
-        .is_null()
-        .sum()
-        .alias("null_count")
+        pl.col("future_n_trading_day_close_return").is_null().sum().alias("null_count")
     )
-    assert null_counts["null_count"].to_list() == [horizon] * labeled[
-        "asset"
-    ].n_unique()
+    assert null_counts["null_count"].to_list() == [horizon] * labeled["asset"].n_unique()
 
-    non_null = labeled.filter(
-        pl.col("future_n_trading_day_close_return").is_not_null()
-    )
+    non_null = labeled.filter(pl.col("future_n_trading_day_close_return").is_not_null())
     assert non_null.height > 0
 
 
@@ -199,9 +207,7 @@ _CANDIDATE_KEYS = {
 
 def test_select_stocks_lightgbm_contract_has_no_exit_metadata() -> None:
     panel = _make_synthetic_panel()
-    picks = MLMomentumReversalStrategy.select_stocks(
-        bars_df=panel, config=_SELECTION_CONFIG
-    )
+    picks = MLMomentumReversalStrategy.select_stocks(bars_df=panel, config=_SELECTION_CONFIG)
 
     assert len(picks) == _SELECTION_CONFIG["top_k"]
     assert [item["rank"] for item in picks] == list(range(1, len(picks) + 1))
@@ -237,9 +243,7 @@ def test_select_stocks_prior_ridge_when_lightgbm_disabled() -> None:
 def test_fit_ml_model_reuses_labels_without_dropping_selected_features() -> None:
     panel = _make_synthetic_panel()
     feature_cols = ["rs_board_5d", "ma20_slope"]
-    normalized = standardize_features(
-        compute_alpha_features(panel), feature_cols=feature_cols
-    )
+    normalized = standardize_features(compute_alpha_features(panel), feature_cols=feature_cols)
     cache_key = ("label-cache-regression", id(normalized))
 
     first_model, first_engine = _fit_ml_model(
@@ -277,10 +281,7 @@ def test_select_stocks_accepts_missing_optional_limit_inputs() -> None:
 
 def test_select_stocks_excludes_st_stocks() -> None:
     panel = _make_synthetic_panel().with_columns(
-        pl.when(pl.col("asset") == "600001.SH")
-        .then(True)
-        .otherwise(pl.col("is_st"))
-        .alias("is_st")
+        pl.when(pl.col("asset") == "600001.SH").then(True).otherwise(pl.col("is_st")).alias("is_st")
     )
     picks = MLMomentumReversalStrategy.select_stocks(
         bars_df=panel,
@@ -317,16 +318,15 @@ def test_top_k_is_only_an_upper_bound_after_eligibility_filtering() -> None:
         }
     )
 
-    picks = _format_candidate_rows(
-        scored, dt.date(2024, 1, 2), "Prior-Ridge", limit=3
-    )
+    picks = _format_candidate_rows(scored, dt.date(2024, 1, 2), "Prior-Ridge", limit=3)
 
     assert [item["asset"] for item in picks] == ["GOOD.SZ"]
 
 
 def test_filter_universe_market_cap_trim_then_st_and_suspension(monkeypatch) -> None:
+    monkeypatch.setattr(ml_momentum_reversal.stock_list, "_data", pl.DataFrame())
     monkeypatch.setattr(
-        ml_momentum_reversal.stock_list, "_data", pl.DataFrame()
+        "quantide.strategies.example._ml_support.load_st_status_frame", lambda: None
     )
     panel = _make_synthetic_panel(n_assets=20)
     assets = sorted(panel["asset"].unique())
@@ -346,9 +346,7 @@ def test_filter_universe_market_cap_trim_then_st_and_suspension(monkeypatch) -> 
         .then(True)
         .otherwise(pl.col("is_st"))
         .alias("is_st"),
-        pl.when(
-            (pl.col("asset") == suspended_asset) & (pl.col("date") == last_date)
-        )
+        pl.when((pl.col("asset") == suspended_asset) & (pl.col("date") == last_date))
         .then(0.0)
         .otherwise(pl.col("volume"))
         .alias("volume"),
@@ -369,9 +367,7 @@ def test_filter_universe_market_cap_trim_then_st_and_suspension(monkeypatch) -> 
 def test_filter_universe_falls_back_to_liquidity_without_market_cap(
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(
-        ml_momentum_reversal.stock_list, "_data", pl.DataFrame()
-    )
+    monkeypatch.setattr(ml_momentum_reversal.stock_list, "_data", pl.DataFrame())
     panel = _make_synthetic_panel(n_assets=20)
     selected = ml_momentum_reversal._filter_universe(
         panel,
@@ -468,9 +464,7 @@ async def test_on_bar_sells_every_available_holding_absent_from_top_k() -> None:
 
     await strategy.on_bar(dt.datetime(2024, 6, 3, 14, 58))
 
-    assert [(asset, shares) for asset, shares, _kw in broker.sell_calls] == [
-        ("600001.SH", 100)
-    ]
+    assert [(asset, shares) for asset, shares, _kw in broker.sell_calls] == [("600001.SH", 100)]
     assert any("不在今日Top-1" in message for message in strategy.logs)
 
 
@@ -579,9 +573,7 @@ def test_build_strategy_rows_renders_stock_selection_button(monkeypatch) -> None
 def test_strategy_select_modal_renders_future_return_target(monkeypatch) -> None:
     _install_selection_mocks(monkeypatch, _sample_picks())
 
-    html = to_xml(
-        strategy_page.strategy_select_modal("MLMomentumReversalStrategy")
-    )
+    html = to_xml(strategy_page.strategy_select_modal("MLMomentumReversalStrategy"))
 
     assert 'id="stock-selection-table"' in html
     assert "600001.SH" in html
@@ -606,11 +598,7 @@ async def test_run_strategy_select_uses_submitted_params(monkeypatch) -> None:
         }
     )
 
-    html = to_xml(
-        await strategy_page.run_strategy_select(
-            request, "MLMomentumReversalStrategy"
-        )
-    )
+    html = to_xml(await strategy_page.run_strategy_select(request, "MLMomentumReversalStrategy"))
 
     assert calls[0]["config"]["top_k"] == 3
     assert calls[0]["config"]["use_lightgbm"] is True
@@ -652,9 +640,7 @@ def test_strategy_select_modal_exposes_loading_indicator(monkeypatch) -> None:
         lambda: "2024-12-31",
     )
 
-    html = to_xml(
-        strategy_page.strategy_select_modal("MLMomentumReversalStrategy")
-    )
+    html = to_xml(strategy_page.strategy_select_modal("MLMomentumReversalStrategy"))
 
     assert 'id="select-loading"' in html
     assert 'hx-indicator="#select-loading"' in html
@@ -692,9 +678,7 @@ def test_build_strategy_rows_marks_global_loading_indicator(monkeypatch) -> None
 
 def test_filter_universe_respects_universe_size_in_market_cap_trim_mode(monkeypatch):
     """market_cap_trim 模式必须遵守 universe_size（之前被忽略，导致截面是全市场）。"""
-    monkeypatch.setattr(
-        ml_momentum_reversal.stock_list, "_data", pl.DataFrame()
-    )
+    monkeypatch.setattr(ml_momentum_reversal.stock_list, "_data", pl.DataFrame())
     panel = _make_synthetic_panel(n_assets=20, n_days=3)
     total_date = panel["date"].max()
     panel = panel.with_columns(
@@ -710,9 +694,7 @@ def test_filter_universe_respects_universe_size_in_market_cap_trim_mode(monkeypa
 
 def test_filter_universe_market_cap_trim_draws_random_sample(monkeypatch):
     """裁剪后随机抽取 N 只（种子与日期绑定，可复现）。"""
-    monkeypatch.setattr(
-        ml_momentum_reversal.stock_list, "_data", pl.DataFrame()
-    )
+    monkeypatch.setattr(ml_momentum_reversal.stock_list, "_data", pl.DataFrame())
     panel = _make_synthetic_panel(n_assets=20, n_days=3)
     total_date = panel["date"].max()
     market_caps = {
@@ -740,9 +722,7 @@ def test_filter_universe_market_cap_trim_draws_random_sample(monkeypatch):
 
 def test_filter_universe_membership_is_stable_across_rebalance_dates(monkeypatch):
     """稳定哈希抽样：成员不随调仓日轮换（避免持仓被"未入池"强制卖出）。"""
-    monkeypatch.setattr(
-        ml_momentum_reversal.stock_list, "_data", pl.DataFrame()
-    )
+    monkeypatch.setattr(ml_momentum_reversal.stock_list, "_data", pl.DataFrame())
     panel = _make_synthetic_panel(n_assets=20, n_days=3)
     market_caps = {
         asset: float(index + 1) * 1e8
@@ -766,9 +746,7 @@ def test_filter_universe_membership_is_stable_across_rebalance_dates(monkeypatch
 
 def test_filter_universe_always_keeps_current_holdings(monkeypatch):
     """持仓优先入池，其余按稳定哈希补足，保证持仓不会被"未入池"强卖。"""
-    monkeypatch.setattr(
-        ml_momentum_reversal.stock_list, "_data", pl.DataFrame()
-    )
+    monkeypatch.setattr(ml_momentum_reversal.stock_list, "_data", pl.DataFrame())
     panel = _make_synthetic_panel(n_assets=20, n_days=3)
     market_caps = {
         asset: float(index + 1) * 1e8
@@ -796,13 +774,9 @@ def test_filter_universe_always_keeps_current_holdings(monkeypatch):
 
 def test_filter_universe_holdings_do_not_change_size(monkeypatch):
     """持仓入池后仍要补足到 universe_size。"""
-    monkeypatch.setattr(
-        ml_momentum_reversal.stock_list, "_data", pl.DataFrame()
-    )
+    monkeypatch.setattr(ml_momentum_reversal.stock_list, "_data", pl.DataFrame())
     panel = _make_synthetic_panel(n_assets=20, n_days=3)
-    panel = panel.with_columns(
-        (pl.col("close") * 1000.0).alias("total_mv")
-    )
+    panel = panel.with_columns((pl.col("close") * 1000.0).alias("total_mv"))
     total_date = panel["date"].max()
     all_assets = sorted(panel["asset"].unique().to_list())
 
@@ -821,9 +795,7 @@ def test_filter_universe_holdings_do_not_change_size(monkeypatch):
 
 def test_explain_cache_keys_include_versions_and_holdings(monkeypatch) -> None:
     """归因缓存键必须含流水线/因子版本与当时持仓，避免命中旧结果。"""
-    strategy = _make_strategy(
-        _FakeBroker(cash=0.0, positions={}), {"use_lightgbm": False}
-    )
+    strategy = _make_strategy(_FakeBroker(cash=0.0, positions={}), {"use_lightgbm": False})
     cross_key, model_key = strategy._explain_cache_keys(dt.date(2024, 6, 3))
 
     assert ml_momentum_reversal.PIPELINE_VERSION in cross_key
@@ -836,9 +808,7 @@ def test_explain_cache_keys_change_with_holdings(monkeypatch) -> None:
     """持仓不同 → 缓存键不同（选股池不同）。"""
     position = SimpleNamespace(shares=100, avail=100, price=10.0, mv=1000.0)
     empty = _make_strategy(_FakeBroker(cash=0.0, positions={}), {})
-    held = _make_strategy(
-        _FakeBroker(cash=0.0, positions={"600001.SH": position}), {}
-    )
+    held = _make_strategy(_FakeBroker(cash=0.0, positions={"600001.SH": position}), {})
 
     assert empty._explain_cache_keys(dt.date(2024, 6, 3)) != held._explain_cache_keys(
         dt.date(2024, 6, 3)
@@ -928,9 +898,7 @@ def test_replay_context_finds_panel_and_refit(monkeypatch) -> None:
 def test_replay_retrain_defers_until_realized_labels(monkeypatch) -> None:
     """回测起始日没有历史时，训练应等待标签实现而不是中断整个回测。"""
     days = _weekdays(dt.date(2024, 1, 2), 10)
-    strategy = _stub_strategy(
-        monkeypatch, days, retrain_days=1, future_return_horizon=3
-    )
+    strategy = _stub_strategy(monkeypatch, days, retrain_days=1, future_return_horizon=3)
     strategy.logs = []
     strategy.log = lambda msg, *args, **kwargs: strategy.logs.append(str(msg))
     signal_date = days[3]
@@ -953,9 +921,7 @@ def test_replay_retrain_defers_when_labels_are_unavailable(monkeypatch) -> None:
     from quantide.strategies.example import _ml_support
 
     days = _weekdays(dt.date(2024, 1, 2), 10)
-    strategy = _stub_strategy(
-        monkeypatch, days, retrain_days=1, future_return_horizon=3
-    )
+    strategy = _stub_strategy(monkeypatch, days, retrain_days=1, future_return_horizon=3)
     strategy.logs = []
     strategy.log = lambda msg, *args, **kwargs: strategy.logs.append(str(msg))
     signal_date = days[4]
@@ -967,9 +933,7 @@ def test_replay_retrain_defers_when_labels_are_unavailable(monkeypatch) -> None:
     )
 
     def _fail_fit(*args, **kwargs):
-        raise _ml_support.InsufficientTrainingDataError(
-            "训练样本不足：没有可用的未来收盘收益标签"
-        )
+        raise _ml_support.InsufficientTrainingDataError("训练样本不足：没有可用的未来收盘收益标签")
 
     monkeypatch.setattr(_ml_support, "_fit_ml_model", _fail_fit)
 
@@ -1108,12 +1072,8 @@ def test_on_bar_is_idempotent_within_same_signal_day(monkeypatch) -> None:
     tm = dt.datetime(2024, 1, 2, 14, 58, 0)
     import asyncio
 
-    asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
-        strategy.on_bar(tm)
-    )
-    asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
-        strategy.on_bar(tm)
-    )
+    asyncio.get_event_loop_policy().new_event_loop().run_until_complete(strategy.on_bar(tm))
+    asyncio.get_event_loop_policy().new_event_loop().run_until_complete(strategy.on_bar(tm))
 
     # 第二次调用被去重拦截
     assert len(calls) == 1
@@ -1200,9 +1160,7 @@ def test_research_model_artifact_does_not_move_paper_latest(tmp_path, monkeypatc
     store = ModelStore(tmp_path)
     monkeypatch.setattr(ml_momentum_reversal, "model_store", store)
     config = {**MLMomentumReversalStrategy.default_config(), "features": ["ma20_slope"]}
-    live = MLMomentumReversalStrategy(
-        SimpleNamespace(portfolio_id="paper:owned"), dict(config)
-    )
+    live = MLMomentumReversalStrategy(SimpleNamespace(portfolio_id="paper:owned"), dict(config))
     research = MLMomentumReversalStrategy(
         SimpleNamespace(portfolio_id="research:owned", _bt_start=dt.date(2024, 1, 2)),
         dict(config),
@@ -1241,3 +1199,131 @@ def test_research_model_artifact_does_not_move_paper_latest(tmp_path, monkeypatc
     historical, _ = store.load_ref(research._model_ref)
     assert historical == {"weights": "historical-research"}
     assert active.extra["model_ref"] != research._model_ref
+
+
+@pytest.mark.skipif(not HAS_LIGHTGBM, reason="lightgbm 未安装")
+def test_fit_ml_model_threads_shared_seed_into_lightgbm() -> None:
+    panel = standardize_features(
+        compute_alpha_features(_make_synthetic_panel()), feature_cols=["ma20_slope"]
+    )
+    first, first_engine = _fit_ml_model(
+        panel, use_lightgbm=True, feature_cols=["ma20_slope"], seed=7
+    )
+    second, second_engine = _fit_ml_model(
+        panel, use_lightgbm=True, feature_cols=["ma20_slope"], seed=2024
+    )
+
+    assert first_engine == second_engine == "LightGBM"
+    assert first is not None and second is not None
+    assert first.get_params()["random_state"] == 7
+    assert second.get_params()["random_state"] == 2024
+
+
+def test_strategy_seed_attribute_reaches_model_fit(monkeypatch) -> None:
+    class Captured(Exception):
+        pass
+
+    seen: list[int] = []
+
+    def capture(*_args, **kwargs):
+        seen.append(int(kwargs.get("seed", 42)))
+        raise Captured
+
+    monkeypatch.setattr(ml_momentum_reversal, "_fit_ml_model", capture)
+    with pytest.raises(Captured):
+        MLMomentumReversalStrategy.select_stocks(
+            bars_df=_make_synthetic_panel(),
+            config={**_SELECTION_CONFIG, "seed": 99, "use_lightgbm": False},
+        )
+
+    assert seen == [99]
+
+
+def test_training_target_frozen_three_label_oracle(monkeypatch) -> None:
+    """Frozen 3-asset x 9-label table with ST exclusion and tied returns."""
+    from quantide.strategies.example import _ml_support
+    from quantide.strategies.example._ml_support import _training_feature_panel
+
+    dates = [dt.date(2024, 1, 2) + dt.timedelta(days=i) for i in range(10)]
+    prices = {
+        "A": [10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+        "B": [20, 19, 18, 17, 16, 15, 14, 13, 12, 11],
+        "C": [5, 5, 5, 6, 6, 6, 7, 7, 7, 8],
+    }
+    ineligible = {("A", 2), ("B", 4), ("C", 1)}
+    rows = [
+        {
+            "date": dates[index],
+            "asset": asset,
+            "close": float(values[index]),
+            "ma20_slope": 1.0,
+            "ma20_slope_z": 1.0,
+            "_eligible": (asset, index) not in ineligible,
+        }
+        for asset, values in prices.items()
+        for index in range(10)
+    ]
+    frame = pl.DataFrame(rows).sort(["asset", "date"])
+
+    class _Calendar:
+        day_frames = tuple([*dates, dates[-1] + dt.timedelta(days=1)])
+
+        @staticmethod
+        def get_trade_dates(start, end):
+            return [day for day in _Calendar.day_frames if start <= day <= end]
+
+        @staticmethod
+        def day_shift(day, count):
+            return day + dt.timedelta(days=count)
+
+    monkeypatch.setattr(_ml_support, "calendar", _Calendar())
+    expected = {
+        "raw_return": {
+            (dates[0], "A"): 0.1,
+            (dates[0], "B"): -0.05,
+            (dates[0], "C"): 0.0,
+            (dates[1], "A"): 0.0909090909,
+            (dates[1], "B"): -0.0526315789,
+            (dates[2], "B"): -0.0555555556,
+            (dates[2], "C"): 0.2,
+            (dates[8], "A"): 0.0555555556,
+            (dates[8], "B"): -0.0833333333,
+            (dates[8], "C"): 0.1428571429,
+        },
+        "excess_mean": {
+            (dates[0], "A"): 0.0833333333,
+            (dates[0], "B"): -0.0666666667,
+            (dates[0], "C"): -0.0166666667,
+            (dates[1], "A"): 0.0717703349,
+            (dates[1], "B"): -0.0717703349,
+            (dates[2], "B"): -0.1277777778,
+            (dates[2], "C"): 0.1277777778,
+            (dates[8], "C"): 0.1044973545,
+        },
+        "cs_rank": {
+            (dates[0], "A"): 0.5,
+            (dates[0], "B"): -0.1666666667,
+            (dates[0], "C"): 0.1666666667,
+            (dates[1], "A"): 0.5,
+            (dates[1], "B"): 0.0,
+            (dates[2], "B"): 0.0,
+            (dates[2], "C"): 0.5,
+            (dates[8], "C"): 0.5,
+        },
+    }
+
+    for label_kind, values in expected.items():
+        _, training = _training_feature_panel(["ma20_slope"], None, frame, 1, 45, label_kind)
+        observed = {
+            (row["date"], row["asset"]): float(row["label_y"])
+            for row in training.iter_rows(named=True)
+        }
+        assert (dates[9], "A") not in observed
+        for key, value in values.items():
+            assert observed[key] == pytest.approx(value, abs=1e-10)
+        assert set(observed) == {
+            (dates[index], asset)
+            for asset, asset_prices in prices.items()
+            for index in range(9)
+            if (asset, index) not in ineligible
+        }

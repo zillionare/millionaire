@@ -10,10 +10,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from quantide.audit.factor import factor_config_hash
+from quantide.audit.factor import FACTOR_AUDIT_VERSION, factor_config_hash
 from quantide.audit.future import frame_digest
 from quantide.audit.models import AuditReport, canonical_hash
-from quantide.audit.plugin_factor import plugin_config_hash
+from quantide.audit.plugin_factor import PLUGIN_AUDIT_VERSION, plugin_config_hash
 from quantide.audit.store import ReportStore
 from quantide.config.paths import get_app_config_dir
 from quantide.core.atomic_files import write_json
@@ -165,6 +165,7 @@ def remember_factor_audit(
         "source_hash": report.spec.source_hash,
         "config_hash": report.spec.config_hash,
         "data_hash": report.spec.data_hash,
+        "oracle_version": report.spec.oracle_version,
         "data_signature": _data_signature(),
         "interval": report.spec.interval,
         "price_adjustment": str(
@@ -184,23 +185,33 @@ def remember_factor_audit(
         _save_records(records)
 
 
-def _cutoff_dates(record: dict[str, Any]) -> tuple[dt.date, ...]:
+def _cutoff_dates(record: dict[str, Any]) -> tuple[dt.date | dt.datetime, ...]:
+    """Read cutoffs losslessly so 30m time-of-day survives a badge round-trip."""
     values = record.get("cutoffs") or []
-    dates: list[dt.date] = []
+    dates: list[dt.date | dt.datetime] = []
     for value in values:
+        text = str(value)
         try:
-            dates.append(dt.date.fromisoformat(str(value)))
+            parsed = dt.datetime.fromisoformat(text) if "T" in text else dt.date.fromisoformat(text)
         except ValueError:
             continue
+        dates.append(parsed)
     return tuple(dates)
 
 
 def _record_dates(record: dict[str, Any]) -> tuple[dt.date | None, dt.date | None]:
     def _parse(value: Any) -> dt.date | None:
+        if not value:
+            return None
         try:
-            return dt.date.fromisoformat(str(value)) if value else None
+            parsed = (
+                dt.datetime.fromisoformat(str(value))
+                if "T" in str(value)
+                else dt.date.fromisoformat(str(value))
+            )
         except ValueError:
             return None
+        return parsed.date() if isinstance(parsed, dt.datetime) else parsed
 
     return _parse(record.get("data_start")), _parse(record.get("data_end"))
 
@@ -263,20 +274,30 @@ def _current_config_hash(
 
 
 def _fingerprints_match(
-    record: dict[str, Any], source_hash: str, config_hash: str, data_hash: str
+    record: dict[str, Any],
+    source_hash: str,
+    config_hash: str,
+    data_hash: str,
+    oracle_version: str,
 ) -> bool:
     current = {
         "source_hash": source_hash,
         "config_hash": config_hash,
         "data_hash": data_hash,
+        "oracle_version": oracle_version,
     }
     return all(value and value == record.get(name) for name, value in current.items())
 
 
 def _badge_status(
-    recorded_status: str, source_hash: str, config_hash: str, data_hash: str, record: dict[str, Any]
+    recorded_status: str,
+    source_hash: str,
+    config_hash: str,
+    data_hash: str,
+    oracle_version: str,
+    record: dict[str, Any],
 ) -> BadgeStatus:
-    if not _fingerprints_match(record, source_hash, config_hash, data_hash):
+    if not _fingerprints_match(record, source_hash, config_hash, data_hash, oracle_version):
         return "STALE"
     if recorded_status == "FAIL":
         return "FAIL"
@@ -324,11 +345,17 @@ def _record_badge(
         if bound_source_hash and (plugin is None or plugin.source_hash != bound_source_hash)
         else _current_config_hash(factor_id, record, plugin)
     )
+    oracle_version = PLUGIN_AUDIT_VERSION if plugin is not None else FACTOR_AUDIT_VERSION
     return WindTunnelBadgeView(
         target_kind="factor",
         target_id=factor_id,
         badge_status=_badge_status(
-            str(record.get("status") or ""), source_hash, config_hash, data_hash, record
+            str(record.get("status") or ""),
+            source_hash,
+            config_hash,
+            data_hash,
+            oracle_version,
+            record,
         ),
         run_id=_optional_text(record.get("run_id")),
         checked_at=_optional_text(record.get("checked_at")),
@@ -358,6 +385,7 @@ def _record_from_report(payload: dict[str, Any], factor_id: str) -> dict[str, An
         "source_hash": payload.get("source_hash"),
         "config_hash": payload.get("config_hash"),
         "data_hash": payload.get("data_hash"),
+        "oracle_version": payload.get("oracle_version"),
         "check_items": _check_items(payload),
         "first_difference_summary": _first_difference_summary(payload),
     }

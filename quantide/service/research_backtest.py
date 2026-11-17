@@ -250,7 +250,9 @@ def _explain_with_class(
         return None
     try:
         strategy = strategy_cls(
-            attribution._AttributionBroker(attribution.load_holdings_at(run_id, signal_date), end),
+            attribution._AttributionBroker(
+                attribution.load_holdings_at(run_id, signal_date), end, start
+            ),
             config,
         )
         strategy._positions_by_date = attribution.load_positions_by_date(run_id)

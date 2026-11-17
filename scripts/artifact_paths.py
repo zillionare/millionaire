@@ -73,6 +73,8 @@ def artifact_environment() -> dict[str, str]:
         "COVERAGE_FILE": str(root / "coverage/.coverage"),
         "RUFF_CACHE_DIR": str(root / "ruff-cache"),
         "MYPY_CACHE_DIR": str(root / "mypy-cache"),
+        "PYLINTHOME": str(root / "pylint"),
+        "PYTHONDONTWRITEBYTECODE": "1",
         "PYTEST_ADDOPTS": f"{os.environ.get('PYTEST_ADDOPTS', '')} -o {cache}".strip(),
     }
 

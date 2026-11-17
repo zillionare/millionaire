@@ -78,7 +78,10 @@ def _intraday_row(slot: str, sources: Mapping[str, Mapping[str, Any]]) -> Any:
     return Tr(
         Td(slot.replace("T", " ").replace("+08:00", ""), cls="whitespace-nowrap"),
         Td(f"{float(shadow['nav']):,.2f}" if shadow else "-", cls="text-right"),
-        Td(f"{float(actual['nav']):,.2f}" if actual else "-", cls="text-right"),
+        Td(
+            f"{float(actual['nav']):,.2f}" if actual else ("实际缺失" if shadow else "-"),
+            cls="text-right text-amber-600" if shadow and not actual else "text-right",
+        ),
         Td(f"{diff:,.2f}" if diff is not None else "-", cls="text-right"),
         Td(_positions_text(shadow), cls="text-xs"),
         Td(_positions_text(actual), cls="text-xs"),
@@ -110,10 +113,17 @@ def _intraday_section(portfolio_id: str, run: Mapping[str, Any] | None) -> Any:
         return Span()
     rows = _intraday_rows(bars)
     gaps = list((run or {}).get("gap_slots") or [])
+    by_slot: dict[str, set[str]] = {}
+    for bar in bars:
+        by_slot.setdefault(str(bar["bar_slot"]), set()).add(str(bar["source"]))
+    missing_actual = sum(
+        1 for sources in by_slot.values() if "dry_run" in sources and "actual" not in sources
+    )
     gap_text = f"待回补: {', '.join(gaps[-5:])}" if gaps else "无待回补缺口"
     return Div(
         H2("逐 30m bar", cls="mt-6 text-base font-semibold text-gray-900"),
         Span(
+            f"实际缺失 {missing_actual} 个 · " if missing_actual else "",
             f"待回补缺口 {len(gaps)} 个 · {gap_text}" if gaps else gap_text,
             cls="text-xs text-gray-500",
         ),

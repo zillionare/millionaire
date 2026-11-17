@@ -30,6 +30,14 @@ from quantide.service.factor_audit import (
 
 
 @dataclass(frozen=True)
+class WindTunnelInput:
+    """Native audit bars and the exact raw daily data used to aggregate them."""
+
+    frame: pl.DataFrame
+    source_daily: pl.DataFrame | None = None
+
+
+@dataclass(frozen=True)
 class WindTunnelResult:
     """One factor check plus cross-sectional redundancy diagnostics."""
 
@@ -125,6 +133,48 @@ def _monthly_frame(frame: pl.DataFrame, price_adjustment: str = "hfq") -> pl.Dat
     return monthly
 
 
+def load_wind_tunnel_inputs(
+    start: dt.date,
+    end: dt.date,
+    *,
+    assets: list[str] | None = None,
+    interval: str = "1d",
+    price_adjustment: str = "hfq",
+) -> WindTunnelInput:
+    """Load one source snapshot, retaining daily provenance for monthly peers."""
+    if interval == "30m":
+        from quantide.data.models.minute_bars import minute_bars
+
+        frame = minute_bars.get_bars_in_range(start, end, assets=assets, adjust=None)
+    else:
+        from quantide.data.models.daily_bars import daily_bars
+
+        if interval == "1M":
+            start = start.replace(day=1)
+        frame = daily_bars.get_bars_in_range(
+            start, end, assets=assets, adjust=None, eager_mode=True
+        )
+    if isinstance(frame, pl.LazyFrame):
+        frame = frame.collect()
+    if frame is None or frame.is_empty():
+        raise ValueError("指定区间没有可用行情")
+    source_daily = None
+    if interval == "30m":
+        frame = frame.with_columns(pl.col("date").cast(pl.Datetime("ms")).alias("dt"))
+        date_col = "dt"
+    else:
+        frame = frame.with_columns(pl.col("date").cast(pl.Date))
+        date_col = "date"
+        if interval == "1M":
+            source_daily = frame
+            frame = _monthly_frame(frame, price_adjustment)
+            date_col = "dt"
+    frame = frame.sort(["asset", date_col])
+    if "available_at" not in frame.columns:
+        frame = frame.with_columns(pl.col(date_col).alias("available_at"))
+    return WindTunnelInput(frame, source_daily)
+
+
 def load_wind_tunnel_frame(
     start: dt.date,
     end: dt.date,
@@ -133,34 +183,10 @@ def load_wind_tunnel_frame(
     interval: str = "1d",
     price_adjustment: str = "hfq",
 ) -> pl.DataFrame:
-    """Load native bars for the requested audit interval."""
-    if interval == "30m":
-        from quantide.data.models.minute_bars import minute_bars
-
-        frame = minute_bars.get_bars_in_range(start, end, assets=assets, adjust=None)
-    else:
-        from quantide.data.models.daily_bars import daily_bars
-
-        frame = daily_bars.get_bars_in_range(
-            start, end, assets=assets, adjust=None, eager_mode=True
-        )
-    if isinstance(frame, pl.LazyFrame):
-        frame = frame.collect()
-    if frame is None or frame.is_empty():
-        raise ValueError("指定区间没有可用行情")
-    if interval == "1M":
-        frame = _monthly_frame(frame, price_adjustment)
-        date_col = "dt"
-    elif interval == "30m":
-        frame = frame.with_columns(pl.col("date").cast(pl.Datetime("ms")).alias("dt"))
-        date_col = "dt"
-    else:
-        frame = frame.with_columns(pl.col("date").cast(pl.Date))
-        date_col = "date"
-    frame = frame.sort(["asset", date_col])
-    if "available_at" not in frame.columns:
-        frame = frame.with_columns(pl.col(date_col).alias("available_at"))
-    return frame
+    """Load native bars; callers needing monthly peers retain the input record."""
+    return load_wind_tunnel_inputs(
+        start, end, assets=assets, interval=interval, price_adjustment=price_adjustment
+    ).frame
 
 
 def _cutoffs_for(frame: pl.DataFrame, count: int = 3, date_col: str = "date") -> tuple[Any, ...]:
@@ -197,12 +223,96 @@ def _empty_orthogonality(factor_id: str) -> FactorOrthogonalitySummary:
     )
 
 
+def _monthly_orthogonality(
+    factor_id: str,
+    raw: pl.DataFrame,
+    plugin: FactorPlugin,
+    daily_frame: pl.DataFrame | None,
+) -> FactorOrthogonalitySummary:
+    """Rebuild each monthly plugin from the same raw daily bars in its own basis."""
+    if raw.is_empty() or "dt" not in raw.columns or daily_frame is None:
+        return _empty_orthogonality(factor_id)
+    original = daily_frame
+    if original.is_empty() or "adjust" not in original.columns:
+        return _empty_orthogonality(factor_id)
+    hfq = _monthly_frame(original, "hfq")
+    raw_monthly = _monthly_frame(original, "raw")
+    frames = {"hfq": hfq, "raw": raw_monthly}
+    panel = compute_plugin(frames.get(plugin.price_adjustment, hfq), plugin).select(
+        ["asset", "dt", factor_id]
+    )
+    peers = [
+        item
+        for item in discover_factor_plugins().plugins
+        if item.factor_id != factor_id and item.bar_interval == "1M"
+    ]
+    for peer in peers:
+        try:
+            computed = compute_plugin(frames.get(peer.price_adjustment, hfq), peer)
+        except Exception:
+            continue
+        panel = panel.join(
+            computed.select(["asset", "dt", peer.factor_id]),
+            on=["asset", "dt"],
+            how="left",
+        )
+    return orthogonality_summary(
+        factor_id,
+        panel,
+        peers=[item.factor_id for item in peers],
+        date_col="dt",
+    )
+
+
+def _matching_monthly_source(
+    raw: pl.DataFrame, plugin: FactorPlugin, daily: pl.DataFrame | None
+) -> pl.DataFrame | None:
+    """Accept explicit provenance only when it reproduces the supplied monthly bars."""
+    if daily is None or daily.is_empty():
+        return None
+    try:
+        expected = _monthly_frame(daily, plugin.price_adjustment)
+        columns = list(
+            dict.fromkeys(
+                column
+                for column in (
+                    "asset",
+                    "dt",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "amount",
+                    "adjust",
+                    *plugin.required_columns,
+                )
+                if column in raw.columns and column in expected.columns
+            )
+        )
+        if not {"asset", "dt", *plugin.required_columns}.issubset(columns):
+            return None
+        supplied = raw.select(columns).with_columns(pl.col("dt").cast(pl.Datetime("ms")))
+        expected = expected.select(columns).with_columns(pl.col("dt").cast(pl.Datetime("ms")))
+        return (
+            daily if supplied.sort(["asset", "dt"]).equals(expected.sort(["asset", "dt"])) else None
+        )
+    except (ValueError, pl.exceptions.PolarsError):
+        return None
+
+
 def _orthogonality_for(
-    factor_id: str, raw: pl.DataFrame, plugin: FactorPlugin | None = None
+    factor_id: str,
+    raw: pl.DataFrame,
+    plugin: FactorPlugin | None = None,
+    *,
+    daily_frame: pl.DataFrame | None = None,
 ) -> FactorOrthogonalitySummary:
     interval = plugin.bar_interval if plugin is not None else "1d"
     date_col = "date" if interval == "1d" else "dt"
     try:
+        if interval == "1M" and plugin is not None:
+            return _monthly_orthogonality(factor_id, raw, plugin, daily_frame)
         panel = compute_feature_panel(raw, interval=interval)
         if plugin is not None and factor_id not in panel.columns:
             computed = compute_plugin(raw, plugin)
@@ -238,11 +348,26 @@ def _save_result(
     from quantide.service.factor_audit import remember_factor_audit
 
     ReportStore().save(result.report)
-    dates = raw["date"].to_list()
+    date_col = "dt" if "dt" in raw.columns else "date"
+    dates = raw[date_col].to_list()
+    data_start = (
+        min(dates).date()
+        if dates and isinstance(min(dates), dt.datetime)
+        else min(dates)
+        if dates
+        else None
+    )
+    data_end = (
+        max(dates).date()
+        if dates and isinstance(max(dates), dt.datetime)
+        else max(dates)
+        if dates
+        else None
+    )
     remember_factor_audit(
         result,
-        data_start=min(dates) if dates else None,
-        data_end=max(dates) if dates else None,
+        data_start=data_start,
+        data_end=data_end,
         cutoffs=cutoffs,
         modes=modes,
         seeds=seeds,
@@ -257,19 +382,25 @@ def _wind_inputs(
     assets: list[str] | None,
     plugin: FactorPlugin | None,
     interval: str | None,
-) -> tuple[pl.DataFrame, FactorPlugin | None, str, str]:
+    source_daily: pl.DataFrame | None,
+) -> tuple[pl.DataFrame, FactorPlugin | None, str, str, pl.DataFrame | None]:
     resolved_plugin = plugin or discover_factor_plugins().by_id(factor_id)
     bar_interval = interval or (resolved_plugin.bar_interval if resolved_plugin else "1d")
+    if resolved_plugin is not None and bar_interval != resolved_plugin.bar_interval:
+        raise ValueError("请求周期与因子固有周期不一致")
     raw = frame
     if raw is None:
         if start is None or end is None:
             raise ValueError("必须提供 frame 或 start/end")
         adjustment = str(getattr(resolved_plugin, "price_adjustment", "hfq") or "hfq")
-        raw = load_wind_tunnel_frame(
+        loaded = load_wind_tunnel_inputs(
             start, end, assets=assets, interval=bar_interval, price_adjustment=adjustment
         )
+        raw, source_daily = loaded.frame, loaded.source_daily
+    elif resolved_plugin is not None and bar_interval == "1M":
+        source_daily = _matching_monthly_source(raw, resolved_plugin, source_daily)
     date_col = "date" if bar_interval == "1d" else "dt"
-    return raw, resolved_plugin, bar_interval, date_col
+    return raw, resolved_plugin, bar_interval, date_col, source_daily
 
 
 def _wind_evidence(
@@ -280,6 +411,7 @@ def _wind_evidence(
     seeds: tuple[int, ...],
     plugin: FactorPlugin | None,
     resolved_plugin: FactorPlugin | None,
+    source_daily: pl.DataFrame | None,
 ) -> tuple[AuditReport, FactorOrthogonalitySummary]:
     report = _audit(
         factor_id,
@@ -291,7 +423,9 @@ def _wind_evidence(
     )
     orthogonality = _empty_orthogonality(factor_id)
     if report.status is AuditStatus.PASS:
-        orthogonality = _orthogonality_for(factor_id, raw, resolved_plugin)
+        orthogonality = _orthogonality_for(
+            factor_id, raw, resolved_plugin, daily_frame=source_daily
+        )
     return report, orthogonality
 
 
@@ -308,6 +442,7 @@ class _WindRequest:
     plugin: FactorPlugin | None
     interval: str | None
     save: bool
+    source_daily: pl.DataFrame | None = None
 
 
 def _inconclusive_calendar_result(factor_id: str, message: str) -> WindTunnelResult:
@@ -349,7 +484,7 @@ def _inconclusive_calendar_result(factor_id: str, message: str) -> WindTunnelRes
 
 def _execute_wind_request(request: _WindRequest) -> WindTunnelResult:
     try:
-        raw, resolved_plugin, _bar_interval, date_col = _wind_inputs(
+        raw, resolved_plugin, bar_interval, date_col, source_daily = _wind_inputs(
             request.factor_id,
             request.frame,
             request.start,
@@ -357,6 +492,7 @@ def _execute_wind_request(request: _WindRequest) -> WindTunnelResult:
             request.assets,
             request.plugin,
             request.interval,
+            request.source_daily,
         )
     except MonthlyCalendarUnavailable as exc:
         return _inconclusive_calendar_result(request.factor_id, str(exc))
@@ -373,6 +509,7 @@ def _execute_wind_request(request: _WindRequest) -> WindTunnelResult:
         request.seeds,
         request.plugin,
         resolved_plugin,
+        source_daily,
     )
     result = WindTunnelResult(
         factor_id=request.factor_id,
@@ -381,6 +518,13 @@ def _execute_wind_request(request: _WindRequest) -> WindTunnelResult:
         metadata={
             "cutoffs": [value.isoformat() for value in resolved_cutoffs],
             "price_adjustment": str(getattr(resolved_plugin, "price_adjustment", "hfq") or "hfq"),
+            "orthogonality_provenance": (
+                "native_frame"
+                if bar_interval != "1M"
+                else "original_raw_daily"
+                if source_daily is not None
+                else "raw_daily_unavailable"
+            ),
         },
     )
     if request.save:
@@ -398,6 +542,7 @@ def run_factor_wind_tunnel(
     factor_id: str,
     *,
     frame: pl.DataFrame | None = None,
+    source_daily: pl.DataFrame | None = None,
     start: dt.date | None = None,
     end: dt.date | None = None,
     assets: list[str] | None = None,
@@ -421,6 +566,7 @@ def run_factor_wind_tunnel(
         plugin=plugin,
         interval=interval,
         save=save,
+        source_daily=source_daily,
     )
     return _execute_wind_request(request)
 
@@ -428,8 +574,10 @@ def run_factor_wind_tunnel(
 __all__ = [
     "WindTunnelBadgeView",
     "WindTunnelResult",
+    "WindTunnelInput",
     "backtest_wind_tunnel_badge",
     "factor_wind_tunnel_badge",
     "load_wind_tunnel_frame",
+    "load_wind_tunnel_inputs",
     "run_factor_wind_tunnel",
 ]

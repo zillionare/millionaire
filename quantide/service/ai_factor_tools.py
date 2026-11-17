@@ -62,20 +62,26 @@ def _wind_tunnel_worker(payload: dict[str, Any]) -> dict[str, Any]:
     _prepare_isolated_worker(payload)
     from quantide.factors.plugins import _load_plugin
     from quantide.service.factor_wind_tunnel import (
-        load_wind_tunnel_frame,
+        load_wind_tunnel_inputs,
         run_factor_wind_tunnel,
     )
 
     factor_id = str(payload["factor_id"])
     source = Path(payload["factor_dir"]) / f"{factor_id}.py"
     plugin = _load_plugin(source)
-    frame = load_wind_tunnel_frame(
+    inputs = load_wind_tunnel_inputs(
         dt.date.fromisoformat(payload["start"]),
         dt.date.fromisoformat(payload["end"]),
         interval=plugin.bar_interval,
+        price_adjustment=plugin.price_adjustment,
     )
     result = run_factor_wind_tunnel(
-        factor_id, frame=frame, plugin=plugin, interval=plugin.bar_interval, save=True
+        factor_id,
+        frame=inputs.frame,
+        source_daily=inputs.source_daily,
+        plugin=plugin,
+        interval=plugin.bar_interval,
+        save=True,
     )
     return result.as_dict()
 
@@ -316,6 +322,39 @@ def _study_summary(result: dict[str, Any]) -> dict[str, Any]:
         "data_cutoff": result.get("data_cutoff"),
         "results": rows,
         "common_cohort": result.get("common_cohort"),
+        "universe_filter": result.get("universe_filter"),
+        "universe": _universe_digest(result.get("universe_diagnostics")),
+    }
+
+
+def _universe_digest(diagnostics: Any) -> dict[str, Any] | None:
+    """Summarize PIT eligibility so the model sees downgrades without full members."""
+    if not isinstance(diagnostics, dict):
+        return None
+    by_date = diagnostics.get("by_date") or {}
+    warnings: set[str] = set()
+    size_bases: set[str] = set()
+    counts: dict[str, int] = {}
+    effective = 0
+    capped = False
+    for entry in by_date.values():
+        if not isinstance(entry, dict):
+            continue
+        warnings.update(str(item) for item in entry.get("warnings") or ())
+        size_bases.add(str(entry.get("size_basis") or "none"))
+        for key, value in (entry.get("exclusion_counts") or {}).items():
+            counts[key] = counts.get(key, 0) + int(value)
+        effective += len(entry.get("assets") or ())
+        capped = capped or bool(entry.get("capped"))
+    return {
+        "applied": diagnostics.get("applied"),
+        "config": diagnostics.get("config"),
+        "dates": len(by_date),
+        "effective_rows": effective,
+        "warnings": sorted(warnings),
+        "size_bases": sorted(size_bases),
+        "exclusion_counts": counts,
+        "capped": capped,
     }
 
 
@@ -368,11 +407,32 @@ def _preset_source(arguments: dict[str, Any], factor_id: str) -> tuple[str, list
     return baseline_id, list(baseline.features), baseline.strategy_id
 
 
-def _preset_ablation(baseline_id: str, strategy_id: str, preset_id: str) -> dict[str, Any]:
-    from quantide.service.research_backtest import AblationStudySpec, run_ablation
-
+def _preset_window(arguments: dict[str, Any]) -> tuple[dt.date, dt.date]:
     start, end = _coverage_window()
     start = max(start, end - dt.timedelta(days=365))
+    raw_start = str(arguments.get("start") or "").strip()
+    raw_end = str(arguments.get("end") or "").strip()
+    if not raw_start and not raw_end:
+        return start, end
+    try:
+        requested_start = dt.date.fromisoformat(raw_start) if raw_start else start
+        requested_end = dt.date.fromisoformat(raw_end) if raw_end else end
+    except ValueError as exc:
+        raise AIToolError("invalid_window", "start/end 必须是 YYYY-MM-DD。") from exc
+    if requested_start > requested_end:
+        raise AIToolError("invalid_window", "start 不能晚于 end。")
+    return max(start, requested_start), min(end, requested_end)
+
+
+def _preset_ablation(
+    baseline_id: str,
+    strategy_id: str,
+    preset_id: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    from quantide.service.research_backtest import AblationStudySpec, run_ablation
+
+    start, end = _preset_window(arguments)
     spec = AblationStudySpec(
         baseline_preset_id=baseline_id,
         variant_preset_ids=(preset_id,),
@@ -409,7 +469,11 @@ def save_preset_and_run_ablation(
     )
     payload: dict[str, Any] = {"ok": True, "preset": preset.as_dict(), "ablation": None}
     if baseline_id:
-        payload.update(_preset_ablation(baseline_id, strategy_id, preset.preset_id))
+        payload.update(_preset_ablation(baseline_id, strategy_id, preset.preset_id, args))
+        if payload.get("ablation_error"):
+            payload["ok"] = False
+            payload["code"] = "ablation_failed"
+            payload["message"] = f"消融回测失败：{payload['ablation_error']}"
     return payload
 
 
@@ -498,6 +562,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "type": "string",
                         "enum": ["raw_return", "excess_mean", "cs_rank"],
                     },
+                    "start": {"type": ["string", "null"]},
+                    "end": {"type": ["string", "null"]},
                 },
                 "required": ["preset_id", "name", "add_factor_id"],
             },

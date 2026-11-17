@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import sys
@@ -168,12 +169,60 @@ class ScopeControlTest(unittest.TestCase):
             "dingtalk_alert",
             "email_alert",
         )
-        text = "\n".join(
-            path.read_text(encoding="utf-8", errors="ignore")
-            for path in ROOT.joinpath("quantide").rglob("*.py")
-        )
-        for token in forbidden:
-            self.assertNotIn(token, text)
+        for path in ROOT.joinpath("quantide").rglob("*.py"):
+            found = _active_tokens(path)
+            for token in forbidden:
+                self.assertNotIn(token, path.stem, path)
+                self.assertNotIn(token, found, path)
+
+    def test_scope_ast_counterexample_separates_metadata_from_active_code(self) -> None:
+        active = ast.parse("def send_test_alert():\n    pass\n")
+        metadata = ast.parse('DESCRIPTION = "send_test_alert"\n')
+        self.assertIn("send_test_alert", _active_tokens_from_tree(active))
+        self.assertNotIn("send_test_alert", _active_tokens_from_tree(metadata))
+
+
+def _active_tokens(path: Path) -> set[str]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+    except SyntaxError:
+        return set()
+    return _active_tokens_from_tree(tree)
+
+
+def _active_tokens_from_tree(tree: ast.AST) -> set[str]:
+    tokens: set[str] = set()
+    route_calls = {"route", "get", "post", "put", "delete", "add_route", "add_api_route"}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            tokens.add(node.name)
+        elif isinstance(node, ast.Name):
+            tokens.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            tokens.add(node.attr)
+        elif isinstance(node, ast.Import):
+            tokens.update(alias.name.rsplit(".", 1)[-1] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            tokens.add(str(node.module or "").rsplit(".", 1)[-1])
+            tokens.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.Call):
+            name = _call_name(node.func)
+            tokens.add(name)
+            if name in route_calls:
+                tokens.update(
+                    str(argument.value)
+                    for argument in node.args
+                    if isinstance(argument, ast.Constant) and isinstance(argument.value, str)
+                )
+    return tokens
+
+
+def _call_name(node: ast.AST) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return ""
 
 
 if __name__ == "__main__":

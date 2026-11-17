@@ -5,7 +5,16 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from quantide.audit.acceptance import collect_nodeids, matrix
+import pytest
+
+from quantide.audit.acceptance import (
+    AcceptanceEntry,
+    _evidence_source,
+    _node_in_evidence,
+    collect_nodeids,
+    matrix,
+    validate_manifest,
+)
 
 _ALPHA = "tests/unit/quantide/web/pages/system/test_alpha_ledger_removed.py"
 _ALPHA_NODE = f"{_ALPHA}::test_alpha_ledger_page_removed"
@@ -166,5 +175,95 @@ def test_v05_acceptance_declares_all_28_evidence_entries() -> None:
         assert entry.requirement
         assert entry.behavior
         assert entry.evidence
-        assert all(Path(path).exists() for path in entry.evidence), (ac, entry.evidence)
+        assert all(Path(_evidence_source(path)).exists() for path in entry.evidence), (
+            ac,
+            entry.evidence,
+        )
+        assert all("::" in path for path in entry.evidence), (ac, entry.evidence)
         assert entry.status not in {"skip", "xfail"}
+
+
+def test_exact_node_evidence_expands_parameterized_instances() -> None:
+    path = "tests/unit/quantide/strategies/test_v05_pit_and_labels.py"
+    evidence = f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files"
+    assert _node_in_evidence(
+        f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files[a]", evidence
+    )
+    assert not _node_in_evidence(
+        f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files_extra", evidence
+    )
+    assert not _node_in_evidence(f"{path}::test_other", evidence)
+
+
+def test_manifest_cannot_delete_parameter_instances_or_add_unknown_nodes() -> None:
+    path = "tests/unit/quantide/strategies/test_v05_pit_and_labels.py"
+    declared = {
+        "AC-5016": [
+            f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files[a]",
+            f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files[b]",
+        ]
+    }
+    entries = (AcceptanceEntry("AC-5016", "FR-5009", "listing contract"),)
+    with pytest.raises(ValueError, match="AC-5016"):
+        validate_manifest(
+            {"AC-5016": [f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files[a]"]},
+            declared,
+            entries=entries,
+        )
+    with pytest.raises(ValueError, match="AC-5016"):
+        validate_manifest(
+            {
+                "AC-5016": [
+                    f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files[a]",
+                    f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files[b]",
+                    f"{path}::test_not_real",
+                ]
+            },
+            declared,
+            entries=entries,
+        )
+
+
+def test_matrix_with_declared_v05_manifest_requires_exact_instance_set(tmp_path) -> None:
+    path = "tests/unit/quantide/strategies/test_v05_pit_and_labels.py"
+    node = f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files[a]"
+    other = f"{path}::test_panel_cache_fingerprint_tracks_all_pit_input_files[b]"
+    report = tmp_path / "v05.xml"
+    report.write_text(
+        "<testsuites><testsuite>"
+        '<testcase classname="tests.unit.quantide.strategies.test_v05_pit_and_labels" '
+        'name="test_panel_cache_fingerprint_tracks_all_pit_input_files[a]" />'
+        "</testsuite></testsuites>",
+        encoding="utf-8",
+    )
+    payload = matrix(
+        [report],
+        {"AC-5016": [node]},
+        declared={"AC-5016": [node, other]},
+        scope="v05",
+    )
+    statuses = {entry["ac"]: entry["status"] for entry in payload["entries"]}
+    assert statuses["AC-5016"] == "mapped"
+    assert payload["total"] == 28
+
+
+def test_v05_scope_covered_count_matches_selected_entries() -> None:
+    payload = matrix(scope="v05")
+    assert payload["total"] == 28
+    assert payload["covered"] == 0
+    assert payload["total"] == payload["covered"] + len(payload["pending"])
+
+
+def test_a_misspelled_required_selector_cannot_hide_behind_a_real_one(monkeypatch) -> None:
+    from quantide.audit import acceptance
+
+    source = "tests/unit/quantide/service/test_v05_c1_identity.py"
+    good = f"{source}::test_model_key_encodes_effective_seed"
+    bad = f"{source}::test_typo_not_a_real_test"
+    monkeypatch.setattr(acceptance, "collect_nodeids", lambda paths: {good})
+    entry = acceptance.AcceptanceEntry("AC-5017", "FR-5010", "seed identity", (good, bad))
+    with pytest.raises(ValueError, match="selector matched no test"):
+        acceptance.collect_manifest((entry,))
+    assert acceptance.collect_manifest((acceptance.replace(entry, evidence=(good,)),)) == {
+        "AC-5017": [good]
+    }

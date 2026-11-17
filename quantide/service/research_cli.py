@@ -23,7 +23,12 @@ from quantide.factors.plugins import (
 from quantide.factors.registry import all_factor_ids, factor_metadata, factor_version
 from quantide.service.factor_audit import factor_wind_tunnel_badge
 from quantide.service.factor_study import run_custom_study
-from quantide.service.factor_wind_tunnel import load_wind_tunnel_frame, run_factor_wind_tunnel
+from quantide.service.factor_wind_tunnel import (
+    WindTunnelInput,
+    load_wind_tunnel_frame,
+    load_wind_tunnel_inputs,
+    run_factor_wind_tunnel,
+)
 
 _FACTOR_ID = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
 
@@ -264,13 +269,16 @@ def _resolve_target(target: str) -> tuple[str, FactorPlugin | None]:
         plugin = load_factor_plugin(path)
         return plugin.factor_id, plugin
     if target in all_factor_ids():
-        return target, None
+        return target, discover_factor_plugins().by_id(target)
     raise KeyError(target)
 
 
 def _check_window(
-    start: dt.date | None, end: dt.date | None, interval: str = "1d"
-) -> tuple[dt.date, dt.date, Any]:
+    start: dt.date | None,
+    end: dt.date | None,
+    interval: str = "1d",
+    price_adjustment: str = "hfq",
+) -> tuple[dt.date, dt.date, WindTunnelInput]:
     dates = _bar_dates()
     if not dates:
         raise ValueError("本地日线为空，无法运行因子风洞。")
@@ -279,9 +287,11 @@ def _check_window(
     if resolved_start > resolved_end:
         raise ValueError("开始日期不能晚于结束日期")
     if interval == "1d":
-        frame = load_wind_tunnel_frame(resolved_start, resolved_end)
+        frame = WindTunnelInput(load_wind_tunnel_frame(resolved_start, resolved_end))
     else:
-        frame = load_wind_tunnel_frame(resolved_start, resolved_end, interval=interval)
+        frame = load_wind_tunnel_inputs(
+            resolved_start, resolved_end, interval=interval, price_adjustment=price_adjustment
+        )
     return resolved_start, resolved_end, frame
 
 
@@ -304,9 +314,10 @@ def _check_frame(
     start: dt.date | None,
     end: dt.date | None,
     interval: str = "1d",
-) -> tuple[Any, tuple[dict[str, Any], int] | None]:
+    price_adjustment: str = "hfq",
+) -> tuple[WindTunnelInput | None, tuple[dict[str, Any], int] | None]:
     try:
-        _, _, frame = _check_window(start, end, interval)
+        _, _, frame = _check_window(start, end, interval, price_adjustment)
     except ValueError as exc:
         if "没有可用行情" not in str(exc) and "日线为空" not in str(exc):
             raise
@@ -346,12 +357,16 @@ def check_factor(
             factor_id, "INSUFFICIENT_CUTOFFS", "至少需要 3 个未来截断点才能形成风洞证据。"
         )
     interval = plugin.bar_interval if plugin is not None else "1d"
-    frame, error = _check_frame(factor_id, start, end, interval)
+    frame, error = _check_frame(
+        factor_id, start, end, interval, plugin.price_adjustment if plugin is not None else "hfq"
+    )
     if error is not None:
         return error
+    assert frame is not None
     result = run_factor_wind_tunnel(
         factor_id,
-        frame=frame,
+        frame=frame.frame,
+        source_daily=frame.source_daily,
         cutoffs=tuple(cutoffs) if cutoffs else None,
         plugin=plugin,
         interval=interval,

@@ -15,7 +15,9 @@ from quantide.service import factor_audit
 from quantide.service.factor_wind_tunnel import run_factor_wind_tunnel
 
 
-def _write(directory: Path, factor_id: str, expression: str = 'pl.col("close").shift(1).over("asset")') -> Path:
+def _write(
+    directory: Path, factor_id: str, expression: str = 'pl.col("close").shift(1).over("asset")'
+) -> Path:
     path = directory / f"{factor_id}.py"
     path.write_text(
         textwrap.dedent(
@@ -80,9 +82,7 @@ def test_unverified_then_pass_then_stale_on_source_change(tmp_path: Path, monkey
 
     assert factor_audit.factor_wind_tunnel_badge("ai_badge").badge_status == "UNVERIFIED"
 
-    result = run_factor_wind_tunnel(
-        "ai_badge", frame=frame, cutoffs=_cutoffs(frame), save=True
-    )
+    result = run_factor_wind_tunnel("ai_badge", frame=frame, cutoffs=_cutoffs(frame), save=True)
     badge = factor_audit.factor_wind_tunnel_badge("ai_badge")
 
     assert result.status == "PASS"
@@ -96,17 +96,30 @@ def test_unverified_then_pass_then_stale_on_source_change(tmp_path: Path, monkey
     assert factor_audit.factor_wind_tunnel_badge("ai_badge").badge_status == "STALE"
 
 
-def test_bound_backtest_badge_uses_recorded_factor_version(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_old_audit_engine_record_is_stale_but_run_id_preserved(tmp_path: Path, monkeypatch) -> None:
+    _write(tmp_path, "ai_old_engine")
+    frame = _frame()
+    result = run_factor_wind_tunnel(
+        "ai_old_engine", frame=frame, cutoffs=_cutoffs(frame), save=True
+    )
+    records = factor_audit._load_records()
+    record = dict(records["ai_old_engine"])
+    record["oracle_version"] = "1.0.0"
+    monkeypatch.setattr(factor_audit, "_load_records", lambda: {"ai_old_engine": record})
+
+    badge = factor_audit.factor_wind_tunnel_badge("ai_old_engine")
+
+    assert badge.badge_status == "STALE"
+    assert badge.run_id == result.report.run_id
+
+
+def test_bound_backtest_badge_uses_recorded_factor_version(tmp_path: Path, monkeypatch) -> None:
     """历史回测徽章绑定审计时的因子版本，不随当前插件源码漂移。"""
     from quantide.service.strategy_runtime import strategy_runtime_manager
 
     path = _write(tmp_path, "ai_bound")
     frame = _frame()
-    result = run_factor_wind_tunnel(
-        "ai_bound", frame=frame, cutoffs=_cutoffs(frame), save=True
-    )
+    result = run_factor_wind_tunnel("ai_bound", frame=frame, cutoffs=_cutoffs(frame), save=True)
     bound = result.report.spec.source_hash
     monkeypatch.setitem(
         strategy_runtime_manager._runtime_specs,
@@ -167,9 +180,7 @@ def test_failed_audit_keeps_fail_badge_and_first_difference(tmp_path: Path, monk
     )
     frame = _frame()
 
-    result = run_factor_wind_tunnel(
-        "ai_bad_badge", frame=frame, cutoffs=_cutoffs(frame), save=True
-    )
+    result = run_factor_wind_tunnel("ai_bad_badge", frame=frame, cutoffs=_cutoffs(frame), save=True)
     badge = factor_audit.factor_wind_tunnel_badge("ai_bad_badge")
 
     assert result.status == "FAIL"
@@ -191,9 +202,7 @@ def test_bound_evidence_without_run_id_never_falls_back_to_latest(
 
     _write(tmp_path, "ai_no_run")
     frame = _frame()
-    result = run_factor_wind_tunnel(
-        "ai_no_run", frame=frame, cutoffs=_cutoffs(frame), save=True
-    )
+    result = run_factor_wind_tunnel("ai_no_run", frame=frame, cutoffs=_cutoffs(frame), save=True)
     bound = result.report.spec.source_hash
     monkeypatch.setitem(
         strategy_runtime_manager._runtime_specs,
@@ -218,9 +227,7 @@ def test_reaudit_same_source_does_not_rewrite_frozen_binding(tmp_path: Path, mon
 
     _write(tmp_path, "ai_frozen")
     frame = _frame()
-    first = run_factor_wind_tunnel(
-        "ai_frozen", frame=frame, cutoffs=_cutoffs(frame), save=True
-    )
+    first = run_factor_wind_tunnel("ai_frozen", frame=frame, cutoffs=_cutoffs(frame), save=True)
     binding = {
         "features": ["ai_frozen"],
         "factor_versions": {"ai_frozen": first.report.spec.source_hash},
@@ -303,3 +310,61 @@ def test_data_signature_tracks_minute_and_pit_dependency_revisions(tmp_path, mon
     third = factor_audit._data_signature()
 
     assert first != second != third
+
+
+def _frame_30m(bars: int = 40, assets: int = 5) -> pl.DataFrame:
+    rows = []
+    start = dt.datetime(2025, 1, 2, 10, 0)
+    for index in range(bars):
+        for asset in range(assets):
+            close = 10.0 + asset + index * 0.1
+            rows.append(
+                {
+                    "dt": start + dt.timedelta(minutes=30 * index),
+                    "asset": f"{asset:06d}.SZ",
+                    "open": close - 0.05,
+                    "high": close + 0.2,
+                    "low": close - 0.2,
+                    "close": close,
+                    "volume": 1000.0 + index,
+                    "amount": 10_000.0 + index,
+                }
+            )
+    return pl.DataFrame(rows).sort(["asset", "dt"])
+
+
+def test_30m_cutoff_roundtrip_keeps_current_pass_badge(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "ai_30m_badge.py"
+    path.write_text(
+        textwrap.dedent(
+            """
+            import polars as pl
+            from quantide.factors.plugins import FactorPlugin
+
+            FACTOR_PLUGIN = FactorPlugin(
+                factor_id="ai_30m_badge",
+                display_name="test",
+                compute=lambda panel: panel.select(
+                    pl.col("close").shift(1).over("asset")
+                ).to_series(),
+                required_columns=("close",),
+                bar_interval="30m",
+                warmup_bars=1,
+            )
+            """
+        ),
+        encoding="utf-8",
+    )
+    frame = _frame_30m()
+    cutoffs = (
+        dt.datetime(2025, 1, 2, 11, 0),
+        dt.datetime(2025, 1, 2, 13, 30),
+        dt.datetime(2025, 1, 2, 15, 0),
+    )
+    result = run_factor_wind_tunnel("ai_30m_badge", frame=frame, cutoffs=cutoffs, save=True)
+    assert result.status == "PASS"
+
+    badge = factor_audit.factor_wind_tunnel_badge("ai_30m_badge")
+    assert badge.badge_status == "PASS"
+    record = factor_audit._load_records()["ai_30m_badge"]
+    assert record["cutoffs"] == [value.isoformat() for value in cutoffs]

@@ -34,6 +34,9 @@ MODEL_CONFIG_KEYS = (
     "top_k",
     "fill_timing",
     "universe_filter",
+    "pipeline_version",
+    "seed",
+    "symbols",
 )
 
 

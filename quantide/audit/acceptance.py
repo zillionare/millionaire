@@ -9,9 +9,11 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
+
+from quantide.audit.acceptance_v05 import _V05_EVIDENCE
 
 
 @dataclass(frozen=True)
@@ -449,6 +451,11 @@ ENTRIES: tuple[AcceptanceEntry, ...] = (
 )
 
 
+ENTRIES = tuple(
+    replace(entry, evidence=_V05_EVIDENCE.get(entry.ac, entry.evidence)) for entry in ENTRIES
+)
+
+
 def _classname_file(classname: str | None) -> str | None:
     if not classname:
         return None
@@ -515,19 +522,30 @@ def _junit_outcomes(paths: Iterable[str | Path]) -> dict[str, str]:
     return outcomes
 
 
+def _evidence_source(evidence: str) -> str:
+    return evidence.split("::", 1)[0]
+
+
 def _node_in_evidence(nodeid: str, evidence: str) -> bool:
     source = nodeid.split("::", 1)[0]
-    candidate = Path(evidence)
-    return (
-        source == evidence if candidate.is_file() else source.startswith(evidence.rstrip("/") + "/")
-    )
+    evidence_source = _evidence_source(evidence)
+    candidate = Path(evidence_source)
+    if candidate.is_file():
+        if source != evidence_source:
+            return False
+    elif not source.startswith(evidence_source.rstrip("/") + "/"):
+        return False
+    if "::" not in evidence:
+        return True
+    selector = evidence.split("::", 1)[1]
+    tail = nodeid[len(source) + 2 :]
+    if tail == selector or tail.startswith(selector + "["):
+        return True
+    return selector.endswith(("::", "_")) and tail.startswith(selector)
 
 
-def collect_nodeids(paths: Iterable[str | Path]) -> set[str]:
-    """Collect the exact nodeid set for the current ref and pytest configuration."""
-    targets = sorted({str(path) for path in paths if Path(path).exists()})
-    if not targets:
-        return set()
+def collect_nodeids_for(arguments: Iterable[str]) -> set[str]:
+    """Run pytest collection with explicit arguments and return real node ids."""
     environment = dict(os.environ)
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
     completed = subprocess.run(
@@ -539,11 +557,11 @@ def collect_nodeids(paths: Iterable[str | Path]) -> set[str]:
             "-q",
             "-p",
             "no:cacheprovider",
-            *targets,
+            *arguments,
         ],
         capture_output=True,
         text=True,
-        timeout=120,
+        timeout=300,
         env=environment,
         check=False,
     )
@@ -556,17 +574,29 @@ def collect_nodeids(paths: Iterable[str | Path]) -> set[str]:
     }
 
 
+def collect_nodeids(paths: Iterable[str | Path]) -> set[str]:
+    """Collect the exact nodeid set for the current ref and pytest configuration."""
+    targets = sorted({str(path) for path in paths if Path(path).exists()})
+    return collect_nodeids_for(targets) if targets else set()
+
+
 def collect_manifest(
     entries: tuple[AcceptanceEntry, ...] = ENTRIES,
 ) -> dict[str, list[str]]:
     """Build expected AC nodeid groups from the same checkout's collection."""
     paths = {
-        path
+        source
         for entry in entries
-        for path in entry.evidence
-        if path.startswith("tests/") and Path(path).exists()
+        for source in map(_evidence_source, entry.evidence)
+        if source.startswith("tests/") and Path(source).exists()
     }
     nodeids = collect_nodeids(paths)
+    for entry in entries:
+        for evidence in entry.evidence:
+            if "::" in evidence and not any(
+                _node_in_evidence(nodeid, evidence) for nodeid in nodeids
+            ):
+                raise ValueError(f"{entry.ac} selector matched no test: {evidence}")
     return {
         entry.ac: sorted(
             nodeid
@@ -581,16 +611,42 @@ def _entry_status(
     entry: AcceptanceEntry,
     outcomes: dict[str, str],
     expected: Mapping[str, Iterable[str]],
+    declared: Mapping[str, Iterable[str]] | None = None,
 ) -> str:
-    missing = [path for path in entry.evidence if not Path(path).exists()]
+    missing = [
+        source for source in map(_evidence_source, entry.evidence) if not Path(source).exists()
+    ]
     if missing:
         return "missing_evidence"
     if entry.status in {"manual", "partial"}:
         return entry.status
     required = set(expected.get(entry.ac, ()))
+    if entry.ac.startswith("AC-50") and declared is not None:
+        expanded = set(declared.get(entry.ac, ()))
+        if not required or not expanded or required != expanded:
+            return "mapped"
     if required and all(outcomes.get(nodeid) == "passed" for nodeid in required):
         return "covered"
     return "mapped"
+
+
+def validate_manifest(
+    manifest: Mapping[str, Iterable[str]],
+    declared: Mapping[str, Iterable[str]],
+    *,
+    entries: tuple[AcceptanceEntry, ...] = ENTRIES,
+) -> None:
+    """Reject manifests that add unknown nodes or omit declared node instances."""
+    v05 = {entry.ac for entry in entries if entry.ac.startswith("AC-50")}
+    for ac in v05:
+        required = set(declared.get(ac, ()))
+        supplied = set(manifest.get(ac, ()))
+        if not supplied or supplied != required:
+            raise ValueError(
+                f"{ac} manifest does not match the current collection "
+                f"(missing={sorted(required - supplied)[:3]}, "
+                f"unknown={sorted(supplied - required)[:3]})"
+            )
 
 
 def _read_manifest(path: Path) -> dict[str, list[str]]:
@@ -607,16 +663,28 @@ def _read_manifest(path: Path) -> dict[str, list[str]]:
 def matrix(
     results: Iterable[str | Path] | None = None,
     manifest: Mapping[str, Iterable[str]] | None = None,
+    *,
+    declared: Mapping[str, Iterable[str]] | None = None,
+    scope: str = "all",
 ) -> dict[str, Any]:
     result_paths = list(results or ())
     outcomes = _junit_outcomes(result_paths) if result_paths else {}
     expected = manifest or {}
-    entries = [entry.as_dict(status=_entry_status(entry, outcomes, expected)) for entry in ENTRIES]
+    selected = (
+        tuple(entry for entry in ENTRIES if entry.ac.startswith("AC-50"))
+        if scope == "v05"
+        else ENTRIES
+    )
+    entries = [
+        entry.as_dict(status=_entry_status(entry, outcomes, expected, declared))
+        for entry in selected
+    ]
     pending = [entry["ac"] for entry in entries if entry["status"] != "covered"]
     return {
-        "schema_version": "1.2.0",
-        "total": len(ENTRIES),
-        "covered": len(ENTRIES) - len(pending),
+        "schema_version": "1.3.0",
+        "scope": scope,
+        "total": len(selected),
+        "covered": len(selected) - len(pending),
         "pending": pending,
         "release_ready": not pending,
         "results": [str(path) for path in result_paths],
@@ -630,19 +698,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--results", action="append", default=[])
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--scope", choices=("all", "v05"), default="all")
     args = parser.parse_args(argv)
     try:
+        declared = collect_manifest() if args.results or args.scope == "v05" else None
         manifest = (
             _read_manifest(args.manifest)
             if args.manifest is not None
-            else collect_manifest()
+            else declared
             if args.results
             else None
         )
+        if manifest is not None and declared is not None:
+            validate_manifest(manifest, declared)
     except (OSError, ValueError, RuntimeError, ET.ParseError) as exc:
         print(f"Acceptance manifest failed: {exc}", file=sys.stderr)
         return 1
-    payload = matrix(args.results, manifest)
+    payload = matrix(args.results, manifest, declared=declared, scope=args.scope)
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import importlib
 import pickle
 from typing import Any, cast
 
@@ -38,6 +39,7 @@ from quantide.strategies.example._ml_support import (  # noqa: F401
     _PANEL_CACHE,
     _PANEL_CACHE_MAX,
     LABEL_KINDS,
+    _attach_historical_eligibility,
     _bars_fingerprint,
     _cap_universe,
     _coerce_date,
@@ -46,7 +48,6 @@ from quantide.strategies.example._ml_support import (  # noqa: F401
     _describe_signal_reason,
     _ensure_data_connected,
     _filter_liquid_universe,
-    _filter_universe,
     _fit_ml_model,
     _format_candidate_rows,
     _future_return_horizon,
@@ -65,6 +66,12 @@ from quantide.strategies.example._ml_support import (  # noqa: F401
 )
 
 
+def _filter_universe(*args: Any, **kwargs: Any) -> list[str]:
+    """Resolve through the live support module so discovery reloads stay coherent."""
+    support = importlib.import_module("quantide.strategies.example._ml_support")
+    return list(support._filter_universe(*args, **kwargs))
+
+
 def _cache_backtest_feature_panel(
     self: MLMomentumReversalStrategy,
     raw_panel: pl.DataFrame,
@@ -77,8 +84,11 @@ def _cache_backtest_feature_panel(
     feat_panel = compute_feature_panel(
         raw_panel, self.selected_features, stock_meta=stock_meta, interval=self.bar_interval
     )
-    self._cached_norm_panel = standardize_features(
-        feat_panel, self.selected_features or all_factor_ids(self.bar_interval)
+    self._cached_norm_panel = _attach_historical_eligibility(
+        self,
+        standardize_features(
+            feat_panel, self.selected_features or all_factor_ids(self.bar_interval)
+        ),
     )
     self._panel_identity_token = _ml_support._panel_identity(self)
     self._panel_start = signal_date
@@ -155,6 +165,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         self.label_kind = str(self.config.get("label_kind", "raw_return")).strip()
         if self.label_kind not in LABEL_KINDS:
             raise ValueError(f"不支持的 label_kind: {self.label_kind}")
+        self.seed = int(self.config.get("seed", 42))
         self.retrain_days = max(1, int(self.config.get("retrain_days", 5)))
         self.use_lightgbm = bool(self.config.get("use_lightgbm", True))
         self.selected_features: list[str] = resolve_feature_selection(
@@ -177,7 +188,14 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         #: 模型持久化键（策略名 + 模型相关配置哈希），回测/仿真/实盘共用
         self._model_key = model_key(
             self.__class__.__name__,
-            {**self.config, "factor_catalog_version": catalog_version()},
+            {
+                **self.config,
+                "factor_catalog_version": catalog_version(),
+                "pipeline_version": PIPELINE_VERSION,
+                "seed": self.seed,
+                "symbols": self.custom_assets,
+                "universe_filter": self.universe_filter.as_dict(),
+            },
         )
         self._model_train_end: datetime.date | None = None
         self._model_effective_from: datetime.date | None = None
@@ -231,6 +249,12 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         ref = model_ref or str(self.config.get("_model_ref") or "") or None
         model, meta = model_store.load_ref(ref) if ref else model_store.load(self._model_key)
         if model is None or meta is None:
+            self._model_pending = True
+            return False
+        if meta.model_key != self._model_key:
+            self._model_pending = True
+            return False
+        if meta.pipeline_version and meta.pipeline_version != PIPELINE_VERSION:
             self._model_pending = True
             return False
         try:
@@ -297,6 +321,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
                     "future_return_horizon": self.future_return_horizon,
                     "label_kind": self.label_kind,
                     "train_window": self.train_window,
+                    "seed": self.seed,
                 },
             )
             is_research = getattr(self.broker, "_bt_start", None) is not None
@@ -336,6 +361,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             feature_cols=self.selected_features or all_factor_ids(self.bar_interval),
             label_cache_key=self._panel_cache_key(day),
             label_kind=self.label_kind,
+            seed=self.seed,
         )
         if model is None:
             self._model_pending = True
@@ -374,6 +400,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             feature_cols=self.selected_features or all_factor_ids(self.bar_interval),
             label_cache_key=self._panel_cache_key(next_day),
             label_kind=self.label_kind,
+            seed=self.seed,
         )
         if model is None:
             return False
@@ -468,8 +495,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         """
         if as_of is not None and self._positions_by_date:
             eligible = [day for day in self._positions_by_date if day <= as_of]
-            if eligible:
-                return sorted(self._positions_by_date[max(eligible)])
+            return sorted(self._positions_by_date[max(eligible)]) if eligible else []
         positions = getattr(self.broker, "positions", None) or {}
         held: list[str] = []
         for asset, position in positions.items():
@@ -544,7 +570,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             tuple(self.selected_features or all_factor_ids(self.bar_interval)),
             _ml_support._panel_identity(self),
             tuple(self._held_assets(signal_date)),
-            self.custom_assets,
+            tuple(self.custom_assets or ()),
             tuple(sorted(self.universe_filter.as_dict().items())),
             self.fill_timing,
             _bars_fingerprint(),
@@ -717,7 +743,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
 
         feature_cols = self.selected_features or all_factor_ids(self.bar_interval)
         feat_df = compute_feature_panel(panel, feature_cols, interval=self.bar_interval)
-        norm_df = standardize_features(feat_df, feature_cols)
+        norm_df = _attach_historical_eligibility(self, standardize_features(feat_df, feature_cols))
         target_date: datetime.date = norm_df["date"].max()  # type: ignore[assignment]
         if is_live and self._model is None:
             self._load_model_from_store(target_date)
@@ -739,6 +765,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
                 use_lightgbm=self.use_lightgbm,
                 feature_cols=feature_cols,
                 label_kind=self.label_kind,
+                seed=self.seed,
             )
             self._save_model_artifact(
                 self._model,
@@ -843,12 +870,15 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             self._data_missing = True
             return [], {}, {}
 
-        cross_df = hist_slice.filter(
+        cross_filter = (
             (pl.col("date") == target_date)
             & (~pl.col("is_st"))
             & (pl.col("volume") > 0)
             & (pl.col("close") > 0)
         )
+        if "_eligible" in hist_slice.columns:
+            cross_filter = cross_filter & pl.col("_eligible").fill_null(False)
+        cross_df = hist_slice.filter(cross_filter)
         if cross_df.is_empty():
             return [], {}, {}
 
@@ -943,6 +973,7 @@ def _rank_selection_panel(
         use_lightgbm=options.use_lightgbm,
         feature_cols=features,
         label_kind=options.label_kind,
+        seed=options.seed,
     )
     cross = normalized.filter(pl.col("date") == target_date)
     if cross.is_empty():

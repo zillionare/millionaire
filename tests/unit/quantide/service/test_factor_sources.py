@@ -147,3 +147,18 @@ def test_source_advanced_detects_fields_and_token_order() -> None:
     assert factor_sources.source_advanced(base, {**base, "source_token": [2.0, "2024-01-13"]})
     assert not factor_sources.source_advanced(base, {**base, "source_token": [0.5, "2024-01-13"]})
     assert not factor_sources.source_advanced(base, dict(base))
+
+
+def test_dependency_version_binds_study_pricing_contract_modules(monkeypatch) -> None:
+    digest = {"factor_study": "study-1", "factor_wind_tunnel": "wind-1"}
+
+    def _digest(module):
+        name = module.__name__.rsplit(".", 1)[-1]
+        return digest.get(name, "other")
+
+    monkeypatch.setattr(factor_sources, "_module_digest", _digest)
+    before = factor_sources._dependency_version()
+    digest["factor_study"] = "study-2"
+    after = factor_sources._dependency_version()
+
+    assert before != after

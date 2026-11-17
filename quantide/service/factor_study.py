@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 import polars as pl
@@ -30,6 +30,7 @@ from quantide.factors.research import (
     common_cohort,
     study_horizon,
 )
+from quantide.factors.universe import UniverseFilterConfig, attach_universe_eligibility
 
 _HOLDING_CHOICES = (1, 2, 3, 5, 10, 20)
 
@@ -65,6 +66,8 @@ class CustomStudy:
     bar_interval: str = "1d"
     sampling_interval: str = "1d"
     holding_unit: str = "trading_day"
+    universe_filter: dict[str, Any] | None = None
+    universe_diagnostics: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> CustomStudy:
@@ -86,6 +89,8 @@ class CustomStudy:
             bar_interval=str(payload.get("bar_interval", "1d")),
             sampling_interval=str(payload.get("sampling_interval", "1d")),
             holding_unit=str(payload.get("holding_unit", "trading_day")),
+            universe_filter=payload.get("universe_filter"),
+            universe_diagnostics=dict(payload.get("universe_diagnostics") or {}),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -106,6 +111,8 @@ class CustomStudy:
             "bar_interval": self.bar_interval,
             "sampling_interval": self.sampling_interval,
             "holding_unit": self.holding_unit,
+            "universe_filter": self.universe_filter,
+            "universe_diagnostics": self.universe_diagnostics,
         }
 
 
@@ -235,32 +242,66 @@ def validate_study_request(
     return _holdings(holding_days)
 
 
+def _native_signal_frame(factor_id: str, plugin: Any, start: dt.date, end: dt.date) -> pl.DataFrame:
+    """Compute sparse native-interval signals keyed by their real local date."""
+    from quantide.service.factor_wind_tunnel import load_wind_tunnel_frame
+
+    native = load_wind_tunnel_frame(
+        start,
+        end,
+        interval=plugin.bar_interval,
+        price_adjustment=str(getattr(plugin, "price_adjustment", "hfq")),
+    )
+    if "dt" not in native.columns:
+        raise ValueError("原生行情缺少时间列")
+    if native.schema["dt"] != pl.Datetime("ms"):
+        native = native.with_columns(pl.col("dt").cast(pl.Datetime("ms")))
+    values = compute_feature_panel(native, [factor_id], interval=plugin.bar_interval)
+    if factor_id not in values.columns:
+        raise ValueError(f"原生因子 {factor_id} 没有计算结果")
+    joined = native.join(
+        values.select(["asset", "dt", factor_id]), on=["asset", "dt"], how="left"
+    ).with_columns(pl.col("dt").dt.date().alias("date"))
+    aggregations = [pl.col(factor_id).last().alias(factor_id)]
+    if "available_at" in joined.columns:
+        aggregations.append(pl.col("available_at").max().alias("factor_available_at"))
+    return joined.group_by(["date", "asset"]).agg(aggregations).sort(["asset", "date"])
+
+
 def load_native_daily_panel(
     factor_id: str, plugin: Any, start: dt.date, end: dt.date
 ) -> pl.DataFrame | None:
-    """Load native non-daily plugin bars and aggregate them into a daily study panel."""
+    """Join sparse native signals onto the authoritative daily price/calendar spine."""
     if plugin is None or plugin.bar_interval == "1d":
         return None
-    from quantide.service.factor_wind_tunnel import load_wind_tunnel_frame
-
-    native = load_wind_tunnel_frame(start, end, interval=plugin.bar_interval)
-    values = compute_feature_panel(native, [factor_id], interval=plugin.bar_interval)
-    return (
-        native.join(values, on=["asset", "dt"], how="left")
-        .with_columns(pl.col("dt").dt.date().alias("date"))
-        .group_by(["date", "asset"])
-        .agg(
-            pl.col(factor_id).last().alias(factor_id),
-            pl.col("open").first().alias("open"),
-            pl.col("close").last().alias("close"),
-            *(
-                [pl.col("available_at").max().alias("available_at")]
-                if "available_at" in native.columns
-                else []
-            ),
-        )
-        .sort(["asset", "date"])
+    signals = _native_signal_frame(factor_id, plugin, start, end)
+    daily = load_factor_panel(start, end)
+    if daily.is_empty():
+        raise ValueError("指定区间没有可用日线行情")
+    columns = ["asset", "date", factor_id]
+    if "factor_available_at" in signals.columns:
+        columns.append("factor_available_at")
+    panel = daily.join(
+        signals.select(columns),
+        on=["asset", "date"],
+        how="left",
     )
+    if "factor_available_at" in panel.columns:
+        if "available_at" not in panel.columns:
+            panel = panel.with_columns(pl.col("date").alias("available_at"))
+        panel = panel.with_columns(
+            pl.when(pl.col(factor_id).is_not_null() & pl.col("factor_available_at").is_not_null())
+            .then(pl.col("factor_available_at"))
+            .otherwise(pl.col("available_at"))
+            .alias("available_at")
+        ).drop("factor_available_at")
+    return panel.sort(["asset", "date"])
+
+
+def _universe_config(value: UniverseFilterConfig | dict[str, Any] | None) -> UniverseFilterConfig:
+    if isinstance(value, UniverseFilterConfig):
+        return value
+    return UniverseFilterConfig.from_mapping(value)
 
 
 def _load_study_panel(
@@ -290,27 +331,21 @@ def _load_study_panel(
     data_cutoff = panel["date"].max()
     if not isinstance(data_cutoff, dt.date) or data_cutoff < start:
         raise ValueError("指定区间没有可用行情")
-    if plugin is not None and plugin.bar_interval != "1d":
-        days = tuple(sorted(set(panel["date"].to_list())))
-    else:
-        days = trading_days(load_start, data_cutoff)
+    days = trading_days(load_start, data_cutoff)
     return panel, data_cutoff, days, plugin.bar_interval if plugin is not None else "1d"
 
 
-def run_custom_study(
+def _study_horizons(
     factor_id: str,
     start: dt.date,
     end: dt.date,
-    holding_days: list[int] | tuple[int, ...],
-    price_field: str = "open",
-    *,
-    should_cancel: Any = None,
-    checkpoint: Any = None,
-) -> CustomStudy:
-    holdings = validate_study_request(factor_id, start, end, holding_days, price_field)
-    panel, data_cutoff, days, bar_interval = _load_study_panel(
-        factor_id, start, end, should_cancel, checkpoint
-    )
+    holdings: tuple[Holding, ...],
+    panel: pl.DataFrame,
+    data_cutoff: dt.date,
+    days: tuple[dt.date, ...],
+    price_field: str,
+    should_cancel: Any,
+) -> list[HorizonResult]:
     results: list[HorizonResult] = []
     for holding in holdings:
         if callable(should_cancel) and should_cancel():
@@ -329,9 +364,32 @@ def run_custom_study(
                 ),
             )
         )
-        if callable(checkpoint):
-            checkpoint("study", {"completed": len(results), "total": len(holdings)})
-    now = market_now()
+    return results
+
+
+def run_custom_study(
+    factor_id: str,
+    start: dt.date,
+    end: dt.date,
+    holding_days: list[int] | tuple[int, ...],
+    price_field: str = "open",
+    *,
+    should_cancel: Any = None,
+    checkpoint: Any = None,
+    universe_filter: UniverseFilterConfig | dict[str, Any] | None = None,
+) -> CustomStudy:
+    holdings = validate_study_request(factor_id, start, end, holding_days, price_field)
+    panel, data_cutoff, days, bar_interval = _load_study_panel(
+        factor_id, start, end, should_cancel, checkpoint
+    )
+    panel, universe_diagnostics = attach_universe_eligibility(
+        panel,
+        _universe_config(universe_filter),
+        fill_timing="next_open" if price_field == "open" else "auction_close",
+    )
+    results = _study_horizons(
+        factor_id, start, end, holdings, panel, data_cutoff, days, price_field, should_cancel
+    )
     return CustomStudy(
         study_id=uuid.uuid4().hex[:12],
         factor_id=factor_id,
@@ -342,11 +400,13 @@ def run_custom_study(
         holding_days=holdings,
         results=tuple(results),
         cohort=common_cohort(results),
-        created_at=now.isoformat(),
+        created_at=market_now().isoformat(),
         calendar_version=calendar_version(days),
         bar_interval=bar_interval,
         sampling_interval="1d",
         holding_unit="trading_day",
+        universe_filter=_universe_config(universe_filter).as_dict(),
+        universe_diagnostics=universe_diagnostics,
     )
 
 

@@ -29,6 +29,8 @@ from quantide.factors.metadata import (
     validate_factor_metadata,
 )
 
+FACTOR_AUDIT_VERSION = "2.0.0"
+
 _REQUIRED_RAW = {
     "date",
     "asset",
@@ -214,6 +216,7 @@ def factor_config_hash(
             "modes": list(modes),
             "seeds": list(seeds),
             "positive_columns": list(positive_columns),
+            "oracle_version": FACTOR_AUDIT_VERSION,
         }
     )
 
@@ -247,6 +250,7 @@ def build_factor_spec(
         truncation_points=tuple(value.isoformat() for value in resolved_cutoffs),
         seed_set=tuple(seeds),
         statistical_profile="factor-panel",
+        oracle_version=FACTOR_AUDIT_VERSION,
     )
 
 

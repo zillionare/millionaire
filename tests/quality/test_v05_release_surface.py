@@ -41,6 +41,7 @@ class ReleaseSurfaceTest(unittest.TestCase):
             "尚无“把任意 Python 文件放进目录即自动进入内置 ML 流程”",
             "30 分钟逐 bar 对照仍待补齐",
             "30 分钟影子逐 bar 生命周期",
+            "incomplete 30-minute replay lifecycle",
         ):
             self.assertNotIn(outdated, text)
 

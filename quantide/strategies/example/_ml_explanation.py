@@ -16,7 +16,8 @@ from quantide.factors.alpha import (
     FACTOR_VERSION,
     _zscore_1d,
 )
-from quantide.factors.registry import all_factor_ids, catalog_version
+from quantide.factors.registry import all_factor_ids
+from quantide.service.model_store import model_store
 from quantide.strategies.example._ml_support import (
     _EXPLAIN_CROSS_SECTION_CACHE as _EXPLAIN_CROSS_SECTION_CACHE,
 )
@@ -128,6 +129,11 @@ class MLExplanation:
         universe_rebalance_days: int
         retrain_days: int
         _cached_norm_panel: pl.DataFrame | None
+        _model_key: str
+        _model_ref: str
+        _panel_identity_token: tuple[Any, ...] | None
+        seed: int
+        config: dict[str, Any]
 
         def _held_assets(self, as_of: datetime.date | None = None) -> list[str]: ...
         def _ensure_backtest_panel(self, signal_date: datetime.date) -> None: ...
@@ -144,22 +150,22 @@ class MLExplanation:
         Returns:
             tuple: (截面缓存键, 模型缓存键)。
         """
+        panel_identity = self._panel_identity_token
+        if panel_identity is None:
+            from quantide.strategies.example._ml_support import _panel_identity
+
+            panel_identity = _panel_identity(self)
+            self._panel_identity_token = panel_identity
         base = (
+            self._model_key,
             self._pipeline_version,
             FACTOR_VERSION,
-            catalog_version(),
-            self.train_window,
-            self.future_return_horizon,
-            self.label_kind,
-            self.universe_size,
-            self.universe_mode,
-            round(self.market_cap_trim_pct, 6),
-            tuple(self.selected_features or all_factor_ids(getattr(self, "bar_interval", "1d"))),
+            panel_identity,
             tuple(self._held_assets()),
             signal_date,
             build_signal or signal_date,
         )
-        return base, base + (self.use_lightgbm,)
+        return base, base + (self.use_lightgbm, self._model_ref or "")
 
     def _backtest_bar_dates(
         self, bt_start: datetime.date, bt_end: datetime.date
@@ -253,11 +259,11 @@ class MLExplanation:
             pl.DataFrame: 目标日截面（含原始因子与 z 因子）；可能为空。
         """
         build_signal = build_signal or signal_date
+        self._ensure_backtest_panel(build_signal)
         cross_key, _ = self._explain_cache_keys(signal_date, build_signal)
         cached = _EXPLAIN_CROSS_SECTION_CACHE.get(cross_key)
         if cached is not None:
             return cached
-        self._ensure_backtest_panel(build_signal)
         panel = self._cached_norm_panel
         if panel is None or panel.is_empty():
             return pl.DataFrame()
@@ -301,11 +307,23 @@ class MLExplanation:
             tuple: (模型, 引擎名)。
         """
         build_signal = build_signal or target_date
+        self._ensure_backtest_panel(build_signal)
         _, key = self._explain_cache_keys(target_date, build_signal)
         cached = _EXPLAIN_MODEL_CACHE.get(key)
         if cached is not None:
             return cached
-        self._ensure_backtest_panel(build_signal)
+        ref = str(self.config.get("_model_ref") or self._model_ref or "")
+        if ref:
+            model, meta = model_store.load_ref(ref)
+            if (
+                model is None
+                or meta is None
+                or meta.model_key != self._model_key
+                or (meta.pipeline_version and meta.pipeline_version != self._pipeline_version)
+            ):
+                raise RuntimeError("历史模型依赖已不可得，解释已失效")
+            _EXPLAIN_MODEL_CACHE[key] = (model, meta.engine)
+            return model, meta.engine
         panel = self._cached_norm_panel
         if panel is None or panel.is_empty():
             raise RuntimeError("归因面板为空，无法训练模型")
@@ -321,6 +339,7 @@ class MLExplanation:
             or all_factor_ids(getattr(self, "bar_interval", "1d")),
             label_cache_key=self._panel_cache_key(build_signal),
             label_kind=self.label_kind,
+            seed=self.seed,
         )
         if len(_EXPLAIN_MODEL_CACHE) >= 8:
             _EXPLAIN_MODEL_CACHE.pop(next(iter(_EXPLAIN_MODEL_CACHE)))

@@ -28,7 +28,7 @@ from quantide.factors.plugins import (
     discover_factor_plugins,
 )
 
-PLUGIN_AUDIT_VERSION = "1.0.0"
+PLUGIN_AUDIT_VERSION = "2.0.0"
 _POSITIVE_COLUMNS = ("open", "high", "low", "close", "volume", "amount")
 
 
@@ -509,6 +509,7 @@ def plugin_config_hash(
             "cutoffs": [value.isoformat() for value in cutoffs],
             "modes": list(modes),
             "seeds": list(seeds),
+            "oracle_version": PLUGIN_AUDIT_VERSION,
         }
     )
 

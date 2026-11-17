@@ -26,6 +26,7 @@ class SelectionOptions:
     custom_assets: list[str] | None
     as_of: datetime.date | None
     bar_interval: str = "1d"
+    seed: int = 42
 
     @classmethod
     def from_config(
@@ -47,4 +48,5 @@ class SelectionOptions:
             custom_assets=_parse_custom_assets(cfg),
             as_of=_coerce_date(as_of),
             bar_interval=str(cfg.get("bar_interval") or "1d"),
+            seed=int(cfg.get("seed", 42)),
         )

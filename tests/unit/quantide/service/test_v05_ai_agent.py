@@ -544,3 +544,48 @@ def test_cancel_commit_cannot_overwrite_new_generation(db, monkeypatch) -> None:
         with ai_agent._ACTIVE_LOCK:
             ai_agent._ACTIVE.pop(session_id, None)
             ai_agent._GENERATION.pop(session_id, None)
+
+
+def test_same_generation_late_finish_cannot_override_cancelled(db) -> None:
+    from quantide.service.ai_studio_store import update_session
+
+    session_id = create_session("late finish")["session_id"]
+    generation = object()
+    event = threading.Event()
+    with ai_agent._ACTIVE_LOCK:
+        ai_agent._ACTIVE[session_id] = event
+        ai_agent._GENERATION[session_id] = generation
+        ai_agent._RUNNING[session_id] = generation
+    update_session(session_id, status="running")
+
+    assert ai_agent.cancel_session(session_id) is True
+    assert get_session(session_id)["status"] == "cancelling"
+
+    result = ai_agent._finish(session_id, "completed", "迟到的成功", [], token=generation)
+    assert result["status"] == "cancelled"
+    stored = get_session(session_id)
+    assert stored is not None and stored["status"] == "cancelled"
+    assert latest_assistant_cards(session_id) == []
+    with ai_agent._ACTIVE_LOCK:
+        ai_agent._ACTIVE.pop(session_id, None)
+        ai_agent._GENERATION.pop(session_id, None)
+        ai_agent._RUNNING.pop(session_id, None)
+        ai_agent._CANCELLED.pop(session_id, None)
+
+
+def test_old_generation_late_finish_cannot_override_new_result(db) -> None:
+    from quantide.service.ai_studio_store import update_session
+
+    session_id = create_session("old generation")["session_id"]
+    old_generation, new_generation = object(), object()
+    with ai_agent._ACTIVE_LOCK:
+        ai_agent._GENERATION[session_id] = old_generation
+    update_session(session_id, status="running")
+    with ai_agent._ACTIVE_LOCK:
+        ai_agent._GENERATION[session_id] = new_generation
+
+    result = ai_agent._finish(session_id, "completed", "旧结果", [], token=old_generation)
+    assert result["status"] == "superseded"
+    assert get_session(session_id)["status"] == "running"
+    with ai_agent._ACTIVE_LOCK:
+        ai_agent._GENERATION.pop(session_id, None)

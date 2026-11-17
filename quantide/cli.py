@@ -342,6 +342,11 @@ def _error_payload(command: str, exc: Exception) -> tuple[dict[str, Any], int]:
 
 
 def _run_research(args: argparse.Namespace) -> int:
+    from quantide.config.paths import get_app_db_path
+    from quantide.data.sqlite import db
+
+    if not db._initialized:
+        db.init(get_app_db_path())
     command = _command_name(args)
     subcommand = {
         "data": getattr(args, "data_command", None),

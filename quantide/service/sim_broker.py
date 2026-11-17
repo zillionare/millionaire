@@ -615,6 +615,11 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
         return float(self.total_assets)
 
     @property
+    def asset(self) -> Asset:
+        """Return the same fact snapshot used by tracking capture."""
+        return self._account_snapshot()
+
+    @property
     def total_assets(self) -> float:
         """计算当前总资产（现金 + 持仓市值）。
 

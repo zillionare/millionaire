@@ -358,6 +358,8 @@ def _positive_price(row: dict[str, Any], price: str) -> bool:
 def _label_exclusion(
     row: dict[str, Any], prepared: _PreparedPanel, request: HorizonRequest
 ) -> str | None:
+    if row.get("_eligible") is False:
+        return "ineligible_universe"
     index = prepared.positions[row["date"]]
     exit_index = index + request.effective_holding + 1
     if exit_index >= len(prepared.days) or prepared.days[exit_index] > request.data_cutoff:
@@ -391,6 +393,8 @@ def _matured_dates(prepared: _PreparedPanel, request: HorizonRequest) -> list[dt
 def _forward_for_row(
     row: dict[str, Any], prepared: _PreparedPanel, request: HorizonRequest
 ) -> tuple[float | None, str | None]:
+    if row.get("_eligible") is False:
+        return None, "ineligible_universe"
     if _late(row.get("available_at"), request.data_cutoff):
         return None, "unavailable_factor"
     index = prepared.positions[row["date"]]
@@ -431,6 +435,7 @@ def _collect_pairs(
         "late_factor": 0,
         "unavailable_price": 0,
         "invalid_factor": 0,
+        "ineligible_universe": 0,
     }
     pairs: list[dict[str, Any]] = []
     for row in selected:

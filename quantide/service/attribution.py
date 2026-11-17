@@ -13,10 +13,12 @@ from typing import Any, cast
 import polars as pl
 from loguru import logger
 
+from quantide.audit.models import canonical_hash
 from quantide.core.ports.broker import ExecutionResult
 from quantide.core.strategy_config import stored_strategy_config
 from quantide.data.sqlite import db
 from quantide.factors import FACTOR_VERSION
+from quantide.factors.registry import catalog_version
 from quantide.service.discovery import strategy_loader
 
 ATTRIBUTION_SHAP = "shap"
@@ -52,8 +54,10 @@ class _AttributionBroker:
         self,
         positions: dict[str, Any] | None = None,
         bt_end: datetime.date | None = None,
+        bt_start: datetime.date | None = None,
     ) -> None:
         self._bt_end: datetime.date | None = bt_end
+        self._bt_start: datetime.date | None = bt_start
         self.positions: dict[str, Any] = positions or {}
         self.cash: float = 0.0
 
@@ -171,13 +175,31 @@ class _AttributionBroker:
         raise NotImplementedError("attribution broker cannot cancel orders")
 
 
-def _cache_version(strategy_cls: Any) -> str:
-    """缓存版本：因子版本 + 策略流水线版本（源码哈希）。
+def _data_revision() -> str:
+    """Return the current local daily data revision for attribution caches."""
+    from quantide.data.models.daily_bars import daily_bars
 
-    因子公式或策略逻辑变化后，版本随之变化，缓存自动失效；服务重启同样失效。
-    """
-    pipeline = str(getattr(strategy_cls, "PIPELINE_VERSION", "") or "")
-    return f"{FACTOR_VERSION}:{pipeline}"
+    try:
+        return ":".join(
+            (
+                str(daily_bars.end),
+                str(daily_bars.total_dates),
+                str(daily_bars.last_update_time),
+            )
+        )
+    except Exception:
+        return ""
+
+
+def _cache_version(strategy_cls: Any) -> str:
+    """Cache identity for factors, catalogs, pipeline code and local data."""
+    pipeline = str(
+        getattr(strategy_cls, "PIPELINE_VERSION", "")
+        or getattr(strategy_cls, "_pipeline_version", "")
+        or ""
+    )
+    version = str(getattr(strategy_cls, "VERSION", "") or "")
+    return f"{FACTOR_VERSION}:{catalog_version()}:{pipeline}:{version}:{_data_revision()}"
 
 
 def attribution_kind(strategy_cls: Any) -> str | None:
@@ -332,14 +354,14 @@ def explain_features(
         portfolio_id,
         asset,
         signal_date,
-        tuple(config.get("features") or ()),
+        canonical_hash(config),
         _cache_version(strategy_cls),
     )
     if cache_key in _EXPLAIN_FEATURE_CACHE:
         return _EXPLAIN_FEATURE_CACHE[cache_key]
     try:
         strategy = strategy_cls(
-            _AttributionBroker(load_holdings_at(portfolio_id, signal_date), bt_end),
+            _AttributionBroker(load_holdings_at(portfolio_id, signal_date), bt_end, bt_start),
             config,
         )
         strategy._positions_by_date = load_positions_by_date(portfolio_id)
@@ -392,14 +414,14 @@ def explain_prediction(
         portfolio_id,
         asset,
         signal_date,
-        tuple(config.get("features") or ()),
+        canonical_hash(config),
         _cache_version(strategy_cls),
     )
     if cache_key in _EXPLAIN_RESULT_CACHE:
         return _EXPLAIN_RESULT_CACHE[cache_key]
     try:
         strategy = strategy_cls(
-            _AttributionBroker(load_holdings_at(portfolio_id, signal_date), bt_end),
+            _AttributionBroker(load_holdings_at(portfolio_id, signal_date), bt_end, bt_start),
             config,
         )
         strategy._positions_by_date = load_positions_by_date(portfolio_id)

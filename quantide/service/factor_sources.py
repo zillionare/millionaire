@@ -92,21 +92,41 @@ def _universe_version() -> str | None:
             return None
         digest = hashlib.sha256("\n".join(assets).encode())
         digest.update(get_index_weight_store()._storage_signature().encode())
+        from quantide.config.settings import get_data_home
+        from quantide.data.source_identity import pit_input_signature
+
+        digest.update(repr(pit_input_signature(get_data_home())).encode())
     except Exception:
         return None
     return "sha256:" + digest.hexdigest()[:16]
+
+
+def _module_digest(module: Any) -> str:
+    """Hash one study or pricing contract module."""
+    source = Path(str(getattr(module, "__file__", "") or ""))
+    if not source.is_file():
+        return "missing"
+    return hashlib.sha256(source.read_bytes()).hexdigest()[:12]
 
 
 def _dependency_version() -> str:
     """Bind the factor/statistics source and numeric engine versions."""
     from importlib.metadata import PackageNotFoundError, version
 
+    from quantide.data import source_identity
+    from quantide.factors import universe
     from quantide.factors.registry import catalog_version
+    from quantide.service import factor_study, factor_tracking_inputs, factor_wind_tunnel
 
     components = {
         "factor": FACTOR_VERSION,
         "statistics": STATISTICS_VERSION,
         "catalog": catalog_version(),
+        "study": _module_digest(factor_study),
+        "tracking_inputs": _module_digest(factor_tracking_inputs),
+        "universe": _module_digest(universe),
+        "source_identity": _module_digest(source_identity),
+        "wind_tunnel": _module_digest(factor_wind_tunnel),
     }
     for package in ("numpy", "polars", "pyarrow"):
         try:

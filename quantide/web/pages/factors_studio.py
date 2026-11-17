@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fasthtml.common import (
@@ -225,9 +226,22 @@ def _orthogonality(item: dict[str, Any]) -> Any:
     return P(f"最高相关现有因子：{peer} · |ρ| {corr}{warning}", cls="mt-1 text-xs text-gray-600")
 
 
+def _baseline_preset_id(factor_id: str) -> str:
+    from quantide.service.factor_presets import list_presets
+
+    try:
+        for preset in list_presets():
+            if factor_id not in preset.features:
+                return preset.preset_id
+    except Exception:
+        return ""
+    return ""
+
+
 def _card_actions(item: dict[str, Any], session_id: str, factor_id: str) -> Any:
     if not factor_id or item.get("stage") != "wind_tunnel" or item.get("status") != "passed":
         return None
+    baseline_id = _baseline_preset_id(factor_id)
     return Div(
         Form(
             ActionButton("开启每日自动跟踪", type="submit", cls="q-btn"),
@@ -236,6 +250,7 @@ def _card_actions(item: dict[str, Any], session_id: str, factor_id: str) -> Any:
             cls="inline",
         ),
         Form(
+            Input(type="hidden", name="baseline_preset_id", value=baseline_id),
             ActionButton("加入策略预设做消融回测", type="submit", cls="q-btn q-btn--primary ml-2"),
             action=f"/factors/studio/sessions/{session_id}/actions/preset",
             method="post",
@@ -243,6 +258,121 @@ def _card_actions(item: dict[str, Any], session_id: str, factor_id: str) -> Any:
         ),
         A("查看因子详情页 →", href=f"/factors/{factor_id}", cls="ml-3 text-sm text-[#e41815]"),
         cls="mt-3 flex flex-wrap items-center gap-2",
+    )
+
+
+def _ablation_result(item: dict[str, Any]) -> Any:
+    ablation = item.get("ablation") or {}
+    baseline = ablation.get("baseline") or {}
+    variants = ablation.get("variants") or []
+    if not baseline or not variants:
+        return None
+    variant = variants[0]
+    baseline_metrics = baseline.get("metrics") or {}
+    equity = variant.get("equity_curve") or []
+    final_equity = equity[-1].get("total") if equity else None
+    shap_names = [
+        str(feature.get("feature") or feature.get("name") or "")
+        for feature in variant.get("shap_top_features") or []
+        if feature.get("feature") or feature.get("name")
+    ]
+    return Div(
+        P("消融回测结果", cls="mt-3 text-xs font-medium text-gray-800"),
+        P(
+            f"基准年化：{_percent(baseline_metrics.get('annual_return'))} · "
+            f"变体年化：{_percent(variant.get('annual_return'))} · "
+            f"超额：{_percent(variant.get('annual_excess'))}",
+            cls="mt-1 text-xs text-gray-600",
+        ),
+        P(
+            f"变体最大回撤：{_percent(variant.get('max_drawdown'))} · "
+            f"换手：{_number(variant.get('turnover'))} · "
+            f"交易：{_number(variant.get('trade_count'), 0)} 笔 · "
+            f"总费用：{_number(variant.get('total_fees'), 2)}",
+            cls="mt-1 text-xs text-gray-600",
+        ),
+        P(
+            f"净值曲线：{len(equity)} 个交易日 · 期末净值：{_number(final_equity, 2)}",
+            cls="mt-1 text-xs text-gray-600",
+        ),
+        P(
+            "SHAP：" + ("、".join(shap_names) if shap_names else "无可用归因"),
+            cls="mt-1 text-xs text-gray-600",
+        ),
+        cls="mt-2 rounded-lg bg-gray-50 p-3",
+    )
+
+
+def _preset_section(item: dict[str, Any]) -> Div:
+    preset = item.get("preset") or {}
+    children: list[Any] = []
+    if preset:
+        children.append(
+            P(
+                f"预设：{preset.get('preset_id')} · {len(preset.get('features') or [])} 个因子",
+                cls="mt-1 text-xs text-gray-600",
+            )
+        )
+    children.append(_ablation_result(item))
+    message = str(item.get("message") or "").strip()
+    if message and not item.get("ablation"):
+        children.append(P(message, cls="mt-1 text-xs text-red-600"))
+    return Div(*children)
+
+
+_UNIVERSE_WARNINGS = {
+    "st_history_unavailable": "缺少历史 ST 状态，ST 排除结果可能不完整。",
+    "st_history_incomplete": "部分日期或股票缺少 ST 状态，ST 排除结果可能不完整。",
+    "st_status_conflict": "ST 状态来源存在冲突，请核对数据。",
+    "calendar_unavailable": "缺少权威交易日历，上市天数过滤存在数据缺口。",
+    "market_cap_unavailable_amount_20d_cap": "缺少市值数据，已改按 20 日成交额限制证券池。",
+    "amount_unavailable_no_cap": "缺少成交额数据，证券池数量上限未能执行。",
+}
+
+
+def _universe_config(config: dict[str, Any]) -> Any:
+    labels = (
+        ("exclude_st", "排除 ST"),
+        ("exclude_suspended", "排除停牌"),
+        ("exclude_limit_locked_on_close", "排除收盘涨跌停锁定"),
+    )
+    parts = [
+        f"{label}：{'启用' if config[key] else '关闭'}" for key, label in labels if key in config
+    ]
+    if "min_listing_days" in config:
+        parts.append(f"上市至少 {config['min_listing_days']} 个交易日")
+    if "max_universe_size" in config:
+        limit = config["max_universe_size"]
+        parts.append(f"证券池上限：{limit} 只" if limit is not None else "证券池数量不限")
+    return P(" · ".join(parts), cls="mt-1 text-xs text-gray-600")
+
+
+def _study_universe(item: dict[str, Any]) -> Any:
+    universe = item.get("universe") or {}
+    if not universe:
+        return None
+    basis_names = {"market_cap": "市值", "amount_20d": "20 日成交额", "none": "未截取"}
+    bases = "、".join(basis_names.get(value, value) for value in universe.get("size_bases") or [])
+    return Div(
+        P("证券池与数据质量", cls="text-xs font-medium text-gray-800"),
+        *(
+            P(_UNIVERSE_WARNINGS.get(warning, str(warning)), cls="mt-1 text-xs text-amber-800")
+            for warning in universe.get("warnings") or []
+        ),
+        P("本次研究未应用证券池过滤。", cls="mt-1 text-xs text-amber-800")
+        if universe.get("applied") is False
+        else None,
+        Details(
+            Summary("生效过滤条件", cls="mt-2 cursor-pointer text-xs text-gray-700"),
+            _universe_config(item.get("universe_filter") or universe.get("config") or {}),
+            P(
+                f"{universe.get('dates', 0)} 个信号日 · "
+                f"{universe.get('effective_rows', 0)} 个合格股票日期样本 · "
+                f"截取依据：{bases or '未知'}",
+                cls="mt-1 text-xs text-gray-600",
+            ),
+        ),
+        cls="mt-3 rounded-lg bg-gray-50 p-3",
     )
 
 
@@ -271,17 +401,11 @@ def _card(item: dict[str, Any], session_id: str, factor_id: str) -> Any:
                 )
             )
     if stage == "study":
+        children.append(_study_universe(item))
         children.append(_ic_table(item))
         children.append(_orthogonality(item))
     if stage == "preset":
-        preset = item.get("preset") or {}
-        if preset:
-            children.append(
-                P(
-                    f"预设：{preset.get('preset_id')} · {len(preset.get('features') or [])} 个因子",
-                    cls="mt-1 text-xs text-gray-600",
-                )
-            )
+        children.append(_preset_section(item))
     children.append(_card_actions(item, session_id, factor_id))
     return Div(*children, cls="rounded-xl border border-gray-100 bg-white p-4 shadow-sm")
 
@@ -488,20 +612,23 @@ async def action_track(session_id: str) -> RedirectResponse:
 
 
 @rt("/sessions/{session_id}/actions/preset", methods=["POST"])
-async def action_preset(session_id: str) -> RedirectResponse:
+async def action_preset(session_id: str, req: Request) -> RedirectResponse:
     session = get_session(session_id)
     factor_id = str((session or {}).get("active_factor_id") or "")
     if factor_id:
         preset_id = f"ai_{factor_id}"[:64]
-        result = execute_tool(
-            "save_preset_and_run_ablation",
-            {
-                "preset_id": preset_id,
-                "name": f"AI 因子 {factor_id}",
-                "add_factor_id": factor_id,
-                "label_kind": "raw_return",
-            },
-        )
+        form = await req.form()
+        arguments: dict[str, Any] = {
+            "preset_id": preset_id,
+            "name": f"AI 因子 {factor_id}",
+            "add_factor_id": factor_id,
+            "label_kind": "raw_return",
+        }
+        for key in ("baseline_preset_id", "start", "end"):
+            value = str(form.get(key) or "").strip()
+            if value:
+                arguments[key] = value
+        result = await asyncio.to_thread(execute_tool, "save_preset_and_run_ablation", arguments)
         append_message(
             session_id,
             "assistant",

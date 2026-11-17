@@ -15,8 +15,10 @@
   promotional tone while stating current scope and model assumptions accurately.
 - Daily Shadow-Run is a two-instance comparison: the paper instance runs on
   current quotes and the backtest instance runs after the daily bar is available.
+  The 30-minute instance replays each closed 8-slot session bar (10:00, 10:30,
+  11:00, 11:30, 13:30, 14:00, 14:30, 15:00); forming bars never trigger a replay.
   Describe this natural daily cadence directly; reserve limitations for actual
-  gaps such as the incomplete 30-minute replay lifecycle.
+  gaps.
 - Native desktop installs provide a macOS menu-bar app and a Windows system-tray
   app, displayed after installation and started at login. Keep their lifetime
   independent of the background service; quitting a UI must leave its service

@@ -33,6 +33,9 @@ from quantide.service.ai_studio_store import (
     update_session,
 )
 
+# Checked before each model request; in-flight calls retain their own hard budgets.
+_ROUND_BUDGET_SECONDS = 300.0
+
 SYSTEM_PROMPT = """你是 Millionaire 的 A 股因子研究助手。你必须遵守：
 1. 只通过提供的白名单工具工作，绝不要求或模拟 Shell、任意路径文件读写。
 2. 新因子必须先用 write_factor_plugin 写入 factor_dir，再调用 run_factor_wind_tunnel。
@@ -46,6 +49,8 @@ SYSTEM_PROMPT = """你是 Millionaire 的 A 股因子研究助手。你必须遵
 
 _ACTIVE: dict[str, threading.Event] = {}
 _GENERATION: dict[str, object] = {}
+_RUNNING: dict[str, object] = {}
+_CANCELLED: dict[str, object] = {}
 _ACTIVE_LOCK = threading.RLock()
 
 
@@ -262,13 +267,59 @@ def _round_is_current(session_id: str, token: object | None) -> bool:
         return _GENERATION.get(session_id) is token
 
 
+def _cancellation_committed(session_id: str, token: object | None) -> bool:
+    return token is not None and _CANCELLED.get(session_id) is token
+
+
+def _cancellation_pending(session_id: str, token: object | None) -> bool:
+    if _cancellation_committed(session_id, token):
+        return True
+    event = _ACTIVE.get(session_id)
+    return event is not None and event.is_set() and _GENERATION.get(session_id) is token
+
+
 def _commit_if_current(session_id: str, token: object | None, commit: Callable[[], Any]) -> bool:
-    """Atomically check generation ownership and persist side effects."""
+    """Atomically check generation ownership and persist non-terminal side effects."""
     with _ACTIVE_LOCK:
         if not _round_is_current(session_id, token):
             return False
+        if _cancellation_pending(session_id, token):
+            return False
         commit()
     return True
+
+
+def _commit_terminal(
+    session_id: str,
+    token: object | None,
+    status: str,
+    content: str,
+    cards: list[dict[str, Any]],
+    *,
+    factor_id: str = "",
+    failure_card: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Commit one legal terminal state under the generation/cancel contract."""
+    with _ACTIVE_LOCK:
+        if not _round_is_current(session_id, token):
+            return None
+        if _cancellation_pending(session_id, token):
+            status = "cancelled"
+            content = "已停止本轮 AI 工作。"
+            cards = []
+        elif failure_card is not None:
+            cards = [*cards, failure_card]
+        update_session(session_id, status=status, active_factor_id=factor_id or None)
+        append_message(session_id, "assistant", content, step_cards=cards)
+    return {"status": status, "content": content, "cards": cards}
+
+
+def _blocked_result(state: _RoundState) -> dict[str, Any]:
+    with _ACTIVE_LOCK:
+        cancelled = _cancellation_pending(state.session_id, state.round_token)
+    if cancelled:
+        return _finish_state(state, "cancelled", "已停止本轮 AI 工作。")
+    return _superseded_result()
 
 
 def _finish(
@@ -280,21 +331,17 @@ def _finish(
     factor_id: str = "",
     token: object | None = None,
 ) -> dict[str, Any]:
-    committed = _commit_if_current(
+    result = _commit_terminal(
         session_id,
         token,
-        lambda: (
-            update_session(
-                session_id,
-                status=status,
-                active_factor_id=factor_id or None,
-            ),
-            append_message(session_id, "assistant", content, step_cards=cards),
-        ),
+        status,
+        content,
+        cards,
+        factor_id=factor_id,
     )
-    if not committed:
+    if result is None:
         return {"status": "superseded", "content": "", "cards": []}
-    return {"status": status, "content": content, "cards": cards}
+    return result
 
 
 def _safe_failure(
@@ -304,18 +351,17 @@ def _safe_failure(
     *,
     token: object | None = None,
 ) -> dict[str, Any]:
-    cards = [*cards, _card("error", "failed", "本轮停止", message=message)]
-    committed = _commit_if_current(
+    result = _commit_terminal(
         session_id,
         token,
-        lambda: (
-            update_session(session_id, status="failed"),
-            append_message(session_id, "assistant", message, step_cards=cards),
-        ),
+        "failed",
+        message,
+        cards,
+        failure_card=_card("error", "failed", "本轮停止", message=message),
     )
-    if not committed:
+    if result is None:
         return {"status": "superseded", "content": "", "cards": []}
-    return {"status": "failed", "content": message, "cards": cards}
+    return result
 
 
 def _generate_card(result: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
@@ -350,6 +396,8 @@ def _study_card(result: dict[str, Any], arguments: dict[str, Any]) -> dict[str, 
         factor_id=arguments.get("factor_id") or result.get("factor_id"),
         results=result.get("results") or [],
         common_cohort=result.get("common_cohort"),
+        universe_filter=result.get("universe_filter"),
+        universe=result.get("universe"),
         data_cutoff=result.get("data_cutoff"),
         message=result.get("message"),
     )
@@ -520,7 +568,7 @@ def _run_tool_call(state: _RoundState, call: dict[str, Any]) -> dict[str, Any] |
             lambda: update_session(state.session_id, active_factor_id=state.active_factor_id),
         )
         if not committed:
-            return _superseded_result()
+            return _blocked_result(state)
     state.cards.append(_tool_card(name, result, arguments))
     _record_tool(state.session_id, state.cards, name, result, state.round_token)
     committed = _commit_if_current(
@@ -529,9 +577,7 @@ def _run_tool_call(state: _RoundState, call: dict[str, Any]) -> dict[str, Any] |
         lambda: append_message(state.session_id, "assistant", "", step_cards=state.cards),
     )
     if not committed:
-        return _superseded_result()
-    if name == "run_factor_wind_tunnel":
-        return _wind_followup(state, result, arguments)
+        return _blocked_result(state)
     state.messages.append(
         {
             "role": "tool",
@@ -540,6 +586,8 @@ def _run_tool_call(state: _RoundState, call: dict[str, Any]) -> dict[str, Any] |
             "content": json.dumps(result, ensure_ascii=False, default=str)[:12000],
         }
     )
+    if name == "run_factor_wind_tunnel":
+        return _wind_followup(state, result, arguments)
     return None
 
 
@@ -599,7 +647,7 @@ def _run_loop(
         cancel=cancel,
         messages=_round_messages(session_id, user_text),
         cards=[_card("understand", "done", "理解需求", request=user_text)],
-        deadline=time.monotonic() + max(30.0, min(300.0, float(config.timeout_seconds) * 2)),
+        deadline=time.monotonic() + _ROUND_BUDGET_SECONDS,
         round_token=generation or cancel,
     )
     while state.used_steps < config.max_tool_steps:
@@ -642,14 +690,13 @@ def run_agent_round(
         generation = object()
         with _ACTIVE_LOCK:
             _GENERATION[session_id] = generation
-    started = _commit_if_current(
-        session_id,
-        generation,
-        lambda: (
-            update_session(session_id, status="running"),
-            append_message(session_id, "user", text),
-        ),
-    )
+
+    def _start() -> None:
+        _RUNNING[session_id] = generation
+        update_session(session_id, status="running")
+        append_message(session_id, "user", text)
+
+    started = _commit_if_current(session_id, generation, _start)
     if not started:
         return _superseded_result()
     try:
@@ -695,13 +742,23 @@ def start_agent_round(
 def cancel_session(session_id: str) -> bool:
     """Cancel the active model request and any child wind-tunnel/study process."""
     with _ACTIVE_LOCK:
+        session = get_session(session_id)
+        status = str((session or {}).get("status") or "")
+        generation = _GENERATION.get(session_id)
         event = _ACTIVE.get(session_id)
         if event is None:
-            session = get_session(session_id)
-            if session is not None and session.get("status") in {"running", "cancelling"}:
+            if status in {"running", "cancelling"}:
                 update_session(session_id, status="cancelled")
             return False
+        if _RUNNING.get(session_id) is generation and status in {
+            "completed",
+            "failed",
+            "cancelled",
+        }:
+            return False
         event.set()
+        if generation is not None:
+            _CANCELLED[session_id] = generation
         update_session(session_id, status="cancelling")
         return True
 

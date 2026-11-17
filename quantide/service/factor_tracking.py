@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-import hashlib
 import json
 import math
 import threading
@@ -29,6 +28,7 @@ from quantide.factors.research import (
     common_cohort,
     study_horizon,
 )
+from quantide.factors.universe import UniverseFilterConfig, attach_universe_eligibility
 from quantide.service import factor_profiles as _fp
 from quantide.service import factor_tracking_summary as _summary
 from quantide.service.factor_profiles import TrackingProfile, profiles_path
@@ -71,6 +71,12 @@ from quantide.service.factor_sources import (
 from quantide.service.factor_study import calendar_version, trading_days
 from quantide.service.factor_tracking_context import RefreshContext as _RefreshContext
 from quantide.service.factor_tracking_dates import lookback_start, panel_start
+from quantide.service.factor_tracking_inputs import (
+    _idempotency_key,
+    _panel_fingerprint,
+    _universe_hash,
+    dispatch_panel_groups,
+)
 from quantide.service.scheduled_jobs import remove_owned_jobs
 
 HOLDING_CHOICES: tuple[Holding, ...] = (1, 2, 3, 5, 10, 20)
@@ -125,6 +131,7 @@ def save_profile(
     price_field: str = "open",
     enabled: bool = True,
     source_study_id: str | None = None,
+    universe_filter: dict[str, Any] | None = None,
 ) -> TrackingProfile:
     return _save_profile(
         _root(),
@@ -135,6 +142,7 @@ def save_profile(
         price_field=price_field,
         enabled=enabled,
         source_study_id=source_study_id,
+        universe_filter=universe_filter,
     )
 
 
@@ -348,7 +356,6 @@ def _load_panel(
     start = panel_start(profile.lookback, end)
     plugin = discover_factor_plugins().by_id(profile.factor_id)
     panel = load_native_daily_panel(profile.factor_id, plugin, start, end)
-    native = panel is not None
     if panel is None:
         panel = load_factor_panel(start, end)
     if panel.is_empty():
@@ -356,43 +363,8 @@ def _load_panel(
     cutoff = panel["date"].max()
     if not isinstance(cutoff, datetime.date):
         raise RuntimeError("factor panel has no data cutoff")
-    days = tuple(sorted(set(panel["date"].to_list()))) if native else trading_days(start, cutoff)
+    days = trading_days(start, cutoff)
     return panel, cutoff, days
-
-
-def _panel_fingerprint(panel: Any) -> str:
-    digest = hashlib.sha256()
-    digest.update(",".join(panel.columns).encode())
-    digest.update(str(panel.shape).encode())
-    digest.update(panel.hash_rows(seed=0).to_numpy().tobytes())
-    return digest.hexdigest()
-
-
-def _universe_hash(panel: Any) -> str:
-    assets = sorted({str(asset) for asset in panel["asset"].to_list()})
-    return hashlib.sha256("\n".join(assets).encode()).hexdigest()
-
-
-def _idempotency_key(factor_id: str, profile: TrackingProfile, snapshot: dict[str, Any]) -> str:
-    payload = {
-        "factor_id": factor_id,
-        "factor_version": factor_version(factor_id),
-        "statistics_version": STATISTICS_VERSION,
-        "dependency_hash": snapshot.get("dependency_hash"),
-        "profile_revision": profile.revision,
-        "profile_hash": _profile_hash(profile),
-        "panel_start": snapshot.get("panel_start"),
-        "evaluation_start": snapshot.get("evaluation_start"),
-        "data_hash": snapshot.get("data_hash"),
-        "universe_hash": snapshot.get("universe_hash"),
-        "calendar_version": snapshot.get("calendar_version"),
-        "data_cutoff": snapshot.get("data_cutoff"),
-        "source_token": snapshot.get("source_token"),
-    }
-    payload.update({field: snapshot.get(field) for field in _SOURCE_FIELDS})
-    return hashlib.sha1(  # noqa: S324
-        json.dumps(payload, sort_keys=True).encode()
-    ).hexdigest()
 
 
 def _build_snapshot(
@@ -405,14 +377,18 @@ def _build_snapshot(
     source: dict[str, Any],
     source_revision: int | None,
 ) -> dict[str, Any]:
-    evaluation_start = lookback_start(data_cutoff, profile.lookback)
+    panel, universe_diagnostics = attach_universe_eligibility(
+        panel,
+        UniverseFilterConfig.from_mapping(profile.universe_filter),
+        fill_timing="next_open" if profile.price_field == "open" else "auction_close",
+    )
     results = [
         study_horizon(
             panel,
             HorizonRequest(
                 factor=factor_id,
                 holding_days=holding,
-                start=evaluation_start,
+                start=lookback_start(data_cutoff, profile.lookback),
                 end=data_cutoff,
                 data_cutoff=data_cutoff,
                 price=profile.price_field,
@@ -424,13 +400,7 @@ def _build_snapshot(
     primary = next(
         result for result in results if result.holding_days == profile.primary_holding_days
     )
-    status = "ok" if primary.daily_ic else "insufficient"
-    latest_rows = panel.filter(panel["date"] == data_cutoff).to_dicts()
-    latest_symbols = sum(
-        1
-        for row in latest_rows
-        if isinstance(row.get(factor_id), (int, float)) and math.isfinite(row[factor_id])
-    )
+    latest_symbols = _latest_symbols(panel, factor_id, data_cutoff)
     snapshot = {
         "factor_id": factor_id,
         "profile_revision": profile.revision,
@@ -439,7 +409,7 @@ def _build_snapshot(
         "statistics_version": STATISTICS_VERSION,
         "dependency_hash": source.get("source_dependency_version"),
         "panel_start": panel_start(profile.lookback, data_cutoff).isoformat(),
-        "evaluation_start": evaluation_start.isoformat(),
+        "evaluation_start": lookback_start(data_cutoff, profile.lookback).isoformat(),
         "data_hash": _panel_fingerprint(panel),
         "universe_hash": _universe_hash(panel),
         "calendar_version": calendar_version(calendar_days),
@@ -448,11 +418,13 @@ def _build_snapshot(
         "source_revision": source_revision,
         "computed_at": now.isoformat(),
         "source_kind": "tracking",
-        "status": status,
+        "status": "ok" if primary.daily_ic else "insufficient",
         "primary_holding_days": profile.primary_holding_days,
         "primary_metrics": primary.as_dict(),
         "horizon_metrics": {str(result.holding_days): result.as_dict() for result in results},
         "common_cohort": common_cohort(results).as_dict(),
+        "universe_filter": UniverseFilterConfig.from_mapping(profile.universe_filter).as_dict(),
+        "universe_diagnostics": universe_diagnostics,
         "coverage": {
             "coverage_date": data_cutoff.isoformat(),
             "latest_symbols": latest_symbols,
@@ -463,6 +435,14 @@ def _build_snapshot(
     snapshot.update({field: source.get(field) for field in _SOURCE_FIELDS})
     snapshot["idempotency_key"] = _idempotency_key(factor_id, profile, snapshot)
     return snapshot
+
+
+def _latest_symbols(panel: Any, factor_id: str, data_cutoff: datetime.date) -> int:
+    return sum(
+        1
+        for row in panel.filter(panel["date"] == data_cutoff).to_dicts()
+        if isinstance(row.get(factor_id), (int, float)) and math.isfinite(row[factor_id])
+    )
 
 
 def _current_is_newer(state: dict[str, Any], snapshot: dict[str, Any]) -> bool:
@@ -835,6 +815,15 @@ def _refresh_group(
     checkpoint: Any = None,
     fence: Any = None,
 ) -> None:
+    if dispatch_panel_groups(
+        factor_ids,
+        lookback,
+        _refresh_group,
+        should_cancel=should_cancel,
+        checkpoint=checkpoint,
+        fence=fence,
+    ):
+        return
     now = market_now()
     current = _active_profiles(factor_ids, lookback)
     if not current:

@@ -1,6 +1,6 @@
-# 拟议接口、插件协议、CLI/JSON 与存储契约
+# 接口、插件协议、CLI/JSON 与存储契约
 
-- 状态：`v0.5-001-ai-factor-release` 规划接口草案，供实施与评审对齐；落地实现前不得写入当前版本对外操作手册。
+- 状态：已落地的接口契约；实现与验证记录见[审查闭环](../../reviews/2026-11-18/)。
 - 关联：[主规格](spec.md)、[用户故事](story.md)、[验收标准](acceptance.md)、[测试计划](test-plan.md)。
 
 ## 1. 外部因子插件契约（对应 FR-5001、FR-5013）
@@ -269,3 +269,8 @@ Web Agent 循环通过标准 OpenAI Chat Completions `tools` 协议仅注册以�
 - `StrategySession` 的 durable `last_signal_slot` 与 actual bar 存在性共同阻止同一闭合槽位重复回调；`process_next_open_30m_intents` 在 completed/last_bar 早退之前每 tick 独立推进。
 - `AiRound` generation 在所有状态、消息和卡片提交前校验，而不是仅依赖当前 `_ACTIVE` 事件是否存在。
 - `compute_future_close_return_labels` 使用权威交易日历的精确退出日；退出日无该证券行情返回 `null`。`_training_feature_panel` 只在完整成熟且符合历史资格的截面上训练。
+
+
+## 交付状态（2026-11-18）
+
+本文件保留需求与验收合同。实现以当前源码和机器验收为准：AC-5001～AC-5028 逐项绑定具体测试节点，普通因子准入只阻断风洞 `FAIL`，AI 工坊必须当前源码指纹 `PASS`；研究标准入口记录实际 PIT `universe_filter`/逐日诊断、价格口径和依赖指纹；30 分钟影子按 8 个闭合槽位、forming 不触发、真实 actual 事实及 T+1/缺口/重启账本运行。无法恢复的输入或证据标记 `STALE`/`INCONCLUSIVE`/不可用，不静默通过。跨平台与实体安装结论只以对应 CI/安装器证据为准。

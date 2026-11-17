@@ -333,6 +333,17 @@ class IntradayShadowRunner:
         )
         processed: list[str] = []
         for row in rows:
+            signal_bar = parse_bar_slot(str(row.get("signal_bar") or ""))
+            if signal_bar is None:
+                self.store.mark_next_open_intent(
+                    row["intent_id"], status="failed", error="30m intent has no valid signal bar"
+                )
+                continue
+            # A replay may have persisted this slot's next-open signal before
+            # crashing ahead of the ledger commit. It belongs to the next closed
+            # bucket, even though its wall-clock open target equals this close.
+            if signal_bar >= bar_slot:
+                continue
             try:
                 kwargs = dict(row.get("kwargs") or {})
                 kwargs["order_time"] = bar_slot

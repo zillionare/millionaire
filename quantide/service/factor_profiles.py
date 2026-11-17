@@ -36,6 +36,7 @@ class TrackingProfile:
     source: str
     source_study_id: str | None = None
     source_selected_at: str | None = None
+    universe_filter: dict[str, Any] | None = None
 
     @property
     def effective_holding_days(self) -> tuple[Holding, ...]:
@@ -146,6 +147,7 @@ def load_profile(root: Path, factor_id: str) -> TrackingProfile:
             source=str(raw.get("source") or "user"),
             source_study_id=raw.get("source_study_id"),
             source_selected_at=raw.get("source_selected_at"),
+            universe_filter=raw.get("universe_filter"),
         )
         _validate_profile(profile)
     except (KeyError, TypeError, ValueError):
@@ -164,6 +166,7 @@ def save_profile(
     price_field: str = "open",
     enabled: bool = True,
     source_study_id: str | None = None,
+    universe_filter: dict[str, Any] | None = None,
 ) -> TrackingProfile:
     if factor_id not in all_factor_ids():
         raise KeyError(factor_id)
@@ -185,6 +188,7 @@ def save_profile(
             source="custom_study" if source_study_id else "user",
             source_study_id=source_study_id,
             source_selected_at=market_now().isoformat() if source_study_id else None,
+            universe_filter=universe_filter,
         )
         _validate_profile(profile)
         profiles = _read_profiles(path)

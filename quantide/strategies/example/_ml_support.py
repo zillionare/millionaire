@@ -34,15 +34,31 @@ from quantide.factors.alpha import _zscore_1d
 from quantide.factors.registry import all_factor_ids, catalog_version, factor_version
 from quantide.factors.universe import (
     UniverseFilterConfig,
+    attach_status_contract,
     filter_universe_for_date,
     load_st_status_frame,
 )
-
-LABEL_KINDS = ("raw_return", "excess_mean", "cs_rank")
+from quantide.strategies.example._ml_labels import (
+    LABEL_KINDS as LABEL_KINDS,
+)
+from quantide.strategies.example._ml_labels import (
+    _cross_section_label,
+    compute_future_close_return_labels,
+)
+from quantide.strategies.example._ml_listing import _apply_listing_eligibility
 
 
 class InsufficientTrainingDataError(RuntimeError):
     """Raised when a training frame has no realized forward-return labels."""
+
+
+def _label_content_digest(hist_df: pl.DataFrame) -> str:
+    columns = ["date", "asset", "close"]
+    if "_eligible" in hist_df.columns:
+        columns.append("_eligible")
+    return hashlib.sha256(
+        hist_df.select(columns).hash_rows(seed=0).to_numpy().tobytes()
+    ).hexdigest()
 
 
 def _training_feature_panel(
@@ -73,6 +89,8 @@ def _training_feature_panel(
         label_key = (
             tuple(label_cache_key),
             history_key,
+            _label_content_digest(hist_df),
+            (id(calendar), getattr(calendar, "day_frames", None) is None),
             int(horizon),
             str(label_kind),
         )
@@ -86,8 +104,12 @@ def _training_feature_panel(
     labeled = hist_df.select(["date", "asset", *z_cols]).join(
         labels, on=["date", "asset"], how="inner"
     )
+    eligible = pl.lit(True)
+    if "_eligible" in labeled.columns:
+        eligible = pl.col("_eligible").fill_null(False)
     valid_train = labeled.filter(
-        pl.col("future_n_trading_day_close_return").is_not_null()
+        eligible
+        & pl.col("future_n_trading_day_close_return").is_not_null()
         & pl.col("future_n_trading_day_close_return").is_finite()
     )
     if valid_train.is_empty():
@@ -102,6 +124,64 @@ def _training_feature_panel(
         pl.col("future_n_trading_day_close_return").alias("label_y")
     )
     return z_cols, valid_train
+
+
+def _attach_historical_eligibility(strategy: Any, frame: pl.DataFrame) -> pl.DataFrame:
+    """Attach signal-date PIT eligibility without removing exit-price rows."""
+    if frame.is_empty() or "date" not in frame.columns or "asset" not in frame.columns:
+        return frame
+    date_cols = [
+        column
+        for column in ("date", "asset", "is_st", "volume", "close", "high", "low", "up_limit")
+        if column in frame.columns
+    ]
+    qualify = frame.select(date_cols).unique(["date", "asset"]).sort(["date", "asset"])
+    counts: dict[str, int] = {}
+    warnings: list[str] = []
+    qualify = attach_status_contract(qualify, load_st_status_frame(), warnings, counts)
+    diagnostics = getattr(strategy, "_universe_diagnostics", None)
+    if isinstance(diagnostics, dict) and (warnings or counts):
+        diagnostics["historical_eligibility"] = {
+            "warnings": sorted(set(warnings)),
+            "exclusion_counts": dict(counts),
+            "start": str(qualify["date"].min()) if not qualify.is_empty() else None,
+            "end": str(qualify["date"].max()) if not qualify.is_empty() else None,
+        }
+    if strategy.universe_filter.exclude_st:
+        qualify = qualify.filter(~pl.col("is_st"))
+    if strategy.universe_filter.exclude_suspended and "volume" in qualify.columns:
+        qualify = qualify.filter(pl.col("volume").fill_null(0) > 0)
+    if (
+        strategy.universe_filter.exclude_limit_locked_on_close
+        and str(strategy.fill_timing).lower() in {"auction_close", "auction", "close"}
+        and {"close", "high", "low", "up_limit"}.issubset(qualify.columns)
+    ):
+        tolerance = pl.col("up_limit") * 0.001
+        qualify = qualify.filter(
+            ~(
+                (pl.col("up_limit") > 0)
+                & ((pl.col("high") - pl.col("low")).abs() <= 1e-12)
+                & (pl.col("close") >= pl.col("up_limit") - tolerance)
+            )
+        )
+    qualify = _apply_listing_eligibility(
+        qualify, strategy.universe_filter.min_listing_days, diagnostics
+    )
+    eligible = qualify.select(["date", "asset"]).with_columns(pl.lit(True).alias("_eligible"))
+    return frame.join(eligible, on=["date", "asset"], how="left").with_columns(
+        pl.col("_eligible").fill_null(False)
+    )
+
+
+def _pit_fingerprint() -> tuple[object, ...]:
+    """Lightweight revision fingerprint for PIT universe inputs.
+
+    Only file stats are read here; the fingerprint is part of panel/explanation
+    cache identity and must not walk market-scale Parquet contents per trade.
+    """
+    from quantide.data.source_identity import pit_input_signature
+
+    return pit_input_signature(get_data_home())
 
 
 def _append_ranked_candidates(
@@ -183,8 +263,23 @@ def _pipeline_version(source_file: str | Path | None = None) -> str:
         Path(source_file) if source_file else Path(__file__).with_name("ml_momentum_reversal.py")
     )
     digest.update(source.read_bytes())
-    for name in ("_ml_support.py", "_ml_explanation.py"):
-        digest.update(Path(__file__).with_name(name).read_bytes())
+    root = Path(__file__).resolve().parents[2]
+    for path in (
+        *(
+            Path(__file__).with_name(name)
+            for name in (
+                "_ml_support.py",
+                "_ml_explanation.py",
+                "_ml_selection.py",
+                "_ml_rebalance.py",
+                "_ml_labels.py",
+                "_ml_listing.py",
+            )
+        ),
+        root / "factors/universe.py",
+        root / "data/source_identity.py",
+    ):
+        digest.update(path.read_bytes())
     return digest.hexdigest()[:12]
 
 
@@ -225,13 +320,37 @@ def _training_return_labels(
     labels: pl.DataFrame | None,
     label_kind: str = "raw_return",
 ) -> pl.DataFrame:
-    """Training return labels."""
+    """Training return labels computed on eligible signal-date cross-sections."""
     if labels is None:
-        labels = compute_future_close_return_labels(
+        raw = compute_future_close_return_labels(
             hist_df.select(["date", "asset", "close"]),
             horizon=horizon,
-            label_kind=label_kind,
+            label_kind="raw_return",
         ).select(["date", "asset", "future_n_trading_day_close_return"])
+        if "_eligible" in hist_df.columns:
+            eligible = hist_df.select(["date", "asset", "_eligible"])
+            raw = raw.join(eligible, on=["date", "asset"], how="left").with_columns(
+                pl.col("_eligible").fill_null(False)
+            )
+            if label_kind != "raw_return":
+                ranked = _cross_section_label(raw.filter(pl.col("_eligible")), label_kind).select(
+                    ["date", "asset", "future_n_trading_day_close_return"]
+                )
+                raw = raw.select(["date", "asset"]).join(ranked, on=["date", "asset"], how="left")
+            else:
+                raw = raw.with_columns(
+                    pl.when(pl.col("_eligible"))
+                    .then(pl.col("future_n_trading_day_close_return"))
+                    .otherwise(pl.lit(None, dtype=pl.Float64))
+                    .alias("future_n_trading_day_close_return")
+                )
+            if "_eligible" in raw.columns:
+                raw = raw.drop("_eligible")
+        elif label_kind != "raw_return":
+            raw = _cross_section_label(raw, label_kind).select(
+                ["date", "asset", "future_n_trading_day_close_return"]
+            )
+        labels = raw
         if label_key is not None:
             if len(_LABEL_CACHE) >= _LABEL_CACHE_MAX:
                 _LABEL_CACHE.pop(next(iter(_LABEL_CACHE)))
@@ -307,6 +426,7 @@ def _retrain_replay_model(
             or all_factor_ids(getattr(self, "bar_interval", "1d")),
             label_cache_key=self._panel_cache_key(signal_date),
             label_kind=getattr(self, "label_kind", "raw_return"),
+            seed=getattr(self, "seed", 42),
         )
     except InsufficientTrainingDataError as exc:
         self._model_pending = self._model is None
@@ -328,7 +448,7 @@ def _retrain_replay_model(
     self._mark_retrained()
 
 
-def _panel_identity(strategy: MLMomentumReversalStrategy) -> tuple[Any, ...]:
+def _panel_identity(strategy: Any) -> tuple[Any, ...]:
     """Identify the catalog and exact factor versions used to build a panel."""
     features = strategy.selected_features or all_factor_ids(strategy.bar_interval)
     return (
@@ -336,6 +456,7 @@ def _panel_identity(strategy: MLMomentumReversalStrategy) -> tuple[Any, ...]:
         strategy.bar_interval,
         tuple((name, factor_version(name)) for name in features),
         _bars_fingerprint(),
+        _pit_fingerprint(),
     )
 
 
@@ -356,7 +477,7 @@ def _bars_fingerprint() -> tuple[object, ...]:
 #: 上限 2 份把常驻内存压在 ~110MB。命中场景：同一进程内重复回测、
 #: 以及归因回放反复请求同一面板。
 _PANEL_CACHE: dict[tuple[Any, ...], pl.DataFrame] = {}
-_PANEL_CACHE_MAX = 2
+_PANEL_CACHE_MAX = 4
 
 #: 未来收盘收益标签缓存（键：面板键 + 训练历史范围 + 标签前瞻期）。
 #: 缓存 date、asset 和收益标签三列，训练特征从当前面板拼回。
@@ -440,108 +561,7 @@ def _resolve_stock_name(asset: str) -> str:
     return asset
 
 
-def _cross_section_label(frame: pl.DataFrame, label_kind: str) -> pl.DataFrame:
-    label = "future_n_trading_day_close_return"
-    if label_kind == "raw_return":
-        return frame
-    date_count = pl.len().over("date")
-    immature = pl.col(label).is_null().any().over("date")
-    if label_kind == "excess_mean":
-        value = pl.col(label) - pl.col(label).mean().over("date")
-    else:
-        value = pl.col(label).rank(method="average").over("date") / date_count - 0.5
-    return frame.with_columns(
-        pl.when(~immature & (date_count >= 2))
-        .then(value)
-        .otherwise(pl.lit(None, dtype=pl.Float64))
-        .alias(label)
-    )
-
-
-def _authoritative_exit_dates(
-    dates: list[datetime.date], horizon: int
-) -> dict[datetime.date, datetime.date] | None:
-    """Map each signal date to the exact authoritative session ``h`` days later."""
-    if not dates or calendar.day_frames is None:
-        return None
-    start, end = min(dates), max(dates)
-    try:
-        tail = calendar.day_shift(end, horizon)
-        sessions = list(calendar.get_trade_dates(start, max(end, tail)))
-    except Exception:
-        return None
-    if not sessions or not set(dates).issubset(set(sessions)):
-        return None
-    index = {day: position for position, day in enumerate(sessions)}
-    mapping: dict[datetime.date, datetime.date] = {}
-    for day in dates:
-        position = index[day] + horizon
-        if position < len(sessions):
-            mapping[day] = sessions[position]
-    return mapping
-
-
-def compute_future_close_return_labels(
-    df: pl.DataFrame, horizon: int = 3, label_kind: str = "raw_return"
-) -> pl.DataFrame:
-    """Attach a supervised future close-return target to a daily-bar panel.
-
-    ``horizon`` counts authoritative trading sessions.  A missing exit-day quote
-    yields a missing label; it is never silently replaced by the next existing
-    row.  ``excess_mean`` and ``cs_rank`` are computed strictly inside each
-    signal date's mature cross section; a date with any missing forward price is
-    excluded as a whole.  Callers must pass a history frame cut off at the
-    signal date when training.
-    """
-    horizon = max(1, int(horizon))
-    if label_kind not in LABEL_KINDS:
-        raise ValueError(f"unsupported label_kind: {label_kind}")
-    if df.is_empty():
-        return df.with_columns(
-            pl.lit(None, dtype=pl.Float64).alias("future_n_trading_day_close_return")
-        )
-    ordered = df.sort(["asset", "date"])
-    dates = sorted(
-        {value for value in ordered["date"].to_list() if isinstance(value, datetime.date)}
-    )
-    mapping = _authoritative_exit_dates(dates, horizon)
-    close = pl.col("close").cast(pl.Float64)
-    if mapping is not None:
-        exits = pl.DataFrame(
-            {
-                "date": list(mapping),
-                "_exit_date": list(mapping.values()),
-            },
-            schema={"date": pl.Date, "_exit_date": pl.Date},
-        )
-        future = ordered.select(
-            "asset",
-            pl.col("date").alias("_exit_date"),
-            pl.col("close").cast(pl.Float64).alias("_exit_close"),
-        )
-        labeled = (
-            ordered.join(exits, on="date", how="left")
-            .join(future, on=["asset", "_exit_date"], how="left")
-            .with_columns(
-                pl.when(pl.col("_exit_close").is_not_null() & (close != 0.0))
-                .then(pl.col("_exit_close") / close - 1.0)
-                .otherwise(pl.lit(None, dtype=pl.Float64))
-                .alias("future_n_trading_day_close_return")
-            )
-            .drop("_exit_date", "_exit_close")
-        )
-    else:
-        future_close = close.shift(-horizon).over("asset")
-        labeled = ordered.with_columns(
-            pl.when(future_close.is_not_null() & (close != 0.0))
-            .then(future_close / close - 1.0)
-            .otherwise(pl.lit(None, dtype=pl.Float64))
-            .alias("future_n_trading_day_close_return")
-        )
-    return _cross_section_label(labeled, label_kind)
-
-
-def _fit_lightgbm(x_train: np.ndarray, y_train: np.ndarray) -> object:
+def _fit_lightgbm(x_train: np.ndarray, y_train: np.ndarray, *, seed: int = 42) -> object:
     min_child = max(5, min(20, len(x_train) // 10))
     model = lgb.LGBMRegressor(
         n_estimators=50,
@@ -550,7 +570,7 @@ def _fit_lightgbm(x_train: np.ndarray, y_train: np.ndarray) -> object:
         learning_rate=0.05,
         min_child_samples=min_child,
         subsample_for_bin=5000,
-        random_state=42,
+        random_state=int(seed),
         verbosity=-1,
         n_jobs=1,
     )
@@ -571,6 +591,7 @@ def _fit_ml_model(
     feature_cols: list[str] | None = None,
     label_cache_key: tuple[Any, ...] | None = None,
     label_kind: str = "raw_return",
+    seed: int = 42,
 ) -> tuple[object | None, str]:
     """Train the ranking model strictly on leak-free historical samples.
 
@@ -585,6 +606,7 @@ def _fit_ml_model(
         use_lightgbm: True 用 LightGBM，False 用岭回归。
         feature_cols: 参与训练的因子；为空表示全部因子。
         label_cache_key: 稳定的面板内容键；相同训练历史的标签可跨训练复用。
+        seed: 模型训练与重放使用的共享随机种子。
 
     Returns:
         tuple: (模型, 引擎名)。
@@ -597,7 +619,7 @@ def _fit_ml_model(
     y_train = valid_train["label_y"].fill_null(0.0).fill_nan(0.0).to_numpy().astype(np.float64)
 
     if use_lightgbm and _HAS_LIGHTGBM and len(x_train) >= 30:
-        return _fit_lightgbm(x_train, y_train), "LightGBM"
+        return _fit_lightgbm(x_train, y_train, seed=seed), "LightGBM"
     if len(x_train) >= 8:
         return _fit_ridge(x_train, y_train), "Prior-Ridge"
     return None, "Prior-Ridge"
@@ -694,12 +716,14 @@ def _format_candidate_rows(
     eligibility = pl.lit(True)
     if "volume" in scored_df.columns:
         eligibility = eligibility & (pl.col("volume").fill_null(0) > 0)
-    if "is_st" in scored_df.columns:
-        eligibility = eligibility & ~pl.col("is_st").fill_null(False)
     if "up_limit" in scored_df.columns:
         eligibility = eligibility & ~(
             (pl.col("up_limit") > 0) & (pl.col("close") >= pl.col("up_limit") * 0.999)
         )
+    if "_eligible" in scored_df.columns:
+        eligibility = eligibility & pl.col("_eligible").fill_null(False)
+    elif "is_st" in scored_df.columns:
+        eligibility = eligibility & ~pl.col("is_st").fill_null(False)
     tradable = scored_df.filter(eligibility)
 
     ranked = tradable.sort(["ml_score", "asset"], descending=[True, False]).head(limit)
@@ -812,19 +836,22 @@ def _select_from_pit(
     trim_pct: float,
     holdings: list[str] | None,
     index_codes: list[str] | None,
+    exclude_st: bool = True,
 ) -> list[str]:
     if mode == "index_pit":
         pool = _index_pit_universe(target_date, index_codes)
         if pool:
-            cap = _eligible_universe(on_date.filter(pl.col("asset").is_in(pool)), False)
+            cap = _eligible_universe(
+                on_date.filter(pl.col("asset").is_in(pool)), False, exclude_st=exclude_st
+            )
             return _cap_universe(cap, universe_size, holdings, mode)
         mode = "market_cap_trim"
     if mode == "market_cap_trim" and "total_mv" in on_date.columns:
-        trimmed_cap = _trim_market_cap(raw_on_date, trim_pct)
+        trimmed_cap = _trim_market_cap(raw_on_date, trim_pct, exclude_st=exclude_st)
         if trimmed_cap is not None:
             trimmed_cap = trimmed_cap.filter(pl.col("asset").is_in(on_date["asset"].to_list()))
             return _cap_universe(trimmed_cap, universe_size, holdings, mode)
-    eligible = _eligible_universe(on_date, True)
+    eligible = _eligible_universe(on_date, True, exclude_st=exclude_st)
     if eligible.is_empty():
         return []
     return _liquidity_universe(bars_df, eligible, universe_size)
@@ -859,6 +886,7 @@ def _filter_universe(
         trim_pct,
         holdings,
         index_codes,
+        exclude_st=universe_filter.exclude_st if universe_filter is not None else True,
     )
 
 
@@ -911,17 +939,21 @@ def _liquidity_universe(
     return top_liquid["asset"].to_list()
 
 
-def _eligible_universe(frame: pl.DataFrame, require_close: bool) -> pl.DataFrame:
-    """Exclude suspended and ST securities after a pool's size filter."""
+def _eligible_universe(
+    frame: pl.DataFrame, require_close: bool, *, exclude_st: bool = True
+) -> pl.DataFrame:
+    """Exclude suspended securities and ST names only when the contract says so."""
     condition = pl.col("volume") > 0
     if require_close:
         condition = condition & (pl.col("close") > 0)
-    if "is_st" in frame.columns:
+    if exclude_st and "is_st" in frame.columns:
         condition = condition & ~pl.col("is_st").fill_null(False)
     return frame.filter(condition)
 
 
-def _trim_market_cap(on_date: pl.DataFrame, trim_pct: float) -> pl.DataFrame | None:
+def _trim_market_cap(
+    on_date: pl.DataFrame, trim_pct: float, *, exclude_st: bool = True
+) -> pl.DataFrame | None:
     """Trim an exact number from both cap tails before tradability filtering."""
     cap = on_date.filter(
         (pl.col("close") > 0) & pl.col("total_mv").is_not_null() & (pl.col("total_mv") > 0)
@@ -932,4 +964,4 @@ def _trim_market_cap(on_date: pl.DataFrame, trim_pct: float) -> pl.DataFrame | N
     n_trim = int(cap.height * trim_pct)
     if n_trim > 0:
         cap = cap.slice(n_trim, max(0, cap.height - 2 * n_trim))
-    return _eligible_universe(cap, False)
+    return _eligible_universe(cap, False, exclude_st=exclude_st)

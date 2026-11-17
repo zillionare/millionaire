@@ -88,19 +88,25 @@ def test_external_30m_study_loads_native_bars_and_aggregates_daily(monkeypatch) 
                     }
                 )
     native = pl.DataFrame(rows)
-    plugin = SimpleNamespace(factor_id="ai_30m", bar_interval="30m")
+    daily = (
+        native.with_columns(pl.col("dt").dt.date().alias("date"))
+        .group_by(["date", "asset"])
+        .agg(pl.col("open").last(), pl.col("close").last())
+        .sort(["asset", "date"])
+    )
+    plugin = SimpleNamespace(factor_id="ai_30m", bar_interval="30m", price_adjustment="hfq")
     discovered = SimpleNamespace(by_id=lambda _factor_id: plugin)
     monkeypatch.setattr(factor_study, "discover_factor_plugins", lambda: discovered)
     monkeypatch.setattr(factor_study, "all_factor_ids", lambda *_args, **_kwargs: ["ai_30m"])
     monkeypatch.setattr(
-        factor_study,
-        "load_wind_tunnel_frame",
-        lambda _start, _end, interval=None: native,
-        raising=False,
-    )
-    monkeypatch.setattr(
         "quantide.service.factor_wind_tunnel.load_wind_tunnel_frame",
-        lambda _start, _end, interval=None: native,
+        lambda _start, _end, interval=None, price_adjustment=None: native,
+    )
+    monkeypatch.setattr(factor_study, "load_factor_panel", lambda _start, _end: daily)
+    monkeypatch.setattr(
+        factor_study,
+        "trading_days",
+        lambda _start, _end: tuple(sorted(daily["date"].unique().to_list())),
     )
     monkeypatch.setattr(
         factor_study,
