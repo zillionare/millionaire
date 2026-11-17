@@ -40,6 +40,7 @@ from quantide.service.backtest_params import (
     format_changed_params,
 )
 from quantide.service.discovery import strategy_loader
+from quantide.service.factor_audit import factor_wind_tunnel_badge
 from quantide.service.risk_programs import (
     ALLOW_SAME_BAR_REPURCHASE_KEY,
     available_risk_programs,
@@ -376,6 +377,8 @@ def _build_feature_selection_panel() -> Any:
         items: list[Any] = []
         for name in names:
             doc = docs.get(name, "")
+            badge = factor_wind_tunnel_badge(name)
+            blocked = badge.badge_status == "FAIL"
             items.append(
                 Div(
                     fh.Label(
@@ -383,14 +386,29 @@ def _build_feature_selection_panel() -> Any:
                             type="checkbox",
                             name="param_features",
                             value=name,
-                            checked=True,
+                            checked=not blocked,
+                            disabled=blocked,
                             cls="checkbox checkbox-sm",
                         ),
-                        Span(name, cls="text-xs font-medium text-gray-700"),
+                        Span(
+                            name,
+                            cls=(
+                                "text-xs font-medium text-red-700"
+                                if blocked
+                                else "text-xs font-medium text-gray-700"
+                            ),
+                        ),
+                        Span(
+                            " 风洞 FAIL 已阻断",
+                            cls="text-[11px] font-semibold text-red-600",
+                        )
+                        if blocked
+                        else None,
                         title=doc,
                         cls="flex items-center gap-2 cursor-pointer",
                     ),
                     cls="py-0.5",
+                    data_wind_tunnel=badge.badge_status,
                 )
             )
         groups.append(

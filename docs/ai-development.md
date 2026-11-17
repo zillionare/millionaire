@@ -31,3 +31,18 @@ AI 生成代码后，至少要求它给出以下证据，而不是只给“已�
 5. 失败时首个差异的日期、证券、输入、预期值和实际值。
 
 运行成功、SHAP 面板可见或回测赚钱都不能替代正确性证据。审计不能证明任意代码毫无错误，也不能保证有利润；正确但没有预测能力的策略，应该能通过正确性检查，同时在收益评估中显示表现不佳。
+
+## 官方因子研究 Skill 与 CLI 闭环
+
+仓库在 `.github/skills/millionaire-factor-mining/SKILL.md`（并在
+`skills/millionaire-factor-mining/SKILL.md` 提供同一技能包）给出面向 AI
+Agent 的官方流程。Claude Code、GitHub Copilot 与 Cursor 可将该目录挂载为
+项目技能/规则来源；它们通过 `millionaire` CLI 读取同一套服务函数，不复制
+风洞或研究逻辑。
+
+标准纪律是“生成单因子 → `factor check` 过风洞 → 查看正交性 → `factor study`
+看 IC → 进入预设/消融回测”。`factor check --json` 使用稳定信封与退出码
+（`0` 成功、`2` 参数/契约错误、`3` 风洞 `FAIL`、`4` 证据或数据不足）。
+Agent 不得修改风洞阈值、种子、截断点或审计代码来绕过 `FAIL`；源码、配置或
+数据指纹变化后，Web 徽章会降级为 `STALE`，必须重跑。研究 CLI 不启停仿真、
+不改仿真持仓，也不提供实盘下单入口。

@@ -14,9 +14,11 @@ from fasthtml.common import Select as PlainSelect
 
 from quantide.factors.metadata import FactorDefinition
 from quantide.factors.registry import feature_groups
+from quantide.service.factor_audit import factor_wind_tunnel_badge
 from quantide.service.factor_tracking import TrackingView
 from quantide.web.components.data_tables import DatasetTable
 from quantide.web.pages.factors_ui import fmt_number, fmt_percent, fmt_time
+from quantide.web.pages.wind_tunnel_ui import wind_tunnel_badge
 
 _SORTABLE_COLUMNS = {
     "rank_ic": "RankIC",
@@ -306,21 +308,37 @@ def overview_row(meta: FactorDefinition, view: TrackingView) -> Any:
     deciles = primary.get("deciles") or {}
     annualized = annualized_long_short(view)
     long_only = annualized_long_only(view)
+    wind_badge = factor_wind_tunnel_badge(meta.factor_id)
+    blocked = wind_badge.badge_status == "FAIL"
     return Tr(
         Td(
             A(
                 Div(
                     Span(
                         meta.display_name,
-                        cls="font-medium text-gray-900 hover:text-[#e41815] hover:underline",
+                        cls=(
+                            "font-medium text-red-700 hover:underline"
+                            if blocked
+                            else "font-medium text-gray-900 hover:text-[#e41815] hover:underline"
+                        ),
                     ),
+                    wind_tunnel_badge(wind_badge, href=f"/factors/{meta.factor_id}?tab=report"),
                     Div(meta.factor_id, cls="mt-0.5 font-mono text-xs text-gray-500"),
+                    (
+                        P(
+                            "风洞 FAIL：默认阻断新建回测",
+                            cls="mt-1 text-xs font-semibold text-red-600",
+                        )
+                        if blocked
+                        else None
+                    ),
                 ),
                 href=f"/factors/{meta.factor_id}",
                 aria_label=f"查看因子 {meta.display_name}",
                 cls="block",
             ),
             cls="min-w-[220px] px-4 py-3",
+            data_wind_tunnel=wind_badge.badge_status,
         ),
         Td(meta.group, cls="hidden px-4 py-3 text-xs text-gray-500 lg:table-cell"),
         Td(

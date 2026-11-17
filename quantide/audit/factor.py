@@ -201,6 +201,29 @@ def _resolve_cutoffs(
     return resolved
 
 
+def factor_config_hash(
+    factor: str,
+    *,
+    cutoffs: tuple[dt.date, ...] | list[dt.date],
+    modes: tuple[str, ...] = ("random", "zero", "extreme"),
+    seeds: tuple[int, ...] = (0,),
+    positive_columns: tuple[str, ...] = DEFAULT_POSITIVE_COLUMNS,
+) -> str:
+    """Return the configuration fingerprint shared with the audit spec."""
+    definition = factor_definition(factor)
+    return canonical_hash(
+        {
+            "factor": factor,
+            "group": definition.group,
+            "parameters": definition.parameters,
+            "cutoffs": [value.isoformat() for value in cutoffs],
+            "modes": list(modes),
+            "seeds": list(seeds),
+            "positive_columns": list(positive_columns),
+        }
+    )
+
+
 def build_factor_spec(
     frame: pl.DataFrame,
     factor: str,
@@ -210,7 +233,6 @@ def build_factor_spec(
     seeds: tuple[int, ...] = (0,),
     positive_columns: tuple[str, ...] = DEFAULT_POSITIVE_COLUMNS,
 ) -> AuditSpec:
-    definition = factor_definition(factor)
     resolved_cutoffs = tuple(cutoffs) if cutoffs is not None else _interior_cutoffs(frame)
     return AuditSpec(
         spec_id=f"factor:{factor}:{FACTOR_VERSION}",
@@ -218,16 +240,12 @@ def build_factor_spec(
         object_id=factor,
         source_hash=FACTOR_VERSION,
         data_hash=frame_digest(frame),
-        config_hash=canonical_hash(
-            {
-                "factor": factor,
-                "group": definition.group,
-                "parameters": definition.parameters,
-                "cutoffs": [value.isoformat() for value in resolved_cutoffs],
-                "modes": list(modes),
-                "seeds": list(seeds),
-                "positive_columns": list(positive_columns),
-            }
+        config_hash=factor_config_hash(
+            factor,
+            cutoffs=resolved_cutoffs,
+            modes=modes,
+            seeds=seeds,
+            positive_columns=positive_columns,
         ),
         interval="1d",
         timezone="Asia/Shanghai",

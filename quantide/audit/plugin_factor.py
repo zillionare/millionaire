@@ -382,6 +382,28 @@ def _resolve_plugin(plugin: FactorPlugin | str) -> FactorPlugin:
     return found
 
 
+def plugin_config_hash(
+    plugin: FactorPlugin,
+    *,
+    cutoffs: tuple[dt.date, ...],
+    modes: tuple[str, ...] = ("zero", "extreme", "random"),
+    seeds: tuple[int, ...] = (0,),
+) -> str:
+    """Return the plugin configuration fingerprint shared with the audit spec."""
+    return canonical_hash(
+        {
+            "factor_id": plugin.factor_id,
+            "bar_interval": plugin.bar_interval,
+            "scope": plugin.scope,
+            "required_columns": list(plugin.required_columns),
+            "warmup_bars": plugin.warmup_bars,
+            "cutoffs": [value.isoformat() for value in cutoffs],
+            "modes": list(modes),
+            "seeds": list(seeds),
+        }
+    )
+
+
 def build_plugin_spec(
     frame: pl.DataFrame,
     plugin: FactorPlugin,
@@ -397,18 +419,7 @@ def build_plugin_spec(
         object_id=plugin.factor_id,
         source_hash=plugin.source_hash,
         data_hash=frame_digest(frame),
-        config_hash=canonical_hash(
-            {
-                "factor_id": plugin.factor_id,
-                "bar_interval": plugin.bar_interval,
-                "scope": plugin.scope,
-                "required_columns": list(plugin.required_columns),
-                "warmup_bars": plugin.warmup_bars,
-                "cutoffs": [value.isoformat() for value in cutoffs],
-                "modes": list(modes),
-                "seeds": list(seeds),
-            }
-        ),
+        config_hash=plugin_config_hash(plugin, cutoffs=cutoffs, modes=modes, seeds=seeds),
         interval=plugin.bar_interval,
         timezone="Asia/Shanghai",
         availability_contract=f"plugin availability={plugin.availability}",
@@ -468,4 +479,9 @@ def audit_factor_plugin(
     return AuditRunner(registry).run(spec or expected)
 
 
-__all__ = ["PLUGIN_AUDIT_VERSION", "audit_factor_plugin", "build_plugin_spec"]
+__all__ = [
+    "PLUGIN_AUDIT_VERSION",
+    "audit_factor_plugin",
+    "build_plugin_spec",
+    "plugin_config_hash",
+]

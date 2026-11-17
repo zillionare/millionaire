@@ -327,6 +327,14 @@ def factor_source_hash(factor_id: str) -> str:
     return plugin.source_hash if plugin is not None else ""
 
 
+def load_factor_plugin(path: str | Path) -> FactorPlugin:
+    """Load one plugin file for a CLI check without registering it globally."""
+    candidate = Path(path).expanduser()
+    if candidate.suffix != ".py" or not candidate.is_file():
+        raise FileNotFoundError(str(candidate))
+    return _load_plugin(candidate)
+
+
 def _input_frame(panel: pl.DataFrame, plugin: FactorPlugin) -> tuple[pl.DataFrame, str]:
     date_col = "dt" if plugin.bar_interval != "1d" else "date"
     required = {*plugin.required_columns, "asset", date_col}
@@ -421,4 +429,5 @@ __all__ = [
     "compute_plugin",
     "discover_factor_plugins",
     "factor_source_hash",
+    "load_factor_plugin",
 ]

@@ -24,7 +24,14 @@ from fasthtml.common import (
 from monsterui.all import *
 from monsterui.all import TableT
 from starlette.requests import Request
+from starlette.responses import RedirectResponse, Response
 
+from quantide.service.factor_audit import (
+    backtest_factor_ids,
+    backtest_wind_tunnel_badge,
+    latest_report_payload,
+    report_markdown,
+)
 from quantide.service.strategy_runtime import strategy_runtime_manager
 from quantide.web.layouts.main import MainLayout
 from quantide.web.pages.strategy_format import (
@@ -57,6 +64,7 @@ from quantide.web.pages.strategy_trade_report import (
     _paginate_trade_pairs,
     _sort_trade_pair_rows,
 )
+from quantide.web.pages.wind_tunnel_ui import wind_tunnel_badge, wind_tunnel_card
 from quantide.web.session_data import SessionData
 from quantide.web.template_assets import render_asset
 from quantide.web.theme import ECHARTS_SRC
@@ -137,6 +145,7 @@ def _render_backtest_report(
             portfolio_id=portfolio_id, status=status, rows=_build_log_rows(portfolio_id, limit=200)
         ),
     }[active_tab]
+    wind_view = backtest_wind_tunnel_badge(portfolio_id)
     layout.set_main_block(
         lambda: Div(
             Script(src=ECHARTS_SRC),
@@ -148,6 +157,16 @@ def _render_backtest_report(
                         cls="text-gray-500 hover:text-gray-800 mb-4 inline-block",
                     ),
                     _report_error_panel(backtest_error),
+                    Div(
+                        Span("风洞体检", cls="text-sm font-medium text-gray-600"),
+                        wind_tunnel_badge(wind_view),
+                        cls="mb-2 flex items-center gap-2",
+                    ),
+                    wind_tunnel_card(
+                        wind_view,
+                        run_url=f"/strategy/backtest/{portfolio_id}/audit/run",
+                        export_url=f"/strategy/backtest/{portfolio_id}/audit/export",
+                    ),
                     _build_cheat_on_close_badge(portfolio_id),
                     active_panel,
                     cls="max-w-6xl mx-auto py-8",
@@ -235,6 +254,57 @@ def _build_cheat_on_close_badge(portfolio_id: str) -> Any:
         ),
         cls="mb-4 flex items-center",
         id="cheat_badge",
+    )
+
+
+@rt("/backtest/{portfolio_id}/audit/run", methods=["post"])
+def run_backtest_wind_tunnel(req: Request, portfolio_id: str) -> RedirectResponse:
+    from quantide.service.research_cli import check_factor
+
+    for factor_id in backtest_factor_ids(portfolio_id):
+        try:
+            check_factor(factor_id)
+        except (KeyError, ValueError, FileNotFoundError, RuntimeError):
+            continue
+    return RedirectResponse(f"/strategy/backtest/{portfolio_id}", status_code=303)
+
+
+@rt("/backtest/{portfolio_id}/audit/export")
+def export_backtest_wind_tunnel(req: Request, portfolio_id: str) -> Response:
+    payloads = [
+        payload
+        for factor_id in backtest_factor_ids(portfolio_id)
+        if (payload := latest_report_payload(factor_id=factor_id)) is not None
+    ]
+    if not payloads:
+        return Response("尚无风洞报告", status_code=404, media_type="text/plain; charset=utf-8")
+    view = backtest_wind_tunnel_badge(portfolio_id)
+    if req.query_params.get("format") == "md":
+        sections = [
+            "# 策略回测风洞证据",
+            f"- portfolio_id: `{portfolio_id}`",
+            f"- badge: **{view.badge_status}**",
+            "",
+        ]
+        sections.extend(report_markdown(payload) for payload in payloads)
+        return Response(
+            "\n".join(sections),
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="wind-tunnel-{portfolio_id}.md"'
+            },
+        )
+    import json
+
+    return Response(
+        json.dumps(
+            {"portfolio_id": portfolio_id, "badge": view.badge_status, "reports": payloads},
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        ),
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="wind-tunnel-{portfolio_id}.json"'},
     )
 
 

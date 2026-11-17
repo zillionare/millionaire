@@ -19,8 +19,13 @@ from quantide.factors.orthogonality import (
     FactorOrthogonalitySummary,
     orthogonality_summary,
 )
-from quantide.factors.plugins import discover_factor_plugins
+from quantide.factors.plugins import FactorPlugin, compute_plugin, discover_factor_plugins
 from quantide.factors.registry import compute_feature_panel
+from quantide.service.factor_audit import (
+    WindTunnelBadgeView,
+    backtest_wind_tunnel_badge,
+    factor_wind_tunnel_badge,
+)
 
 
 @dataclass(frozen=True)
@@ -91,14 +96,17 @@ def _audit(
     raw: pl.DataFrame,
     *,
     cutoffs: tuple[dt.date, ...] | None,
+    modes: tuple[str, ...],
+    seeds: tuple[int, ...],
+    plugin: FactorPlugin | None = None,
 ) -> AuditReport:
-    plugin = discover_factor_plugins().by_id(factor_id)
-    if plugin is not None:
-        return audit_factor_plugin(plugin, raw, cutoffs=cutoffs)
+    resolved = plugin or discover_factor_plugins().by_id(factor_id)
+    if resolved is not None:
+        return audit_factor_plugin(resolved, raw, cutoffs=cutoffs, modes=modes, seeds=seeds)
     factor_definition(factor_id)
     if "available_at" not in raw.columns:
         raw = raw.with_columns(pl.col("date").alias("available_at"))
-    return audit_factor(raw, factor_id, cutoffs=cutoffs)
+    return audit_factor(raw, factor_id, cutoffs=cutoffs, modes=modes, seeds=seeds)
 
 
 def _empty_orthogonality(factor_id: str) -> FactorOrthogonalitySummary:
@@ -113,14 +121,57 @@ def _empty_orthogonality(factor_id: str) -> FactorOrthogonalitySummary:
     )
 
 
-def _orthogonality_for(factor_id: str, raw: pl.DataFrame) -> FactorOrthogonalitySummary:
+def _orthogonality_for(
+    factor_id: str, raw: pl.DataFrame, plugin: FactorPlugin | None = None
+) -> FactorOrthogonalitySummary:
     panel = compute_feature_panel(raw)
+    if plugin is not None and factor_id not in panel.columns:
+        try:
+            computed = compute_plugin(raw, plugin)
+            panel = panel.join(
+                computed.select(["asset", "date", factor_id]),
+                on=["asset", "date"],
+                how="left",
+            )
+        except Exception:
+            return _empty_orthogonality(factor_id)
     if factor_id not in panel.columns:
         return _empty_orthogonality(factor_id)
     try:
         return orthogonality_summary(factor_id, panel)
     except ValueError:
         return _empty_orthogonality(factor_id)
+
+
+def _resolve_modes(
+    factor_id: str, plugin: FactorPlugin | None, modes: tuple[str, ...] | None
+) -> tuple[str, ...]:
+    if modes:
+        return modes
+    if plugin is not None or discover_factor_plugins().by_id(factor_id) is not None:
+        return ("zero", "extreme", "random")
+    return ("random", "zero", "extreme")
+
+
+def _save_result(
+    result: WindTunnelResult,
+    raw: pl.DataFrame,
+    cutoffs: tuple[dt.date, ...],
+    modes: tuple[str, ...],
+    seeds: tuple[int, ...],
+) -> None:
+    from quantide.service.factor_audit import remember_factor_audit
+
+    ReportStore().save(result.report)
+    dates = raw["date"].to_list()
+    remember_factor_audit(
+        result,
+        data_start=min(dates) if dates else None,
+        data_end=max(dates) if dates else None,
+        cutoffs=cutoffs,
+        modes=modes,
+        seeds=seeds,
+    )
 
 
 def run_factor_wind_tunnel(
@@ -131,6 +182,9 @@ def run_factor_wind_tunnel(
     end: dt.date | None = None,
     assets: list[str] | None = None,
     cutoffs: tuple[dt.date, ...] | list[dt.date] | None = None,
+    modes: tuple[str, ...] | None = None,
+    seeds: tuple[int, ...] = (0,),
+    plugin: FactorPlugin | None = None,
     save: bool = True,
 ) -> WindTunnelResult:
     """Run the deterministic audit and orthogonality check for one factor."""
@@ -140,18 +194,39 @@ def run_factor_wind_tunnel(
             raise ValueError("必须提供 frame 或 start/end")
         raw = load_wind_tunnel_frame(start, end, assets=assets)
     resolved_cutoffs = tuple(cutoffs) if cutoffs is not None else _cutoffs_for(raw)
-    report = _audit(factor_id, raw, cutoffs=resolved_cutoffs)
+    report = _audit(
+        factor_id,
+        raw,
+        cutoffs=resolved_cutoffs,
+        modes=_resolve_modes(factor_id, plugin, modes),
+        seeds=seeds,
+        plugin=plugin,
+    )
     orthogonality = _empty_orthogonality(factor_id)
     if report.status is AuditStatus.PASS:
-        orthogonality = _orthogonality_for(factor_id, raw)
-    if save:
-        ReportStore().save(report)
-    return WindTunnelResult(
+        orthogonality = _orthogonality_for(factor_id, raw, plugin)
+    result = WindTunnelResult(
         factor_id=factor_id,
         report=report,
         orthogonality=orthogonality,
         metadata={"cutoffs": [value.isoformat() for value in resolved_cutoffs]},
     )
+    if save:
+        _save_result(
+            result,
+            raw,
+            resolved_cutoffs,
+            _resolve_modes(factor_id, plugin, modes),
+            seeds,
+        )
+    return result
 
 
-__all__ = ["WindTunnelResult", "load_wind_tunnel_frame", "run_factor_wind_tunnel"]
+__all__ = [
+    "WindTunnelBadgeView",
+    "WindTunnelResult",
+    "backtest_wind_tunnel_badge",
+    "factor_wind_tunnel_badge",
+    "load_wind_tunnel_frame",
+    "run_factor_wind_tunnel",
+]

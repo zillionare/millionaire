@@ -126,15 +126,32 @@ def plugin_skipped_entries() -> tuple[SkippedFactorEntry, ...]:
     return discovery().skipped
 
 
+def _failed_wind_tunnel_ids(candidates: Sequence[str]) -> set[str]:
+    try:
+        from quantide.service.factor_audit import factor_wind_tunnel_badge
+
+        return {
+            factor_id
+            for factor_id in candidates
+            if factor_wind_tunnel_badge(factor_id).badge_status == "FAIL"
+        }
+    except Exception:
+        return set()
+
+
 def resolve_feature_selection(requested: Sequence[str] | None) -> list[str]:
     groups = feature_groups()
     ordered = [name for names in groups.values() for name in names]
     if not requested:
-        return ordered
+        failed = _failed_wind_tunnel_ids(ordered)
+        return [name for name in ordered if name not in failed]
     known = set(ordered)
     unknown = [name for name in requested if name not in known]
     if unknown:
         raise ValueError(f"未知因子: {', '.join(sorted(set(unknown)))}")
+    failed = _failed_wind_tunnel_ids(requested)
+    if failed:
+        raise ValueError(f"风洞 FAIL 因子已被阻断: {', '.join(sorted(failed))}")
     selected = set(requested)
     return [name for name in ordered if name in selected]
 

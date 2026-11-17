@@ -36,7 +36,7 @@ from fasthtml.common import (
 )
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse, RedirectResponse
+from starlette.responses import PlainTextResponse, RedirectResponse, Response
 
 from quantide.factors.metadata import (
     FactorDefinition,
@@ -45,6 +45,11 @@ from quantide.factors.metadata import (
 )
 from quantide.factors.registry import factor_metadata, feature_groups, plugin_skipped_entries
 from quantide.factors.research import summarize_ic
+from quantide.service.factor_audit import (
+    factor_wind_tunnel_badge,
+    latest_report_payload,
+    report_markdown,
+)
 from quantide.service.factor_study import CustomStudy
 from quantide.service.factor_study_worker import (
     cancel_study,
@@ -107,6 +112,7 @@ from quantide.web.pages.factors_ui import (
 from quantide.web.pages.factors_ui import (
     status_badge as _status_badge,
 )
+from quantide.web.pages.wind_tunnel_ui import wind_tunnel_badge, wind_tunnel_card
 from quantide.web.theme import ECHARTS_SRC, AppTheme
 
 factor_app, rt = fast_app(hdrs=AppTheme.headers())
@@ -229,7 +235,14 @@ def _status_strip(meta: FactorDefinition, view: TrackingView) -> Div:
         ),
         Div(
             Span(_profile_text(view.profile), cls="text-sm text-gray-600"),
-            _status_badge(view.status),
+            Div(
+                wind_tunnel_badge(
+                    factor_wind_tunnel_badge(meta.factor_id),
+                    href=f"/factors/{meta.factor_id}?tab=report",
+                ),
+                _status_badge(view.status),
+                cls="flex items-center gap-2",
+            ),
             P(right, cls="mt-1 text-sm font-medium text-gray-900"),
             P(
                 f"数据截至 {current.get('data_cutoff') or '—'} · "
@@ -315,6 +328,11 @@ def _card_tab(meta: FactorDefinition, view: TrackingView) -> Div:
             cls="rounded-xl border border-gray-100 bg-white p-4 shadow-sm",
         ),
         _coverage_section(meta, view),
+        wind_tunnel_card(
+            factor_wind_tunnel_badge(meta.factor_id),
+            run_url=f"/factors/{meta.factor_id}/audit/run",
+            export_url=f"/factors/{meta.factor_id}/audit/export",
+        ),
         cls="mt-4 space-y-4",
     )
 
@@ -421,6 +439,11 @@ def _empty_report(
         error_block,
         task_block,
         custom_block,
+        wind_tunnel_card(
+            factor_wind_tunnel_badge(meta.factor_id),
+            run_url=f"/factors/{meta.factor_id}/audit/run",
+            export_url=f"/factors/{meta.factor_id}/audit/export",
+        ),
         Div(
             P("尚未建立跟踪。", cls="text-sm font-medium text-gray-700"),
             P(
@@ -564,6 +587,11 @@ def _report_tab(
         error_block,
         task_block,
         custom_block,
+        wind_tunnel_card(
+            factor_wind_tunnel_badge(meta.factor_id),
+            run_url=f"/factors/{meta.factor_id}/audit/run",
+            export_url=f"/factors/{meta.factor_id}/audit/export",
+        ),
         _metric_cards(current),
         Div(
             H2("检验报告", cls="text-lg font-semibold text-gray-900"),
@@ -755,6 +783,42 @@ def refresh_all(req: Request) -> RedirectResponse:
     _require_maintenance(req)
     trigger_refresh_all()
     return RedirectResponse("/factors/", status_code=303)
+
+
+@rt("/{factor_id}/audit/run", methods=["post"])
+def run_wind_tunnel_audit(req: Request, factor_id: str) -> RedirectResponse:
+    _require_maintenance(req)
+    if not _known_factor(factor_id):
+        return RedirectResponse("/factors/", status_code=303)
+    from quantide.service.research_cli import check_factor
+
+    try:
+        check_factor(factor_id)
+    except (KeyError, ValueError, FileNotFoundError, RuntimeError):
+        pass
+    return RedirectResponse(f"/factors/{factor_id}?tab=report", status_code=303)
+
+
+@rt("/{factor_id}/audit/export")
+def export_wind_tunnel_audit(req: Request, factor_id: str) -> Response:
+    if not _known_factor(factor_id):
+        return PlainTextResponse("因子不存在", status_code=404)
+    payload = latest_report_payload(factor_id=factor_id)
+    if payload is None:
+        return PlainTextResponse("尚无风洞报告", status_code=404)
+    if req.query_params.get("format") == "md":
+        return Response(
+            report_markdown(payload),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="wind-tunnel-{factor_id}.md"'},
+        )
+    import json
+
+    return Response(
+        json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False),
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="wind-tunnel-{factor_id}.json"'},
+    )
 
 
 @rt("/{factor_id}/refresh", methods=["post"])
