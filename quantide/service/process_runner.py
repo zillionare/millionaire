@@ -31,8 +31,32 @@ class ProcessOutcome:
     error: str = ""
 
 
+def _virtual_memory_bytes() -> int | None:
+    """Read current Linux virtual address usage without importing a new package."""
+    try:
+        with open("/proc/self/statm", encoding="ascii") as handle:
+            pages = int(handle.read().split()[0])
+        return pages * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _address_limit(limit: int) -> int:
+    """Keep a hard AS ceiling while preserving already-mapped runtime libraries."""
+    baseline = _virtual_memory_bytes()
+    if baseline is None:
+        return limit
+    return baseline + max(limit, 64 * 1024 * 1024)
+
+
 def _limit_child_memory(limit: int | None) -> None:
-    """Apply the strongest available per-process limit before running user code."""
+    """Apply the strongest available per-process limit before running user code.
+
+    Resident memory is enforced by the parent.  On Linux an absolute RLIMIT_AS
+    can be lower than the address space already reserved by imported numeric
+    libraries, which makes healthy thread creation fail.  Preserve that baseline
+    and add the requested budget instead.
+    """
     if not limit or os.name == "nt":
         return
     try:
@@ -46,8 +70,9 @@ def _limit_child_memory(limit: int | None) -> None:
         key = getattr(resource, name, None)
         if key is None:
             continue
+        effective = _address_limit(limit) if name == "RLIMIT_AS" else limit
         try:
-            resource.setrlimit(key, (limit, limit))
+            resource.setrlimit(key, (effective, effective))
             return
         except (OSError, ValueError):
             continue
@@ -277,10 +302,12 @@ def _signal_group(pid: int, sig: int) -> None:
         pass
 
 
-def _owns_process_group(pid: int) -> bool:
+def _owns_process_group(pid: int, *, exited_hint: bool = False) -> bool:
     try:
         return os.getpgid(pid) == pid
-    except (OSError, ProcessLookupError):
+    except ProcessLookupError:
+        return exited_hint
+    except OSError:
         return False
 
 
@@ -292,7 +319,7 @@ def _signal_children(pids: list[int], sig: int) -> None:
             pass
 
 
-def _terminate(process: BaseProcess) -> None:
+def _terminate(process: BaseProcess, owned_group_hint: bool | None = None) -> None:
     pid = process.pid
     if pid is None:
         process.join(timeout=2)
@@ -311,7 +338,7 @@ def _terminate(process: BaseProcess) -> None:
             process.kill()
             process.join(timeout=2)
         return
-    owned_group = _owns_process_group(pid)
+    owned_group = _owns_process_group(pid, exited_hint=bool(owned_group_hint))
     descendants = [] if owned_group else _descendant_pids(pid)
     if owned_group:
         _signal_group(pid, signal.SIGTERM)
@@ -378,7 +405,8 @@ def _ready_result(process: BaseProcess, result_path: str) -> ProcessOutcome | No
         if process.is_alive():
             return None
         return ProcessOutcome(FAILED, error="worker result was not readable")
-    process.join(timeout=2)
+    # Keep the worker unreaped until _terminate can inspect its process group;
+    # an exited leader must still be able to kill descendants in that group.
     if ok:
         return ProcessOutcome(SUCCEEDED, payload)
     return ProcessOutcome(FAILED, error=str(payload))
@@ -420,6 +448,7 @@ def run_isolated(
     descriptor, result_path = tempfile.mkstemp(prefix="quantide-worker-", suffix=".result")
     os.close(descriptor)
     os.unlink(result_path)
+    owned_group_hint = not os.environ.get("QUANTIDE_OWNED_WORKER")
     process = context.Process(
         target=_child,
         args=(target, args, kwargs or {}, result_path, memory_bytes),
@@ -431,7 +460,7 @@ def run_isolated(
     try:
         return _await_result(process, result_path, deadline, cancel, memory_bytes)
     finally:
-        _terminate(process)
+        _terminate(process, owned_group_hint)
         _close_windows_job(job)
         for path in (result_path, f"{result_path}.tmp"):
             try:

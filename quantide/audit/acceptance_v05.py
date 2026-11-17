@@ -22,6 +22,12 @@ _V05_EVIDENCE: dict[str, tuple[str, ...]] = {
         "test_discovery_isolates_system_exit",
         "test_discovery_enforces_import_timeout",
         "test_source_checkout_directory_is_rejected",
+    )
+    + _nodes(
+        f"{_U}/service/test_factor_study_tasks.py",
+        "test_address_space_limit_preserves_existing_virtual_baseline",
+        "test_process_runner_keeps_healthy_polars_after_large_virtual_baseline",
+        "test_bare_spawn_helper_does_not_import_tests_or_pandas",
     ),
     "AC-5003": _nodes(
         f"{_U}/factors/test_plugins.py",
@@ -312,6 +318,7 @@ _REPAIR_EVIDENCE: dict[str, tuple[str, ...]] = {
     "AC-5002": _nodes(
         f"{_U}/service/test_factor_study_tasks.py",
         "test_process_runner_enforces_memory_budget",
+        "test_group_cleanup_hint_never_overrides_live_ownership",
         "test_runner_kills_nested_worker_group_after_outer_timeout",
         "test_runner_kills_leftover_child_after_normal_return",
         "test_runner_kills_term_ignoring_descendants_after_timeout",

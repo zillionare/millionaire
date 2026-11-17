@@ -10,17 +10,34 @@ from quantide.data.sqlite import db
 from quantide.service.sim_broker import PaperBroker
 
 SYMBOL = "000001.SZ"
-DAY = datetime.datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+DAY = datetime.datetime(2024, 1, 2, 10, 0)
+
+
+class _Clock:
+    def __init__(self, current: datetime.datetime) -> None:
+        self.current = current
+
+    def now(self) -> datetime.datetime:
+        return self.current
 
 
 @pytest.fixture
-def broker(tmp_path):
+def clock():
+    return _Clock(DAY)
+
+
+@pytest.fixture
+def broker(tmp_path, clock):
     db.init(tmp_path / "account.db")
     broker = PaperBroker.create(
-        "recovery", principal=10000, commission=0, stamp_tax=0, min_commission=0,
+        "recovery",
+        principal=10000,
+        commission=0,
+        stamp_tax=0,
+        min_commission=0,
         market_data=SimpleNamespace(snapshot=lambda symbols: {}),
+        clock=clock,
     )
-    broker.set_clock(DAY)
     yield broker
     broker.close()
     db.close()
@@ -33,16 +50,19 @@ async def buy(broker, shares=100, volume=1000):
 
 
 @pytest.mark.asyncio
-async def test_full_liquidation_survives_reload(broker):
+async def test_full_liquidation_survives_reload(broker, clock):
     await buy(broker)
-    broker.set_clock(DAY + datetime.timedelta(days=1))
+    clock.current = DAY + datetime.timedelta(days=1)
+    broker.set_clock(clock.current)
     broker.settle_t1()
     await broker.sell(SYMBOL, 100, price=11, timeout=0.001)
     broker._on_quote_update({SYMBOL: {"lastPrice": 11}})
     assert db.get_asset(portfolio_id="recovery").cash == 10100
     assert db.get_positions(portfolio_id="recovery").is_empty()
     broker.close()
-    loaded = PaperBroker.load("recovery", market_data=SimpleNamespace(snapshot=lambda symbols: {}))
+    loaded = PaperBroker.load(
+        "recovery", market_data=SimpleNamespace(snapshot=lambda symbols: {}), clock=clock
+    )
     try:
         assert loaded.cash == 10100
         assert loaded.positions == []
@@ -53,13 +73,14 @@ async def test_full_liquidation_survives_reload(broker):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("partial", [False, True])
-async def test_reload_restores_pending_and_partial_orders(broker, partial):
+async def test_reload_restores_pending_and_partial_orders(broker, clock, partial):
     order_id = await broker.buy(SYMBOL, 200, price=10, timeout=0.001)
     if partial:
         broker._on_quote_update({SYMBOL: {"lastPrice": 10, "volume": 1}})
     broker.close()
-    loaded = PaperBroker.load("recovery", market_data=SimpleNamespace(snapshot=lambda symbols: {}))
-    loaded.set_clock(DAY)
+    loaded = PaperBroker.load(
+        "recovery", market_data=SimpleNamespace(snapshot=lambda symbols: {}), clock=clock
+    )
     loaded.apply_fee_config(commission=0, stamp_tax=0, min_commission=0)
     try:
         loaded._on_quote_update({SYMBOL: {"lastPrice": 10, "volume": 100}})
@@ -127,9 +148,14 @@ async def test_accepted_next_open_order_reconciles_without_duplicate(broker, tmp
 
     store = TrackingStore(tmp_path / "intents.db")
     row = store.enqueue_next_open_intent(
-        runtime_id="run", portfolio_id="recovery", strategy_id="strategy",
-        signal_date=DAY.date() - datetime.timedelta(days=1), target_date=DAY.date(),
-        method="buy", args=[SYMBOL, 100], kwargs={"price": 10, "timeout": 0.001},
+        runtime_id="run",
+        portfolio_id="recovery",
+        strategy_id="strategy",
+        signal_date=DAY.date() - datetime.timedelta(days=1),
+        target_date=DAY.date(),
+        method="buy",
+        args=[SYMBOL, 100],
+        kwargs={"price": 10, "timeout": 0.001},
         intent_key="signal-1",
     )
     runtime = SimpleNamespace(status="running", mode="paper", broker=broker)
@@ -151,7 +177,8 @@ async def test_accepted_next_open_order_reconciles_without_duplicate(broker, tmp
     assert store.list_next_open_intents(runtime_id="run", status="processing")
     broker.close()
     loaded = PaperBroker.load(
-        "recovery", market_data=SimpleNamespace(snapshot=lambda symbols: {}),
+        "recovery",
+        market_data=SimpleNamespace(snapshot=lambda symbols: {}),
         clock=SimpleNamespace(now=lambda: DAY),
     )
     try:
@@ -169,15 +196,14 @@ async def test_accepted_next_open_order_reconciles_without_duplicate(broker, tmp
 
 
 @pytest.mark.asyncio
-async def test_partial_cancellation_is_terminal_after_reload(broker):
+async def test_partial_cancellation_is_terminal_after_reload(broker, clock):
     order_id = await buy(broker, shares=200, volume=1)
     assert broker.positions[0].shares == 100
     await broker.cancel_order(order_id)
     assert db.get_order(order_id).status == OrderStatus.PARTSUCC_CANCEL
     broker.close()
     loaded = PaperBroker.load(
-        "recovery", market_data=SimpleNamespace(snapshot=lambda symbols: {}),
-        clock=SimpleNamespace(now=lambda: DAY),
+        "recovery", market_data=SimpleNamespace(snapshot=lambda symbols: {}), clock=clock
     )
     try:
         loaded.on_quote({SYMBOL: {"price": 10, "volume": 100}})

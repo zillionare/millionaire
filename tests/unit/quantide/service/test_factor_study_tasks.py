@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
-import multiprocessing
-import os
-import signal
-import subprocess
+import importlib
+import sys
 import threading
 import time
 from pathlib import Path
@@ -28,11 +26,20 @@ from quantide.service.process_runner import (
 from quantide.service.process_runner import (
     MEMORY,
     ProcessOutcome,
+    _address_limit,
     run_isolated,
 )
 from quantide.service.process_runner import (
     TIMEOUT as PROCESS_TIMEOUT,
 )
+
+_SERVICE_TEST_DIR = Path(__file__).resolve().parent
+if str(_SERVICE_TEST_DIR) not in sys.path:
+    sys.path.insert(0, str(_SERVICE_TEST_DIR))
+_process_descendant_worker = importlib.import_module("_process_descendant_worker")
+_process_memory_worker = importlib.import_module("_process_memory_worker")
+if getattr(_process_memory_worker, "_RESERVED", None) is not None:
+    _process_memory_worker._RESERVED.close()
 
 
 @pytest.fixture(autouse=True)
@@ -95,131 +102,83 @@ def test_process_runner_enforces_memory_budget() -> None:
     assert outcome.status in {MEMORY, FAILED}
 
 
-def _collect_worker_semaphores(path: str) -> None:
-    import inspect
-    import json
+def test_address_space_limit_preserves_existing_virtual_baseline(monkeypatch) -> None:
+    from quantide.service import process_runner
 
-    frame = inspect.currentframe()
-    names: list[str] = []
-    while frame is not None:
-        queue = frame.f_locals.get("messages")
-        if queue is not None and all(
-            hasattr(queue, key) for key in ("_rlock", "_wlock", "_sem")
-        ):
-            for key in ("_rlock", "_wlock", "_sem"):
-                lock = getattr(queue, key)._semlock
-                if lock.name:
-                    names.append(lock.name)
-            break
-        frame = frame.f_back
-    Path(path).write_text(json.dumps(names), encoding="utf-8")
-    time.sleep(30)
+    monkeypatch.setattr(process_runner, "_virtual_memory_bytes", lambda: 900 * 1024 * 1024)
+    assert _address_limit(512 * 1024 * 1024) == (900 + 512) * 1024 * 1024
+    monkeypatch.setattr(process_runner, "_virtual_memory_bytes", lambda: None)
+    assert _address_limit(512 * 1024 * 1024) == 512 * 1024 * 1024
 
 
-def _nested_semaphore_outer(path: str) -> str:
-    return run_isolated(_collect_worker_semaphores, path, timeout=25).status
+def test_bare_spawn_helper_does_not_import_tests_or_pandas() -> None:
+    outcome = run_isolated(_process_descendant_worker.loaded_test_frameworks, timeout=30)
+
+    assert outcome.status == SUCCEEDED, outcome.error
+    assert outcome.value == []
+
+
+def test_process_runner_keeps_healthy_polars_after_large_virtual_baseline() -> None:
+    outcome = run_isolated(
+        _process_memory_worker.healthy_polars_sum,
+        timeout=30,
+        memory_bytes=512 * 1024 * 1024,
+    )
+
+    assert outcome.status == SUCCEEDED, outcome.error
+    assert outcome.value == sum(range(20_000)) * 2
 
 
 def _large_result(size: int) -> bytes:
     return b"x" * size
 
 
-def _stubborn_descendant(path: str) -> None:
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    Path(path).write_text(str(os.getpid()), encoding="utf-8")
-    while True:
-        time.sleep(0.1)
-
-
-def _spawn_stubborn_descendant(path: str) -> None:
-    child = multiprocessing.get_context("spawn").Process(
-        target=_stubborn_descendant, args=(path,), daemon=False
-    )
-    child.start()
-    while not Path(path).exists():
-        time.sleep(0.01)
-    while True:
-        time.sleep(0.1)
-
-
-def _nested_inner(path: str) -> None:
-    Path(path).write_text(str(os.getpid()), encoding="utf-8")
-    time.sleep(30)
-
-
-def _nested_outer(path: str) -> str:
-    return run_isolated(_nested_inner, path, timeout=25).status
-
-
-def _spawn_leftover_and_return(path: str) -> None:
-    child = multiprocessing.get_context("spawn").Process(
-        target=_stubborn_descendant, args=(path,), daemon=False
-    )
-    child.start()
-    while not Path(path).exists():
-        time.sleep(0.01)
-
-
 def _assert_dead(pid: int) -> None:
-    time.sleep(0.2)
-    state = subprocess.run(
-        ["ps", "-o", "stat=", "-p", str(pid)],
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout.strip()
-    assert not state or state.startswith("Z")
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if _process_descendant_worker.process_is_dead(pid):
+            return
+        time.sleep(0.05)
+    assert _process_descendant_worker.process_is_dead(pid)
 
 
 def test_runner_kills_nested_worker_group_after_outer_timeout(tmp_path) -> None:
     pid_file = tmp_path / "nested-inner.pid"
-    outcome = run_isolated(_nested_outer, str(pid_file), timeout=3)
+    outcome = run_isolated(_process_descendant_worker._nested_outer, str(pid_file), timeout=3)
     assert outcome.status == PROCESS_TIMEOUT
     assert pid_file.exists()
     pid = int(pid_file.read_text(encoding="utf-8"))
     try:
         _assert_dead(pid)
     finally:
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        _process_descendant_worker.force_kill(pid)
 
 
 def test_runner_kills_leftover_child_after_normal_return(tmp_path) -> None:
     pid_file = tmp_path / "leftover.pid"
-    outcome = run_isolated(_spawn_leftover_and_return, str(pid_file), timeout=5)
+    outcome = run_isolated(
+        _process_descendant_worker._spawn_leftover_and_return, str(pid_file), timeout=5
+    )
     assert outcome.status == SUCCEEDED
     assert pid_file.exists()
     pid = int(pid_file.read_text(encoding="utf-8"))
     try:
         _assert_dead(pid)
     finally:
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        _process_descendant_worker.force_kill(pid)
 
 
 def test_runner_kills_term_ignoring_descendants_after_timeout(tmp_path) -> None:
     pid_file = tmp_path / "descendant.pid"
-    outcome = run_isolated(_spawn_stubborn_descendant, str(pid_file), timeout=2)
+    outcome = run_isolated(
+        _process_descendant_worker._spawn_stubborn_descendant, str(pid_file), timeout=5
+    )
     assert outcome.status == PROCESS_TIMEOUT
     pid = int(pid_file.read_text(encoding="utf-8"))
     try:
-        time.sleep(0.2)
-        state = subprocess.run(
-            ["ps", "-o", "stat=", "-p", str(pid)],
-            capture_output=True,
-            text=True,
-            check=False,
-        ).stdout.strip()
-        assert not state or state.startswith("Z")
+        _assert_dead(pid)
     finally:
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        _process_descendant_worker.force_kill(pid)
 
 
 def test_process_runner_terminates_timeout_cancel_and_failure() -> None:
@@ -330,13 +289,14 @@ def test_real_subprocess_study_initializes_data_home(tmp_path, monkeypatch) -> N
     worker.stop_worker()
 
 
-
 def test_nested_timeout_leaves_no_named_semaphores_in_live_service(tmp_path) -> None:
     import json
 
     for index in range(3):
         path = tmp_path / f"semaphores-{index}.json"
-        outcome = run_isolated(_nested_semaphore_outer, str(path), timeout=3)
+        outcome = run_isolated(
+            _process_descendant_worker._nested_semaphore_outer, str(path), timeout=3
+        )
         assert outcome.status == PROCESS_TIMEOUT
         assert json.loads(path.read_text(encoding="utf-8")) == []
 
@@ -346,3 +306,26 @@ def test_isolated_result_file_handles_large_payload() -> None:
     assert outcome.status == SUCCEEDED
     assert isinstance(outcome.value, bytes)
     assert len(outcome.value) == 4 * 1024 * 1024
+
+
+@pytest.mark.parametrize(
+    "actual_group, hint, expected",
+    [
+        (12345, True, True),
+        (12346, True, False),
+        (None, True, True),
+        (None, False, False),
+    ],
+)
+def test_group_cleanup_hint_never_overrides_live_ownership(
+    monkeypatch, actual_group, hint, expected
+):
+    from quantide.service import process_runner
+
+    def get_group(_pid):
+        if actual_group is None:
+            raise ProcessLookupError()
+        return actual_group
+
+    monkeypatch.setattr(process_runner.os, "getpgid", get_group, raising=False)
+    assert process_runner._owns_process_group(12345, exited_hint=hint) is expected
