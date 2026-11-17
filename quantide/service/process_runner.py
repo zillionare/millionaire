@@ -31,51 +31,28 @@ class ProcessOutcome:
     error: str = ""
 
 
-def _virtual_memory_bytes() -> int | None:
-    """Read current Linux virtual address usage without importing a new package."""
-    try:
-        with open("/proc/self/statm", encoding="ascii") as handle:
-            pages = int(handle.read().split()[0])
-        return pages * os.sysconf("SC_PAGE_SIZE")
-    except (OSError, ValueError, IndexError):
-        return None
-
-
-def _address_limit(limit: int) -> int:
-    """Keep a hard AS ceiling while preserving already-mapped runtime libraries."""
-    baseline = _virtual_memory_bytes()
-    if baseline is None:
-        return limit
-    return baseline + max(limit, 64 * 1024 * 1024)
-
-
 def _limit_child_memory(limit: int | None) -> None:
-    """Apply the strongest available per-process limit before running user code.
+    """Apply the platform-appropriate child memory ceiling before user code.
 
-    Resident memory is enforced by the parent.  On Linux an absolute RLIMIT_AS
-    can be lower than the address space already reserved by imported numeric
-    libraries, which makes healthy thread creation fail.  Preserve that baseline
-    and add the requested budget instead.
+    Resident memory is enforced by the parent's native RSS monitor on Linux and
+    Windows.  Linux deliberately receives no RLIMIT_AS/RLIMIT_DATA: numeric
+    libraries reserve large anonymous address ranges and thread stacks that are
+    not resident, so an address-space cap would abort healthy work.  macOS keeps
+    its verified RLIMIT_DATA path.
     """
-    if not limit or os.name == "nt":
+    if not limit or os.name == "nt" or sys.platform.startswith("linux"):
         return
     try:
         import resource
     except ImportError:  # pragma: no cover - non-POSIX
         return
-    names = (
-        ("RLIMIT_DATA", "RLIMIT_AS") if sys.platform == "darwin" else ("RLIMIT_AS", "RLIMIT_DATA")
-    )
-    for name in names:
-        key = getattr(resource, name, None)
-        if key is None:
-            continue
-        effective = _address_limit(limit) if name == "RLIMIT_AS" else limit
-        try:
-            resource.setrlimit(key, (effective, effective))
-            return
-        except (OSError, ValueError):
-            continue
+    key = getattr(resource, "RLIMIT_DATA", None)
+    if key is None:
+        return
+    try:
+        resource.setrlimit(key, (limit, limit))
+    except (OSError, ValueError):
+        pass
 
 
 class _ProcessMemoryCounters(ctypes.Structure):

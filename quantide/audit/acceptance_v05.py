@@ -25,8 +25,7 @@ _V05_EVIDENCE: dict[str, tuple[str, ...]] = {
     )
     + _nodes(
         f"{_U}/service/test_factor_study_tasks.py",
-        "test_address_space_limit_preserves_existing_virtual_baseline",
-        "test_process_runner_keeps_healthy_polars_after_large_virtual_baseline",
+        "test_rss_budget_allows_healthy_polars_with_large_virtual_mapping",
         "test_bare_spawn_helper_does_not_import_tests_or_pandas",
     ),
     "AC-5003": _nodes(

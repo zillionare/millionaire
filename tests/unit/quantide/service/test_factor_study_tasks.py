@@ -26,7 +26,6 @@ from quantide.service.process_runner import (
 from quantide.service.process_runner import (
     MEMORY,
     ProcessOutcome,
-    _address_limit,
     run_isolated,
 )
 from quantide.service.process_runner import (
@@ -85,30 +84,21 @@ def test_task_ledger_is_idempotent_scoped_and_stores_result(tmp_path) -> None:
     assert store.get(first).result == {"kind": "custom_study", "study_id": "s1"}
 
 
-def _allocate_beyond_budget() -> int:
-    data = bytearray(256 * 1024 * 1024)
-    time.sleep(float(len(data)) / 1e9)
-    return len(data)
-
-
-def test_process_runner_enforces_memory_budget() -> None:
+def test_process_runner_enforces_memory_budget(tmp_path) -> None:
+    marker = tmp_path / "worker-entered"
     outcome = run_isolated(
-        _allocate_beyond_budget,
+        _process_memory_worker.allocate_beyond_budget,
+        str(marker),
         timeout=15,
         memory_bytes=64 * 1024 * 1024,
     )
 
+    assert marker.read_text(encoding="utf-8") == "entered"
     assert outcome.status != SUCCEEDED
-    assert outcome.status in {MEMORY, FAILED}
-
-
-def test_address_space_limit_preserves_existing_virtual_baseline(monkeypatch) -> None:
-    from quantide.service import process_runner
-
-    monkeypatch.setattr(process_runner, "_virtual_memory_bytes", lambda: 900 * 1024 * 1024)
-    assert _address_limit(512 * 1024 * 1024) == (900 + 512) * 1024 * 1024
-    monkeypatch.setattr(process_runner, "_virtual_memory_bytes", lambda: None)
-    assert _address_limit(512 * 1024 * 1024) == 512 * 1024 * 1024
+    if sys.platform.startswith("linux") or sys.platform == "win32":
+        assert outcome.status == MEMORY
+    else:
+        assert outcome.status in {MEMORY, FAILED}
 
 
 def test_bare_spawn_helper_does_not_import_tests_or_pandas() -> None:
@@ -118,7 +108,7 @@ def test_bare_spawn_helper_does_not_import_tests_or_pandas() -> None:
     assert outcome.value == []
 
 
-def test_process_runner_keeps_healthy_polars_after_large_virtual_baseline() -> None:
+def test_rss_budget_allows_healthy_polars_with_large_virtual_mapping() -> None:
     outcome = run_isolated(
         _process_memory_worker.healthy_polars_sum,
         timeout=30,
