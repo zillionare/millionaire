@@ -115,11 +115,23 @@ def _add_backtest_parsers(commands: argparse._SubParsersAction[argparse.Argument
     backtest_run.add_argument("--json", action="store_true")
 
 
+def _add_risk_extension_parsers(
+    commands: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    risk = commands.add_parser(
+        "risk-extension", help="enable a persistent user risk-program extension"
+    )
+    risk.add_argument("action", choices=["enable", "disable", "status"])
+    risk.add_argument("--copy-example", action="store_true")
+    risk.add_argument("--json", action="store_true")
+
+
 def _add_research_parsers(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     _add_data_parsers(commands)
     _add_factor_parsers(commands)
     _add_preset_parsers(commands)
     _add_backtest_parsers(commands)
+    _add_risk_extension_parsers(commands)
 
 
 def _params_json(value: str | None) -> dict[str, Any]:
@@ -153,11 +165,28 @@ def _holdings(value: str) -> list[int]:
     return holdings
 
 
+def _emit_risk_extension(payload: dict[str, Any], data: dict[str, Any]) -> None:
+    if not payload.get("ok"):
+        diagnostics = payload.get("diagnostics") or [{}]
+        print(f"{payload.get('status')}: {diagnostics[0].get('message')}")
+        return
+    print(f"Risk extension: {'enabled' if data.get('enabled') else 'disabled'}")
+    print(f"Extension: {data.get('extension_path')}")
+    print(f"State: {data.get('state_path')}")
+    if data.get("copied_example"):
+        print("Copied the teaching example.")
+    if data.get("restart_required"):
+        print("Restart the background service to apply this change.")
+
+
 def _emit(payload: dict[str, Any], as_json: bool) -> None:
     if as_json:
         print(envelope_json(payload))
         return
     data = payload.get("data") or {}
+    if str(payload.get("command", "")).startswith("risk-extension."):
+        _emit_risk_extension(payload, data)
+        return
     if payload.get("status") in {"PASS", "FAIL", "INCONCLUSIVE"}:
         print(f"{payload.get('status')}  {data.get('factor_id') or ''}".rstrip())
         for item in payload.get("diagnostics") or []:
@@ -173,6 +202,8 @@ def _command_name(args: argparse.Namespace) -> str:
         return f"preset.{args.preset_command}"
     if args.command == "backtest":
         return f"backtest.{args.backtest_command}"
+    if args.command == "risk-extension":
+        return f"risk-extension.{args.action}"
     return f"factor.{args.factor_command}"
 
 
@@ -234,6 +265,29 @@ def _preset_save_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]
     return envelope("preset.save", ok=True, status="OK", exit_code=0, data=data), 0
 
 
+def _risk_extension_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    from quantide.providers.risk_extensions import (
+        configure_risk_extension,
+        risk_extension_status,
+    )
+
+    data = (
+        risk_extension_status()
+        if args.action == "status"
+        else configure_risk_extension(args.action == "enable", copy_example=bool(args.copy_example))
+    )
+    return (
+        envelope(
+            f"risk-extension.{args.action}",
+            ok=True,
+            status="OK",
+            exit_code=0,
+            data=data,
+        ),
+        0,
+    )
+
+
 def _backtest_run_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     start = _date(args.start)
     end = _date(args.end)
@@ -260,6 +314,9 @@ _COMMANDS = {
     ("preset", "list"): _preset_list_command,
     ("preset", "save"): _preset_save_command,
     ("backtest", "run"): _backtest_run_command,
+    ("risk-extension", "enable"): _risk_extension_command,
+    ("risk-extension", "disable"): _risk_extension_command,
+    ("risk-extension", "status"): _risk_extension_command,
 }
 
 
@@ -291,6 +348,7 @@ def _run_research(args: argparse.Namespace) -> int:
         "factor": getattr(args, "factor_command", None),
         "preset": getattr(args, "preset_command", None),
         "backtest": getattr(args, "backtest_command", None),
+        "risk-extension": getattr(args, "action", None),
     }.get(args.command)
     handler = _COMMANDS.get((str(args.command), str(subcommand or "")))
     if handler is None:
@@ -355,7 +413,7 @@ def main(argv: list[str] | None = None) -> int:
     _add_research_parsers(commands)
     args = parser.parse_args(argv)
 
-    if args.command in {"data", "factor", "preset", "backtest"}:
+    if args.command in {"data", "factor", "preset", "backtest", "risk-extension"}:
         return _run_research(args)
     if args.command == "web-url":
         from quantide.config.server_address import controller_url

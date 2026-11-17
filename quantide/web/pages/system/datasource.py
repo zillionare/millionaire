@@ -12,6 +12,7 @@ from typing import Any
 from fasthtml.common import *
 from fasthtml.common import (
     A,
+    Code,
     Div,
     Option,
     P,
@@ -36,6 +37,10 @@ from starlette.requests import Request
 from quantide.config.settings import get_settings
 from quantide.data.models.app_state import AppState
 from quantide.data.sqlite import db
+from quantide.providers.risk_extensions import (
+    configure_risk_extension,
+    risk_extension_status,
+)
 from quantide.service.demo_bundle import (
     activate_demo_bundle,
     deactivate_demo_bundle,
@@ -341,6 +346,49 @@ def _build_demo_bundle_card() -> Div:
     )
 
 
+def _build_risk_extension_card() -> Div:
+    """Expose the explicit, restart-scoped user risk extension switch."""
+    try:
+        status = risk_extension_status()
+    except Exception as exc:
+        return Div(f"风控扩展状态读取失败：{exc}", cls="p-6 bg-red-50 rounded-lg text-red-700")
+    if status["enabled"]:
+        switch = Form(
+            Button("停用用户风控扩展", type="submit", cls="btn"),
+            action="/system/datasource/risk-extension/disable",
+            method="post",
+        )
+        state = Span("已启用（重启服务后按当前状态重新装配）", cls="text-sm text-green-700")
+    elif status["file_exists"]:
+        switch = Form(
+            Button("启用用户风控扩展", type="submit", cls="btn btn-primary"),
+            action="/system/datasource/risk-extension/enable",
+            method="post",
+        )
+        state = Span("扩展文件已就绪，尚未启用", cls="text-sm text-amber-700")
+    else:
+        switch = Form(
+            Button("复制教学模板并启用", type="submit", cls="btn btn-primary"),
+            action="/system/datasource/risk-extension/copy-example",
+            method="post",
+        )
+        state = Span("默认空注册表；扩展文件尚未创建", cls="text-sm text-gray-600")
+    loaded = ", ".join(status["loaded_program_ids"]) or "无"
+    return Div(
+        H3("用户风控扩展（可选）", cls="text-lg font-semibold text-gray-900 mb-2"),
+        P(
+            "CE 默认不注册任何风险程序。只有显式启用后，服务启动时才加载 ",
+            Code("extensions/risk_extensions.py"),
+            "；修改状态后需重启服务。",
+            cls="text-sm text-gray-600",
+        ),
+        P(state, cls="mt-3"),
+        P(f"当前进程已加载：{loaded}", cls="mt-1 text-xs text-gray-500"),
+        Div(switch, cls="mt-3"),
+        cls="p-6 bg-white border border-gray-200 rounded-lg shadow",
+    )
+
+
 def _build_sync_history_card(history: list[dict[str, Any]]) -> Div:
     """构建同步记录卡片"""
     rows = []
@@ -411,6 +459,7 @@ def _render_page(
         ),
         *flashes,
         Div(_build_demo_bundle_card(), cls="mb-6"),
+        Div(_build_risk_extension_card(), cls="mb-6"),
         Div(_build_config_card(config), cls="mb-6"),
         Div(_build_data_status_card(data_status), cls="mb-6"),
         Div(_build_sync_history_card(sync_history), cls="mb-6"),
@@ -512,6 +561,63 @@ async def deactivate_demo(req: Request) -> Any:
         req,
         _load_datasource_config(),
         success_message="已切换回正式数据源；实时行情源需重启服务后恢复",
+    )
+
+
+@rt("/risk-extension/enable", methods=["POST"])
+async def enable_risk_extension(req: Request) -> Any:
+    """Enable the existing user file; code executes only at service startup."""
+    denied = require_admin(req)
+    if denied is not None:
+        return denied
+    try:
+        configure_risk_extension(True)
+    except Exception as exc:
+        return _render_page(
+            req, _load_datasource_config(), error_message=f"启用风控扩展失败：{exc}"
+        )
+    return _render_page(
+        req,
+        _load_datasource_config(),
+        success_message="用户风控扩展已启用；重启服务后加载",
+    )
+
+
+@rt("/risk-extension/copy-example", methods=["POST"])
+async def copy_example_risk_extension(req: Request) -> Any:
+    """Copy the read-only teaching template into the user extension directory."""
+    denied = require_admin(req)
+    if denied is not None:
+        return denied
+    try:
+        configure_risk_extension(True, copy_example=True)
+    except Exception as exc:
+        return _render_page(
+            req, _load_datasource_config(), error_message=f"复制风控模板失败：{exc}"
+        )
+    return _render_page(
+        req,
+        _load_datasource_config(),
+        success_message="教学风控模板已复制并启用；重启服务后加载",
+    )
+
+
+@rt("/risk-extension/disable", methods=["POST"])
+async def disable_risk_extension(req: Request) -> Any:
+    """Disable loading on the next service start without deleting user code."""
+    denied = require_admin(req)
+    if denied is not None:
+        return denied
+    try:
+        configure_risk_extension(False)
+    except Exception as exc:
+        return _render_page(
+            req, _load_datasource_config(), error_message=f"停用风控扩展失败：{exc}"
+        )
+    return _render_page(
+        req,
+        _load_datasource_config(),
+        success_message="用户风控扩展已停用；重启服务后生效",
     )
 
 

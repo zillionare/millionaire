@@ -254,6 +254,9 @@ class BacktestOrders:
         # 1. 份额必须是 100 的整数倍
         if int(shares) % 100 != 0:
             raise NonMultipleOfLotSize(asset, shares)
+        shares = self.apply_buy_guards(asset, shares, price, order_time)  # type: ignore[attr-defined]
+        if shares <= 0:
+            return ExecutionResult.empty()
 
         # 2. 获取撮合所需的行情数据
         bars = self._price_for_match(asset, order_time, str(kwargs.get("fill_timing", "")).lower())
@@ -542,17 +545,11 @@ class BacktestOrders:
         return trade
 
     def market_value(self) -> float:
-        """获取当前总市值
-
-        本方法使用内存中的 positions 缓存快速计算，不刷新数据，最终结果为近似值。
-        """
+        """Return cached position market value; this snapshot is approximate."""
         return float(np.sum([pos.mv for pos in self._positions.values()]))
 
     def total_asset(self) -> float:
-        """获取当前总资产
-
-        本方法使用内存中的 positions 缓存与 cash 快速计算，不刷新数据，最终结果为近似值。
-        """
+        """Return cash plus cached market value; this snapshot is approximate."""
         return self._cash + self.market_value()
 
     async def buy_percent(

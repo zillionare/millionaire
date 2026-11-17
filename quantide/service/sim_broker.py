@@ -599,6 +599,21 @@ class PaperBroker(BarViewFacade, PaperMatching, PaperOrders, PaperHistory, Abstr
             if shares > 0 and average > 0 and abs(shares - float(position.shares)) <= 1e-6:
                 position.price = average
 
+    def risk_reference_price(
+        self, asset: str, order_time: datetime.datetime | None, price: float = 0
+    ) -> float:
+        """Return the conservative buy reference price used by risk guards."""
+        _ = order_time
+        if price > 0:
+            return float(price)
+        quote = self._get_quote(asset) or {}
+        _, up_limit = self._get_price_limits(asset)
+        return float(up_limit or quote.get("lastPrice", 0) or 0)
+
+    def risk_total_equity(self) -> float:
+        """Return current account equity for risk guards."""
+        return float(self.total_assets)
+
     @property
     def total_assets(self) -> float:
         """计算当前总资产（现金 + 持仓市值）。

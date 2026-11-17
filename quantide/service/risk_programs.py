@@ -7,6 +7,7 @@ registry is empty and it contains no built-in program implementations.
 
 from __future__ import annotations
 
+import builtins
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -93,11 +94,15 @@ class RiskProgramRegistry:
         """Remove registered adapters; useful for host lifecycle and tests."""
         self._adapters.clear()
 
+    def list(self) -> builtins.list[RiskProgramAdapter]:
+        """Return every registered adapter in stable registration order."""
+        return list(self._adapters.values())
+
     def adapters(
         self,
         host_strategy_cls: type[BaseStrategy] | None = None,
         frame_type: FrameType | str = FrameType.DAY,
-    ) -> list[RiskProgramAdapter]:
+    ) -> builtins.list[RiskProgramAdapter]:
         return [
             adapter
             for adapter in self._adapters.values()

@@ -166,6 +166,10 @@ class PaperOrders:
         if existing is not None:
             return existing
 
+        shares = self.apply_buy_guards(asset, shares, price, order_time)  # type: ignore[attr-defined]
+        if shares <= 0:
+            return ExecutionResult.empty()
+
         if self._dry_run:
             self._dry_run_signals.append(
                 {

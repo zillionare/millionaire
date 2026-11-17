@@ -279,6 +279,9 @@ def create_app(
     # request, rather than inheriting the previous app's cached object.
     init_wizard.reset_state_cache()
     ensure_dev_stubs_started()
+    from quantide.providers.risk_extensions import load_risk_extensions
+
+    load_risk_extensions()
 
     if enforce_single_instance:
         _check_single_instance()

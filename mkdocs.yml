@@ -30,6 +30,7 @@ nav:
   - 接入与扩展:
       - 标准行情交换协议: SQEP.md
       - 实时行情与用户扩展: quote-extensions.md
+      - 用户风控扩展: risk-extensions.md
       - 自行适配交易柜台: broker-adapters.md
       - 独立模拟柜台: simulated-counter.md
   - 开发者参考:

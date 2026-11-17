@@ -3,6 +3,7 @@ import datetime
 import json
 import threading
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
@@ -22,6 +23,8 @@ from quantide.core.ports.broker import (
 from quantide.data.models import Position, StrategyLog, Trade
 from quantide.data.sqlite import db
 from quantide.service.backtest_logs import record_backtest_log
+
+BuyGuard = Callable[[Any, str, int | float, float, datetime.datetime | None], int | float]
 
 
 class AbstractBroker:
@@ -114,7 +117,37 @@ class AbstractBroker:
         self._pending_txs: dict[Any, Any] = {}
         # 缓存尚未被wait的早期结果
         self._early_results: dict[Any, Any] = {}
+        self._buy_guards: dict[str, BuyGuard] = {}
         self._lock = threading.RLock()
+
+    def set_buy_guard(self, key: str, guard: BuyGuard) -> None:
+        """Register a host-owned pre-buy share guard under a stable key."""
+        if not key or not callable(guard):
+            raise ValueError("buy guard requires a non-empty key and callable")
+        with self._lock:
+            self._buy_guards[str(key)] = guard
+
+    def clear_buy_guard(self, key: str) -> None:
+        """Remove one host-owned pre-buy guard, if present."""
+        with self._lock:
+            self._buy_guards.pop(str(key), None)
+
+    def apply_buy_guards(
+        self,
+        asset: str,
+        shares: int | float,
+        price: float,
+        order_time: datetime.datetime | None,
+    ) -> int:
+        """Run guards in registration order and return the final lot quantity."""
+        adjusted = int(shares)
+        with self._lock:
+            guards = list(self._buy_guards.values())
+        for guard in guards:
+            adjusted = int(guard(self, asset, adjusted, price, order_time))
+            if adjusted <= 0:
+                return 0
+        return adjusted
 
     def as_date(self, dt: datetime.date | datetime.datetime) -> datetime.date:
         """将 datetime 转换为 date"""

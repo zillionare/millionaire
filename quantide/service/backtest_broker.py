@@ -168,6 +168,20 @@ class BacktestBroker(BacktestSnapshots, BacktestOrders, AbstractBroker):
         """Risk overlays require a live/paper broker for tick data."""
         raise NotImplementedError("backtest broker does not provide live ticks")
 
+    def risk_reference_price(
+        self, asset: str, order_time: datetime.datetime | None, price: float = 0
+    ) -> float:
+        """Return the conservative buy reference price used by risk guards."""
+        if price > 0:
+            return float(price)
+        moment = order_time or self._clock
+        _, up_limit = self._data_feed.get_trade_price_limits(asset, self.as_date(moment))
+        return float(up_limit or 0)
+
+    def risk_total_equity(self) -> float:
+        """Return current account equity for risk guards."""
+        return float(self.total_asset())
+
     @property
     def cash(self) -> float:
         return float(self._cash)
