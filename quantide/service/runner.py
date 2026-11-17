@@ -473,6 +473,9 @@ class BacktestRunner:
         """Run the strategy through setup, clock replay, closing and metrics calculation."""
         config = self._normalized_run_config(strategy_cls, config, frame_type)
         start_date, end_date = self._align_backtest_dates(start_date, end_date, frame_type)
+        from quantide.service.data_coverage import validate_backtest_coverage
+
+        validate_backtest_coverage(start_date, end_date, config=config)
         portfolio_id, broker, strategy = self._init_backtest(
             strategy_cls,
             config,

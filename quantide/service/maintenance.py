@@ -3,6 +3,7 @@
 import asyncio
 import datetime
 from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -11,34 +12,169 @@ from quantide.config.settings import get_settings
 from quantide.core.atomic_files import write_json
 from quantide.core.market_time import market_today
 from quantide.data.coverage import trading_sessions
+from quantide.data.models.calendar import calendar
+from quantide.service.data_backfill import BackfillWindow
 from quantide.service.data_sync import SyncParams, data_sync_service
+
+if TYPE_CHECKING:
+    from quantide.data.fetchers.budget import DataSourceBudget
 
 MAJOR_INDICES = ["000001.SH", "000300.SH", "000905.SH", "399001.SZ", "399006.SZ"]
 
 
+MAX_BACKFILL_WINDOWS_PER_RUN = 12
+
+
 def maintain_data() -> str:
-    """Backfill missed days through the same durable pipeline as the data page."""
-    from quantide.service.init_wizard import init_wizard
+    """Fill the tail first, then walk historical gaps backward from ``epoch``."""
     from quantide.service.minute_backfill import _minute_history_end
 
     settings = get_settings()
-    history = max(settings.epoch, init_wizard.get_state().history_start_date or settings.epoch)
     end = _minute_history_end(market_today())
     if end is None:
         raise RuntimeError("无法确定已收盘的数据维护日期，请检查交易日历")
-    start = maintenance_start(history, _maintenance_checkpoints(history, end))
-    params = SyncParams(min(start, end), end, index_codes=MAJOR_INDICES)
+    windows = _backfill_windows(settings.epoch, end)
+    if not windows:
+        _trigger_factor_refresh()
+        return "数据已完整，无需补全"
+
+    completed = 0
+    skipped = 0
+    paused = ""
+    for window in windows[:MAX_BACKFILL_WINDOWS_PER_RUN]:
+        outcome = _run_backfill_window(window)
+        if outcome == "ok":
+            completed += 1
+            continue
+        if outcome == "skip":
+            skipped += 1
+            continue
+        paused = outcome
+        break
+    if completed:
+        _trigger_factor_refresh()
+    processed = completed + skipped
+    remaining = max(0, len(windows) - processed)
+    suffix = f"，剩余 {remaining} 个窗口" if remaining else ""
+    pause_text = f"，已暂停：{paused}" if paused else ""
+    return f"数据维护完成 {completed} 个窗口{suffix}{pause_text}"
+
+
+def _current_dataset_dates() -> dict[str, set[datetime.date]]:
+    from quantide.data import get_index_bars_store
+    from quantide.data.models.daily_bars import daily_bars
+    from quantide.data.models.daily_basic import daily_basic
+
+    daily_basic.load()
+    basic_dates = (
+        set(daily_basic.data["date"].to_list()) if not daily_basic.data.is_empty() else set()
+    )
+    candidates = {
+        "daily_bars": set(daily_bars.available_dates),
+        "daily_basic": basic_dates,
+    }
+    try:
+        candidates["index_bars"] = set(get_index_bars_store().available_dates)
+    except Exception:
+        pass
+    return candidates
+
+
+def _missing_by_dataset(
+    epoch: datetime.date,
+    end: datetime.date,
+    sessions: set[datetime.date],
+    candidates: Mapping[str, set[datetime.date]],
+    store: Any,
+) -> dict[str, set[datetime.date]]:
+    datasets: dict[str, set[datetime.date]] = {}
+    for dataset, available in candidates.items():
+        missing = sessions - available
+        blocked: set[datetime.date] = set()
+        for record in store.blocking(dataset, epoch, end):
+            blocked.update(day for day in sessions if record.start <= day <= record.end)
+        missing -= blocked
+        if missing:
+            datasets[dataset] = missing
+    return datasets
+
+
+def _backfill_windows(
+    epoch: datetime.date,
+    end: datetime.date,
+) -> tuple[BackfillWindow, ...]:
+    from quantide.data.models.daily_bars import daily_bars
+    from quantide.service.data_backfill import plan_backfill
+    from quantide.service.data_gaps import DataGapStore
+
+    sessions = set(trading_sessions(calendar, epoch, end))
+    datasets = _missing_by_dataset(epoch, end, sessions, _current_dataset_dates(), DataGapStore())
+    return plan_backfill(
+        epoch,
+        end,
+        datasets,
+        available_end=getattr(daily_bars, "end", None),
+    )
+
+
+def _source_budget() -> "DataSourceBudget":
+    from quantide.data.fetchers.budget import NoQuotaBudget, budget_for_fetcher
+    from quantide.data.fetchers.registry import get_data_fetcher
+
+    try:
+        return budget_for_fetcher(get_data_fetcher())
+    except Exception:
+        return NoQuotaBudget(get_settings().data_source)
+
+
+def _run_backfill_window(window: BackfillWindow) -> str:
+    from quantide.data.fetchers.budget import BudgetDecision, DataSourceErrorKind, retryable
+    from quantide.service.data_gaps import record_data_gap, resolve_data_gap
+
+    budget = _source_budget()
+    decision = budget.acquire()
+    if decision is BudgetDecision.EXHAUSTED:
+        return "quota_exhausted"
+    if decision is BudgetDecision.DELAY:
+        return "rate_limited"
+    params = SyncParams(
+        window.start,
+        window.end,
+        index_codes=MAJOR_INDICES,
+        include_minute=window.phase == "tail",
+    )
     task = data_sync_service.create_task(params)
-    if not data_sync_service.run(task.task_id):
-        result = data_sync_service.get_task(task.task_id)
-        raise RuntimeError(result.error or result.message if result else "数据维护失败")
+    if data_sync_service.run(task.task_id):
+        for dataset in window.datasets:
+            resolve_data_gap(dataset=dataset, start=window.start, end=window.end)
+        return "ok"
+    result = data_sync_service.get_task(task.task_id)
+    error = str(result.error or result.message) if result else "数据维护失败"
+    kind = budget.classify(error)
+    budget.observe(RuntimeError(error))
+    for dataset in window.datasets:
+        record_data_gap(
+            dataset=dataset,
+            start=window.start,
+            end=window.end,
+            reason_code=kind.value,
+            source=get_settings().data_source,
+            retryable=retryable(kind),
+        )
+    if kind in {DataSourceErrorKind.AUTH_ERROR, DataSourceErrorKind.PERMISSION_DENIED}:
+        return f"{kind.value}: {error}"
+    if retryable(kind):
+        return f"{kind.value}: {error}"
+    return "skip"
+
+
+def _trigger_factor_refresh() -> None:
     try:
         from quantide.service.factor_tracking import trigger_refresh_all
 
         trigger_refresh_all()
     except Exception as exc:
         logger.warning("行情维护完成后触发因子跟踪失败: {}", exc)
-    return f"完整数据维护完成，task={task.task_id}"
 
 
 def maintenance_start(

@@ -36,6 +36,10 @@ from quantide.factors.alpha import (
 )
 
 
+class InsufficientTrainingDataError(RuntimeError):
+    """Raised when a training frame has no realized forward-return labels."""
+
+
 def _training_feature_panel(
     feature_cols: Sequence[str] | None,
     label_cache_key: tuple[Any, ...] | None,
@@ -80,12 +84,12 @@ def _training_feature_panel(
         & pl.col("future_n_trading_day_close_return").is_finite()
     )
     if valid_train.is_empty():
-        raise RuntimeError("训练样本不足：没有可用的未来收盘收益标签")
+        raise InsufficientTrainingDataError("训练样本不足：没有可用的未来收盘收益标签")
 
     train_dates = valid_train["date"].unique().sort().tail(max(5, train_window))
     valid_train = valid_train.filter(pl.col("date").is_in(train_dates.to_list()))
     if valid_train.is_empty():
-        raise RuntimeError("训练样本不足：训练窗口内没有可用的标签")
+        raise InsufficientTrainingDataError("训练样本不足：训练窗口内没有可用的标签")
 
     n_assets = valid_train["asset"].n_unique()
     if n_assets > 1:
@@ -279,10 +283,22 @@ def _retrain_replay_model(
     self: MLMomentumReversalStrategy,
     signal_date: datetime.date,
 ) -> None:
-    """Retrain replay model."""
-    if not is_live and self._should_retrain(signal_date):
-        training_df = self._training_slice(hist_slice, signal_date)
-        self._model, self._model_engine = _fit_ml_model(
+    """Retrain replay model, deferring warm-up until labels are realized."""
+    if is_live or not self._should_retrain(signal_date):
+        return
+    training_df = self._training_slice(hist_slice, signal_date)
+    training_days = training_df["date"].n_unique() if not training_df.is_empty() else 0
+    minimum_days = self.future_return_horizon + 1
+    if training_days < minimum_days:
+        self._model_pending = self._model is None
+        self.log(
+            f"训练样本不足：训练历史仅 {training_days} 个交易日，"
+            f"至少需要 {minimum_days} 个；跳过 {signal_date} 调仓并等待行情积累",
+            level="WARNING",
+        )
+        return
+    try:
+        model, engine = _fit_ml_model(
             training_df,
             train_window=self.train_window,
             horizon=self.future_return_horizon,
@@ -290,13 +306,24 @@ def _retrain_replay_model(
             feature_cols=self.selected_features or FEATURE_COLS,
             label_cache_key=self._panel_cache_key(signal_date),
         )
-        self._save_model_artifact(
-            self._model,
-            self._model_engine,
-            training_df,
-            effective_from=signal_date,
-        )
-        self._mark_retrained()
+    except InsufficientTrainingDataError as exc:
+        self._model_pending = self._model is None
+        self.log(f"训练样本不足：{exc}；跳过 {signal_date} 调仓", level="WARNING")
+        return
+    if model is None:
+        self._model_pending = self._model is None
+        self.log(f"训练样本不足：模型未就绪；跳过 {signal_date} 调仓", level="WARNING")
+        return
+    self._model = model
+    self._model_engine = engine
+    self._model_pending = False
+    self._save_model_artifact(
+        self._model,
+        self._model_engine,
+        training_df,
+        effective_from=signal_date,
+    )
+    self._mark_retrained()
 
 
 def _bars_fingerprint() -> tuple[object, ...]:

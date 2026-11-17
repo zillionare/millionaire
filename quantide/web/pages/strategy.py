@@ -688,6 +688,9 @@ async def run_backtest(req: Request, name: str) -> Any:
         start_date, end_date, initial_cash = _backtest_form_values(form)
         save_logs = _parse_checkbox(form.get("save_logs"))
         cls, config, interval = _backtest_form_strategy(name, form)
+        from quantide.service.data_coverage import validate_backtest_coverage
+
+        validate_backtest_coverage(start_date, end_date, config=config)
 
         portfolio_id = uuid.uuid4().hex
         strategy_runtime_manager.create_backtest_runtime(

@@ -33,6 +33,7 @@ from monsterui.all import (
 )
 from starlette.requests import Request
 
+from quantide.config.settings import get_settings
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.sync_task import DataSyncTask
@@ -116,8 +117,64 @@ def _OverviewTab() -> Any:
             ),
             cls="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8",
         ),
+        _coverage_card(),
         A("检查逐标的日线覆盖", href="/data/market?tab=verify", cls="btn btn-outline"),
         cls="animate-in fade-in duration-500",
+    )
+
+
+def _coverage_card() -> Any:
+    """Show market-level gaps from the configured epoch to the latest bar."""
+    from quantide.service.data_coverage import build_coverage_report
+    from quantide.service.data_gaps import DataGapStore
+
+    epoch = get_settings().epoch
+    end = daily_bars.end
+    if not isinstance(end, datetime.date):
+        return Div(
+            P("数据完整性：日线数据尚未初始化。", cls="text-sm text-amber-700"),
+            cls="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200",
+        )
+    try:
+        report = build_coverage_report(epoch, end, required=("daily_bars",), epoch=epoch)
+        unfillable = DataGapStore().active()
+    except Exception as exc:
+        return Div(
+            P(f"数据完整性检查失败：{exc}", cls="text-sm text-red-600"),
+            cls="mt-6 p-4 bg-red-50 rounded-lg border border-red-200",
+        )
+    gaps = sorted(report.blocking_gaps, key=lambda gap: gap.end, reverse=True)
+    if not gaps and not unfillable:
+        return Div(
+            P(f"数据完整性：从 {epoch} 到 {end} 的日线交易日连续。", cls="text-sm text-green-700"),
+            cls="mt-6 p-4 bg-green-50 rounded-lg border border-green-200",
+        )
+    missing_days = sum(gap.count for gap in gaps)
+    ranges = [
+        P(
+            f"{gap.start} ~ {gap.end}（{gap.count} 个交易日）",
+            cls="text-sm text-gray-700",
+        )
+        for gap in gaps[:5]
+    ]
+    unfillable_text = (
+        P(f"其中不可补全 {len(unfillable)} 段，详见风险事件中心。", cls="text-sm text-red-600")
+        if unfillable
+        else None
+    )
+    return Div(
+        P(
+            f"数据完整性：从 epoch={epoch} 起缺少 {len(gaps)} 段、共 {missing_days} 个交易日。",
+            cls="text-sm font-medium text-amber-800",
+        ),
+        *ranges,
+        unfillable_text,
+        Div(
+            A("前往补全", href="/data/market?tab=update", cls="text-sm text-amber-800 underline"),
+            A("查看告警", href="/system/risk-events", cls="text-sm text-amber-800 underline ml-4"),
+            cls="mt-2",
+        ),
+        cls="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200",
     )
 
 

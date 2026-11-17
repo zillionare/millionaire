@@ -925,6 +925,61 @@ def test_replay_context_finds_panel_and_refit(monkeypatch) -> None:
     assert refit_build == days[0]
 
 
+def test_replay_retrain_defers_until_realized_labels(monkeypatch) -> None:
+    """回测起始日没有历史时，训练应等待标签实现而不是中断整个回测。"""
+    days = _weekdays(dt.date(2024, 1, 2), 10)
+    strategy = _stub_strategy(
+        monkeypatch, days, retrain_days=1, future_return_horizon=3
+    )
+    strategy.logs = []
+    strategy.log = lambda msg, *args, **kwargs: strategy.logs.append(str(msg))
+    signal_date = days[3]
+    hist = pl.DataFrame(
+        {
+            "date": days[:3],
+            "asset": ["600001.SH"] * 3,
+        }
+    )
+
+    ml_momentum_reversal._retrain_replay_model(hist, False, strategy, signal_date)
+
+    assert strategy._model is None
+    assert strategy._model_pending is True
+    assert any("训练样本不足" in message for message in strategy.logs)
+
+
+def test_replay_retrain_defers_when_labels_are_unavailable(monkeypatch) -> None:
+    """即使历史天数足够，缺少已实现标签也不能让回测异常退出。"""
+    from quantide.strategies.example import _ml_support
+
+    days = _weekdays(dt.date(2024, 1, 2), 10)
+    strategy = _stub_strategy(
+        monkeypatch, days, retrain_days=1, future_return_horizon=3
+    )
+    strategy.logs = []
+    strategy.log = lambda msg, *args, **kwargs: strategy.logs.append(str(msg))
+    signal_date = days[4]
+    hist = pl.DataFrame(
+        {
+            "date": days[:4],
+            "asset": ["600001.SH"] * 4,
+        }
+    )
+
+    def _fail_fit(*args, **kwargs):
+        raise _ml_support.InsufficientTrainingDataError(
+            "训练样本不足：没有可用的未来收盘收益标签"
+        )
+
+    monkeypatch.setattr(_ml_support, "_fit_ml_model", _fail_fit)
+
+    _ml_support._retrain_replay_model(hist, False, strategy, signal_date)
+
+    assert strategy._model is None
+    assert strategy._model_pending is True
+    assert any("没有可用的未来收盘收益标签" in message for message in strategy.logs)
+
+
 def test_panel_cache_key_covers_lookback_and_window_inputs(monkeypatch) -> None:
     """面板缓存键必须覆盖所有影响面板内容的参数，避免跨组合污染。"""
     days = _weekdays(dt.date(2024, 1, 1), 20)

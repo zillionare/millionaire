@@ -24,5 +24,3 @@
 - 想研究机器学习：[因子与 LightGBM](factors-and-ml.md) → [参数优化](optimization.md)。
 - 想借助 AI：[AI 辅助开发](ai-development.md)，明确输入、周期和验证要求再生成代码。
 - 想接入自己的数据或柜台：[行情扩展](quote-extensions.md)、[柜台适配](broker-adapters.md)。
-
-源码离线 stub 属于开发者工具，见[开发者验收](developer-acceptance.md)；原生安装包不携带该测试资产，不能用 stub 命令代替最终用户的数据初始化。

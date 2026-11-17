@@ -36,9 +36,11 @@ from quantide.core.ports.data_fetcher import (
     STANDARD_MINUTE_BAR_COLUMNS,
     ErrorRecord,
 )
+from quantide.data.fetchers.budget import NoQuotaBudget
 
 #: 实时行情批量上限（a-stock-data 实测约 800 支/次）
 DEFAULT_QUOTE_BATCH = 100
+_TENCENT_BUDGET = NoQuotaBudget("tencent")
 
 
 def _kline_source_rows(
@@ -109,6 +111,9 @@ class TencentDataFetcher:
     """腾讯行情适配器（符合 DataFetcherPort 实时/分钟扩展）。"""
 
     source_name = "tencent"
+
+    def budget(self) -> NoQuotaBudget:
+        return _TENCENT_BUDGET
 
     QUOTE_URL = "https://qt.gtimg.cn/q={}"
     KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"

@@ -15,6 +15,9 @@ from quantide.config.settings import get_tushare_token
 from quantide.core.bar_schema import STANDARD_INDEX_BAR_COLUMNS
 from quantide.core.message import msg_hub
 from quantide.core.ports.data_fetcher import ErrorRecord
+from quantide.data.fetchers.budget import NoQuotaBudget
+
+_TUSHARE_BUDGET = NoQuotaBudget("tushare")
 
 
 def _ensure_tushare_token() -> None:
@@ -27,6 +30,9 @@ class TushareDataFetcher:
     """符合标准端口的数据源适配器."""
 
     source_name = "tushare"
+
+    def budget(self) -> NoQuotaBudget:
+        return _TUSHARE_BUDGET
 
     def fetch_calendar(self, epoch: datetime.date) -> pd.DataFrame:
         return fetch_calendar(epoch)

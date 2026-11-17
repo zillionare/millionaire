@@ -836,8 +836,12 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
         if is_live and not self._live_panel_ready(hist_slice, target_date, signal_date):
             return [], {}, {}
         if is_live and not self._refresh_live_rank_model(signal_date):
+            self._data_missing = True
             return [], {}, {}
         _retrain_replay_model(hist_slice, is_live, self, signal_date)
+        if self._model is None:
+            self._data_missing = True
+            return [], {}, {}
 
         cross_df = hist_slice.filter(
             (pl.col("date") == target_date)
