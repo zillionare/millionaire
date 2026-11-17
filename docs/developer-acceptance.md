@@ -2,9 +2,7 @@
 
 本文档面向仓库开发者，而不是最终用户。
 
-代码质量预算、三平台安装/测试、离线测试隔离及发布硬门禁见
-[代码质量与发布门禁](quality.md)。发布 CI 使用 `--runxfail` 并拒绝跳过，
-不能用下列普通 pytest 命令中的 xfail/skip 作为发布通过证据。
+代码质量预算、三平台安装/测试、离线测试隔离及发布硬门禁见[代码质量与发布门禁](quality.md)。发布 CI 使用 `--runxfail` 并拒绝跳过，不能用下列普通 pytest 命令中的 xfail/skip 作为发布通过证据。
 
 目标只有两个：
 
@@ -16,8 +14,7 @@
 本文档覆盖当前仓库里最常见的两类开发动作：
 
 1. 修改策略、交易链路或页面后，先在本地验证核心流程没有断。
-2. 需要在不连接真实 Tushare、真实 qmt-gateway/QMT 的情况下，使用 stub 走通
-   开发态纸面/仿真验证。
+2. 需要在不连接真实 Tushare、真实 qmt-gateway/QMT 的情况下，使用 stub 走通开发态纸面/仿真验证。
 
 本文档不替代仓库中的测试用例和 CI 发布门禁；后者仍然是工程约束和发布态验收基线。
 
@@ -90,8 +87,7 @@ QUANTIDE_ENABLE_DEV_STUBS=1 uvicorn quantide.app:app --reload
 
 1. 启动本地 gateway stub，并把 effective gateway 配置指向它。
 2. 用 fixture-backed 数据替代默认 Tushare fetcher。
-3. 在已完成初始化的前提下，开放开发态的 simulation/paper 链路；CE
-   不开放 live 链路。
+3. 在已完成初始化的前提下，开放开发态的 simulation/paper 链路；CE 不开放 live 链路。
 
 注意：
 
@@ -115,10 +111,7 @@ QUANTIDE_ENABLE_DEV_STUBS=1 uvicorn quantide.app:app --reload
 .venv/bin/python -m pytest tests/e2e/three_mode/test_ce_parity.py -q
 ```
 
-用途：对同一个策略分别运行回测、Paper 和独立 HTTP 模拟柜台，比较订单、成交、
-持仓、现金和每日权益。柜台使用独立数据库，不依赖 QMT 或真实交易接口。
-用例包含零费用和非零费用的人工核算基准，以及重复提交、部分成交、撤单、
-柜台进程强制退出后恢复。详见[模拟柜台与一致性](simulated-counter.md)。
+用途：对同一个策略分别运行回测、Paper 和独立 HTTP 模拟柜台，比较订单、成交、持仓、现金和每日权益。柜台使用独立数据库，不依赖 QMT 或真实交易接口。用例包含零费用和非零费用的人工核算基准，以及重复提交、部分成交、撤单、柜台进程强制退出后恢复。详见[模拟柜台与一致性](simulated-counter.md)。
 
 ### 开发态 stub UI 流程核查
 
@@ -126,26 +119,20 @@ QUANTIDE_ENABLE_DEV_STUBS=1 uvicorn quantide.app:app --reload
 .venv/bin/python -m pytest tests/e2e/web/test_dev_stub_mode.py -q
 ```
 
-用途：确认开发态 stub 不是"只能启动"，而是真能支撑策略页、回测报告、转仿真
-和纸面交易入口路径。
+用途：确认开发态 stub 不是"只能启动"，而是真能支撑策略页、回测报告、转仿真和纸面交易入口路径。
 
 ## 5. 提交前最小手工验收
 
 当改动涉及策略页、交易页、runtime 装配、gateway/tushare stub 或导航时，至少手工检查下面几项：
 
-1. 使用 `QUANTIDE_ENABLE_DEV_STUBS=1` 启动后，日志能确认本地 stub 已启动；
-   CE 不要求配置真实 live gateway。
-2. 策略页能正常打开，已有回测报告时，"转仿真"不会被错误禁用；"转实盘"
-   在 CE 中应保持隐藏或不可用。
+1. 使用 `QUANTIDE_ENABLE_DEV_STUBS=1` 启动后，日志能确认本地 stub 已启动；CE 不要求配置真实 live gateway。
+2. 策略页能正常打开，已有回测报告时，"转仿真"不会被错误禁用；"转实盘" 在 CE 中应保持隐藏或不可用。
 3. `/trade/simulation` 可访问。
 4. `/trade/live` 在 CE 中返回明确的不可用响应（当前为 HTTP 503）。
 5. 旧入口 `/strategy/live` 不得绕过 CE 的 live feature gate。
 6. 如果本次改动涉及交易逻辑，至少再跑一次 backtest/paper parity 定向用例。
 
-millionaire pro 专属的 gateway/live UI 合同用例使用 `private_only` marker，不能作为
-CE 验收证据。需要验证这些共享内部实现时，必须显式启用
-`QUANTIDE_ENABLE_EDITION_OVERRIDE=1 QUANTIDE_EDITION=zillionaire`；普通 CE
-运行不应启动 live broker，也不应恢复持久化的 live runtime。
+millionaire pro 专属的 gateway/live UI 合同用例使用 `private_only` marker，不能作为 CE 验收证据。需要验证这些共享内部实现时，必须显式启用 `QUANTIDE_ENABLE_EDITION_OVERRIDE=1 QUANTIDE_EDITION=zillionaire`；普通 CE 运行不应启动 live broker，也不应恢复持久化的 live runtime。
 
 ## 6. 如何理解"验收通过"
 
