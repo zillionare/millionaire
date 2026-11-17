@@ -344,9 +344,13 @@ class DataSyncService:
 
     def _sync_daily_basic(self, params: SyncParams) -> None:
         """同步市值/换手（按月批量）。"""
+        from quantide.config.settings import get_data_source
+        from quantide.data.fetchers.capabilities import supports_dataset
         from quantide.data.models.calendar import calendar
         from quantide.data.models.daily_basic import daily_basic
 
+        if not supports_dataset(get_data_source(), "daily_basic"):
+            return
         daily_basic.load()
         available = (
             set(daily_basic.data["date"].to_list()) if not daily_basic.data.is_empty() else set()
@@ -361,7 +365,10 @@ class DataSyncService:
 
     def _sync_index_bars(self, params: SyncParams) -> None:
         """同步指数日线。"""
-        if not params.index_codes:
+        from quantide.config.settings import get_data_source
+        from quantide.data.fetchers.capabilities import supports_dataset
+
+        if not params.index_codes or not supports_dataset(get_data_source(), "index_bars"):
             return
         from quantide.data import get_index_bars_store
         from quantide.data.fetchers.registry import get_data_fetcher
@@ -384,7 +391,10 @@ class DataSyncService:
 
     def _sync_index_weight(self, params: SyncParams) -> None:
         """同步指数成分（逐期抓取，绕过 7000 行上限）。"""
-        if not params.index_codes:
+        from quantide.config.settings import get_data_source
+        from quantide.data.fetchers.capabilities import supports_dataset
+
+        if not params.index_codes or not supports_dataset(get_data_source(), "index_weights"):
             return
         from quantide.data import get_index_weight_store
         from quantide.data.fetchers.registry import get_data_fetcher

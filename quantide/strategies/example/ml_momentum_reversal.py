@@ -583,7 +583,7 @@ class MLMomentumReversalStrategy(MLRebalance, MLExplanation, BaseStrategy):
             tuple(self.selected_features or all_factor_ids()),
             tuple(self._held_assets(signal_date)),
             self.custom_assets,
-            self.universe_filter.as_dict(),
+            tuple(sorted(self.universe_filter.as_dict().items())),
             self.fill_timing,
             _bars_fingerprint(),
             "live" if is_live else "backtest",

@@ -102,3 +102,43 @@ def test_force_recheck_observes_account_upgrade_with_same_token(tmp_path, monkey
     client.failures.clear()
     assert not access.ensure_access_report(state)["history_ready"]
     assert access.ensure_access_report(state, force=True)["history_ready"]
+
+
+class _BaoFetcher:
+    def __init__(self, fail: bool = False) -> None:
+        self.fail = fail
+
+    def fetch_calendar(self, _start):
+        if self.fail:
+            raise ConnectionError("offline")
+        return [1]
+
+    def fetch_stock_list(self):
+        return [{"asset": "600001.SH"}]
+
+
+def test_baostock_access_is_token_free_and_reports_history_only(tmp_path, monkeypatch):
+    monkeypatch.setattr(access, "ensure_app_config_dir", lambda: tmp_path)
+    state = SimpleNamespace(
+        tushare_token="must-not-be-used",
+        history_start_date=datetime.date(2024, 1, 2),
+        data_source="baostock",
+    )
+    report = access.ensure_access_report(state, force=True, fetcher=_BaoFetcher())
+    assert report["source"] == "baostock"
+    assert report["history_ready"] is True
+    assert report["realtime_ready"] is False
+    assert report["fingerprint"] == access.access_fingerprint("", state.history_start_date, "baostock")
+    assert "must-not-be-used" not in json.dumps(report)
+
+
+def test_baostock_access_failure_is_redacted(tmp_path, monkeypatch):
+    monkeypatch.setattr(access, "ensure_app_config_dir", lambda: tmp_path)
+    state = SimpleNamespace(
+        tushare_token="",
+        history_start_date=datetime.date(2024, 1, 2),
+        data_source="baostock",
+    )
+    report = access.ensure_access_report(state, force=True, fetcher=_BaoFetcher(fail=True))
+    assert report["history_ready"] is False
+    assert report["checks"][0]["status"] == "unavailable"

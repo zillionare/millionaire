@@ -20,6 +20,7 @@ from quantide.audit.models import (
     canonical_hash,
 )
 from quantide.audit.runner import AuditRunner
+from quantide.core.bar_schema import OHLCV_COLUMNS
 from quantide.factors.alpha import FACTOR_VERSION, compute_alpha_features
 from quantide.factors.metadata import (
     FACTOR_METADATA,
@@ -38,14 +39,7 @@ _REQUIRED_RAW = {
     "volume",
     "available_at",
 }
-DEFAULT_POSITIVE_COLUMNS: tuple[str, ...] = (
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    "amount",
-)
+DEFAULT_POSITIVE_COLUMNS: tuple[str, ...] = tuple(OHLCV_COLUMNS)
 
 
 def _duplicate_key(frame: pl.DataFrame) -> tuple[Any, Any, int] | None:

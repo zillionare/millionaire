@@ -150,11 +150,8 @@ class Calendar(CalendarFrameOperations):
         with atomic_path(self.path) as temporary:
             calendar_data.to_parquet(temporary)
 
-    def load(self, path: str | Path) -> Calendar:
-        """加载日历数据，并构建日/周/月帧。
-
-        如果指定文件不存在，则从服务器获取并保存。
-        """
+    def load(self, path: str | Path, *, fetch_missing: bool = True) -> Calendar:
+        """加载日历数据并构建日/周/月帧；缺失时默认从服务器获取。"""
         if path is not None:
             _path = Path(path).expanduser()
             parent = _path.parent
@@ -165,14 +162,28 @@ class Calendar(CalendarFrameOperations):
         try:
             self._data = pq.read_table(self.path)
         except Exception as e:
-            logger.warning("Calendar 读取日历数据失败，重新从服务器获取")
-            logger.exception(e)
-            df = get_data_fetcher().fetch_calendar(_calendar_fetch_start())
-            self._data = pa.Table.from_pandas(df)
-            self.save(df)
+            if not fetch_missing:
+                self._data = pa.table(
+                    {
+                        "date": pa.array([], type=pa.date32()),
+                        "is_open": pa.array([], type=pa.int8()),
+                    }
+                )
+            else:
+                logger.warning("Calendar 读取日历数据失败，重新从服务器获取")
+                logger.exception(e)
+                df = get_data_fetcher().fetch_calendar(_calendar_fetch_start())
+                self._data = pa.Table.from_pandas(df)
+                self.save(df)
 
         # 中文：基于 is_open==1 构建交易日、周、月帧（整数 YYYYMMDD）
-        self.day_frames, self.week_frames, self.month_frames = self._build_frames_arrow(self._data)
+        if self._data.num_rows:
+            self.day_frames, self.week_frames, self.month_frames = self._build_frames_arrow(
+                self._data
+            )
+        else:
+            empty = pa.array([], type=pa.date32())
+            self.day_frames = self.week_frames = self.month_frames = empty
         return self
 
     def update(self) -> None:

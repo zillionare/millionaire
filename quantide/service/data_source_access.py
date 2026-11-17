@@ -212,15 +212,70 @@ def load_access_report(state: AppState) -> dict[str, Any] | None:
     return None
 
 
-def ensure_access_report(state: AppState, *, force: bool = False) -> dict[str, Any]:
+def check_baostock_access(
+    start: str | datetime.date, *, fetcher: Any | None = None
+) -> dict[str, Any]:
+    """Probe the token-free BaoStock daily source with two bounded calls."""
+    start_date = datetime.date.fromisoformat(str(start)[:10])
+    checks: list[dict[str, Any]] = []
+    if fetcher is None:
+        from quantide.data.fetchers.baostock_daily import BaostockDailyFetcher
+
+        fetcher = BaostockDailyFetcher()
+    try:
+        calendar_frame = fetcher.fetch_calendar(start_date)
+        checks.append(
+            {
+                "endpoint": "trade_dates",
+                "label": "交易日历",
+                "status": "ok" if len(calendar_frame) else "unconfirmed",
+                "message": "样本检查通过。" if len(calendar_frame) else "未返回交易日历样本。",
+            }
+        )
+        stocks = fetcher.fetch_stock_list()
+        checks.append(
+            {
+                "endpoint": "stock_basic",
+                "label": "证券列表",
+                "status": "ok" if stocks is not None and len(stocks) else "unconfirmed",
+                "message": (
+                    "样本检查通过。" if stocks is not None and len(stocks) else "未返回证券样本。"
+                ),
+            }
+        )
+    except Exception as error:
+        checks.append(
+            {
+                "endpoint": "baostock",
+                "label": "BaoStock 免积分日线源",
+                "status": "unavailable",
+                "message": f"连接失败：{type(error).__name__}",
+            }
+        )
+    return {
+        "source": "baostock",
+        "checked_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        "fingerprint": access_fingerprint("", start_date, "baostock"),
+        "checks": checks,
+        "history_ready": all(item["status"] == "ok" for item in checks),
+        "realtime_ready": False,
+    }
+
+
+def ensure_access_report(
+    state: AppState, *, force: bool = False, fetcher: Any | None = None
+) -> dict[str, Any]:
     """Keep forward navigation and direct download requests on the same validation path."""
     cached = load_access_report(state)
     if cached is not None and not force:
         return cached
-    if state.data_source != "tushare":
-        raise ValueError("当前向导仅支持检测 Tushare；其它历史源请按扩展文档接入。")
     if state.history_start_date is None:
         raise ValueError("历史起始日期未配置，无法检测数据源权限。")
-    report = check_tushare_access(state.tushare_token, state.history_start_date)
+    if state.data_source == "baostock":
+        report = check_baostock_access(state.history_start_date, fetcher=fetcher)
+    elif state.data_source == "tushare":
+        report = check_tushare_access(state.tushare_token, state.history_start_date)
+    else:
+        raise ValueError("当前向导仅支持检测 Tushare 或 BaoStock；其它历史源请按扩展文档接入。")
     write_json(ensure_app_config_dir() / "data-source-check.json", report)
     return report

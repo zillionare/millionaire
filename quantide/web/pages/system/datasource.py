@@ -36,9 +36,15 @@ from starlette.requests import Request
 from quantide.config.settings import get_settings
 from quantide.data.models.app_state import AppState
 from quantide.data.sqlite import db
+from quantide.service.demo_bundle import (
+    activate_demo_bundle,
+    deactivate_demo_bundle,
+    demo_status,
+)
 from quantide.service.init_wizard import init_wizard
 from quantide.web.application import fast_app
 from quantide.web.layouts.main import MainLayout
+from quantide.web.pages.system._auth import require_admin
 from quantide.web.theme import PRIMARY_COLOR, AppTheme
 
 # 定义子路由应用
@@ -236,19 +242,31 @@ def _build_config_card(config: dict[str, Any]) -> Div:
                         value="tushare",
                         selected=str(config.get("data_source", "tushare")) == "tushare",
                     ),
+                    Option(
+                        "BaoStock 免积分历史日线（无需 Token）",
+                        value="baostock",
+                        selected=str(config.get("data_source")) == "baostock",
+                    ),
                     name="data_source",
                     cls="select select-bordered w-full",
                 ),
                 cls="mb-3",
             ),
             Div(
-                _Label("Tushare Token", cls="block text-sm font-medium text-gray-700 mb-1"),
+                _Label(
+                    "Tushare Token（选择 BaoStock 时可留空）",
+                    cls="block text-sm font-medium text-gray-700 mb-1",
+                ),
                 Input(
                     type="password",
                     name="tushare_token",
                     value=config.get("tushare_token", ""),
-                    placeholder=masked_token or "请输入 Tushare Token",
+                    placeholder=masked_token or "BaoStock 无需 Token",
                     cls="input input-bordered w-full",
+                ),
+                P(
+                    "BaoStock 不提供市值字段；市值过滤会显式降级为近 20 日成交额均值截断。",
+                    cls="mt-1 text-xs text-gray-500",
                 ),
                 cls="mb-3",
             ),
@@ -279,6 +297,47 @@ def _build_config_card(config: dict[str, Any]) -> Div:
             ),
         ),
         cls="p-6 bg-white rounded-lg shadow",
+    )
+
+
+def _build_demo_bundle_card() -> Div:
+    """Expose the isolated, token-free offline demo mount."""
+    status = demo_status()
+    if status["active"]:
+        body = Div(
+            P(
+                f"体验数据模式已启用，合成数据截至 {status.get('data_end') or '未知'}。",
+                cls="text-sm text-amber-900",
+            ),
+            Form(
+                Button("退出体验模式", type="submit", cls="btn"),
+                action="/system/datasource/demo/deactivate",
+                method="post",
+                cls="mt-3",
+            ),
+        )
+    else:
+        body = Div(
+            P(
+                "免 Token、无需联网，150 只 A 股合成数据挂载到隔离演示目录；"
+                "不会写入正式 data_home。",
+                cls="text-sm text-amber-900",
+            ),
+            Form(
+                Button(
+                    "使用内置离线体验数据包（免 Token、立即体验）",
+                    type="submit",
+                    cls="btn btn-primary",
+                ),
+                action="/system/datasource/demo/activate",
+                method="post",
+                cls="mt-3",
+            ),
+        )
+    return Div(
+        H3("离线体验数据包", cls="text-lg font-semibold text-gray-900 mb-2"),
+        body,
+        cls="p-6 bg-amber-50 border border-amber-300 rounded-lg shadow",
     )
 
 
@@ -351,6 +410,7 @@ def _render_page(
             cls="mb-6",
         ),
         *flashes,
+        Div(_build_demo_bundle_card(), cls="mb-6"),
         Div(_build_config_card(config), cls="mb-6"),
         Div(_build_data_status_card(data_status), cls="mb-6"),
         Div(_build_sync_history_card(sync_history), cls="mb-6"),
@@ -418,10 +478,55 @@ async def save_config(req: Request) -> Any:
         return _render_page(req, current, error_message=f"保存失败：{exc}")
 
 
+@rt("/demo/activate", methods=["POST"])
+async def activate_demo(req: Request) -> Any:
+    """Activate the offline demo bundle from system settings."""
+    denied = require_admin(req)
+    if denied is not None:
+        return denied
+    try:
+        await asyncio.to_thread(activate_demo_bundle)
+    except Exception as exc:
+        logger.warning("体验数据包激活失败: {}", exc)
+        return _render_page(
+            req, _load_datasource_config(), error_message=f"体验数据包激活失败：{exc}"
+        )
+    return _render_page(
+        req, _load_datasource_config(), success_message="体验数据包已启用；正式 data_home 未改动"
+    )
+
+
+@rt("/demo/deactivate", methods=["POST"])
+async def deactivate_demo(req: Request) -> Any:
+    """Return to the saved formal data source without deleting demo files."""
+    denied = require_admin(req)
+    if denied is not None:
+        return denied
+    try:
+        await asyncio.to_thread(deactivate_demo_bundle)
+    except Exception as exc:
+        return _render_page(
+            req, _load_datasource_config(), error_message=f"退出体验模式失败：{exc}"
+        )
+    return _render_page(
+        req,
+        _load_datasource_config(),
+        success_message="已切换回正式数据源；实时行情源需重启服务后恢复",
+    )
+
+
 @rt("/sync")
 async def sync_data(req: Request) -> Any:
     """触发数据同步"""
+    from quantide.config.settings import get_data_source_mode
     from quantide.data.models.calendar import calendar as trade_calendar
+
+    if get_data_source_mode() == "demo_bundle":
+        return _render_page(
+            req,
+            _load_datasource_config(),
+            error_message="体验数据模式不启动外部历史增量同步；请退出体验模式后再同步。",
+        )
     from quantide.data.models.daily_bars import daily_bars
     from quantide.data.models.stocks import stock_list
 

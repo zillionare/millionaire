@@ -59,6 +59,10 @@ def register_builtin_fetchers(
             TushareDataFetcher(),
             make_default=registry.default_name is None,
         )
+    if not registry.has("baostock"):
+        from quantide.data.fetchers.baostock_daily import BaostockDailyFetcher
+
+        registry.register("baostock", BaostockDailyFetcher())
     if not registry.has("tencent"):
         from quantide.data.fetchers.tencent import TencentDataFetcher
 

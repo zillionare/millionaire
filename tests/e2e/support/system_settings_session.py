@@ -16,13 +16,13 @@ from quantide.config.paths import clear_app_config_dir_override
 from quantide.core.init_wizard_steps import WIZARD_FINAL_STEP
 from quantide.core.runtime.modes import RuntimeBootstrap
 from quantide.data.models.app_state import AppState
-from quantide.data.sqlite import db
 from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
 from quantide.service.strategy_runtime import strategy_runtime_manager
 from quantide.web.auth.manager import AuthManager
 from quantide.web.pages import init_wizard as init_wizard_page
 from tests.e2e.support.auth_fixture import ensure_test_admin
+from tests.e2e.support.sqlite_state import capture_sqlite_state, restore_sqlite_state
 
 TESTS_ROOT = Path(__file__).resolve().parents[2]
 ASSETS_ROOT = TESTS_ROOT / "assets"
@@ -151,6 +151,7 @@ def system_settings_e2e_session():
         app_config_dir = tmp_path / "config-home"
         market_home = tmp_path / "market-data"
 
+        previous_db = capture_sqlite_state()
         _reset_global_state()
 
         try:
@@ -161,6 +162,6 @@ def system_settings_e2e_session():
                     app_config_dir=app_config_dir,
                 )
         finally:
-            db.close()
+            restore_sqlite_state(previous_db)
             _reset_global_state()
             clear_app_config_dir_override()

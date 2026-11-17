@@ -30,12 +30,12 @@ from quantide.core.ports.data_fetcher import (
 
 #: 默认的数据类型 -> fetcher 优先级
 DEFAULT_STAGES: dict[str, list[str]] = {
-    "calendar": ["tushare"],
-    "stock_list": ["tushare"],
-    "daily_bars": ["tushare", "tencent"],
-    "adjust_factor": ["tushare"],
+    "calendar": ["tushare", "baostock"],
+    "stock_list": ["tushare", "baostock"],
+    "daily_bars": ["tushare", "baostock", "tencent"],
+    "adjust_factor": ["tushare", "baostock"],
     "limit_price": ["tushare"],
-    "st_info": ["tushare"],
+    "st_info": ["tushare", "baostock"],
     "daily_basic": ["tushare"],
     "index_bars": ["tushare", "tencent"],
     "index_weights": ["tushare"],

@@ -16,8 +16,8 @@ from quantide.service.init_wizard import init_wizard
 from quantide.web.auth.manager import AuthManager
 from quantide.web.pages import init_wizard as init_wizard_page
 from quantide.web.pages import wizard_state
+from tests.e2e.support.sqlite_state import capture_sqlite_state, restore_sqlite_state
 from tests.init_access_support import AccessClient
-
 
 _SYNC_STATUS_TEMPLATE = {
     "is_running": False,
@@ -55,12 +55,12 @@ class InitWizardE2ESession:
 @contextmanager
 def init_wizard_e2e_session():
     """Create a fully isolated init-wizard e2e session."""
-
     with TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
         app_config_dir = tmp_path / "config-home"
         market_home = tmp_path / "market-data"
 
+        previous_db = capture_sqlite_state()
         _reset_global_state()
 
         try:
@@ -78,5 +78,6 @@ def init_wizard_e2e_session():
                     app_config_dir=app_config_dir,
                 )
         finally:
+            restore_sqlite_state(previous_db)
             _reset_global_state()
             clear_app_config_dir_override()

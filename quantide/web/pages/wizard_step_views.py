@@ -34,6 +34,7 @@ from quantide.web.pages.wizard_components import (
     FormRow,
     InfoTooltip,
 )
+from quantide.web.pages.wizard_data_views import DemoBundleCard
 from quantide.web.pages.wizard_forms import (
     _data_init_form_state,
     _gateway_form_state,
@@ -450,16 +451,25 @@ def Step5_DataSetup(state: dict[str, Any] | None = None) -> Any:
     download_start, download_end = _calculate_download_range(years)
 
     return Div(
+        DemoBundleCard(),
         Div(
             FormRow(
                 "当前数据源",
                 Select(
                     Option("Tushare", value="tushare", selected=data_source == "tushare"),
+                    Option(
+                        "BaoStock 免积分历史日线（无需 Token）",
+                        value="baostock",
+                        selected=data_source == "baostock",
+                    ),
                     name=DATA_INIT_FORM_FIELDS["data_source"],
                     cls="uk-select",
                 ),
                 required=True,
-                tooltip="当前版本先接入 Tushare，后续可以在同一标准接口下扩展更多数据源。",
+                tooltip=(
+                    "Tushare 需要 Token；BaoStock 免积分，覆盖沪深历史日线、复权与交易日历，"
+                    "但不提供市值字段。"
+                ),
             ),
             # 数据起始日
             FormRow(
@@ -479,18 +489,17 @@ def Step5_DataSetup(state: dict[str, Any] | None = None) -> Any:
             ),
             # Tushare 访问密钥
             FormRow(
-                "Tushare 访问密钥",
+                "Tushare 访问密钥（选择 BaoStock 时可留空）",
                 Input(
                     name=DATA_INIT_FORM_FIELDS["tushare_token"],
                     value=values[DATA_INIT_FORM_FIELDS["tushare_token"]],
-                    placeholder="请输入您的 tushare token",
+                    placeholder="选择 BaoStock 时无需填写",
                     type="password",
                     autocomplete="off",
-                    required=True,
                     cls="uk-input",
                 ),
-                required=True,
-                tooltip="访问 tushare 需要密钥，请在 https://tushare.pro/user/token 页面获取。",
+                required=False,
+                tooltip="Tushare 需要密钥；选择 BaoStock 免积分源时不使用此字段。",
             ),
             # 首次下载时长
             FormRow(
@@ -615,7 +624,8 @@ def _access_report_view() -> Any:
 
     return Div(
         P(
-            "日线与参考数据使用 Tushare；30 分钟历史由 BaoStock 提供，无需额外 Token。",
+            "Tushare 需要 Token；BaoStock 免积分历史日线无需 Token，但无市值字段时"
+            "市值过滤会自动降级为成交额流动性截断。30 分钟历史由 BaoStock 提供。",
             cls="text-sm mt-4",
         ),
         P("正在检测数据源权限，请稍候…", id="data-source-checking", cls="htmx-indicator mt-4"),

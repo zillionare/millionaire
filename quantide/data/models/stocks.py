@@ -45,8 +45,8 @@ class StockList:
             raise ValueError("证券列表路径路径未指定")
         return Path(self._path)
 
-    def load(self, path: str | Path) -> None:
-        """加载证券列表。如果指定文件不存在，则从tushare获取"""
+    def load(self, path: str | Path, *, fetch_missing: bool = True) -> None:
+        """加载证券列表；缺失时仅在 ``fetch_missing`` 为真时访问数据源。"""
         self._path = path
 
         if dev_stubs_enabled():
@@ -67,6 +67,9 @@ class StockList:
             logger.exception(e)
             logger.warning("加载股票列表失败,{}", self.path)
 
+        if not fetch_missing:
+            self._data = pl.DataFrame()
+            return
         logger.info("正在从接口获取股票列表...")
         df = get_data_fetcher().fetch_stock_list()
         if df is None or df.empty:

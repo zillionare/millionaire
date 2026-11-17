@@ -238,8 +238,14 @@ def _get_all_job_history(limit: int = 20) -> list[JobHistoryRecord]:
 
 def _run_daily_bars_sync() -> None:
     """日线数据同步任务"""
+    from quantide.config.settings import get_data_source_mode
     from quantide.service.maintenance import maintain_data
 
+    if get_data_source_mode() == "demo_bundle":
+        _save_job_history(
+            "daily_bars_sync", "每日数据维护", "skipped", "体验数据模式不执行外部同步"
+        )
+        return
     try:
         message = maintain_data()
         _save_job_history("daily_bars_sync", "每日数据维护", "success", message)
@@ -250,8 +256,14 @@ def _run_daily_bars_sync() -> None:
 
 def _run_stock_list_sync() -> None:
     """股票列表同步任务"""
+    from quantide.config.settings import get_data_source_mode
     from quantide.data.models.stocks import stock_list
 
+    if get_data_source_mode() == "demo_bundle":
+        _save_job_history(
+            "stock_list_sync", "股票列表同步", "skipped", "体验数据模式不执行外部同步"
+        )
+        return
     logger.info("Running stock list sync job")
     try:
         stock_list.update()
@@ -263,8 +275,12 @@ def _run_stock_list_sync() -> None:
 
 def _run_calendar_sync() -> None:
     """交易日历同步任务"""
+    from quantide.config.settings import get_data_source_mode
     from quantide.data.models.calendar import calendar as trade_calendar
 
+    if get_data_source_mode() == "demo_bundle":
+        _save_job_history("calendar_sync", "交易日历同步", "skipped", "体验数据模式不执行外部同步")
+        return
     logger.info("Running calendar sync job")
     try:
         trade_calendar.update()

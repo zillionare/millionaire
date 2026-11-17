@@ -5,9 +5,11 @@ from typing import Any, TypedDict
 from fasthtml.common import *
 from fasthtml.common import (
     H1,
+    A,
     Div,
     Main,
     P,
+    Span,
     Title,
 )
 from monsterui.all import *
@@ -15,6 +17,7 @@ from starlette.requests import Request
 
 from quantide.config.branding import get_branding
 from quantide.config.features import supports_live_trading
+from quantide.config.settings import get_settings
 from quantide.core.enums import BrokerKind
 from quantide.service.init_wizard import init_wizard
 from quantide.service.registry import BrokerRegistry
@@ -575,6 +578,29 @@ class MainLayout(BaseLayout):
             hx_swap_oob=hx_swap_oob,
         )
 
+    def _build_demo_banner(self) -> Any:
+        """Render the persistent isolated demo-mode banner."""
+        if get_settings().data_source_mode != "demo_bundle":
+            return None
+        state = init_wizard.get_state()
+        cutoff = state.demo_data_end.isoformat() if state.demo_data_end else "未知"
+        return Div(
+            Span(
+                f"体验数据模式（数据截至 {cutoff}，合成数据，仅供功能体验）",
+                cls="font-medium",
+            ),
+            A(
+                "切换正式数据源 →",
+                href="/system/datasource",
+                cls="ml-4 rounded-lg bg-amber-900 px-3 py-1 text-white",
+            ),
+            id="demo-mode-banner",
+            cls=(
+                "flex items-center justify-center bg-amber-100 px-4 py-2 "
+                "text-sm text-amber-950 border-b border-amber-300"
+            ),
+        )
+
     def render(self, req: Request | None = None) -> Any:
         """渲染主页面。"""
         fragment_navigation_enabled = self._fragment_navigation_enabled(req)
@@ -597,6 +623,7 @@ class MainLayout(BaseLayout):
             Title(self.title, id="page-title"),
             Div(
                 self._build_header(req),
+                self._build_demo_banner(),
                 Div(
                     self._build_sidebar(
                         fragment_navigation_enabled=fragment_navigation_enabled,

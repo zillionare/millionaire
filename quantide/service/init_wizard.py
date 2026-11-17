@@ -92,6 +92,8 @@ class InitWizardService:
         state.runtime_broker_adapter = settings.runtime_broker_adapter
         state.gateway_api_key = settings.gateway_api_key
         state.data_source = settings.data_source
+        state.data_source_mode = getattr(settings, "data_source_mode", "standard")
+        state.demo_home = getattr(settings, "demo_home", "")
         state.notify_dingtalk_access_token = get_dingtalk_access_token()
         state.notify_dingtalk_secret = get_dingtalk_secret()
         state.notify_dingtalk_keyword = get_dingtalk_keyword()
@@ -200,7 +202,10 @@ class InitWizardService:
         """
         state = self.get_state()
         backtest_available = state.is_fully_initialized and (
-            dev_stubs_enabled() or bool(str(state.tushare_token or "").strip())
+            dev_stubs_enabled()
+            or state.is_demo_mode
+            or bool(str(state.tushare_token or "").strip())
+            or state.data_source in {"baostock", "baostock_daily"}
         )
         gateway_available = self._is_gateway_available(state)
         # Paper/simulation uses MarketDataHub and does not require a trading
@@ -418,6 +423,8 @@ class InitWizardService:
         if normalized_source == "tushare" and not normalized_token:
             raise ValueError("必须填写 Tushare Token")
         state = self.get_state()
+        state.data_source_mode = "standard"
+        state.demo_home = ""
         state.epoch = epoch
         state.data_source = normalized_source
         state.tushare_token = normalized_token

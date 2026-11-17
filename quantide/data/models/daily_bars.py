@@ -38,11 +38,17 @@ class DailyBars(ParquetStorage):
         self._data_fetcher: HistoricalDataFetcherPort | None = None
         self._initialized = False
 
-    def connect(self, store_path: str | Path, calendar_store_path: str | Path) -> None:
+    def connect(
+        self,
+        store_path: str | Path,
+        calendar_store_path: str | Path,
+        *,
+        fetch_missing: bool = True,
+    ) -> None:
         if self._initialized:
             logger.warning("重加载 daily bars store")
 
-        self._calendar = Calendar().load(calendar_store_path)
+        self._calendar = Calendar().load(calendar_store_path, fetch_missing=fetch_missing)
         self._data_fetcher = get_data_fetcher()
 
         path = Path(store_path).expanduser()

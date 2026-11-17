@@ -128,6 +128,12 @@ class RuntimeBootstrap:
          所有实时消费者统一使用 ``MarketDataHub``。
         """
         market_data_hub.start()
+        from quantide.config.settings import get_settings
+
+        if get_settings().data_source_mode == "demo_bundle":
+            adapters.register("market_data", "market_data_hub", market_data_hub)
+            return market_data_hub
+
         from quantide.service.limit_price_refresher import limit_price_refresher
         from quantide.service.minute_bar_aggregator import minute_bar_aggregator
         from quantide.service.quote_monitor import quote_monitor

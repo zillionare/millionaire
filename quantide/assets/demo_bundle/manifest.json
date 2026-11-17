@@ -1,0 +1,142 @@
+{
+  "asset_count": 150,
+  "assumptions": [
+    "Synthetic but deterministic A-share-like data for functional demos only.",
+    "ST state is supplied as point-in-time daily snapshots, never current names.",
+    "Prices are raw CNY; adjust is cumulative."
+  ],
+  "bundle_digest": "7a00aff72da679c6f966b0c92586f7be919598213a64500958300b65aed8525b",
+  "bundle_version": "2026.11.1",
+  "data_origin": "constructed_synthetic",
+  "end_date": "2024-12-31",
+  "files": [
+    {
+      "columns": [
+        "date",
+        "is_open",
+        "prev"
+      ],
+      "name": "calendar.parquet",
+      "rows": 1096,
+      "schema": {
+        "date": "Date",
+        "is_open": "Int64",
+        "prev": "Date"
+      },
+      "sha256": "923d44edc58f080326b4e6d8eaa5b828fcb13a16c926bf99f6facc559dc91be9"
+    },
+    {
+      "columns": [
+        "asset",
+        "name",
+        "pinyin",
+        "list_date",
+        "delist_date"
+      ],
+      "name": "stocks.parquet",
+      "rows": 150,
+      "schema": {
+        "asset": "String",
+        "delist_date": "Date",
+        "list_date": "Date",
+        "name": "String",
+        "pinyin": "String"
+      },
+      "sha256": "7c0bb63f22ce10d4bc5e3ba9b4cce03d9dad6b02989c7d7e647bb5425acecca7"
+    },
+    {
+      "columns": [
+        "date",
+        "asset",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "amount",
+        "adjust",
+        "is_st",
+        "up_limit",
+        "down_limit"
+      ],
+      "name": "daily_bars.parquet",
+      "rows": 107495,
+      "schema": {
+        "adjust": "Float64",
+        "amount": "Float64",
+        "asset": "String",
+        "close": "Float64",
+        "date": "Date",
+        "down_limit": "Float64",
+        "high": "Float64",
+        "is_st": "Boolean",
+        "low": "Float64",
+        "open": "Float64",
+        "up_limit": "Float64",
+        "volume": "Float64"
+      },
+      "sha256": "72f071df9b120236a1365caff3d9f8d4ab21c687c10ddf8435f414a916ba859a"
+    },
+    {
+      "columns": [
+        "date",
+        "asset",
+        "up_limit",
+        "down_limit"
+      ],
+      "name": "limit_prices.parquet",
+      "rows": 107495,
+      "schema": {
+        "asset": "String",
+        "date": "Date",
+        "down_limit": "Float64",
+        "up_limit": "Float64"
+      },
+      "sha256": "2bd33427e04f35c4ff26d6e438a673c0408ff47d25e281f63dd584c7f6798061"
+    },
+    {
+      "columns": [
+        "date",
+        "asset",
+        "total_mv",
+        "circ_mv"
+      ],
+      "name": "daily_basic.parquet",
+      "rows": 107495,
+      "schema": {
+        "asset": "String",
+        "circ_mv": "Float64",
+        "date": "Date",
+        "total_mv": "Float64"
+      },
+      "sha256": "90a202d457af8c824e3d5327b84fa7402a2c7e6308898df28a2ee9d2a0c65b55"
+    },
+    {
+      "columns": [
+        "date",
+        "asset",
+        "is_st"
+      ],
+      "name": "stock_status_pit.parquet",
+      "rows": 107495,
+      "schema": {
+        "asset": "String",
+        "date": "Date",
+        "is_st": "Boolean"
+      },
+      "sha256": "051f74afbbee9e7bee8bdd0530dcd9d8742280fe1a9653bf9b536f8466c065c9"
+    }
+  ],
+  "kind": "demo_bundle",
+  "schema_version": 1,
+  "seed": 20261117,
+  "start_date": "2022-01-01",
+  "trading_days": 726,
+  "units": {
+    "amount": "thousand CNY",
+    "market_cap": "10k CNY",
+    "prices": "CNY raw",
+    "timezone": "Asia/Shanghai trading date",
+    "volume": "lots (100 shares)"
+  }
+}

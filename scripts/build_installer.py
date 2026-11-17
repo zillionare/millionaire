@@ -32,7 +32,7 @@ def run(*command, **kwargs):
 def verify_wheel_source(wheel):
     """Refuse stale same-version wheels before spending time building a native installer."""
     paths = [*sorted((ROOT / "quantide").rglob("*.py"))]
-    for directory in ("quantide/web/static", "quantide/web/templates"):
+    for directory in ("quantide/web/static", "quantide/web/templates", "quantide/assets"):
         paths.extend(path for path in (ROOT / directory).rglob("*") if path.is_file())
     with zipfile.ZipFile(wheel) as archive:
         for path in paths:

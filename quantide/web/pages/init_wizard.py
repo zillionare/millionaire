@@ -600,6 +600,29 @@ async def _validate_download_source(state: AppState) -> FT | None:
     return None
 
 
+@rt("/demo/activate", methods=["POST"])
+async def activate_demo_bundle_from_wizard(request: Request) -> Any:
+    """Mount the built-in offline data bundle without any Token or network call."""
+    from quantide.service.demo_bundle import activate_demo_bundle
+
+    try:
+        await asyncio.to_thread(activate_demo_bundle)
+        _bootstrap_runtime_for_initialized_app(request.app)
+    except Exception as exc:
+        values = init_wizard.get_state(force_refresh=True).to_dict()
+        logger.error("体验数据包激活失败: {}", exc)
+        return _render_wizard_main_content(
+            4,
+            values,
+            step_content=Step5_DataSetup(values),
+            current_step_value=4,
+            error_message=f"体验数据包激活失败：{exc}",
+        )
+    init_wizard.update_step(6)
+    _set_reconfigure_mode(False)
+    return RedirectResponse("/", status_code=303)
+
+
 def _download_progress_view(state: AppState) -> FT:
     return _render_wizard_main_content(
         6, state.to_dict(), current_step_value=6, extra_nodes=(SyncProgressDialog(),)

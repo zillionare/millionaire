@@ -224,6 +224,8 @@ class Settings:
     # Deprecated compatibility field; it no longer selects a quote source.
     livequote_mode: str
     data_source: str
+    data_source_mode: str
+    demo_home: str
     epoch: datetime.date
     timezone: datetime.tzinfo
     cheat_on_close_time: str
@@ -268,12 +270,21 @@ class Settings:
             livequote_mode=str(getattr(state, "livequote_mode", "") or "none").strip().lower(),
             data_source=str(getattr(state, "data_source", "") or "tushare").strip().lower()
             or "tushare",
+            data_source_mode=_data_source_mode(state),
+            demo_home=str(getattr(state, "demo_home", "") or "").strip(),
             epoch=_as_date(getattr(state, "epoch", None), datetime.date(2005, 1, 1)),
             timezone=timezone,
             cheat_on_close_time=_normalize_cheat_on_close_time(
                 getattr(state, "cheat_on_close_time", "")
             ),
         )
+
+
+def _data_source_mode(state: Any) -> str:
+    """Return demo mode only when both the flag and isolated home are present."""
+    requested = str(getattr(state, "data_source_mode", "") or "").strip()
+    demo_home = str(getattr(state, "demo_home", "") or "").strip()
+    return "demo_bundle" if requested == "demo_bundle" and demo_home else "standard"
 
 
 def get_settings() -> Settings:
@@ -286,7 +297,15 @@ def get_settings() -> Settings:
 
 def get_data_home() -> str:
     """Return the effective data home directory."""
-    return get_settings().app_home
+    settings = get_settings()
+    if settings.data_source_mode == "demo_bundle" and settings.demo_home:
+        return settings.demo_home
+    return settings.app_home
+
+
+def get_data_source_mode() -> str:
+    """Return the active data mode: ``standard`` or ``demo_bundle``."""
+    return get_settings().data_source_mode
 
 
 def get_factor_dir() -> str:

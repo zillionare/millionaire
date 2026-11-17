@@ -27,6 +27,10 @@ def _normalize_state_dates(self: "AppState") -> None:
         ).date()
     if isinstance(self.epoch, str):
         self.epoch = datetime.datetime.strptime(self.epoch, "%Y-%m-%d").date()
+    if isinstance(self.demo_data_end, str):
+        self.demo_data_end = datetime.datetime.strptime(self.demo_data_end, "%Y-%m-%d").date()
+    if isinstance(self.demo_activated_at, str):
+        self.demo_activated_at = datetime.datetime.fromisoformat(self.demo_activated_at)
     if isinstance(self.created_at, str):
         self.created_at = datetime.datetime.fromisoformat(self.created_at)
     if isinstance(self.updated_at, str):
@@ -159,6 +163,21 @@ class AppState(Entity):
     data_source: str = "tushare"
     """当前标准数据源适配器名称"""
 
+    data_source_mode: str = "standard"
+    """数据模式：standard（正式源）或 demo_bundle（只读体验包）"""
+
+    demo_home: str = ""
+    """体验数据模式使用的隔离数据目录；正式 app_home 保持不变"""
+
+    demo_bundle_version: str = ""
+    """当前挂载的离线体验包版本"""
+
+    demo_data_end: datetime.date | None = None
+    """离线体验包数据截止日"""
+
+    demo_activated_at: datetime.datetime | None = None
+    """离线体验包最近激活时间"""
+
     cheat_on_close_time: str = "14:57"
     """cheat_on_close 模式下 bar_tm 的撮合时间（HH:MM 格式，09:00-15:00 范围内）"""
 
@@ -201,6 +220,8 @@ class AppState(Entity):
                 self.history_years = max(1, int(self.history_years))
             except Exception:
                 self.history_years = 3
+        if self.data_source_mode not in {"standard", "demo_bundle"}:
+            self.data_source_mode = "standard"
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典，用于数据库存储"""
@@ -249,10 +270,19 @@ class AppState(Entity):
         """
         return supports_live_trading() and self.is_fully_initialized and self.gateway_enabled
 
+    @property
+    def is_demo_mode(self) -> bool:
+        """Whether the isolated offline demo bundle is active."""
+        return self.data_source_mode == "demo_bundle" and bool(self.demo_home)
+
     def can_use_backtest(self) -> bool:
         """检查是否可以使用回测功能
 
         Returns:
             bool: True 表示可以使用回测功能
         """
-        return self.is_fully_initialized and bool(self.tushare_token)
+        return self.is_fully_initialized and (
+            self.is_demo_mode
+            or bool(self.tushare_token)
+            or self.data_source in {"baostock", "baostock_daily"}
+        )

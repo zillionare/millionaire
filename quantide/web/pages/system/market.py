@@ -444,6 +444,10 @@ async def index(req: Request) -> Any:
 @rt("/sync", methods="post")
 async def sync_market(req: Request) -> Any:
     """同步行情数据"""
+    from quantide.config.settings import get_data_source_mode
+
+    if get_data_source_mode() == "demo_bundle":
+        return Div("体验数据模式使用只读离线包，不执行外部行情同步。", cls="p-4")
     try:
         await asyncio.to_thread(daily_bars.store.update)
         logger.info("行情数据同步完成")

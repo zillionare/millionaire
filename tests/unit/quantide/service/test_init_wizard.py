@@ -477,3 +477,39 @@ def test_save_runtime_config_persists_workspace_directories(db, monkeypatch, tmp
     assert state.strategy_dir == str(strategy_dir.resolve())
     assert factor_dir.is_dir()
     assert strategy_dir.is_dir()
+
+
+def test_baostock_source_is_token_free_and_keeps_backtest_available(db):
+    service = InitWizardService()
+    service.save_data_init_config(
+        epoch=datetime.date(2024, 1, 1),
+        tushare_token="",
+        history_years=2,
+        data_source="baostock",
+    )
+    state = service.get_state(force_refresh=True)
+    assert state.data_source == "baostock"
+    assert state.tushare_token == ""
+    assert state.data_source_mode == "standard"
+    state.init_completed = True
+    state.init_step = WIZARD_FINAL_STEP
+    state.app_home = "/tmp/baostock-market"
+    service.save_state(state)
+    assert service.get_feature_status()["backtest"] is True
+    assert state.can_use_backtest() is True
+
+
+def test_demo_mode_allows_backtest_without_any_token(db):
+    service = InitWizardService()
+    state = AppState(
+        init_completed=True,
+        init_step=WIZARD_FINAL_STEP,
+        app_home="/tmp/formal-market",
+        data_source_mode="demo_bundle",
+        demo_home="/tmp/demo-market",
+        tushare_token="",
+    )
+    service.save_state(state)
+    assert state.is_demo_mode
+    assert state.can_use_backtest() is True
+    assert service.get_feature_status()["backtest"] is True

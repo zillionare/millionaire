@@ -2,11 +2,28 @@
 
 from typing import Any
 
-from fasthtml.common import H3, A, Div, Input, Label, P, Table, Tbody, Td, Th, Thead, Tr
+from fasthtml.common import (
+    H2,
+    H3,
+    A,
+    Button,
+    Div,
+    Form,
+    Input,
+    Label,
+    P,
+    Table,
+    Tbody,
+    Td,
+    Th,
+    Thead,
+    Tr,
+)
 
 from quantide.config.realtime_source import realtime_source
 from quantide.providers.extensions import quote_provider_enabled
 from quantide.service.data_source_access import load_access_report
+from quantide.service.demo_bundle import demo_status
 from quantide.service.init_wizard import init_wizard
 from quantide.web.components.tencent_trial import TencentTrialControl
 from quantide.web.pages.ai_config_views import ai_wizard_card
@@ -20,6 +37,39 @@ STATUS_LABELS = {
     "incompatible": "字段不完整",
     "rate_limited": "请求受限",
 }
+
+
+def DemoBundleCard() -> Any:
+    """Offer a one-click, token-free, offline demo data mount."""
+    status = demo_status()
+    if status["active"]:
+        return Div(
+            H2("体验数据包已启用", cls="text-lg font-semibold"),
+            P(
+                f"数据截至 {status.get('data_end') or '未知'}；正式 data_home 保持不变。",
+                cls="text-sm text-gray-600 mt-1",
+            ),
+            cls="rounded-xl border border-amber-300 bg-amber-50 p-4 my-4",
+        )
+    return Div(
+        H2("先用内置离线体验数据包快速体验", cls="text-lg font-semibold"),
+        P(
+            "免 Token、无需联网，150 只 A 股合成数据数秒内挂载到隔离演示目录；"
+            "不会写入正式 data_home，也不会启动外部历史同步。",
+            cls="text-sm text-gray-600 mt-1",
+        ),
+        Form(
+            Button(
+                "使用内置离线体验数据包（免 Token、立即体验）",
+                type="submit",
+                cls="q-btn q-btn--primary",
+            ),
+            action="/init-wizard/demo/activate",
+            method="post",
+            cls="mt-3",
+        ),
+        cls="rounded-xl border border-amber-300 bg-amber-50 p-4 my-4",
+    )
 
 
 def AccessReport(report: Any = None) -> Any:
@@ -115,6 +165,7 @@ def HistoryConfirmation(state: Any) -> Any:
     """Keep bulk data import behind a named action after both source decisions."""
     source = {
         "tushare": "Tushare 实时快照（每分钟更新）",
+        "baostock": "BaoStock 免积分历史日线（无需 Token）",
         "tencent": "腾讯财经 30 天演示",
         "extension": "自定义实时行情扩展",
         "none": "暂不启用，仅研究回测",

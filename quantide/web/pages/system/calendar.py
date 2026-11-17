@@ -187,6 +187,10 @@ async def index(req: Request, year: int | None = None, month: int | None = None)
 @rt("/sync", methods="post")
 async def sync_calendar() -> Any:
     """同步交易日历数据"""
+    from quantide.config.settings import get_data_source_mode
+
+    if get_data_source_mode() == "demo_bundle":
+        return Div("体验数据模式使用只读离线包，不执行外部日历同步。", cls="p-4")
     try:
         import asyncio
 

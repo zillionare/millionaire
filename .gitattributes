@@ -1,1 +1,3 @@
 * text=auto eol=lf
+quantide/assets/demo_bundle/*.parquet binary
+quantide/assets/demo_bundle/manifest.json text eol=lf

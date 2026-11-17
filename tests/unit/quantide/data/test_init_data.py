@@ -123,3 +123,18 @@ def test_explicit_memory_database_remains_supported(tmp_path, db, offline_data_l
         assert db["app_state"].count == 0
     finally:
         db.init(previous)
+
+
+def test_missing_calendar_and_stock_list_load_without_external_fetch(tmp_path: Path):
+    calendar_before = dict(data_module.calendar.__dict__)
+    stocks_before = dict(data_module.stock_list.__dict__)
+    try:
+        data_module.calendar.load(tmp_path / "calendar.parquet", fetch_missing=False)
+        data_module.stock_list.load(tmp_path / "stock_list.parquet", fetch_missing=False)
+        assert data_module.calendar._data.num_rows == 0
+        assert data_module.stock_list.size == 0
+    finally:
+        data_module.calendar.__dict__.clear()
+        data_module.calendar.__dict__.update(calendar_before)
+        data_module.stock_list.__dict__.clear()
+        data_module.stock_list.__dict__.update(stocks_before)

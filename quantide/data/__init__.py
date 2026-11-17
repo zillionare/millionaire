@@ -50,6 +50,8 @@ def init_data(
     home: str | Path | None = None,
     init_db: bool = True,
     db_path: str | Path | None = None,
+    *,
+    fetch_missing: bool = True,
 ) -> None:
     """初始化数据层对象：stocklist、calendar、daily_bars、index_bars、index_weight、limit_price。
 
@@ -88,11 +90,18 @@ def init_data(
     limit_price_path.mkdir(parents=True, exist_ok=True)
     minute_bars_path.mkdir(parents=True, exist_ok=True)
 
-    calendar.load(calendar_path)
-    stock_list.load(stocklist_path)
+    if fetch_missing:
+        calendar.load(calendar_path)
+        stock_list.load(stocklist_path)
+    else:
+        calendar.load(calendar_path, fetch_missing=False)
+        stock_list.load(stocklist_path, fetch_missing=False)
     daily_basic.connect(home_dir / "data/daily_basic.parquet").load()
 
-    daily_bars.connect(str(daily_bars_path), str(calendar_path))
+    if fetch_missing:
+        daily_bars.connect(str(daily_bars_path), str(calendar_path))
+    else:
+        daily_bars.connect(str(daily_bars_path), str(calendar_path), fetch_missing=False)
     _index_bars_store = IndexBarsStore(str(index_bars_path), calendar)
     _index_weight_store = IndexWeightStore(str(index_weight_path), calendar)
     _limit_price_store = LimitPriceStore(str(limit_price_path), calendar)

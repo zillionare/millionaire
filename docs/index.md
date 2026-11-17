@@ -43,7 +43,7 @@ Millionaire 支持 macOS Apple Silicon（ARM64）、Ubuntu x86_64 和 Windows x6
 
 Millionaire 社区版已经为实盘做好架构与验证准备，但不内置真实交易下单通道；真实账户接入需通过 **Millionaire pro** 或自行适配柜台扩展完成。
 
-Millionaire 不自带历史行情数据，但已内置 Tushare 和 Baostock 接口，在初始化时提供相应的访问凭证即可同步使用。
+Millionaire 不在分发包中附带真实历史行情，但内置 Tushare 与 BaoStock 接口；BaoStock 日线无需 token。初始化还可启用约 3.8 MB 的合成体验数据包，免 token 演示因子研究、回测和 SHAP 链路，不能用于真实市场结论。
 
 Millionaire 的仿真交易功能需要实时行情数据。为便于体验，系统内置了基于腾讯财经的临时演示源（默认关闭，可启用一次，30 天后自动到期关闭）；到期后请接入自己的实时行情扩展。更多信息见[版本状态与后续方向](roadmap.md)和[本版能力与版本状态](scope.md)。
 

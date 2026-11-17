@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from quantide.config.paths import normalize_factor_dir
-from quantide.config.settings import get_data_source, get_settings
+from quantide.config.settings import get_data_home, get_data_source, get_settings
 from quantide.factors.alpha import FEATURE_COLS
 from quantide.factors.plugins import (
     FactorPlugin,
@@ -112,7 +112,7 @@ def data_status() -> dict[str, Any]:
     """Return active mode, local coverage, dataset schemas and gap risks."""
     dates = _bar_dates()
     settings = get_settings()
-    data_home = Path(settings.app_home)
+    data_home = Path(get_data_home())
     from quantide.data.models.daily_bars import daily_bars
 
     bars_path = Path(getattr(daily_bars, "_store_path", data_home / "data/bars/daily"))
@@ -129,6 +129,7 @@ def data_status() -> dict[str, Any]:
         _dataset_entry("index_bars", data_home / "data/bars/index"),
         _dataset_entry("limit_price", data_home / "data/limit_price"),
         _dataset_entry("minute_bars", data_home / "data/bars/minute30"),
+        _dataset_entry("stock_status_pit", data_home / "data/stock_status_pit.parquet"),
     ]
     risks = []
     if not dates:
@@ -141,9 +142,10 @@ def data_status() -> dict[str, Any]:
             }
         )
     return {
-        "mode": "standard",
+        "mode": settings.data_source_mode,
         "data_source": get_data_source(),
         "data_home": str(data_home),
+        "formal_data_home": settings.app_home,
         "coverage": {
             "start": dates[0].isoformat() if dates else None,
             "end": dates[-1].isoformat() if dates else None,

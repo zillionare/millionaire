@@ -217,6 +217,42 @@ def _redirect_preserving_query(req: Request, target: str) -> RedirectResponse:
     return RedirectResponse(destination, status_code=303)
 
 
+def _bootstrap_application_runtime(
+    enforce_single_instance: bool,
+) -> tuple[Any, BrokerRegistry, str]:
+    """Initialize the optional runtime without blocking wizard startup on errors."""
+    runtime: Any = None
+    reg = BrokerRegistry()
+    try:
+        if not init_wizard.is_initialized():
+            return runtime, reg, ""
+        init_data(get_data_home(), init_db=False)
+        runtime = RuntimeBootstrap().bootstrap()
+        reg = runtime.registry
+        strategy_runtime_manager.bootstrap_from_runtime(runtime)
+        from quantide.config.settings import get_settings
+        from quantide.service.data_readiness import data_readiness_monitor
+
+        if get_settings().data_source_mode != "demo_bundle":
+            data_readiness_monitor.start()
+            try:
+                _init_scheduler_jobs()
+                factor_tracking_service.start(recover=enforce_single_instance)
+            except Exception as exc:
+                logger.warning(f"定时任务注册失败: {exc}")
+    except Exception as exc:
+        logger.warning(f"应用运行时初始化失败，将进入初始化向导模式: {exc}")
+        return runtime, reg, str(exc)
+    return runtime, reg, ""
+
+
+def _bind_auth_database(auth: AuthManager, db_path: Path) -> None:
+    """Bind the auth process singleton to this factory's config database."""
+    auth_db_path = Path(auth.auth_db.db_path).expanduser()
+    if auth_db_path != db_path.expanduser():
+        auth.rebind_database(str(db_path))
+
+
 def create_app(
     app_config_dir: str | Path | None = None,
     enforce_single_instance: bool = True,
@@ -247,26 +283,7 @@ def create_app(
     if enforce_single_instance:
         _check_single_instance()
 
-    runtime = None
-    startup_error = ""
-    reg = BrokerRegistry()
-    try:
-        if init_wizard.is_initialized():
-            init_data(get_data_home(), init_db=False)
-            runtime = RuntimeBootstrap().bootstrap()
-            reg = runtime.registry
-            strategy_runtime_manager.bootstrap_from_runtime(runtime)
-            from quantide.service.data_readiness import data_readiness_monitor
-
-            data_readiness_monitor.start()
-            try:
-                _init_scheduler_jobs()
-                factor_tracking_service.start(recover=enforce_single_instance)
-            except Exception as exc:
-                logger.warning(f"定时任务注册失败: {exc}")
-    except Exception as exc:
-        startup_error = str(exc)
-        logger.warning(f"应用运行时初始化失败，将进入初始化向导模式: {exc}")
+    runtime, reg, startup_error = _bootstrap_application_runtime(enforce_single_instance)
 
     auth = AuthManager(
         db_path=str(db_path),
@@ -279,9 +296,7 @@ def create_app(
     # app config directories (notably for tests and embedded app instances).
     # Rebind before registering middleware/routes so a request handled by an
     # ASGI worker cannot use the connection from an earlier app.
-    auth_db_path = Path(auth.auth_db.db_path).expanduser()
-    if auth_db_path != db_path.expanduser():
-        auth.rebind_database(str(db_path))
+    _bind_auth_database(auth, db_path)
 
     app, rt = fast_app(
         lifespan=application_lifespan,

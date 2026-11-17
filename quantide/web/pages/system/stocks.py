@@ -182,6 +182,10 @@ async def index(req: Request, page: int = 1, per_page: int = 20, q: str = "") ->
 @rt("/sync", methods="post")
 async def sync_stocks() -> Any:
     """同步股票列表数据"""
+    from quantide.config.settings import get_data_source_mode
+
+    if get_data_source_mode() == "demo_bundle":
+        return Div("体验数据模式使用只读离线包，不执行外部证券列表同步。", cls="p-4")
     try:
         await asyncio.to_thread(stock_list.update)
         logger.info(f"Stock list synced: {stock_list.size} records")
