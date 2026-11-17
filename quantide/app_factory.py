@@ -52,6 +52,7 @@ from quantide.web.pages.data_db import data_db_app
 from quantide.web.pages.data_market import data_market_app
 from quantide.web.pages.data_stocks import data_stocks_app
 from quantide.web.pages.factors import factor_app
+from quantide.web.pages.factors_studio import factors_studio_app
 from quantide.web.pages.history_orders import history_orders_list
 from quantide.web.pages.history_positions import history_positions_list
 from quantide.web.pages.history_trades import history_trades_list
@@ -63,6 +64,7 @@ from quantide.web.pages.optimize import (
 )
 from quantide.web.pages.paper import paper_app
 from quantide.web.pages.strategy import strategy_app
+from quantide.web.pages.system.ai import system_ai_app
 from quantide.web.pages.system.calendar import system_calendar_app
 from quantide.web.pages.system.datasource import system_datasource_app
 from quantide.web.pages.system.directories import system_directories_app
@@ -161,7 +163,9 @@ def _attach_runtime_to_app_states(runtime: RuntimeBootstrap) -> None:
         data_market_app,
         data_stocks_app,
         factor_app,
+        factors_studio_app,
         init_wizard_app,
+        system_ai_app,
         system_calendar_app,
         system_datasource_app,
         system_directories_app,
@@ -189,7 +193,9 @@ def _attach_root_app_to_app_states(root_app: FastHTML) -> None:
         data_market_app,
         data_stocks_app,
         factor_app,
+        factors_studio_app,
         init_wizard_app,
+        system_ai_app,
         system_calendar_app,
         system_datasource_app,
         system_directories_app,
@@ -441,6 +447,12 @@ def create_app(
                 lambda req: RedirectResponse("/factors/", status_code=303),
                 methods=["GET"],
             ),
+            Route(
+                "/factors/studio",
+                lambda req: RedirectResponse("/factors/studio/", status_code=303),
+                methods=["GET"],
+            ),
+            Mount("/factors/studio", factors_studio_app),
             Mount("/factors", factor_app),
             Mount("/attribution", attribution_app),
             Route("/analysis", analysis_handler, methods=["GET"]),
@@ -525,6 +537,12 @@ def create_app(
                 methods=["GET"],
             ),
             Mount("/system/directories", system_directories_app),
+            Route(
+                "/system/ai",
+                lambda req: RedirectResponse("/system/ai/", status_code=303),
+                methods=["GET"],
+            ),
+            Mount("/system/ai", system_ai_app),
             Route(
                 "/system/risk-events",
                 lambda req: RedirectResponse("/system/risk-events/", status_code=303),

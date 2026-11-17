@@ -120,7 +120,12 @@ factor_app, rt = fast_app(hdrs=AppTheme.headers())
 
 def _factor_menu(active_url: str = "") -> list[dict[str, Any]]:
     menu: list[dict[str, Any]] = [
-        {"title": "因子总览", "url": "/factors/", "active": active_url == "/factors/"}
+        {"title": "因子总览", "url": "/factors/", "active": active_url == "/factors/"},
+        {
+            "title": "AI 写因子",
+            "url": "/factors/studio",
+            "active": active_url.startswith("/factors/studio"),
+        },
     ]
     metadata = factor_metadata()
     for group, ids in feature_groups().items():
@@ -749,6 +754,15 @@ def index(req: Request) -> Any:
                 "在策略使用前，先验证因子与未来收益的统计关系。",
                 cls="mt-1 text-sm text-gray-500",
             ),
+            A(
+                "✦ AI 写因子（AI 因子工坊）",
+                href="/factors/studio",
+                cls=(
+                    "inline-flex rounded-lg bg-[#e41815] px-4 py-2 text-sm font-medium "
+                    "text-white shadow-sm hover:bg-[#c91512]"
+                ),
+            ),
+            cls="flex flex-wrap items-end justify-between gap-3",
         ),
         _overview_summary(entries),
         _plugin_diagnostics(),
@@ -944,6 +958,11 @@ def _render_detail(
     layout = _layout(meta.display_name, f"/factors/{meta.factor_id}")
     content = Div(
         _status_strip(meta, view),
+        A(
+            "✦ 用 AI 继续改进或组合这个因子 →",
+            href="/factors/studio",
+            cls="mt-3 inline-block text-sm font-medium text-[#e41815]",
+        ),
         Div(
             _tab_link(meta.factor_id, "card", "因子卡片", tab == "card"),
             _tab_link(meta.factor_id, "report", "检验报告", tab == "report"),

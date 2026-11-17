@@ -33,9 +33,16 @@ from quantide.data.models.app_state import AppState
 from quantide.data.models.calendar import calendar
 from quantide.data.models.daily_bars import daily_bars
 from quantide.data.models.stocks import stock_list
+from quantide.service.ai_assistant import (
+    config_from_form,
+    load_ai_assistant_config,
+    save_ai_assistant_config,
+    test_ai_connection,
+)
 from quantide.service.data_source_access import ensure_access_report, load_access_report
 from quantide.service.init_wizard import init_wizard
 from quantide.web.pages import wizard_state
+from quantide.web.pages.ai_config_views import connectivity_result_view
 from quantide.web.pages.wizard_components import (
     FormHint as FormHint,
 )
@@ -630,6 +637,45 @@ async def handle_step(request: Request, step: int) -> Any:
     state = init_wizard.get_state(force_refresh=True)
     state_dict = state.to_dict()
     return _render_wizard_main_content(step, state_dict, current_step_value=step)
+
+
+def _ai_config_from_form(form: Any) -> Any:
+    values = {
+        "provider_preset": form.get("provider_preset"),
+        "base_url": form.get("base_url"),
+        "model": form.get("model"),
+        "api_key": form.get("api_key"),
+        "timeout_seconds": form.get("timeout_seconds"),
+        "max_repair_rounds": form.get("max_repair_rounds"),
+        "max_tool_steps": form.get("max_tool_steps"),
+    }
+    return config_from_form(values, existing=load_ai_assistant_config())
+
+
+@rt("/ai/save")
+async def save_ai_assistant(request: Request) -> Any:
+    """Persist optional AI settings from the wizard without blocking completion."""
+    form = await request.form()
+    try:
+        view = save_ai_assistant_config(_ai_config_from_form(form)).as_dict()
+    except Exception as exc:
+        return Div(f"保存失败：{exc}", cls="text-sm text-red-600")
+    masked = view["api_key_masked"] or "未设置"
+    return Div(
+        f"已保存 AI 配置（{view['provider_preset']} / {view['model']}；密钥 {masked}）。",
+        cls="text-sm text-green-700",
+    )
+
+
+@rt("/ai/test")
+async def test_wizard_ai_connection(request: Request) -> Any:
+    """Probe optional AI settings and return only credential-safe diagnostics."""
+    form = await request.form()
+    try:
+        result = test_ai_connection(_ai_config_from_form(form))
+    except Exception as exc:
+        return Div(f"配置无效：{exc}", cls="text-sm text-red-600")
+    return connectivity_result_view(result)
 
 
 @rt("/gateway-test")

@@ -117,6 +117,11 @@ SYSTEM_MAINTENANCE_MENU = [
                 ),
             },
             {
+                "title": "AI 助手",
+                "url": "/system/ai",
+                "icon_path": "M12 3l2.1 5.1L19 10l-4.9 1.9L12 17l-2.1-5.1L5 10l4.9-1.9z",
+            },
+            {
                 "title": "定时任务",
                 "url": "/system/jobs",
                 "icon_path": "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",

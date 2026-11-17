@@ -9,6 +9,7 @@ from quantide.providers.extensions import quote_provider_enabled
 from quantide.service.data_source_access import load_access_report
 from quantide.service.init_wizard import init_wizard
 from quantide.web.components.tencent_trial import TencentTrialControl
+from quantide.web.pages.ai_config_views import ai_wizard_card
 
 STATUS_LABELS = {
     "ok": "通过",
@@ -128,4 +129,5 @@ def HistoryConfirmation(state: Any) -> Any:
             cls="mt-4",
         ),
         AccessReport(),
+        ai_wizard_card(),
     )

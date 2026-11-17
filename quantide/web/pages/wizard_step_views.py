@@ -28,6 +28,7 @@ from quantide.config.dev_stubs import (
 )
 from quantide.config.features import supports_live_trading
 from quantide.config.paths import normalize_data_home, normalize_factor_dir, normalize_strategy_dir
+from quantide.web.pages.ai_config_views import ai_wizard_card
 from quantide.web.pages.wizard_components import (
     FormLabel,
     FormRow,
@@ -547,6 +548,7 @@ def Step6_Complete(state: dict[str, Any] | None = None) -> Any:
         )
         if state.get("init_completed")
         else None,
+        ai_wizard_card(),
         cls="w-full py-8",
     )
 
