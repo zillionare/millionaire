@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import io
 import json
 from pathlib import Path
 
@@ -248,3 +249,30 @@ def test_backtest_cli_serializes_isolated_run_payload(monkeypatch, capsys) -> No
     assert payload["data"]["portfolio_id"] == "research-run"
     assert payload["data"]["start"] == "2024-01-02"
     assert payload["data"]["diagnostics"] == ["shap_unavailable"]
+
+
+def test_json_cli_survives_cp1252_pipe_with_non_bmp_roundtrip(monkeypatch) -> None:
+    payload = research_cli.envelope(
+        "factor.check",
+        ok=False,
+        status="FAIL",
+        exit_code=3,
+        diagnostics=[{"code": "FUTURE_DATA_LEAK", "message": "中文诊断 🚀🧪"}],
+    )
+    legacy = research_cli.envelope_json(payload)
+    assert not legacy.isascii()
+    with pytest.raises(UnicodeEncodeError):
+        io.TextIOWrapper(io.BytesIO(), encoding="cp1252").write(legacy)
+    with pytest.raises(ValueError):
+        research_cli.envelope_json({"bad": float("nan")}, ensure_ascii=True)
+
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding="cp1252")
+    monkeypatch.setattr("sys.stdout", stream)
+    cli._emit(payload, True)
+    stream.flush()
+
+    encoded = raw.getvalue()
+    assert encoded
+    assert encoded.isascii()
+    assert json.loads(encoded.decode("ascii")) == payload

@@ -119,6 +119,7 @@ _V05_EVIDENCE: dict[str, tuple[str, ...]] = {
         "test_factor_check_missing_target_is_contract_error",
         "test_preset_cli_save_and_list_use_research_envelope",
         "test_backtest_cli_rejects_ablation_without_preset",
+        "test_json_cli_survives_cp1252_pipe_with_non_bmp_roundtrip",
     )
     + _nodes(
         f"{_U}/service/test_monthly_wind_provenance.py",
@@ -133,6 +134,7 @@ _V05_EVIDENCE: dict[str, tuple[str, ...]] = {
         "test_factor_init_writes_template_and_lists_it",
         "test_generated_template_passes_wind_tunnel",
         "test_factor_init_rejects_builtin_id",
+        "test_json_cli_survives_cp1252_pipe_with_non_bmp_roundtrip",
     ),
     "AC-5013": _nodes(
         f"{_U}/service/test_factor_audit_badge.py",

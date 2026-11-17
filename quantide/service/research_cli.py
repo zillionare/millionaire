@@ -70,8 +70,8 @@ def envelope(
     return cast(dict[str, Any], json_safe(payload))
 
 
-def envelope_json(payload: dict[str, Any]) -> str:
-    return json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
+def envelope_json(payload: dict[str, Any], *, ensure_ascii: bool = False) -> str:
+    return json.dumps(payload, ensure_ascii=ensure_ascii, indent=2, allow_nan=False)
 
 
 def _ensure_data() -> None:

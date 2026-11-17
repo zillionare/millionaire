@@ -181,7 +181,7 @@ def _emit_risk_extension(payload: dict[str, Any], data: dict[str, Any]) -> None:
 
 def _emit(payload: dict[str, Any], as_json: bool) -> None:
     if as_json:
-        print(envelope_json(payload))
+        print(envelope_json(payload, ensure_ascii=True))
         return
     data = payload.get("data") or {}
     if str(payload.get("command", "")).startswith("risk-extension."):
