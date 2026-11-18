@@ -46,7 +46,7 @@ python -m scripts.check_quality
 python -m unittest discover -s tests/quality -v
 ```
 
-提交前保持项目虚拟环境已激活，pre-commit 的本地检查使用该环境中的 Python。Ruff 自动格式化和 MyPy hook 保留。MyPy 使用项目虚拟环境内固定的 1.20.2 版本，检查整个 `quantide`，不要求 `tests`、`scripts` 的函数具备类型声明。生产质量 hook 不运行测试，允许 Red-Green-Refactor 中先提交失败的测试；生产代码提交仍须满足结构预算。
+提交前保持项目虚拟环境已激活，pre-commit 的本地检查使用该环境中的 Python。Ruff 自动格式化和 MyPy hook 保留。MyPy 使用项目虚拟环境内固定的 1.20.2 版本，检查整个 `quantide`，不要求 `tests`、`scripts` 的函数具备类型声明。它们即使被开发入口间接导入，也只向生产检查提供接口信息；这两个模块范围内的类型错误单独豁免，`quantide` 调用端仍受严格检查。生产质量 hook 不运行测试，允许 Red-Green-Refactor 中先提交失败的测试；生产代码提交仍须满足结构预算。
 
 结果默认保存在系统临时产物目录的 `quality/quality.json`，包括工具版本、完整文件数、源码和配置摘要、每项检查退出码及原始输出。工具缺失、版本不匹配、扫描超时、源码清单为空均失败；一个工具失败后仍执行其他扫描以提供完整反馈。这些产物及 `.louke` 审查材料不进入 CE 发布产物。
 
