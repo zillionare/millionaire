@@ -57,7 +57,7 @@ python -m unittest discover -s tests/quality -v
 `.github/workflows/ci.yml` 是 PR、分支 push、手工及 release 共用入口：
 
 1. `quality`：安装精确版本的工具，运行门禁反例，执行完整生产质量扫描并严格构建用户文档。
-2. `tests (ubuntu-latest)`、`tests (macos-latest)`、`tests (windows-latest)`：Python 3.13，构建 wheel/sdist 并验证 CE 内容，安装构建的 wheel 和 ML extra，在源码目录之外检查已安装 CLI/应用，再运行全部单元测试及 80% 覆盖率门禁。macOS 安装 LightGBM 所需的 OpenMP。三个平台不互相提前取消。
+2. `tests (ubuntu-latest)`、`tests (macos-latest)`、`tests (windows-latest)`：Python 3.13，构建 wheel/sdist 并验证 CE 内容，安装构建的 wheel 和 ML extra，在源码目录之外检查已安装 CLI/应用，再运行全部单元测试及 80% 覆盖率门禁。macOS 安装 LightGBM 所需的 OpenMP。三个平台不互相提前取消。Windows 全量单测与两条真实 CLI 旅程的 job 总预算为 45 分钟；单测 60 秒、旅程 300 秒和子 CLI 120 秒的独立期限仍分别执行。
 3. `acceptance`：运行 CE release_gate 测试，使用 `--runxfail`，把原先的 expected failure 当成真实失败；随后解析 JUnit，拒绝没有实际执行的用例、失败、错误、skip 和 xfail。
 4. `installers / installer (...)`：分别构建并实际验收 `macos-arm64`、`ubuntu-amd64`、`windows-x64` 安装包。macOS 仅支持 Apple Silicon，不再构建 Intel 包。
 
